@@ -1,0 +1,708 @@
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  Volleyball,
+  Waves,
+  Trophy,
+  UserCheck,
+  Plus,
+  X,
+  ChevronRight,
+  Save
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { cn } from '@/lib/utils';
+
+// Form validation schema
+const createMatchSchema = z.object({
+  competitionId: z.string().min(1, 'Selecione uma competição'),
+  modality: z.enum(['indoor', 'beach'], { required_error: 'Selecione a modalidade' }),
+  playerFormat: z.enum(['6x6', '4x4', '2x2', '3x3'], { required_error: 'Selecione o formato' }),
+  setFormat: z.enum(['1-set', '2-sets', '3-sets', '5-sets'], { required_error: 'Selecione o formato de sets' }),
+  teamAId: z.string().min(1, 'Selecione a equipe A'),
+  teamBId: z.string().min(1, 'Selecione a equipe B'),
+  date: z.string().min(1, 'Informe a data'),
+  time: z.string().min(1, 'Informe o horário'),
+  venue: z.string().min(1, 'Informe o local'),
+  court: z.string().optional(),
+  referee1Id: z.string().min(1, 'Selecione o 1º árbitro'),
+  referee2Id: z.string().optional(),
+  scorerId: z.string().optional(),
+  round: z.number().min(1, 'Informe a rodada'),
+  matchNumber: z.number().min(1, 'Informe o número do jogo'),
+  observations: z.string().optional(),
+}).refine(data => data.teamAId !== data.teamBId, {
+  message: 'As equipes devem ser diferentes',
+  path: ['teamBId'],
+});
+
+type CreateMatchFormData = z.infer<typeof createMatchSchema>;
+
+// Mock data
+const mockCompetitions = [
+  { id: '1', name: 'Superliga Feminina 2024/25', modality: 'indoor' },
+  { id: '2', name: 'Superliga Masculina 2024/25', modality: 'indoor' },
+  { id: '3', name: 'Circuito Brasileiro de Vôlei de Praia', modality: 'beach' },
+  { id: '4', name: 'Campeonato Estadual Feminino', modality: 'indoor' },
+];
+
+const mockTeams = [
+  { id: '1', name: 'Osasco Voleibol', shortName: 'OSA', modality: 'indoor' },
+  { id: '2', name: 'Minas Tênis Clube', shortName: 'MIN', modality: 'indoor' },
+  { id: '3', name: 'Praia Clube', shortName: 'PRA', modality: 'indoor' },
+  { id: '4', name: 'Flamengo', shortName: 'FLA', modality: 'indoor' },
+  { id: '5', name: 'Sesi-SP', shortName: 'SES', modality: 'indoor' },
+  { id: '6', name: 'Sada Cruzeiro', shortName: 'SAD', modality: 'indoor' },
+  { id: '7', name: 'Duda/Ana Patrícia', shortName: 'DUD', modality: 'beach' },
+  { id: '8', name: 'Carol/Bárbara', shortName: 'CAR', modality: 'beach' },
+  { id: '9', name: 'Evandro/Bruno', shortName: 'EVA', modality: 'beach' },
+  { id: '10', name: 'Alison/Guto', shortName: 'ALI', modality: 'beach' },
+];
+
+const mockReferees = [
+  { id: '1', name: 'Carlos Silva', level: 'Nacional' },
+  { id: '2', name: 'Ana Santos', level: 'Internacional' },
+  { id: '3', name: 'Pedro Oliveira', level: 'Nacional' },
+  { id: '4', name: 'Maria Costa', level: 'Estadual' },
+];
+
+const mockVenues = [
+  { id: '1', name: 'Ginásio José Liberatti', city: 'Osasco, SP' },
+  { id: '2', name: 'Ginásio do Ibirapuera', city: 'São Paulo, SP' },
+  { id: '3', name: 'Arena Minas', city: 'Belo Horizonte, MG' },
+  { id: '4', name: 'Arena Praia Salvador', city: 'Salvador, BA' },
+];
+
+interface CreateMatchFormProps {
+  onSubmit?: (data: CreateMatchFormData) => void;
+  onCancel?: () => void;
+}
+
+export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
+  const [step, setStep] = useState(1);
+  const totalSteps = 3;
+
+  const form = useForm<CreateMatchFormData>({
+    resolver: zodResolver(createMatchSchema),
+    defaultValues: {
+      modality: 'indoor',
+      playerFormat: '6x6',
+      setFormat: '3-sets',
+      round: 1,
+      matchNumber: 1,
+    },
+  });
+
+  const modality = form.watch('modality');
+  const teamAId = form.watch('teamAId');
+
+  const filteredTeams = mockTeams.filter(t => t.modality === modality);
+  const availableTeamsForB = filteredTeams.filter(t => t.id !== teamAId);
+
+  const handleSubmit = (data: CreateMatchFormData) => {
+    console.log('Match created:', data);
+    onSubmit?.(data);
+  };
+
+  const nextStep = async () => {
+    let fieldsToValidate: (keyof CreateMatchFormData)[] = [];
+    
+    if (step === 1) {
+      fieldsToValidate = ['competitionId', 'modality', 'playerFormat', 'setFormat'];
+    } else if (step === 2) {
+      fieldsToValidate = ['teamAId', 'teamBId', 'round', 'matchNumber'];
+    }
+
+    const isValid = await form.trigger(fieldsToValidate);
+    if (isValid && step < totalSteps) {
+      setStep(step + 1);
+    }
+  };
+
+  const prevStep = () => {
+    if (step > 1) setStep(step - 1);
+  };
+
+  return (
+    <Card className="card-elevated max-w-4xl mx-auto">
+      <CardHeader className="border-b border-border">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-accent/10">
+              <Plus className="w-5 h-5 text-accent" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-display">Nova Partida</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Preencha os dados para agendar uma nova partida
+              </p>
+            </div>
+          </div>
+          {onCancel && (
+            <Button variant="ghost" size="icon" onClick={onCancel}>
+              <X className="w-5 h-5" />
+            </Button>
+          )}
+        </div>
+
+        {/* Progress Steps */}
+        <div className="flex items-center gap-2 mt-6">
+          {[
+            { num: 1, label: 'Competição', icon: Trophy },
+            { num: 2, label: 'Equipes', icon: Users },
+            { num: 3, label: 'Local e Data', icon: Calendar },
+          ].map((s, idx) => (
+            <div key={s.num} className="flex items-center">
+              <button
+                type="button"
+                onClick={() => s.num < step && setStep(s.num)}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg transition-colors',
+                  step === s.num
+                    ? 'bg-accent text-accent-foreground'
+                    : step > s.num
+                    ? 'bg-success/10 text-success cursor-pointer hover:bg-success/20'
+                    : 'bg-muted text-muted-foreground'
+                )}
+              >
+                <s.icon className="w-4 h-4" />
+                <span className="text-sm font-medium">{s.label}</span>
+              </button>
+              {idx < 2 && (
+                <ChevronRight className="w-4 h-4 mx-2 text-muted-foreground" />
+              )}
+            </div>
+          ))}
+        </div>
+      </CardHeader>
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(handleSubmit)}>
+          <CardContent className="p-6">
+            <motion.div
+              key={step}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              {/* Step 1: Competition & Format */}
+              {step === 1 && (
+                <div className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="competitionId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Competição</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione a competição" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {mockCompetitions.map(comp => (
+                              <SelectItem key={comp.id} value={comp.id}>
+                                {comp.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="modality"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Modalidade</FormLabel>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                field.onChange('indoor');
+                                form.setValue('playerFormat', '6x6');
+                                form.setValue('setFormat', '3-sets');
+                              }}
+                              className={cn(
+                                'p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2',
+                                field.value === 'indoor'
+                                  ? 'border-indoor bg-indoor/10'
+                                  : 'border-border hover:border-indoor/50'
+                              )}
+                            >
+                              <Volleyball className={cn('w-8 h-8', field.value === 'indoor' ? 'text-indoor' : 'text-muted-foreground')} />
+                              <span className={cn('font-medium', field.value === 'indoor' ? 'text-indoor' : 'text-foreground')}>Quadra</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                field.onChange('beach');
+                                form.setValue('playerFormat', '2x2');
+                                form.setValue('setFormat', '2-sets');
+                              }}
+                              className={cn(
+                                'p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2',
+                                field.value === 'beach'
+                                  ? 'border-beach bg-beach/10'
+                                  : 'border-border hover:border-beach/50'
+                              )}
+                            >
+                              <Waves className={cn('w-8 h-8', field.value === 'beach' ? 'text-beach' : 'text-muted-foreground')} />
+                              <span className={cn('font-medium', field.value === 'beach' ? 'text-beach' : 'text-foreground')}>Praia</span>
+                            </button>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="playerFormat"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Formato de Jogadores</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {modality === 'indoor' ? (
+                                  <>
+                                    <SelectItem value="6x6">6x6 (Tradicional)</SelectItem>
+                                    <SelectItem value="4x4">4x4</SelectItem>
+                                  </>
+                                ) : (
+                                  <>
+                                    <SelectItem value="2x2">2x2 (Duplas)</SelectItem>
+                                    <SelectItem value="3x3">3x3 (Trios)</SelectItem>
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="setFormat"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Formato de Sets</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {modality === 'indoor' ? (
+                                  <>
+                                    <SelectItem value="3-sets">Melhor de 3 sets</SelectItem>
+                                    <SelectItem value="5-sets">Melhor de 5 sets</SelectItem>
+                                  </>
+                                ) : (
+                                  <>
+                                    <SelectItem value="1-set">1 set (21 pontos)</SelectItem>
+                                    <SelectItem value="2-sets">Melhor de 2 sets</SelectItem>
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Teams */}
+              {step === 2 && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="round"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Rodada</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              {...field}
+                              onChange={e => field.onChange(parseInt(e.target.value) || 1)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="matchNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Número do Jogo</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              {...field}
+                              onChange={e => field.onChange(parseInt(e.target.value) || 1)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-6 items-end">
+                    <FormField
+                      control={form.control}
+                      name="teamAId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-teamA/10 text-teamA border-teamA">A</Badge>
+                            Equipe A
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="h-14">
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {filteredTeams.map(team => (
+                                <SelectItem key={team.id} value={team.id}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-muted-foreground">{team.shortName}</span>
+                                    <span>{team.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="flex items-center justify-center pb-2">
+                      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                        <span className="text-lg font-bold text-muted-foreground">VS</span>
+                      </div>
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="teamBId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-teamB/10 text-teamB border-teamB">B</Badge>
+                            Equipe B
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="h-14">
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {availableTeamsForB.map(team => (
+                                <SelectItem key={team.id} value={team.id}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-muted-foreground">{team.shortName}</span>
+                                    <span>{team.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Venue, Date & Referees */}
+              {step === 3 && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="venue"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4" />
+                            Local
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o local" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {mockVenues.map(venue => (
+                                <SelectItem key={venue.id} value={venue.name}>
+                                  <div className="flex flex-col">
+                                    <span>{venue.name}</span>
+                                    <span className="text-xs text-muted-foreground">{venue.city}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="court"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Quadra/Arena</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ex: Quadra Principal" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4" />
+                            Data
+                          </FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="time"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2">
+                            <Clock className="w-4 h-4" />
+                            Horário
+                          </FormLabel>
+                          <FormControl>
+                            <Input type="time" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <UserCheck className="w-5 h-5 text-accent" />
+                    Arbitragem
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="referee1Id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>1º Árbitro *</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {mockReferees.map(ref => (
+                                <SelectItem key={ref.id} value={ref.id}>
+                                  <div className="flex items-center gap-2">
+                                    <span>{ref.name}</span>
+                                    <Badge variant="outline" className="text-xs">{ref.level}</Badge>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="referee2Id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>2º Árbitro</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Opcional" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {mockReferees.map(ref => (
+                                <SelectItem key={ref.id} value={ref.id}>
+                                  <div className="flex items-center gap-2">
+                                    <span>{ref.name}</span>
+                                    <Badge variant="outline" className="text-xs">{ref.level}</Badge>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="scorerId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Apontador</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Opcional" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {mockReferees.map(ref => (
+                                <SelectItem key={ref.id} value={ref.id}>
+                                  {ref.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="observations"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Observações</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Informações adicionais sobre a partida..."
+                            className="resize-none"
+                            rows={3}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Adicione notas ou instruções especiais para esta partida.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+            </motion.div>
+
+            {/* Navigation Buttons */}
+            <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={prevStep}
+                disabled={step === 1}
+              >
+                Voltar
+              </Button>
+
+              <div className="flex items-center gap-3">
+                {onCancel && (
+                  <Button type="button" variant="ghost" onClick={onCancel}>
+                    Cancelar
+                  </Button>
+                )}
+                
+                {step < totalSteps ? (
+                  <Button type="button" variant="accent" onClick={nextStep}>
+                    Próximo
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                ) : (
+                  <Button type="submit" variant="accent" className="gap-2">
+                    <Save className="w-4 h-4" />
+                    Agendar Partida
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </form>
+      </Form>
+    </Card>
+  );
+}

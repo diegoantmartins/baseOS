@@ -1,73 +1,118 @@
-# Welcome to your Lovable project
+# VolleyPro - Sistema de Gestão de Competições de Voleibol
 
-## Project info
+<div align="center">
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+![VolleyPro](https://img.shields.io/badge/VolleyPro-0F2A44?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEwIi8+PC9zdmc+&logoColor=white)
+![React](https://img.shields.io/badge/React-18.3-61DAFB?style=flat-square&logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat-square&logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-06B6D4?style=flat-square&logo=tailwindcss)
 
-## How can I edit this code?
+**Sistema profissional de gerenciamento de competições de voleibol de quadra e praia**
 
-There are several ways of editing your application.
+[Funcionalidades](#-funcionalidades) • [Instalação](#-instalação) • [Documentação](#-documentação) • [Roadmap](#-roadmap)
 
-**Use Lovable**
+</div>
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🏐 Sobre o Projeto
 
-**Use your preferred IDE**
+O **VolleyPro** é um sistema web completo para gerenciamento de competições de voleibol, desenvolvido para atender federações, ligas, organizadores, árbitros e equipes. Suporta vôlei de quadra (6x6, 4x4) e vôlei de praia (2x2, 3x3).
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Principais Diferenciais
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- 📱 **Responsivo** - Desktop, tablet e celular
+- ⚡ **Tempo Real** - Acompanhamento de partidas ao vivo
+- 📄 **Súmula Digital** - Geração automática de PDF oficial
+- 🔄 **Ordem de Saque** - Controle automático de rotação
+- 🏆 **Multi-formato** - Diversos formatos de competição
 
-Follow these steps:
+---
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## 🎯 Funcionalidades
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### ✅ Implementado
 
-# Step 3: Install the necessary dependencies.
-npm i
+| Módulo | Status |
+|--------|--------|
+| Dashboard com estatísticas | ✅ |
+| Listagem e filtros de jogos | ✅ |
+| Formulário de agendamento de partida | ✅ |
+| Súmula digital com placar em tempo real | ✅ |
+| Geração de PDF oficial (A4, P&B) | ✅ |
+| Gestão de competições e chaveamentos | ✅ |
+| Cadastro de equipes e atletas | ✅ |
+| Gestão de árbitros | ✅ |
+| Dashboards estatísticos | ✅ |
+| Configurações do sistema | ✅ |
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### 🔜 Em Desenvolvimento
+
+- Autenticação com perfis de acesso
+- Banco de dados PostgreSQL/Supabase
+- CRUD completo de todas entidades
+- Controle avançado de ordem de saque
+- Assinatura digital
+
+---
+
+## 🛠️ Stack Tecnológica
+
+- **React 18** + **TypeScript** + **Vite**
+- **TailwindCSS** + **shadcn/ui**
+- **Framer Motion** (animações)
+- **React Hook Form** + **Zod** (formulários)
+- **jsPDF** (geração de PDF)
+- **Recharts** (gráficos)
+
+---
+
+## 🚀 Instalação
+
+```bash
+# Clone o repositório
+git clone https://github.com/seu-usuario/volleypro.git
+cd volleypro
+
+# Instale as dependências
+npm install
+
+# Inicie o servidor
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Acesse `http://localhost:5173`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## 📚 Documentação
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- [Análise de Completude](docs/ANALISE_COMPLETUDE.md) - Status e roadmap detalhado
+- [Schema do Banco](docs/DATABASE_SCHEMA.md) - Modelagem PostgreSQL
+- [Contribuindo](CONTRIBUTING.md) - Guia de contribuição
 
-## What technologies are used for this project?
+---
 
-This project is built with:
+## 📋 Roadmap
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+| Fase | Descrição | Status |
+|------|-----------|--------|
+| 1 | Frontend completo | ✅ Concluído |
+| 2 | Backend (Supabase) | 🔜 Próximo |
+| 3 | Autenticação | 🔜 Próximo |
+| 4 | Tempo Real | ⏳ Planejado |
+| 5 | PWA Offline | ⏳ Planejado |
 
-## How can I deploy this project?
+---
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## 📄 Licença
 
-## Can I connect a custom domain to my Lovable project?
+MIT License - veja [LICENSE](LICENSE) para detalhes.
 
-Yes, you can!
+---
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+<div align="center">
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+**Desenvolvido com 💙 para a comunidade do voleibol brasileiro**
+
+</div>
