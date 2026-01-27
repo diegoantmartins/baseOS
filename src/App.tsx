@@ -12,6 +12,7 @@ import AthletesPage from "./pages/AthletesPage";
 import RefereesPage from "./pages/RefereesPage";
 import StatisticsPage from "./pages/StatisticsPage";
 import SettingsPage from "./pages/SettingsPage";
+import CreateMatchPage from "./pages/CreateMatchPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,16 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/jogos" element={<MatchesPage />} />
+          <Route path="/jogos/novo" element={<CreateMatchPage />} />
+          <Route path="/sumulas" element={<MatchSheetPage />} />
+          <Route path="/competicoes" element={<CompetitionsPage />} />
+          <Route path="/equipes" element={<TeamsPage />} />
+          <Route path="/atletas" element={<AthletesPage />} />
+          <Route path="/arbitros" element={<RefereesPage />} />
+          <Route path="/estatisticas" element={<StatisticsPage />} />
+          <Route path="/configuracoes" element={<SettingsPage />} />
+          {/* Legacy routes */}
           <Route path="/matches" element={<MatchesPage />} />
           <Route path="/match-sheets" element={<MatchSheetPage />} />
           <Route path="/competitions" element={<CompetitionsPage />} />

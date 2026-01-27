@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Calendar, 
@@ -57,6 +58,7 @@ const item = {
 };
 
 const MatchesPage = () => {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'live' | 'scheduled' | 'completed'>('all');
   const [modalityFilter, setModalityFilter] = useState<'all' | 'indoor' | 'beach'>('all');
 
@@ -79,7 +81,7 @@ const MatchesPage = () => {
             <h1 className="text-3xl font-display font-bold text-foreground">Jogos</h1>
             <p className="text-muted-foreground mt-1">Gerencie partidas e acompanhe resultados em tempo real</p>
           </div>
-          <Button variant="accent" className="gap-2">
+          <Button variant="accent" className="gap-2" onClick={() => navigate('/jogos/novo')}>
             <Plus className="w-4 h-4" />
             Agendar Jogo
           </Button>
