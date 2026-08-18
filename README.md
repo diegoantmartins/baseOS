@@ -46,15 +46,17 @@ O **VolleyPro** é um sistema web completo para gerenciamento de competições d
 | Dashboards estatísticos | ✅ |
 | Configurações do sistema | ✅ |
 | Inscrição online por equipe (prazo, limites, regras de elenco) | ✅ |
-| Testes automatizados (Vitest) | ✅ |
+| Numeração de camisa opcional (confirmada no dia da competição) | ✅ |
+| Autenticação com perfis (Organizador, Árbitro, Equipe) e rotas protegidas | ✅ |
+| Banco de dados PostgreSQL/Supabase (migrations, RLS, seed) | ✅ |
+| Testes automatizados (Vitest, 47 testes) | ✅ |
 
 ### 🔜 Em Desenvolvimento
 
-- Autenticação com perfis de acesso
-- Banco de dados PostgreSQL/Supabase
 - CRUD completo de todas entidades
 - Controle avançado de ordem de saque
 - Assinatura digital
+- Tempo real (WebSocket) e PWA offline
 
 ---
 
@@ -88,15 +90,49 @@ Acesse `http://localhost:5173`
 ### Testes
 
 ```bash
-npm test          # roda a suíte completa (Vitest, 32 testes)
+npm test          # roda a suíte completa (Vitest, 47 testes)
 npm run test:watch
-npm run lint      # ESLint (5 erros pré-existentes no template de UI)
+npm run lint      # ESLint (0 erros)
 npx tsc -p tsconfig.app.json --noEmit   # typecheck
+npm run build     # build de produção
 ```
 
 Os testes cobrem regras de negócio de inscrição (`src/test/registrationService.test.ts`),
-o motor de classificação/desempate (`src/test/standingsService.test.ts`) e
-a geração do PDF da súmula (`src/test/matchSheetPdf.test.ts`).
+o motor de classificação/desempate (`src/test/standingsService.test.ts`),
+a geração do PDF da súmula (`src/test/matchSheetPdf.test.ts`),
+a autenticação (`src/test/authService.test.ts`) e
+o mapeamento de colunas do adaptador Supabase (`src/test/dataAccessMappers.test.ts`).
+
+---
+
+## 🔐 Autenticação
+
+Sem Supabase configurado, o app roda em **modo demo** com login local (contas disponíveis na tela de login):
+
+| Perfil | E-mail | Senha |
+|--------|--------|-------|
+| Organizador | organizador@voleipro.app | demo123 |
+| Árbitro | arbitro@voleipro.app | demo123 |
+| Equipe | equipe@voleipro.app | demo123 |
+
+Com Supabase, o login usa o Supabase Auth (tabela `profiles` + trigger `handle_new_user`).
+
+---
+
+## 🗄️ Supabase
+
+Migrations prontas em `supabase/migrations/`:
+
+```bash
+supabase start          # ou: supabase link --project-ref <ref>
+supabase db push        # aplica schema + seed
+```
+
+1. Em **Authentication → Providers → Email**, habilite o provedor e-mail.
+2. Defina as senhas dos usuários do seed (`supabase/migrations/...seed.sql`) ou cadastre novos usuários — o perfil é criado automaticamente.
+3. Crie o arquivo `.env` com `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (veja `.env.example`); o app usa Supabase automaticamente quando essas variáveis existem.
+
+> A aplicação acessa o banco **somente** via `src/services/dataAccess.ts` (adapter LocalStorage/Supabase com mapeamento camelCase ↔ snake_case).
 
 ---
 
@@ -113,8 +149,8 @@ a geração do PDF da súmula (`src/test/matchSheetPdf.test.ts`).
 | Fase | Descrição | Status |
 |------|-----------|--------|
 | 1 | Frontend completo | ✅ Concluído |
-| 2 | Backend (Supabase) | 🔜 Próximo |
-| 3 | Autenticação | 🔜 Próximo |
+| 2 | Backend (Supabase) | ✅ Concluído |
+| 3 | Autenticação | ✅ Concluído |
 | 4 | Tempo Real | ⏳ Planejado |
 | 5 | PWA Offline | ⏳ Planejado |
 

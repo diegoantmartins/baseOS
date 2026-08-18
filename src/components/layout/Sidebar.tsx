@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -15,9 +15,13 @@ import {
   ChevronRight,
   Waves,
   Building2,
+  LogOut,
+  UserRound,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/components/auth/AuthContext';
+import { ROLE_LABELS } from '@/types/auth';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -31,9 +35,24 @@ const menuItems = [
   { icon: Settings, label: 'Configurações', path: '/settings' },
 ];
 
+/** Itens restritos ao perfil de organizador. */
+const ORGANIZER_ONLY = new Set(['/competitions', '/teams', '/athletes', '/referees', '/statistics', '/settings']);
+
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { session, signOut } = useAuth();
+
+  const visibleItems = menuItems.filter(item => {
+    if (!session) return true;
+    return session.user.role === 'organizer' || !ORGANIZER_ONLY.has(item.path) || item.path === '/';
+  });
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login');
+  };
 
   return (
     <motion.aside
@@ -70,7 +89,7 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 overflow-y-auto scrollbar-thin">
         <ul className="space-y-1">
-          {menuItems.map((item) => {
+          {visibleItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <li key={item.path}>
@@ -135,6 +154,70 @@ export function Sidebar() {
           )}
         </AnimatePresence>
       </nav>
+
+      {/* Usuário e sair */}
+      <div className="p-3 border-t border-sidebar-border">
+        {session ? (
+          <div className="space-y-2">
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="px-2"
+                >
+                  <p className="text-sm font-semibold text-sidebar-foreground truncate">{session.user.name}</p>
+                  <p className="text-xs text-sidebar-foreground/60">{ROLE_LABELS[session.user.role]}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size={collapsed ? 'icon' : 'default'}
+                onClick={handleSignOut}
+                className="flex-1 justify-start gap-2 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+              >
+                <LogOut className="w-4 h-4" />
+                <AnimatePresence>
+                  {!collapsed && (
+                    <motion.span
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="text-sm"
+                    >
+                      Sair
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            size={collapsed ? 'icon' : 'default'}
+            onClick={() => navigate('/login')}
+            className="w-full justify-start gap-2 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <UserRound className="w-4 h-4" />
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-sm"
+                >
+                  Entrar
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </Button>
+        )}
+      </div>
 
       {/* Collapse Toggle */}
       <div className="p-3 border-t border-sidebar-border">

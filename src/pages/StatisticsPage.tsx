@@ -39,7 +39,14 @@ const matchesPerMonth = [
   { month: 'Jan', jogos: 52 },
 ];
 
-const topScorers = [
+type RankingRow = {
+  name: string;
+  team: string;
+  avg: number;
+  [stat: string]: string | number;
+};
+
+const topScorers: RankingRow[] = [
   { name: 'Gabi Guimarães', team: 'MIN', points: 892, avg: 19.8 },
   { name: 'Yoandy Leal', team: 'SAD', points: 945, avg: 19.7 },
   { name: 'Wallace de Souza', team: 'SES', points: 890, avg: 19.3 },
@@ -47,7 +54,7 @@ const topScorers = [
   { name: 'Ana Patrícia', team: 'DUD', points: 1245, avg: 23.9 },
 ];
 
-const topBlockers = [
+const topBlockers: RankingRow[] = [
   { name: 'Thaísa Daher', team: 'OSA', blocks: 112, avg: 2.8 },
   { name: 'Ana Patrícia', team: 'DUD', blocks: 156, avg: 3.0 },
   { name: 'Bruno Schmidt', team: 'EVA', blocks: 145, avg: 3.0 },
@@ -55,7 +62,7 @@ const topBlockers = [
   { name: 'Gabi Guimarães', team: 'MIN', blocks: 45, avg: 1.0 },
 ];
 
-const topAces = [
+const topAces: RankingRow[] = [
   { name: 'Duda Lisboa', team: 'DUD', aces: 112, avg: 2.2 },
   { name: 'Ana Patrícia', team: 'DUD', aces: 89, avg: 1.7 },
   { name: 'Yoandy Leal', team: 'SAD', aces: 82, avg: 1.7 },
@@ -259,7 +266,7 @@ const StatisticsPage = () => {
   );
 };
 
-function RankingTable({ data, statKey, statLabel }: { data: any[]; statKey: string; statLabel: string }) {
+function RankingTable({ data, statKey, statLabel }: { data: RankingRow[]; statKey: string; statLabel: string }) {
   return (
     <Card className="card-elevated">
       <CardContent className="p-0">

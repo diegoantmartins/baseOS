@@ -50,6 +50,36 @@ Este documento analisa o que está implementado e o que falta para o projeto est
 - [x] Interfaces para todas as entidades
 - [x] Validação com Zod nos formulários
 
+### 6. Inscrição Online por Equipe
+- [x] Convite por link (token) para preencher o elenco
+- [x] Validação de prazo limite (aberto/bloqueado) e trava manual
+- [x] Limites de elenco por formato (mín. 6 / máx. 14 em 6x6)
+- [x] Número de camisa opcional (confirmado no dia da competição), único quando informado
+- [x] Máximo de 1 capitão e 2 líberos por equipe
+- [x] Página pública de preenchimento do elenco (sem login)
+
+### 7. Autenticação e Perfis
+- [x] Login/logout com sessão persistente (modo demo local e Supabase Auth)
+- [x] Perfis: Organizador(a), Árbitro(a), Equipe
+- [x] Proteção de rotas por perfil (RequireAuth)
+- [x] Contas de demonstração na página de login
+- [ ] Cadastro público de usuários
+- [ ] Recuperação de senha
+
+### 8. Backend Supabase
+- [x] Migrations SQL (schema + seed) em supabase/migrations
+- [x] Row Level Security com leitura pública e escrita autenticada
+- [x] RPC segura register_athlete (inscrição por token sem login)
+- [x] Adaptador dataAccess com mapeamento camelCase ↔ snake_case
+- [x] Trigger de criação automática de perfil ao cadastrar usuário
+- [ ] Triggers de auditoria (updated_at automático)
+- [ ] Storage para logos/fotos/templates
+
+### 9. Qualidade e Testes
+- [x] Suíte Vitest (47 testes): inscrição, classificação, PDF da súmula, auth, mapeamento de colunas
+- [x] ESLint com 0 erros
+- [x] Typecheck (tsc --noEmit) e build de produção
+
 ---
 
 ## 🔴 O QUE FALTA (CRÍTICO)
@@ -57,26 +87,27 @@ Este documento analisa o que está implementado e o que falta para o projeto est
 ### 1. Autenticação e Autorização
 ```
 Prioridade: ALTA
-Esforço: 2-3 dias
+Esforço: parcialmente concluído
 ```
-- [ ] Sistema de login/logout
-- [ ] Cadastro de usuários
-- [ ] Perfis de acesso (Admin, Organizador, Árbitro, Técnico, Atleta)
-- [ ] Proteção de rotas
-- [ ] Sessão persistente
+- [x] Sistema de login/logout (modo demo + Supabase Auth)
+- [x] Perfis de acesso (Organizador, Árbitro, Equipe)
+- [x] Proteção de rotas
+- [x] Sessão persistente
+- [ ] Cadastro público de usuários
 - [ ] Recuperação de senha
+- [ ] Controle fino por recurso (ex.: equipe edita apenas seu próprio elenco pela API)
 
 ### 2. Banco de Dados
 ```
 Prioridade: ALTA
-Esforço: 3-5 dias
+Esforço: parcialmente concluído
 ```
-- [ ] Schema PostgreSQL completo
-- [ ] Migrations Supabase
-- [ ] Row Level Security (RLS)
-- [ ] Relacionamentos entre tabelas
-- [ ] Índices para performance
-- [ ] Triggers para auditoria
+- [x] Schema PostgreSQL completo (supabase/migrations)
+- [x] Migrations Supabase (schema + seed)
+- [x] Row Level Security (RLS)
+- [x] Relacionamentos entre tabelas
+- [x] Índices para performance
+- [ ] Triggers para auditoria (updated_at automático)
 
 ### 3. CRUD Completo das Entidades
 ```
@@ -113,9 +144,9 @@ Esforço: 5-7 dias
 
 #### Partidas
 - [x] Criar partida (formulário pronto)
+- [x] Persistir partidas com sets e placar via dataAccess (localStorage/Supabase)
 - [ ] Editar partida agendada
 - [ ] Cancelar/adiar partida
-- [ ] Vincular ao banco de dados
 
 ---
 
@@ -205,18 +236,17 @@ Esforço: 2-3 dias
 
 ## 📋 ORDEM RECOMENDADA DE IMPLEMENTAÇÃO
 
-### Fase 1: Backend Essencial (1-2 semanas)
-1. Habilitar Supabase/Lovable Cloud
-2. Criar schema do banco de dados
-3. Configurar autenticação
-4. Implementar RLS policies
+### Fase 1: Backend Essencial ✅ Concluída
+1. Supabase: schema do banco de dados e migrations ✅
+2. Autenticação (Supabase Auth + perfis) ✅
+3. RLS policies ✅
 
-### Fase 2: CRUD Básico (2-3 semanas)
+### Fase 2: CRUD Básico (em andamento)
 1. Competições - criar/editar/excluir
 2. Equipes - criar/editar/vincular atletas
 3. Atletas - criar/editar com upload de foto
 4. Árbitros - criar/editar
-5. Partidas - integrar formulário com banco
+5. Partidas - persistência via adapter ✅
 
 ### Fase 3: Súmula Funcional (1-2 semanas)
 1. Salvar súmula no banco
@@ -240,14 +270,14 @@ Esforço: 2-3 dias
 
 ## 🎯 ESTIMATIVA TOTAL
 
-| Fase | Tempo Estimado |
-|------|----------------|
-| Backend Essencial | 1-2 semanas |
-| CRUD Básico | 2-3 semanas |
-| Súmula Funcional | 1-2 semanas |
-| Tempo Real | 1 semana |
-| Polimento | 1-2 semanas |
-| **TOTAL** | **6-10 semanas** |
+| Fase | Tempo Estimado | Status |
+|------|----------------|--------|
+| Backend Essencial | 1-2 semanas | ✅ Concluída |
+| CRUD Básico | 2-3 semanas | Em andamento |
+| Súmula Funcional | 1-2 semanas | Pendente |
+| Tempo Real | 1 semana | Pendente |
+| Polimento | 1-2 semanas | Pendente |
+| **RESTANTE** | **6-9 semanas** | |
 
 ---
 
@@ -257,5 +287,6 @@ Esforço: 2-3 dias
 - A tipagem TypeScript está completa
 - O design system está bem definido
 - A geração de PDF está funcional
-- Falta principalmente a integração com backend
-- Recomenda-se usar Lovable Cloud para rapidez
+- Inscrição online, autenticação e backend Supabase implementados
+- Suíte de testes automatizada (47 testes) cobrindo regras de negócio
+- Falta principalmente o CRUD completo das entidades na UI e a súmula funcional

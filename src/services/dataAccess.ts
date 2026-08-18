@@ -216,40 +216,65 @@ const localStorageAdapter = {
 // Adaptador Supabase
 // ============================================================================
 
+// Mapeamento de colunas: a aplicação usa camelCase; o banco usa snake_case.
+export function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    out[key.replace(/[A-Z]/g, m => `_${m.toLowerCase()}`)] = value;
+  }
+  return out;
+}
+
+export function toCamel(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    out[key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())] = value;
+  }
+  return out;
+}
+
+function mapRows<T>(rows: unknown): T[] {
+  return (rows as Record<string, unknown>[]).map(row => toCamel(row) as T);
+}
+
+function mapRow<T>(row: unknown): T | null {
+  return row ? (toCamel(row as Record<string, unknown>) as T) : null;
+}
+
 const supabaseAdapter = {
   async listCompetitions(): Promise<CompetitionRecord[]> {
     const supabase = await getSupabaseClient();
     if (!supabase) return [];
     const { data } = await supabase.from(SUPABASE_TABLES.competitions).select('*');
-    return (data ?? []) as CompetitionRecord[];
+    return mapRows<CompetitionRecord>(data ?? []);
   },
 
   async getCompetition(id: string): Promise<CompetitionRecord | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
     const { data } = await supabase.from(SUPABASE_TABLES.competitions).select('*').eq('id', id).maybeSingle();
-    return (data as CompetitionRecord) ?? null;
+    return mapRow<CompetitionRecord>(data);
   },
 
   async updateCompetition(id: string, updates: Partial<CompetitionRecord>): Promise<CompetitionRecord | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.competitions).update(updates).eq('id', id).select().maybeSingle();
-    return (data as CompetitionRecord) ?? null;
+    const { data } = await supabase.from(SUPABASE_TABLES.competitions).update(toSnake(updates)).eq('id', id).select().maybeSingle();
+    return mapRow<CompetitionRecord>(data);
   },
 
   async listTeams(): Promise<TeamRecord[]> {
     const supabase = await getSupabaseClient();
     if (!supabase) return [];
     const { data } = await supabase.from(SUPABASE_TABLES.teams).select('*');
-    return (data ?? []) as TeamRecord[];
+    return mapRows<TeamRecord>(data ?? []);
   },
 
   async listReferees(): Promise<RefereeRecord[]> {
     const supabase = await getSupabaseClient();
     if (!supabase) return [];
     const { data } = await supabase.from(SUPABASE_TABLES.referees).select('*');
-    return (data ?? []) as RefereeRecord[];
+    return mapRows<RefereeRecord>(data ?? []);
   },
 
   async listMatches(competitionId?: string): Promise<MatchRecord[]> {
@@ -258,28 +283,28 @@ const supabaseAdapter = {
     let query = supabase.from(SUPABASE_TABLES.matches).select('*');
     if (competitionId) query = query.eq('competition_id', competitionId);
     const { data } = await query;
-    return (data ?? []) as MatchRecord[];
+    return mapRows<MatchRecord>(data ?? []);
   },
 
   async getMatch(id: string): Promise<MatchRecord | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
     const { data } = await supabase.from(SUPABASE_TABLES.matches).select('*').eq('id', id).maybeSingle();
-    return (data as MatchRecord) ?? null;
+    return mapRow<MatchRecord>(data);
   },
 
   async createMatch(match: Omit<MatchRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<MatchRecord> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
-    const { data } = await supabase.from(SUPABASE_TABLES.matches).insert(match).select().single();
-    return data as MatchRecord;
+    const { data } = await supabase.from(SUPABASE_TABLES.matches).insert(toSnake(match)).select().single();
+    return (data as unknown) as MatchRecord;
   },
 
   async updateMatch(id: string, updates: Partial<MatchRecord>): Promise<MatchRecord | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.matches).update(updates).eq('id', id).select().maybeSingle();
-    return (data as MatchRecord) ?? null;
+    const { data } = await supabase.from(SUPABASE_TABLES.matches).update(toSnake(updates)).eq('id', id).select().maybeSingle();
+    return mapRow<MatchRecord>(data);
   },
 
   async listCompetitionTeams(competitionId?: string): Promise<CompetitionTeam[]> {
@@ -288,21 +313,21 @@ const supabaseAdapter = {
     let query = supabase.from(SUPABASE_TABLES.competitionTeams).select('*');
     if (competitionId) query = query.eq('competition_id', competitionId);
     const { data } = await query;
-    return (data ?? []) as CompetitionTeam[];
+    return mapRows<CompetitionTeam>(data ?? []);
   },
 
   async getCompetitionTeamById(id: string): Promise<CompetitionTeam | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
     const { data } = await supabase.from(SUPABASE_TABLES.competitionTeams).select('*').eq('id', id).maybeSingle();
-    return (data as CompetitionTeam) ?? null;
+    return mapRow<CompetitionTeam>(data);
   },
 
   async getCompetitionTeamByToken(token: string): Promise<CompetitionTeam | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
     const { data } = await supabase.from(SUPABASE_TABLES.competitionTeams).select('*').eq('access_token', token).maybeSingle();
-    return (data as CompetitionTeam) ?? null;
+    return mapRow<CompetitionTeam>(data);
   },
 
   async createCompetitionTeam(input: Omit<CompetitionTeam, 'id' | 'accessToken' | 'createdAt' | 'updatedAt'>): Promise<CompetitionTeam> {
@@ -310,17 +335,17 @@ const supabaseAdapter = {
     if (!supabase) throw new Error('Supabase não configurado');
     const { data } = await supabase
       .from(SUPABASE_TABLES.competitionTeams)
-      .insert({ ...input, access_token: generateToken() })
+      .insert({ ...toSnake(input), access_token: generateToken() })
       .select()
       .single();
-    return data as CompetitionTeam;
+    return (data as unknown) as CompetitionTeam;
   },
 
   async updateCompetitionTeam(id: string, updates: Partial<CompetitionTeam>): Promise<CompetitionTeam | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.competitionTeams).update(updates).eq('id', id).select().maybeSingle();
-    return (data as CompetitionTeam) ?? null;
+    const { data } = await supabase.from(SUPABASE_TABLES.competitionTeams).update(toSnake(updates)).eq('id', id).select().maybeSingle();
+    return mapRow<CompetitionTeam>(data);
   },
 
   async listCompetitionAthletes(competitionTeamId?: string): Promise<CompetitionAthlete[]> {
@@ -329,21 +354,21 @@ const supabaseAdapter = {
     let query = supabase.from(SUPABASE_TABLES.competitionAthletes).select('*');
     if (competitionTeamId) query = query.eq('competition_team_id', competitionTeamId);
     const { data } = await query;
-    return (data ?? []) as CompetitionAthlete[];
+    return mapRows<CompetitionAthlete>(data ?? []);
   },
 
   async createCompetitionAthlete(input: CompetitionAthleteCreate): Promise<CompetitionAthlete> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
-    const { data } = await supabase.from(SUPABASE_TABLES.competitionAthletes).insert(input).select().single();
-    return data as CompetitionAthlete;
+    const { data } = await supabase.from(SUPABASE_TABLES.competitionAthletes).insert(toSnake(input)).select().single();
+    return (data as unknown) as CompetitionAthlete;
   },
 
   async updateCompetitionAthlete(id: string, updates: Partial<CompetitionAthlete>): Promise<CompetitionAthlete | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.competitionAthletes).update(updates).eq('id', id).select().maybeSingle();
-    return (data as CompetitionAthlete) ?? null;
+    const { data } = await supabase.from(SUPABASE_TABLES.competitionAthletes).update(toSnake(updates)).eq('id', id).select().maybeSingle();
+    return mapRow<CompetitionAthlete>(data);
   },
 
   async deleteCompetitionAthlete(id: string): Promise<void> {

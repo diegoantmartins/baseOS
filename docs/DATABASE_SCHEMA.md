@@ -1,10 +1,54 @@
 # Schema do Banco de Dados - VolleyPro
 
-Este documento descreve o schema planejado para o banco de dados PostgreSQL via Supabase.
+Este documento descreve o schema do banco de dados PostgreSQL via Supabase.
+
+> **ATENÇÃO:** o schema **implementado** está em `supabase/migrations/` e é a fonte da verdade. A seção abaixo reflete o banco real; o restante do documento é o schema **planejado/original** (referência para evolução futura).
 
 ---
 
-## Diagrama ER Simplificado
+## ✅ Schema Implementado (Supabase)
+
+Migrações em `supabase/migrations/20260818000000_initial_schema.sql` (schema) e `20260818000001_seed.sql` (dados de demonstração).
+
+### Convenções
+
+- **Colunas em `snake_case`**; a aplicação usa camelCase e faz a conversão no adaptador (`src/services/dataAccess.ts`, helpers `toSnake`/`toCamel`).
+- **Colunas JSONB** (`competition_teams.registration_info`, `matches.sets`, `matches.referees`) guardam as chaves **em camelCase**, espelhando os tipos TS (`RegistrationInfo`, `SetMatchRecord`, `MatchReferee`).
+- IDs são `text` (formato `comp-1`, `ct-2`, `ath-101`...) para espelhar os seeds do frontend, em vez de UUID.
+
+### Tabelas
+
+| Tabela | Colunas principais | Observações |
+|--------|-------------------|-------------|
+| `profiles` | id (ref `auth.users`), email, full_name, role (`organizer`/`referee`/`team`), competition_team_id | Criada por trigger `handle_new_user` ao cadastrar; consultada para login/autorização |
+| `competitions` | name, description, modality, format, player_format, set_format, start_date, end_date, venue, status, registration_deadline, rules JSONB | |
+| `teams` | name, short_name, logo_url, coach_name | |
+| `referees` | full_name, level | |
+| `competition_teams` | competition_id, team_id, access_token (convite), registration_status (`not_started`/`in_progress`/`completed`), is_locked, registration_info JSONB (capitão, líbero 1, líbero 2, observações), created_at, updated_at | UNIQUE (competition_id, team_id) e UNIQUE access_token |
+| `competition_athletes` | competition_team_id, name, jersey_number (opcional, UNIQUE parcial por equipe quando presente), position, document_number, birth_date, gender, is_captain, is_libero, created_at | Máx. 14 por equipe (validado na RPC `register_athlete`) |
+| `matches` | competition_id, round, match_number, team_a_id, team_b_id, scheduled_time, status, score_a, score_b, winner_id, sets JSONB, referees JSONB | Equipes referenciadas via `competition_teams.id` |
+
+### Enums
+
+`user_role`, `competition_status`, `modality`, `gender_category`, `registration_status`, `match_status`.
+
+### Row Level Security
+
+- Leitura **pública** (SELECT) em todas as tabelas — o app expõe jogos/classificação sem login.
+- Escrita apenas para usuários autenticados (`authenticated`).
+- `profiles`: usuário pode ler/atualizar apenas o próprio perfil.
+
+### RPC `register_athlete`
+
+Função `SECURITY DEFINER` que inscreve um atleta **sem exigir login** (fluxo de inscrição por link): valida token de convite, prazo de inscrição, limite de 14 atletas, duplicidade de camisa, capitão (1) e líberos (2), e atualiza o status da inscrição para `in_progress`.
+
+### Trigger `handle_new_user`
+
+Cria automaticamente o `profiles` quando um usuário se cadastra no Supabase Auth.
+
+---
+
+## Diagrama ER (Schema Planejado)
 
 ```
 organizations ──┬── competitions ──┬── matches ──┬── sets
@@ -387,8 +431,9 @@ CREATE TRIGGER recalc_standings
 
 ## Próximos Passos
 
-1. Habilitar Lovable Cloud/Supabase
-2. Executar migrations na ordem correta
-3. Configurar RLS para cada tabela
-4. Testar com dados de exemplo
-5. Integrar frontend com as tabelas
+1. ✅ Executar as migrations (schema + seed) no projeto Supabase
+2. ✅ Habilitar Supabase Auth e definir a senha dos usuários do seed
+3. ✅ Configurar RLS para cada tabela
+4. ✅ Testar com dados de exemplo
+5. ✅ Integrar frontend (adapter com mapeamento camelCase ↔ snake_case)
+6. Evoluir o schema planejado acima conforme novas funcionalidades (organizations, categories, match_events, match_sheets, standings)

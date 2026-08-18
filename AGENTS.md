@@ -8,14 +8,15 @@ Sempre execute após alterações:
 
 ```bash
 npx tsc -p tsconfig.app.json --noEmit   # typecheck
-npm run lint                            # ESLint (5 erros pré-existentes no template: command.tsx, textarea.tsx, tailwind.config.ts, StatisticsPage.tsx, CreateMatchPage.tsx)
-npm test                                # Vitest (src/test/*.test.ts)
+npm run lint                            # ESLint (0 erros; avisos react-refresh podem existir)
+npm test                                # Vitest (src/test/*.test.ts, 47 testes)
 npm run build                           # build de produção
 ```
 
 ## Estrutura relevante
 
-- `src/services/dataAccess.ts` — única porta de acesso a dados (adapter LocalStorage/Supabase). Toda a app consome apenas este módulo.
+- `src/services/authService.ts` — autenticação por perfis (modo demo local + Supabase Auth).
+- `src/services/dataAccess.ts` — única porta de acesso a dados (adapter LocalStorage/Supabase). Toda a app consome apenas este módulo; `toSnake`/`toCamel` convertem colunas do banco (snake_case) para a forma da aplicação (camelCase).
 - `src/services/registrationService.ts` — regras de negócio de inscrição online por equipe (prazo, limites de elenco, duplicidade de camisa, 1 capitão/2 líberos).
 - `src/services/standingsService.ts` — classificação e desempate (pontos FIVB/CBV, confronto direto, set average, pontos average, saldo, sorteio determinístico).
 - `src/lib/pdf/matchSheetPdf.ts` — geração da súmula em PDF (A4 P&B).
