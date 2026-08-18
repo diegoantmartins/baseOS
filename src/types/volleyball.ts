@@ -98,6 +98,9 @@ export type Competition = {
   playerFormat: IndoorFormat | BeachFormat;
   setFormat: SetFormat;
   category: Category;
+  genderCategory?: 'male' | 'female' | 'mixed';
+  defaultDeadline?: string;
+  groupName?: string;
   startDate: string;
   endDate?: string;
   venue?: string;

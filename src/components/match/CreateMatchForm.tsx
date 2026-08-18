@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -25,6 +25,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { dataAccess } from '@/services/dataAccess';
+import { GENDER_CATEGORY_LABELS } from '@/types/registration';
+import type { CompetitionRecord } from '@/types/entities';
+import type { RefereeRecord } from '@/types/entities';
+import type { TeamRecord } from '@/types/entities';
 import {
   Form,
   FormControl,
@@ -61,39 +66,11 @@ const createMatchSchema = z.object({
 
 type CreateMatchFormData = z.infer<typeof createMatchSchema>;
 
-// Mock data
-const mockCompetitions = [
-  { id: '1', name: 'Superliga Feminina 2024/25', modality: 'indoor' },
-  { id: '2', name: 'Superliga Masculina 2024/25', modality: 'indoor' },
-  { id: '3', name: 'Circuito Brasileiro de Vôlei de Praia', modality: 'beach' },
-  { id: '4', name: 'Campeonato Estadual Feminino', modality: 'indoor' },
-];
-
-const mockTeams = [
-  { id: '1', name: 'Osasco Voleibol', shortName: 'OSA', modality: 'indoor' },
-  { id: '2', name: 'Minas Tênis Clube', shortName: 'MIN', modality: 'indoor' },
-  { id: '3', name: 'Praia Clube', shortName: 'PRA', modality: 'indoor' },
-  { id: '4', name: 'Flamengo', shortName: 'FLA', modality: 'indoor' },
-  { id: '5', name: 'Sesi-SP', shortName: 'SES', modality: 'indoor' },
-  { id: '6', name: 'Sada Cruzeiro', shortName: 'SAD', modality: 'indoor' },
-  { id: '7', name: 'Duda/Ana Patrícia', shortName: 'DUD', modality: 'beach' },
-  { id: '8', name: 'Carol/Bárbara', shortName: 'CAR', modality: 'beach' },
-  { id: '9', name: 'Evandro/Bruno', shortName: 'EVA', modality: 'beach' },
-  { id: '10', name: 'Alison/Guto', shortName: 'ALI', modality: 'beach' },
-];
-
-const mockReferees = [
-  { id: '1', name: 'Carlos Silva', level: 'Nacional' },
-  { id: '2', name: 'Ana Santos', level: 'Internacional' },
-  { id: '3', name: 'Pedro Oliveira', level: 'Nacional' },
-  { id: '4', name: 'Maria Costa', level: 'Estadual' },
-];
-
+// Dados carregados do repositório (seed/localStorage/Supabase)
 const mockVenues = [
-  { id: '1', name: 'Ginásio José Liberatti', city: 'Osasco, SP' },
+  { id: '1', name: 'Ginásio Municipal', city: 'Centro' },
   { id: '2', name: 'Ginásio do Ibirapuera', city: 'São Paulo, SP' },
   { id: '3', name: 'Arena Minas', city: 'Belo Horizonte, MG' },
-  { id: '4', name: 'Arena Praia Salvador', city: 'Salvador, BA' },
 ];
 
 interface CreateMatchFormProps {
@@ -104,6 +81,19 @@ interface CreateMatchFormProps {
 export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
   const [step, setStep] = useState(1);
   const totalSteps = 3;
+  const [competitions, setCompetitions] = useState<CompetitionRecord[]>([]);
+  const [teams, setTeams] = useState<TeamRecord[]>([]);
+  const [referees, setReferees] = useState<RefereeRecord[]>([]);
+
+  useEffect(() => {
+    Promise.all([dataAccess.listCompetitions(), dataAccess.listTeams(), dataAccess.listReferees()]).then(
+      ([comps, teams, refs]) => {
+        setCompetitions(comps);
+        setTeams(teams);
+        setReferees(refs);
+      },
+    );
+  }, []);
 
   const form = useForm<CreateMatchFormData>({
     resolver: zodResolver(createMatchSchema),
@@ -119,8 +109,8 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
   const modality = form.watch('modality');
   const teamAId = form.watch('teamAId');
 
-  const filteredTeams = mockTeams.filter(t => t.modality === modality);
-  const availableTeamsForB = filteredTeams.filter(t => t.id !== teamAId);
+  const filteredTeams = useMemo(() => teams.filter(t => t.modality === modality), [teams, modality]);
+  const availableTeamsForB = useMemo(() => filteredTeams.filter(t => t.id !== teamAId), [filteredTeams, teamAId]);
 
   const handleSubmit = (data: CreateMatchFormData) => {
     console.log('Match created:', data);
@@ -225,9 +215,12 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {mockCompetitions.map(comp => (
+                            {competitions.map(comp => (
                               <SelectItem key={comp.id} value={comp.id}>
                                 {comp.name}
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  {GENDER_CATEGORY_LABELS[comp.genderCategory]}
+                                </span>
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -575,7 +568,7 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {mockReferees.map(ref => (
+                              {referees.map(ref => (
                                 <SelectItem key={ref.id} value={ref.id}>
                                   <div className="flex items-center gap-2">
                                     <span>{ref.name}</span>
@@ -603,7 +596,7 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {mockReferees.map(ref => (
+                              {referees.map(ref => (
                                 <SelectItem key={ref.id} value={ref.id}>
                                   <div className="flex items-center gap-2">
                                     <span>{ref.name}</span>
@@ -631,7 +624,7 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {mockReferees.map(ref => (
+                              {referees.map(ref => (
                                 <SelectItem key={ref.id} value={ref.id}>
                                   {ref.name}
                                 </SelectItem>

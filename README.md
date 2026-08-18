@@ -45,6 +45,8 @@ O **VolleyPro** é um sistema web completo para gerenciamento de competições d
 | Gestão de árbitros | ✅ |
 | Dashboards estatísticos | ✅ |
 | Configurações do sistema | ✅ |
+| Inscrição online por equipe (prazo, limites, regras de elenco) | ✅ |
+| Testes automatizados (Vitest) | ✅ |
 
 ### 🔜 Em Desenvolvimento
 
@@ -82,6 +84,19 @@ npm run dev
 ```
 
 Acesse `http://localhost:5173`
+
+### Testes
+
+```bash
+npm test          # roda a suíte completa (Vitest, 32 testes)
+npm run test:watch
+npm run lint      # ESLint (5 erros pré-existentes no template de UI)
+npx tsc -p tsconfig.app.json --noEmit   # typecheck
+```
+
+Os testes cobrem regras de negócio de inscrição (`src/test/registrationService.test.ts`),
+o motor de classificação/desempate (`src/test/standingsService.test.ts`) e
+a geração do PDF da súmula (`src/test/matchSheetPdf.test.ts`).
 
 ---
 

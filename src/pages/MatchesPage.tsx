@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -20,8 +20,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { dataAccess } from '@/services/dataAccess';
+import type { MatchRecord } from '@/types/entities';
 import { cn } from '@/lib/utils';
 
 interface Match {
@@ -38,14 +41,24 @@ interface Match {
   sets?: { a: number; b: number }[];
 }
 
-const mockMatches: Match[] = [
-  { id: '1', teamA: { name: 'Osasco Voleibol', shortName: 'OSA', score: 3 }, teamB: { name: 'Minas TC', shortName: 'MIN', score: 1 }, date: '2025-01-22', time: '19:00', venue: 'Ginásio José Liberatti', court: 'Principal', modality: 'indoor', status: 'completed', competition: 'Superliga Feminina', sets: [{ a: 25, b: 20 }, { a: 23, b: 25 }, { a: 25, b: 18 }, { a: 25, b: 22 }] },
-  { id: '2', teamA: { name: 'Sesi-SP', shortName: 'SES', score: 2 }, teamB: { name: 'Sada Cruzeiro', shortName: 'SAD', score: 2 }, date: '2025-01-22', time: '20:30', venue: 'Ginásio do Ibirapuera', court: 'Quadra 1', modality: 'indoor', status: 'live', competition: 'Superliga Masculina', sets: [{ a: 25, b: 23 }, { a: 20, b: 25 }, { a: 25, b: 21 }, { a: 22, b: 25 }] },
-  { id: '3', teamA: { name: 'Duda/Ana Patrícia', shortName: 'DUD' }, teamB: { name: 'Carol/Bárbara', shortName: 'CAR' }, date: '2025-01-23', time: '10:00', venue: 'Arena Praia Salvador', court: 'Arena Central', modality: 'beach', status: 'scheduled', competition: 'Circuito Brasileiro' },
-  { id: '4', teamA: { name: 'Praia Clube', shortName: 'PRA' }, teamB: { name: 'Flamengo', shortName: 'FLA' }, date: '2025-01-23', time: '19:00', venue: 'Ginásio UFU', court: 'Principal', modality: 'indoor', status: 'scheduled', competition: 'Superliga Feminina' },
-  { id: '5', teamA: { name: 'Evandro/Bruno', shortName: 'EVA' }, teamB: { name: 'Alison/Guto', shortName: 'ALI' }, date: '2025-01-23', time: '11:00', venue: 'Arena Praia Salvador', court: 'Quadra 2', modality: 'beach', status: 'scheduled', competition: 'Circuito Brasileiro' },
-  { id: '6', teamA: { name: 'Curitiba', shortName: 'CUR', score: 0 }, teamB: { name: 'Barueri', shortName: 'BAR', score: 3 }, date: '2025-01-21', time: '20:00', venue: 'Ginásio Tarumã', court: 'Principal', modality: 'indoor', status: 'completed', competition: 'Superliga Feminina', sets: [{ a: 20, b: 25 }, { a: 18, b: 25 }, { a: 22, b: 25 }] },
-];
+function toLocalMatch(match: MatchRecord): Match {
+  const scoreA = match.sets.filter(s => s.scoreA > s.scoreB).length;
+  const scoreB = match.sets.filter(s => s.scoreB > s.scoreA).length;
+  const hasResult = match.status === 'completed' && match.sets.length > 0;
+  return {
+    id: match.id,
+    teamA: { name: match.teamAName, shortName: match.teamAShortName, score: hasResult ? scoreA : undefined },
+    teamB: { name: match.teamBName, shortName: match.teamBShortName, score: hasResult ? scoreB : undefined },
+    date: match.scheduledTime,
+    time: new Date(match.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    venue: match.venue,
+    court: match.court ?? '',
+    modality: 'indoor',
+    status: (match.status === 'completed' ? 'completed' : match.status === 'scheduled' ? 'scheduled' : 'live') as Match['status'],
+    competition: match.competitionId,
+    sets: match.sets.map(s => ({ a: s.scoreA, b: s.scoreB })),
+  };
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -59,8 +72,17 @@ const item = {
 
 const MatchesPage = () => {
   const navigate = useNavigate();
+  const [mockMatches, setMockMatches] = useState<Match[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'live' | 'scheduled' | 'completed'>('all');
   const [modalityFilter, setModalityFilter] = useState<'all' | 'indoor' | 'beach'>('all');
+
+  useEffect(() => {
+    dataAccess.listMatches().then(records => {
+      setMockMatches(records.map(toLocalMatch));
+      setLoading(false);
+    });
+  }, []);
 
   const filteredMatches = mockMatches.filter(match => {
     if (filter !== 'all' && match.status !== filter) return false;
@@ -69,7 +91,7 @@ const MatchesPage = () => {
   });
 
   const liveCount = mockMatches.filter(m => m.status === 'live').length;
-  const todayCount = mockMatches.filter(m => m.date === '2025-01-22').length;
+  const todayCount = mockMatches.filter(m => m.date === new Date().toISOString().slice(0, 10)).length;
   const scheduledCount = mockMatches.filter(m => m.status === 'scheduled').length;
 
   return (
@@ -155,15 +177,21 @@ const MatchesPage = () => {
 
         {/* Matches List */}
         <motion.div variants={item} className="space-y-4">
-          {filteredMatches.map((match) => (
-            <MatchCard key={match.id} match={match} />
-          ))}
-          {filteredMatches.length === 0 && (
-            <Card className="card-elevated">
-              <CardContent className="p-12 text-center">
-                <p className="text-muted-foreground">Nenhum jogo encontrado com os filtros selecionados.</p>
-              </CardContent>
-            </Card>
+          {loading ? (
+            <Skeleton className="h-40 w-full" />
+          ) : (
+            <>
+              {filteredMatches.map((match) => (
+                <MatchCard key={match.id} match={match} onClick={() => navigate(`/sumulas/${match.id}`)} />
+              ))}
+              {filteredMatches.length === 0 && (
+                <Card className="card-elevated">
+                  <CardContent className="p-12 text-center">
+                    <p className="text-muted-foreground">Nenhum jogo encontrado com os filtros selecionados.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
         </motion.div>
       </motion.div>
@@ -171,7 +199,7 @@ const MatchesPage = () => {
   );
 };
 
-function MatchCard({ match }: { match: Match }) {
+function MatchCard({ match, onClick }: { match: Match; onClick: () => void }) {
   const statusConfig = {
     live: { label: 'AO VIVO', variant: 'destructive' as const, icon: Play },
     scheduled: { label: 'AGENDADO', variant: 'secondary' as const, icon: Clock },
@@ -182,7 +210,7 @@ function MatchCard({ match }: { match: Match }) {
   const status = statusConfig[match.status];
 
   return (
-    <Card className="card-elevated hover:shadow-lg transition-all cursor-pointer">
+    <Card className="card-elevated hover:shadow-lg transition-all cursor-pointer" onClick={onClick}>
       <CardContent className="p-0">
         <div className="flex flex-col md:flex-row">
           {/* Left: Match Info */}
@@ -273,7 +301,7 @@ function MatchCard({ match }: { match: Match }) {
               <span className="truncate">{match.venue}</span>
             </div>
             <Button variant={match.status === 'live' ? 'accent' : 'outline'} size="sm" className="mt-2">
-              {match.status === 'live' ? 'Acompanhar' : match.status === 'scheduled' ? 'Iniciar' : 'Ver Súmula'}
+              {match.status === 'live' ? 'Acompanhar' : match.status === 'scheduled' ? 'Iniciar Súmula' : 'Ver Súmula'}
             </Button>
           </div>
         </div>

@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 interface TeamInfo {
   name: string;
   shortName: string;
-  athletes: { jerseyNumber: number; name: string; captain?: boolean; libero?: boolean }[];
+  athletes: { jerseyNumber: number; name: string; position?: string; captain?: boolean; libero?: boolean }[];
   coach?: string;
 }
 
@@ -15,9 +15,10 @@ interface SetResult {
   duration?: string;
 }
 
-interface MatchSheetData {
+export interface MatchSheetData {
   competition: string;
   category: string;
+  genderCategory?: 'male' | 'female' | 'mixed';
   modality: 'indoor' | 'beach';
   format: '3-sets' | '5-sets' | '1-set' | '2-sets';
   playerFormat: '6x6' | '4x4' | '2x2' | '3x3';
@@ -41,6 +42,12 @@ interface MatchSheetData {
   startTime?: string;
   endTime?: string;
 }
+
+const GENDER_CATEGORY_LABEL: Record<NonNullable<MatchSheetData['genderCategory']>, string> = {
+  male: 'MASCULINO',
+  female: 'FEMININO',
+  mixed: 'MISTO',
+};
 
 // PDF dimensions and margins (A4 in mm)
 const PAGE_WIDTH = 210;
@@ -125,11 +132,18 @@ function drawHeader(doc: jsPDF, data: MatchSheetData, y: number): number {
   doc.text(data.competition.toUpperCase(), PAGE_WIDTH / 2, y, { align: 'center' });
   y += 5;
   
-  // Category
+  // Category + Naipe
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(data.category, PAGE_WIDTH / 2, y, { align: 'center' });
-  y += 8;
+  y += 4;
+  if (data.genderCategory) {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`NAIPE: ${GENDER_CATEGORY_LABEL[data.genderCategory]}`, PAGE_WIDTH / 2, y, { align: 'center' });
+    y += 4;
+  }
+  y += 4;
   
   // Horizontal line
   doc.setDrawColor(BLACK);
@@ -196,17 +210,26 @@ function drawMatchInfo(doc: jsPDF, data: MatchSheetData, y: number): number {
 
 function drawTeamsLineups(doc: jsPDF, data: MatchSheetData, y: number): number {
   const teamBoxWidth = (CONTENT_WIDTH - 4) / 2;
-  const teamBoxHeight = 45;
-  
+  const maxAthletes = Math.max(data.teamA.athletes.length, data.teamB.athletes.length);
+  const lineHeight = 4.2;
+  const headerRows = 2;
+  const coachRow = data.teamA.coach || data.teamB.coach ? 1 : 0;
+  const teamBoxHeight = 8 + headerRows * lineHeight + maxAthletes * lineHeight + (coachRow ? 4 : 1);
+
+  const PAGE_LIMIT = PAGE_HEIGHT - 60;
+
+  if (y + teamBoxHeight > PAGE_LIMIT) {
+    doc.addPage();
+    y = MARGIN;
+  }
+
   // Team A
   drawTeamBox(doc, data.teamA, MARGIN, y, teamBoxWidth, teamBoxHeight, 'A');
-  
+
   // Team B
   drawTeamBox(doc, data.teamB, MARGIN + teamBoxWidth + 4, y, teamBoxWidth, teamBoxHeight, 'B');
-  
-  y += teamBoxHeight + 5;
-  
-  return y;
+
+  return y + teamBoxHeight + 5;
 }
 
 function drawTeamBox(
@@ -241,9 +264,9 @@ function drawTeamBox(
   const nameX = x + width - 2;
   doc.text(team.name.toUpperCase(), nameX, y + 5.5, { align: 'right' });
   
-  // Athletes list
+  // Athletes list (lista nominal completa)
   let lineY = y + 13;
-  const lineHeight = 4;
+  const lineHeight = 4.2;
   
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
@@ -252,29 +275,35 @@ function drawTeamBox(
   doc.setTextColor(GRAY_MEDIUM);
   doc.text('Nº', x + 2, lineY);
   doc.text('ATLETA', x + 12, lineY);
+  doc.text('POSIÇÃO', x + 67, lineY);
   lineY += lineHeight;
   
   // Athletes
   doc.setTextColor(BLACK);
-  team.athletes.slice(0, 6).forEach((athlete, idx) => {
+  team.athletes.forEach((athlete, idx) => {
     const numStr = String(athlete.jerseyNumber).padStart(2, '0');
     let nameStr = athlete.name;
     if (athlete.captain) nameStr += ' (C)';
     if (athlete.libero) nameStr += ' (L)';
     
+    if (idx % 2 === 0) {
+      doc.setFillColor(248, 248, 248);
+      doc.rect(x, lineY - 3, width, lineHeight, 'F');
+    }
+    
     doc.text(numStr, x + 2, lineY);
-    doc.text(nameStr.substring(0, 25), x + 12, lineY);
+    doc.text(nameStr.substring(0, 28), x + 12, lineY);
+    doc.text((athlete.position ?? '').substring(0, 16), x + 67, lineY);
     lineY += lineHeight;
   });
   
   // Coach
   if (team.coach) {
-    lineY = y + height - 4;
     doc.setFontSize(6);
     doc.setTextColor(GRAY_MEDIUM);
-    doc.text('TÉC:', x + 2, lineY);
+    doc.text('TÉC:', x + 2, y + height - 2.5);
     doc.setTextColor(BLACK);
-    doc.text(team.coach, x + 12, lineY);
+    doc.text(team.coach, x + 12, y + height - 2.5);
   }
 }
 
@@ -570,4 +599,39 @@ export function previewMatchSheetPdf(data: MatchSheetData): void {
   const pdfBlob = doc.output('blob');
   const url = URL.createObjectURL(pdfBlob);
   window.open(url, '_blank');
+}
+
+/**
+ * Gera um PDF único com uma súmula por página para todas as partidas
+ * (ex.: "Baixar Súmulas de Todas as Partidas").
+ */
+export function generateMatchSheetsBatchPdf(
+  matches: MatchSheetData[],
+  competitionName: string,
+): jsPDF {
+  if (matches.length === 0) throw new Error('Nenhuma partida para gerar.');
+  const doc = generateMatchSheetPdf(matches[0]);
+  for (let i = 1; i < matches.length; i++) {
+    doc.addPage();
+    let y = MARGIN;
+    y = drawHeader(doc, matches[i], y);
+    y = drawMatchInfo(doc, matches[i], y);
+    y = drawTeamsLineups(doc, matches[i], y);
+    y = drawScoreTable(doc, matches[i], y);
+    y = drawTimeouts(doc, matches[i], y);
+    y = drawSubstitutions(doc, matches[i], y);
+    y = drawSanctions(doc, matches[i], y);
+    if (matches[i].observations) {
+      y = drawObservations(doc, matches[i].observations!, y);
+    }
+    y = drawSignatures(doc, matches[i], y);
+    drawFooter(doc, matches[i]);
+  }
+  return doc;
+}
+
+export function downloadMatchSheetsBatchPdf(matches: MatchSheetData[], competitionName: string): void {
+  const doc = generateMatchSheetsBatchPdf(matches, competitionName);
+  const safeName = competitionName.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase();
+  doc.save(`sumulas_${safeName || 'competicao'}.pdf`);
 }

@@ -13,6 +13,8 @@ import RefereesPage from "./pages/RefereesPage";
 import StatisticsPage from "./pages/StatisticsPage";
 import SettingsPage from "./pages/SettingsPage";
 import CreateMatchPage from "./pages/CreateMatchPage";
+import { CompetitionRegistrationsPage } from "./pages/CompetitionRegistrationsPage";
+import { TeamRosterRegistrationPage } from "./pages/TeamRosterRegistrationPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,7 +30,10 @@ const App = () => (
           <Route path="/jogos" element={<MatchesPage />} />
           <Route path="/jogos/novo" element={<CreateMatchPage />} />
           <Route path="/sumulas" element={<MatchSheetPage />} />
+          <Route path="/sumulas/:matchId" element={<MatchSheetPage />} />
           <Route path="/competicoes" element={<CompetitionsPage />} />
+          <Route path="/competicoes/:id/inscricoes" element={<CompetitionRegistrationsPage />} />
+          <Route path="/equipe/inscricao/:token" element={<TeamRosterRegistrationPage />} />
           <Route path="/equipes" element={<TeamsPage />} />
           <Route path="/atletas" element={<AthletesPage />} />
           <Route path="/arbitros" element={<RefereesPage />} />

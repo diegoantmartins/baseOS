@@ -1,47 +1,28 @@
 import { motion } from 'framer-motion';
 import { 
   Trophy, 
-  Medal, 
   TrendingUp, 
   TrendingDown,
   Minus 
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-
-interface TeamStanding {
-  position: number;
-  previousPosition?: number;
-  team: {
-    id: string;
-    name: string;
-    shortName: string;
-    logoUrl?: string;
-  };
-  matchesPlayed: number;
-  matchesWon: number;
-  matchesLost: number;
-  setsWon: number;
-  setsLost: number;
-  pointsWon: number;
-  pointsLost: number;
-  competitionPoints: number;
-}
+import type { TeamStandingResult } from '@/services/standingsService';
 
 interface StandingsTableProps {
-  standings?: TeamStanding[];
+  standings?: TeamStandingResult[];
   title?: string;
 }
 
-const mockStandings: TeamStanding[] = [
-  { position: 1, previousPosition: 1, team: { id: '1', name: 'Osasco Voleibol Clube', shortName: 'OSA' }, matchesPlayed: 18, matchesWon: 16, matchesLost: 2, setsWon: 50, setsLost: 12, pointsWon: 1450, pointsLost: 1120, competitionPoints: 47 },
-  { position: 2, previousPosition: 3, team: { id: '2', name: 'Minas Tênis Clube', shortName: 'MIN' }, matchesPlayed: 18, matchesWon: 15, matchesLost: 3, setsWon: 48, setsLost: 15, pointsWon: 1420, pointsLost: 1180, competitionPoints: 44 },
-  { position: 3, previousPosition: 2, team: { id: '3', name: 'Praia Clube', shortName: 'PRA' }, matchesPlayed: 18, matchesWon: 14, matchesLost: 4, setsWon: 45, setsLost: 18, pointsWon: 1380, pointsLost: 1200, competitionPoints: 41 },
-  { position: 4, previousPosition: 4, team: { id: '4', name: 'Sesc RJ Flamengo', shortName: 'SEC' }, matchesPlayed: 18, matchesWon: 13, matchesLost: 5, setsWon: 42, setsLost: 21, pointsWon: 1350, pointsLost: 1220, competitionPoints: 38 },
-  { position: 5, previousPosition: 6, team: { id: '5', name: 'Dentil/Praia Clube', shortName: 'DEN' }, matchesPlayed: 18, matchesWon: 11, matchesLost: 7, setsWon: 38, setsLost: 28, pointsWon: 1300, pointsLost: 1280, competitionPoints: 32 },
-  { position: 6, previousPosition: 5, team: { id: '6', name: 'Curitiba Vôlei', shortName: 'CUR' }, matchesPlayed: 18, matchesWon: 10, matchesLost: 8, setsWon: 35, setsLost: 30, pointsWon: 1280, pointsLost: 1290, competitionPoints: 29 },
-  { position: 7, previousPosition: 7, team: { id: '7', name: 'São Paulo/Barueri', shortName: 'BAR' }, matchesPlayed: 18, matchesWon: 8, matchesLost: 10, setsWon: 30, setsLost: 35, pointsWon: 1220, pointsLost: 1320, competitionPoints: 24 },
-  { position: 8, previousPosition: 8, team: { id: '8', name: 'Pinheiros', shortName: 'PIN' }, matchesPlayed: 18, matchesWon: 5, matchesLost: 13, setsWon: 22, setsLost: 42, pointsWon: 1150, pointsLost: 1400, competitionPoints: 16 },
+const mockStandings: TeamStandingResult[] = [
+  { position: 1, teamId: '1', teamName: 'Osasco Voleibol Clube', teamShortName: 'OSA', matchesPlayed: 18, matchesWon: 16, matchesLost: 2, setsWon: 50, setsLost: 12, setsRatio: 4.17, pointsWon: 1450, pointsLost: 1120, pointsRatio: 1.295, pointsBalance: 330, competitionPoints: 47 },
+  { position: 2, teamId: '2', teamName: 'Minas Tênis Clube', teamShortName: 'MIN', matchesPlayed: 18, matchesWon: 15, matchesLost: 3, setsWon: 48, setsLost: 15, setsRatio: 3.2, pointsWon: 1420, pointsLost: 1180, pointsRatio: 1.203, pointsBalance: 240, competitionPoints: 44 },
+  { position: 3, teamId: '3', teamName: 'Praia Clube', teamShortName: 'PRA', matchesPlayed: 18, matchesWon: 14, matchesLost: 4, setsWon: 45, setsLost: 18, setsRatio: 2.5, pointsWon: 1380, pointsLost: 1200, pointsRatio: 1.15, pointsBalance: 180, competitionPoints: 41 },
+  { position: 4, teamId: '4', teamName: 'Sesc RJ Flamengo', teamShortName: 'SEC', matchesPlayed: 18, matchesWon: 13, matchesLost: 5, setsWon: 42, setsLost: 21, setsRatio: 2.0, pointsWon: 1350, pointsLost: 1220, pointsRatio: 1.107, pointsBalance: 130, competitionPoints: 38 },
+  { position: 5, teamId: '5', teamName: 'Dentil/Praia Clube', teamShortName: 'DEN', matchesPlayed: 18, matchesWon: 11, matchesLost: 7, setsWon: 38, setsLost: 28, setsRatio: 1.357, pointsWon: 1300, pointsLost: 1280, pointsRatio: 1.016, pointsBalance: 20, competitionPoints: 32 },
+  { position: 6, teamId: '6', teamName: 'Curitiba Vôlei', teamShortName: 'CUR', matchesPlayed: 18, matchesWon: 10, matchesLost: 8, setsWon: 35, setsLost: 30, setsRatio: 1.167, pointsWon: 1280, pointsLost: 1290, pointsRatio: 0.992, pointsBalance: -10, competitionPoints: 29 },
+  { position: 7, teamId: '7', teamName: 'São Paulo/Barueri', teamShortName: 'BAR', matchesPlayed: 18, matchesWon: 8, matchesLost: 10, setsWon: 30, setsLost: 35, setsRatio: 0.857, pointsWon: 1220, pointsLost: 1320, pointsRatio: 0.924, pointsBalance: -100, competitionPoints: 24 },
+  { position: 8, teamId: '8', teamName: 'Pinheiros', teamShortName: 'PIN', matchesPlayed: 18, matchesWon: 5, matchesLost: 13, setsWon: 22, setsLost: 42, setsRatio: 0.524, pointsWon: 1150, pointsLost: 1400, pointsRatio: 0.821, pointsBalance: -250, competitionPoints: 16 },
 ];
 
 export function StandingsTable({ 
@@ -73,15 +54,12 @@ export function StandingsTable({
             </thead>
             <tbody>
               {standings.map((standing, idx) => {
-                const positionChange = standing.previousPosition 
-                  ? standing.previousPosition - standing.position 
-                  : 0;
                 const setsRatio = (standing.setsWon / standing.setsLost).toFixed(2);
                 const pointsRatio = (standing.pointsWon / standing.pointsLost).toFixed(3);
 
                 return (
                   <motion.tr
-                    key={standing.team.id}
+                    key={standing.teamId}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: idx * 0.05 }}
@@ -101,23 +79,14 @@ export function StandingsTable({
                         )}>
                           {standing.position}
                         </span>
-                        {positionChange > 0 && (
-                          <TrendingUp className="w-4 h-4 text-success" />
-                        )}
-                        {positionChange < 0 && (
-                          <TrendingDown className="w-4 h-4 text-destructive" />
-                        )}
-                        {positionChange === 0 && standing.previousPosition && (
-                          <Minus className="w-4 h-4 text-muted-foreground" />
-                        )}
                       </div>
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center font-bold text-sm text-foreground">
-                          {standing.team.shortName}
+                          {standing.teamShortName}
                         </div>
-                        <span className="font-medium text-foreground">{standing.team.name}</span>
+                        <span className="font-medium text-foreground">{standing.teamName}</span>
                       </div>
                     </td>
                     <td className="py-4 px-4 text-center text-muted-foreground">{standing.matchesPlayed}</td>
@@ -147,15 +116,13 @@ export function StandingsTable({
         <div className="mt-4 pt-4 border-t border-border flex items-center gap-6 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded bg-success/20 border border-success" />
-            <span>Classificados para playoffs</span>
+            <span>Zona de classificação</span>
           </div>
           <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-success" />
-            <span>Subiu</span>
+            <span className="text-xs">Set Avg = SV/SP</span>
           </div>
           <div className="flex items-center gap-2">
-            <TrendingDown className="w-4 h-4 text-destructive" />
-            <span>Desceu</span>
+            <span className="text-xs">Pts Avg = PM/PS</span>
           </div>
         </div>
       </CardContent>

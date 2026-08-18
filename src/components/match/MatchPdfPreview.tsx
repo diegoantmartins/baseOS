@@ -1,11 +1,17 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FileText, Download, Eye, Printer, Check } from 'lucide-react';
+import { FileText, Download, Eye, Printer, Check, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { downloadMatchSheetPdf, previewMatchSheetPdf } from '@/lib/pdf/matchSheetPdf';
 import { toast } from 'sonner';
+
+const FPV_MODELS = [
+  { label: 'Súmula Oficial 3 Sets (FPV)', href: '/modelos/sumula-oficial-3-sets-fpv.pdf' },
+  { label: 'Súmula Oficial 5 Sets (FPV)', href: '/modelos/sumula-oficial-5-sets-fpv.pdf' },
+  { label: 'Ordem de Saque / Ficha de Posição (FPV)', href: '/modelos/ordem-de-saque-fpv.pdf' },
+];
 
 interface MatchPdfPreviewProps {
   matchData?: {
@@ -255,6 +261,30 @@ export function MatchPdfPreview({ matchData = demoMatchData }: MatchPdfPreviewPr
         <p className="text-xs text-center text-muted-foreground">
           O PDF será gerado localmente e baixado automaticamente no seu dispositivo.
         </p>
+
+        {/* Modelos oficiais FPV */}
+        <div className="pt-4 border-t border-border">
+          <p className="text-sm font-medium mb-3 flex items-center gap-2">
+            <Printer className="w-4 h-4 text-muted-foreground" />
+            Modelos Oficiais (FPV)
+          </p>
+          <div className="space-y-2">
+            {FPV_MODELS.map(model => (
+              <a
+                key={model.href}
+                href={model.href}
+                download
+                className="flex items-center justify-between gap-2 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-sm"
+              >
+                <span>{model.label}</span>
+                <FileDown className="w-4 h-4 text-muted-foreground shrink-0" />
+              </a>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Templates oficiais em A3/A4 (Federação Paranaense de Voleibol) para impressão manual.
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
