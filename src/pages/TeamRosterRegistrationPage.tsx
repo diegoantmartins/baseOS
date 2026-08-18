@@ -369,7 +369,7 @@ function RosterCard({ team, athletes, limits, locked, submitting, onAdd, onEdit,
                   <tr key={athlete.id} className="border-b border-border/50 hover:bg-muted/40">
                     <td className="py-3 px-4">
                       <span className="inline-flex w-9 h-9 items-center justify-center rounded-lg bg-muted font-display font-bold">
-                        {athlete.jerseyNumber}
+                        {athlete.jerseyNumber ?? '—'}
                       </span>
                     </td>
                     <td className="py-3 px-4">

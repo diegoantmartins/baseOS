@@ -31,7 +31,15 @@ export const ATHLETE_POSITIONS = [
 
 const athleteSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
-  jerseyNumber: z.coerce.number({ invalid_type_error: 'Informe o número' }).int('Número inteiro').min(1, 'Mínimo 1').max(99, 'Máximo 99'),
+  jerseyNumber: z.preprocess(
+    value => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    z
+      .number({ invalid_type_error: 'Informe o número' })
+      .int('Número inteiro')
+      .min(1, 'Mínimo 1')
+      .max(99, 'Máximo 99')
+      .optional(),
+  ),
   position: z.string().min(1, 'Selecione a posição'),
   documentNumber: z.string().optional(),
   birthDate: z.string().optional(),
@@ -44,7 +52,7 @@ type AthleteFormValues = z.infer<typeof athleteSchema>;
 function toFormValues(athlete?: CompetitionAthlete): AthleteFormValues {
   return {
     name: athlete?.name ?? '',
-    jerseyNumber: athlete?.jerseyNumber ?? 1,
+    jerseyNumber: athlete?.jerseyNumber,
     position: athlete?.position ?? '',
     documentNumber: athlete?.documentNumber ?? '',
     birthDate: athlete?.birthDate ?? '',
@@ -119,8 +127,11 @@ export function AthleteFormModal({ open, onOpenChange, athlete, gender = 'female
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="ath-number">Camisa *</Label>
-              <Input id="ath-number" type="number" min={1} max={99} placeholder="Ex: 7" {...form.register('jerseyNumber')} />
+              <Label htmlFor="ath-number">Camisa</Label>
+              <Input id="ath-number" type="number" min={1} max={99} placeholder="Ex: 7 (opcional)" {...form.register('jerseyNumber')} />
+              <p className="text-xs text-muted-foreground">
+                Pode ser confirmado no dia da competição.
+              </p>
               {form.formState.errors.jerseyNumber && (
                 <p className="text-sm text-destructive">{form.formState.errors.jerseyNumber.message}</p>
               )}

@@ -27,4 +27,4 @@ npm run build                           # build de produção
 - Padrão "adapter" para dados: nunca acessar localStorage/Supabase fora de `dataAccess.ts`.
 - Regras de negócio residem nos serviços (`src/services`), não nos componentes.
 - Testes unitários para regras de negócio em `src/test/<serviço>.test.ts`.
-- Adicionar atleta: número de camisa 1-99, único por equipe; no seed, elencos já usam camisas (ct-1: 1-17, ct-2: 3-22) — não conflitar ao criar dados de teste.
+- Atleta: número de camisa 1-99 **opcional** (confirmado no dia da competição); se informado, deve ser único na equipe. No seed, elencos já usam camisas (ct-1: 1-17, ct-2: 3-22) — não conflitar ao criar dados de teste.

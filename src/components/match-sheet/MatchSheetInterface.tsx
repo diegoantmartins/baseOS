@@ -45,6 +45,10 @@ interface SetScore {
 // Posições da quadra em ordem de rotação (1 = sacador)
 const ROTATION_POSITIONS = ['1', '6', '5', '4', '3', '2'];
 
+function athleteLabel(athlete: CompetitionAthlete): string {
+  return athlete.jerseyNumber !== undefined ? `#${athlete.jerseyNumber} ${athlete.name}` : athlete.name;
+}
+
 interface TeamLineup {
   starterIds: string[];
   captainId?: string;
@@ -584,7 +588,8 @@ function LineupCard({ title, roster, lineup, color, onChange }: LineupCardProps)
                     : 'bg-muted/50 border-border hover:border-accent'
                 }`}
               >
-                #{athlete.jerseyNumber} {athlete.name.split(' ')[0]}
+                {athlete.jerseyNumber !== undefined && `#${athlete.jerseyNumber} `}
+                {athlete.name.split(' ')[0]}
                 {isCaptain && ' (C)'}
                 {isLibero && ' (L)'}
               </button>
@@ -604,7 +609,7 @@ function LineupCard({ title, roster, lineup, color, onChange }: LineupCardProps)
               <SelectContent>
                 {roster.map(athlete => (
                   <SelectItem key={athlete.id} value={athlete.id}>
-                    #{athlete.jerseyNumber} {athlete.name}
+                    {athleteLabel(athlete)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -622,7 +627,7 @@ function LineupCard({ title, roster, lineup, color, onChange }: LineupCardProps)
               <SelectContent>
                 {roster.map(athlete => (
                   <SelectItem key={athlete.id} value={athlete.id}>
-                    #{athlete.jerseyNumber} {athlete.name}
+                    {athleteLabel(athlete)}
                   </SelectItem>
                 ))}
               </SelectContent>

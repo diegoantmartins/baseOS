@@ -51,7 +51,8 @@ export type CompetitionAthlete = {
   id: string;
   competitionTeamId: string;
   name: string;
-  jerseyNumber: number;
+  /** Opcional: o número pode ser confirmado no dia da competição. */
+  jerseyNumber?: number;
   position: string;
   documentNumber?: string;
   birthDate?: string; // YYYY-MM-DD

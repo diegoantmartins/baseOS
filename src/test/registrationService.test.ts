@@ -6,6 +6,7 @@ import {
   getCompetitionTeamByToken,
   isDeadlineExpired,
   isRegistrationLocked,
+  listRoster,
   markRosterSubmitted,
   removeAthlete,
   updateAthlete,
@@ -211,6 +212,16 @@ describe('Operações de elenco', () => {
     const removed = await removeAthlete(athlete!.id);
     expect(removed.ok).toBe(true);
     expect(await dataAccess.listCompetitionAthletes('ct-2')).toHaveLength(9);
+  });
+
+  it('permite cadastrar atleta sem número de camisa (confirmação no dia)', async () => {
+    const result = await addAthlete('ct-2', { ...baseInput, jerseyNumber: undefined }, '6x6');
+    expect(result.ok).toBe(true);
+    expect(result.athlete?.jerseyNumber).toBeUndefined();
+
+    const roster = await listRoster('ct-2');
+    const added = roster.find(a => a.name === 'Teste Silva');
+    expect(added).toBeDefined();
   });
 
   it('não permite editar atleta de equipe bloqueada', async () => {

@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 interface TeamInfo {
   name: string;
   shortName: string;
-  athletes: { jerseyNumber: number; name: string; position?: string; captain?: boolean; libero?: boolean }[];
+  athletes: { jerseyNumber?: number; name: string; position?: string; captain?: boolean; libero?: boolean }[];
   coach?: string;
 }
 
@@ -281,7 +281,7 @@ function drawTeamBox(
   // Athletes
   doc.setTextColor(BLACK);
   team.athletes.forEach((athlete, idx) => {
-    const numStr = String(athlete.jerseyNumber).padStart(2, '0');
+    const numStr = athlete.jerseyNumber !== undefined ? String(athlete.jerseyNumber).padStart(2, '0') : '--';
     let nameStr = athlete.name;
     if (athlete.captain) nameStr += ' (C)';
     if (athlete.libero) nameStr += ' (L)';

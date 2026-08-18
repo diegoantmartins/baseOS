@@ -31,7 +31,7 @@ function formatMatchDate(scheduledTime: string): { date: string; time: string } 
 }
 
 function athleteToPdf(athlete: CompetitionAthlete): {
-  jerseyNumber: number;
+  jerseyNumber?: number;
   name: string;
   position?: string;
   captain?: boolean;

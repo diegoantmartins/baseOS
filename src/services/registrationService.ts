@@ -35,7 +35,9 @@ export function validateAthleteInput(
   if (!input.name.trim()) errors.push('Nome do atleta é obrigatório.');
   if (!input.position.trim()) errors.push('Posição é obrigatória.');
 
-  if (!Number.isInteger(input.jerseyNumber) || input.jerseyNumber < 1 || input.jerseyNumber > 99) {
+  if (input.jerseyNumber === undefined || input.jerseyNumber === null) {
+    // Número opcional: confirmado no dia da competição.
+  } else if (!Number.isInteger(input.jerseyNumber) || input.jerseyNumber < 1 || input.jerseyNumber > 99) {
     errors.push('Número da camisa deve estar entre 1 e 99.');
   } else if (existing.some(a => a.jerseyNumber === input.jerseyNumber && a.id !== excludeId)) {
     errors.push(`Já existe atleta com a camisa ${input.jerseyNumber} nesta equipe.`);
@@ -94,7 +96,11 @@ export async function getCompetitionTeam(id: string): Promise<CompetitionTeam | 
 
 export async function listRoster(competitionTeamId: string): Promise<CompetitionAthlete[]> {
   const all = await dataAccess.listCompetitionAthletes(competitionTeamId);
-  return [...all].sort((a, b) => a.jerseyNumber - b.jerseyNumber);
+  return [...all].sort((a, b) => {
+    if (a.jerseyNumber === undefined || a.jerseyNumber === null) return 1; // sem camisa no fim
+    if (b.jerseyNumber === undefined || b.jerseyNumber === null) return -1;
+    return a.jerseyNumber - b.jerseyNumber;
+  });
 }
 
 export async function addAthlete(
