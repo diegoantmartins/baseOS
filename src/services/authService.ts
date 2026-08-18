@@ -88,7 +88,7 @@ async function supabaseSignIn(email: string, password: string): Promise<SignInRe
     id: data.user.id,
     email: data.user.email ?? email,
     name: profile?.name ?? data.user.email ?? 'Usuário',
-    role: (profile?.role as UserRole | undefined) ?? 'organizer',
+    role: (profile?.role as UserRole | undefined) ?? 'team',
     competitionTeamId: profile?.competition_team_id ?? undefined,
   };
   const session: AuthSession = { user, expiresAt: data.session?.expires_at ? new Date(data.session.expires_at * 1000).toISOString() : undefined };
@@ -115,7 +115,7 @@ async function supabaseSession(): Promise<AuthSession | null> {
       id: data.session.user.id,
       email: data.session.user.email ?? '',
       name: profile?.name ?? data.session.user.email ?? 'Usuário',
-      role: (profile?.role as UserRole | undefined) ?? 'organizer',
+      role: (profile?.role as UserRole | undefined) ?? 'team',
       competitionTeamId: profile?.competition_team_id ?? undefined,
     },
     expiresAt: data.session.expires_at ? new Date(data.session.expires_at * 1000).toISOString() : undefined,
@@ -138,13 +138,11 @@ export const authService = {
     return readStoredSession();
   },
 
-  /** Sessão atual; no modo Supabase revalida com o servidor. */
+  /** Sessão atual; no modo Supabase revalida com o servidor (sem fallback para sessão local vencida). */
   async getSession(): Promise<AuthSession | null> {
     const stored = readStoredSession();
     if (!isSupabaseConfigured()) return stored;
-    return supabaseSession()
-      .then(session => session ?? stored)
-      .catch(() => stored);
+    return supabaseSession().catch(() => stored);
   },
 
   async signIn(email: string, password: string): Promise<SignInResult> {

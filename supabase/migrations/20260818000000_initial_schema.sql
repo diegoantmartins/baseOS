@@ -112,7 +112,7 @@ create table public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   email text not null,
   name text not null default '',
-  role public.user_role not null default 'organizer',
+  role public.user_role not null default 'team',
   competition_team_id text references public.competition_teams (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

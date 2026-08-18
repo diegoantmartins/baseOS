@@ -113,7 +113,6 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
   const availableTeamsForB = useMemo(() => filteredTeams.filter(t => t.id !== teamAId), [filteredTeams, teamAId]);
 
   const handleSubmit = (data: CreateMatchFormData) => {
-    console.log('Match created:', data);
     onSubmit?.(data);
   };
 

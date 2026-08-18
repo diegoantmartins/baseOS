@@ -104,15 +104,57 @@ const App = () => (
               }
             />
 
-            {/* Legacy routes */}
+            {/* Legacy routes (manutenção de redirecionamentos antigos) */}
             <Route path="/matches" element={<MatchesPage />} />
             <Route path="/match-sheets" element={<MatchSheetPage />} />
-            <Route path="/competitions" element={<CompetitionsPage />} />
-            <Route path="/teams" element={<TeamsPage />} />
-            <Route path="/athletes" element={<AthletesPage />} />
-            <Route path="/referees" element={<RefereesPage />} />
-            <Route path="/statistics" element={<StatisticsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route
+              path="/competitions"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <CompetitionsPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/teams"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <TeamsPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/athletes"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <AthletesPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/referees"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <RefereesPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/statistics"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <StatisticsPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <SettingsPage />
+                </RequireAuth>
+              }
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

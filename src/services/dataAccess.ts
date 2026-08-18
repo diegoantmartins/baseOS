@@ -297,7 +297,7 @@ const supabaseAdapter = {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
     const { data } = await supabase.from(SUPABASE_TABLES.matches).insert(toSnake(match)).select().single();
-    return (data as unknown) as MatchRecord;
+    return mapRow<MatchRecord>(data) ?? (data as unknown as MatchRecord);
   },
 
   async updateMatch(id: string, updates: Partial<MatchRecord>): Promise<MatchRecord | null> {
@@ -338,7 +338,7 @@ const supabaseAdapter = {
       .insert({ ...toSnake(input), access_token: generateToken() })
       .select()
       .single();
-    return (data as unknown) as CompetitionTeam;
+    return mapRow<CompetitionTeam>(data) ?? (data as unknown as CompetitionTeam);
   },
 
   async updateCompetitionTeam(id: string, updates: Partial<CompetitionTeam>): Promise<CompetitionTeam | null> {
@@ -361,7 +361,7 @@ const supabaseAdapter = {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
     const { data } = await supabase.from(SUPABASE_TABLES.competitionAthletes).insert(toSnake(input)).select().single();
-    return (data as unknown) as CompetitionAthlete;
+    return mapRow<CompetitionAthlete>(data) ?? (data as unknown as CompetitionAthlete);
   },
 
   async updateCompetitionAthlete(id: string, updates: Partial<CompetitionAthlete>): Promise<CompetitionAthlete | null> {
