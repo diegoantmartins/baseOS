@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { dataAccess } from '@/services/dataAccess';
 import { getMatchRosters } from '@/services/registrationService';
+import { buildMatchSheetData } from '@/lib/pdf/matchSheetDataBuilder';
+import type { MatchSheetData } from '@/lib/pdf/matchSheetDataBuilder';
 import type { MatchRecord } from '@/types/entities';
 import type { CompetitionRecord } from '@/types/entities';
 import type { CompetitionAthlete } from '@/types/registration';
@@ -22,6 +24,7 @@ const MatchSheetPage = () => {
   const [competition, setCompetition] = useState<CompetitionRecord | null>(null);
   const [teamARoster, setTeamARoster] = useState<CompetitionAthlete[]>([]);
   const [teamBRoster, setTeamBRoster] = useState<CompetitionAthlete[]>([]);
+  const [pdfData, setPdfData] = useState<MatchSheetData | null>(null);
   const [loading, setLoading] = useState(Boolean(matchId));
   const [notFound, setNotFound] = useState(false);
 
@@ -35,12 +38,26 @@ const MatchSheetPage = () => {
       return;
     }
     setMatch(found);
-    setCompetition(await dataAccess.getCompetition(found.competitionId));
+    const competition = await dataAccess.getCompetition(found.competitionId);
+    setCompetition(competition);
     const rosters = await getMatchRosters(found.id);
     setTeamARoster(rosters.teamA);
     setTeamBRoster(rosters.teamB);
+    setPdfData(await buildMatchSheetData(found, competition, rosters.teamA, rosters.teamB));
     setLoading(false);
   }, []);
+
+  const handlePersist = useCallback(
+    async (updates: Partial<MatchRecord>) => {
+      if (!match) return;
+      const updated = await dataAccess.updateMatch(match.id, updates);
+      if (updated) {
+        setMatch(updated);
+        setPdfData(await buildMatchSheetData(updated, competition, teamARoster, teamBRoster));
+      }
+    },
+    [match, competition, teamARoster, teamBRoster],
+  );
 
   useEffect(() => {
     if (matchId) {
@@ -76,13 +93,14 @@ const MatchSheetPage = () => {
               competition={competition}
               teamARoster={teamARoster}
               teamBRoster={teamBRoster}
+              onPersist={handlePersist}
             />
           ) : (
             <MatchSelector matches={matches} onSelect={id => navigate(`/sumulas/${id}`)} />
           )}
         </div>
         <div className="lg:col-span-1">
-          <MatchPdfPreview matchData={match ? pdfDataFrom(match, competition) : undefined} />
+          <MatchPdfPreview matchData={pdfData ?? undefined} matchId={match?.id} />
         </div>
       </div>
     </MainLayout>
@@ -147,34 +165,5 @@ function MatchSelector({ matches, onSelect }: { matches: MatchRecord[]; onSelect
 }
 
 // PDF preview com os dados reais da partida (shape do MatchPdfPreview)
-function pdfDataFrom(match: MatchRecord, competition: CompetitionRecord | null) {
-  const sets = match.sets.map(s => ({ setNumber: s.setNumber, scoreA: s.scoreA, scoreB: s.scoreB }));
-  const finalScoreA = sets.filter(s => s.scoreA > s.scoreB).length;
-  const finalScoreB = sets.filter(s => s.scoreB > s.scoreA).length;
-  const format = (competition?.setFormat ?? '3-sets') as '3-sets' | '5-sets';
-  return {
-    competition: competition?.name ?? 'Competição',
-    category: competition?.genderCategory === 'male' ? 'Masculino' : competition?.genderCategory === 'mixed' ? 'Misto' : 'Feminino',
-    modality: 'indoor' as const,
-    format,
-    playerFormat: '6x6' as const,
-    date: new Date(match.scheduledTime).toLocaleDateString('pt-BR'),
-    time: new Date(match.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    venue: match.venue,
-    court: match.court,
-    round: match.round,
-    matchNumber: match.matchNumber,
-    teamA: { name: match.teamAName, shortName: match.teamAShortName, athletes: [], coach: undefined },
-    teamB: { name: match.teamBName, shortName: match.teamBShortName, athletes: [], coach: undefined },
-    sets,
-    finalScoreA,
-    finalScoreB,
-    winner: (finalScoreA > finalScoreB ? 'A' : finalScoreB > finalScoreA ? 'B' : undefined) as 'A' | 'B' | undefined,
-    referees: match.referees,
-    timeouts: [] as { team: 'A' | 'B'; set: number; score: string }[],
-    substitutions: [] as { team: 'A' | 'B'; set: number; playerIn: number; playerOut: number; score: string }[],
-    sanctions: [] as { team: 'A' | 'B'; player: string; type: string; set: number }[],
-  };
-}
 
 export default MatchSheetPage;

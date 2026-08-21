@@ -1,4 +1,5 @@
-import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { CreateMatchForm } from '@/components/match/CreateMatchForm';
 import { toast } from 'sonner';
@@ -25,6 +26,15 @@ interface MatchFormData {
 
 const CreateMatchPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const competitionParam = searchParams.get('competition');
+
+  useEffect(() => {
+    if (!competitionParam) {
+      toast.info('Entre em uma competição para agendar um jogo.');
+      navigate('/competicoes', { replace: true });
+    }
+  }, [competitionParam, navigate]);
 
   const handleSubmit = async (data: MatchFormData) => {
     try {
@@ -55,9 +65,9 @@ const CreateMatchPage = () => {
         observations: data.observations,
       });
       toast.success('Partida agendada com sucesso!', {
-        description: 'A partida foi adicionada ao calendário.',
+        description: 'A partida foi adicionada ao calendário da competição.',
       });
-      navigate('/jogos');
+      navigate('/competicoes');
     } catch (error) {
       console.error(error);
       toast.error('Erro ao agendar partida.');
@@ -65,13 +75,19 @@ const CreateMatchPage = () => {
   };
 
   const handleCancel = () => {
-    navigate('/jogos');
+    navigate('/competicoes');
   };
+
+  if (!competitionParam) return null;
 
   return (
     <MainLayout>
       <div className="py-6">
-        <CreateMatchForm onSubmit={handleSubmit} onCancel={handleCancel} />
+        <CreateMatchForm
+          onSubmit={handleSubmit}
+          onCancel={handleCancel}
+          defaultCompetitionId={competitionParam}
+        />
       </div>
     </MainLayout>
   );

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Plus,
@@ -62,6 +62,7 @@ interface MatchSheetInterfaceProps {
   competition?: CompetitionRecord | null;
   teamARoster?: CompetitionAthlete[];
   teamBRoster?: CompetitionAthlete[];
+  onPersist?: (updates: Partial<MatchRecord>) => Promise<unknown>;
 }
 
 export function MatchSheetInterface({
@@ -71,7 +72,9 @@ export function MatchSheetInterface({
   competition = null,
   teamARoster = [],
   teamBRoster = [],
+  onPersist,
 }: MatchSheetInterfaceProps) {
+  const matchId = match?.id ?? null;
   const hasRealData = Boolean(match && teamARoster.length >= 0);
 
   const [currentSet, setCurrentSet] = useState(1);
@@ -101,6 +104,58 @@ export function MatchSheetInterface({
   const [rotationB, setRotationB] = useState(0);
 
   const [events, setEvents] = useState<{ id: number; icon: 'sub' | 'timeout' | 'check'; team: 'A' | 'B'; text: string; score: string }[]>([]);
+
+  // Inicializa o estado a partir da partida persistida (só quando o id muda).
+  useEffect(() => {
+    if (!match) return;
+    const history: SetScore[] = match.sets.map(s => ({
+      setNumber: s.setNumber,
+      scoreA: s.scoreA,
+      scoreB: s.scoreB,
+      winner: s.scoreA > s.scoreB ? 'A' : s.scoreB > s.scoreA ? 'B' : undefined,
+    }));
+    const setsWonA = match.sets.filter(s => s.scoreA > s.scoreB).length;
+    const setsWonB = match.sets.filter(s => s.scoreB > s.scoreA).length;
+    const last = match.sets[match.sets.length - 1];
+    setSetHistory(history);
+    setTeamA(prev => ({ ...prev, name: match.teamAName, shortName: match.teamAShortName, score: 0, sets: setsWonA, timeouts: 2 }));
+    setTeamB(prev => ({ ...prev, name: match.teamBName, shortName: match.teamBShortName, score: 0, sets: setsWonB, timeouts: 2 }));
+    setCurrentSet(last ? last.setNumber + 1 : 1);
+    setMatchStatus(match.status === 'completed' ? 'completed' : match.status === 'in-progress' || match.status === 'timeout' || match.status === 'set-break' ? match.status : 'warmup');
+    setLineupA(match.lineups?.teamA ?? buildInitialLineup(teamARoster));
+    setLineupB(match.lineups?.teamB ?? buildInitialLineup(teamBRoster));
+    setEvents([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId]);
+
+  // Persiste placar, sets, status, vencedor e escalações a cada alteração.
+  useEffect(() => {
+    if (!matchId || !onPersist) return;
+    const completedSets = setHistory.map(s => ({ setNumber: s.setNumber, scoreA: s.scoreA, scoreB: s.scoreB }));
+    const liveSets = teamA.score > 0 || teamB.score > 0
+      ? [...completedSets, { setNumber: currentSet, scoreA: teamA.score, scoreB: teamB.score }]
+      : completedSets;
+    const winnerId = matchStatus === 'completed' ? (teamA.sets > teamB.sets ? match?.teamAId : match?.teamBId) : undefined;
+    void onPersist({
+      sets: liveSets,
+      status: matchStatus,
+      winnerId,
+      lineups: { teamA: lineupA, teamB: lineupB },
+    }).catch(() => toast.error('Falha ao salvar a súmula.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId, onPersist, teamA.score, teamB.score, teamA.sets, teamB.sets, setHistory, currentSet, matchStatus, lineupA, lineupB]);
+
+  const liveMatch: MatchRecord | null = match
+    ? {
+        ...match,
+        sets:
+          teamA.score > 0 || teamB.score > 0
+            ? [...setHistory.map(s => ({ setNumber: s.setNumber, scoreA: s.scoreA, scoreB: s.scoreB })), { setNumber: currentSet, scoreA: teamA.score, scoreB: teamB.score }]
+            : setHistory.map(s => ({ setNumber: s.setNumber, scoreA: s.scoreA, scoreB: s.scoreB })),
+        status: matchStatus,
+        winnerId: matchStatus === 'completed' ? (teamA.sets > teamB.sets ? match.teamAId : match.teamBId) : undefined,
+      }
+    : null;
 
   const startersA = useMemo(() => lineupA.starterIds.map(id => teamARoster.find(a => a.id === id)!).filter(Boolean), [lineupA.starterIds, teamARoster]);
   const startersB = useMemo(() => lineupB.starterIds.map(id => teamBRoster.find(a => a.id === id)!).filter(Boolean), [lineupB.starterIds, teamBRoster]);
@@ -151,9 +206,13 @@ export function MatchSheetInterface({
     if (winner === 'A') setTeamA(prev => ({ ...prev, sets: prev.sets + 1, score: 0 }));
     else setTeamB(prev => ({ ...prev, sets: prev.sets + 1, score: 0 }));
     const setsToWin = format === '5-sets' ? 3 : format === '3-sets' || format === '2-sets' ? 2 : 1;
-    if (winner === 'A' && teamA.sets + 1 >= setsToWin) setMatchStatus('completed');
-    else if (winner === 'B' && teamB.sets + 1 >= setsToWin) setMatchStatus('completed');
-    else {
+    if (winner === 'A' && teamA.sets + 1 >= setsToWin) {
+      setMatchStatus('completed');
+      toast.success(`${teamA.shortName} vence a partida!`);
+    } else if (winner === 'B' && teamB.sets + 1 >= setsToWin) {
+      setMatchStatus('completed');
+      toast.success(`${teamB.shortName} vence a partida!`);
+    } else {
       setMatchStatus('set-break');
       setCurrentSet(prev => prev + 1);
     }
@@ -163,12 +222,12 @@ export function MatchSheetInterface({
   const setsToWin = format === '5-sets' ? 3 : format === '3-sets' || format === '2-sets' ? 2 : 1;
 
   const handlePdf = async () => {
-    if (!match) {
+    if (!liveMatch) {
       toast.error('Selecione uma partida para gerar o PDF.');
       return;
     }
     try {
-      const pdfData = await buildMatchSheetData(match, competition, teamARoster, teamBRoster);
+      const pdfData = await buildMatchSheetData(liveMatch, competition, teamARoster, teamBRoster);
       downloadMatchSheetPdf(pdfData);
       toast.success('PDF da súmula gerado!');
     } catch (error) {

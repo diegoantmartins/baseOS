@@ -17,6 +17,8 @@ import {
   Building2,
   LogOut,
   UserRound,
+  FileSpreadsheet,
+  Dices,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -30,13 +32,16 @@ const menuItems = [
   { icon: ClipboardList, label: 'Súmulas', path: '/match-sheets' },
   { icon: Users, label: 'Equipes', path: '/teams' },
   { icon: UserCheck, label: 'Atletas', path: '/athletes' },
+  { icon: Building2, label: 'Locais', path: '/venues' },
+  { icon: Dices, label: 'Sorteio', path: '/sorteio' },
   { icon: Building2, label: 'Árbitros', path: '/referees' },
   { icon: BarChart3, label: 'Estatísticas', path: '/statistics' },
+  { icon: FileSpreadsheet, label: 'Relatórios', path: '/reports' },
   { icon: Settings, label: 'Configurações', path: '/settings' },
 ];
 
 /** Itens restritos ao perfil de organizador. */
-const ORGANIZER_ONLY = new Set(['/competitions', '/teams', '/athletes', '/referees', '/statistics', '/settings']);
+const ORGANIZER_ONLY = new Set(['/competitions', '/teams', '/athletes', '/venues', '/sorteio', '/referees', '/statistics', '/reports', '/settings']);
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);

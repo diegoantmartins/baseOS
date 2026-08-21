@@ -8,6 +8,8 @@ import { dataAccess } from '@/services/dataAccess';
 
 export type MatchSheetData = Parameters<typeof import('./matchSheetPdf').generateMatchSheetPdf>[0];
 
+export type SheetMode = NonNullable<MatchSheetData['sheetMode']>;
+
 function toSetFormat(setFormat: string): '3-sets' | '5-sets' | '1-set' | '2-sets' {
   if (setFormat === '5-sets') return '5-sets';
   if (setFormat === '2-sets') return '2-sets';
@@ -36,6 +38,7 @@ function athleteToPdf(athlete: CompetitionAthlete): {
   position?: string;
   captain?: boolean;
   libero?: boolean;
+  documentNumber?: string;
 } {
   return {
     jerseyNumber: athlete.jerseyNumber,
@@ -43,6 +46,7 @@ function athleteToPdf(athlete: CompetitionAthlete): {
     position: athlete.position,
     captain: athlete.isCaptain,
     libero: athlete.isLibero,
+    documentNumber: athlete.documentNumber,
   };
 }
 
@@ -54,40 +58,51 @@ export async function buildMatchSheetData(
   competition: CompetitionRecord | null,
   teamARoster: CompetitionAthlete[],
   teamBRoster: CompetitionAthlete[],
+  options: { sheetMode?: SheetMode } = {},
 ): Promise<MatchSheetData> {
   const { date, time } = formatMatchDate(match.scheduledTime);
   const sets = match.sets.slice(0, 6).map(s => ({ setNumber: s.setNumber, scoreA: s.scoreA, scoreB: s.scoreB }));
   const finalScoreA = sets.filter(s => s.scoreA > s.scoreB).length;
   const finalScoreB = sets.filter(s => s.scoreB > s.scoreA).length;
+  const isPreGame = options.sheetMode === 'pre' || (match.status !== 'completed' && sets.length === 0);
 
   let winner: 'A' | 'B' | undefined;
-  if ((match.winnerId ?? null) === match.teamAId) winner = 'A';
-  else if ((match.winnerId ?? null) === match.teamBId) winner = 'B';
-  else if (match.status === 'completed' && finalScoreA !== finalScoreB) {
-    winner = finalScoreA > finalScoreB ? 'A' : 'B';
+  if (!isPreGame) {
+    if ((match.winnerId ?? null) === match.teamAId) winner = 'A';
+    else if ((match.winnerId ?? null) === match.teamBId) winner = 'B';
+    else if (match.status === 'completed' && finalScoreA !== finalScoreB) {
+      winner = finalScoreA > finalScoreB ? 'A' : 'B';
+    }
   }
 
+  const [settings, teams, venues] = await Promise.all([dataAccess.getSettings(), dataAccess.listTeams(), dataAccess.listVenues()]);
+  const venueRecord = venues.find(v => v.name === match.venue);
+  const city = venueRecord?.address ? venueRecord.address.split('-').pop()?.trim() : undefined;
   const teamAData = await (async () => {
-    const team = await dataAccess.listTeams().then(ts => ts.find(t => t.id === match.teamAId));
+    const team = teams.find(t => t.id === match.teamAId);
     return {
       name: match.teamAName,
       shortName: match.teamAShortName,
+      logoUrl: team?.logoUrl,
       athletes: teamARoster.map(athleteToPdf),
       coach: team?.coachName,
     };
   })();
 
   const teamBData = await (async () => {
-    const team = await dataAccess.listTeams().then(ts => ts.find(t => t.id === match.teamBId));
+    const team = teams.find(t => t.id === match.teamBId);
     return {
       name: match.teamBName,
       shortName: match.teamBShortName,
+      logoUrl: team?.logoUrl,
       athletes: teamBRoster.map(athleteToPdf),
       coach: team?.coachName,
     };
   })();
 
   return {
+    orgName: settings.orgName || 'VolleyPro',
+    sheetMode: isPreGame ? 'pre' : 'post',
     competition: competition?.name ?? match.competitionId,
     category: competition?.genderCategory === 'male'
       ? 'Masculino'
@@ -104,6 +119,9 @@ export async function buildMatchSheetData(
     time,
     venue: match.venue,
     court: match.court,
+    city,
+    phase: match.phase,
+    groupName: match.groupName,
     round: match.round,
     matchNumber: match.matchNumber,
     teamA: teamAData,

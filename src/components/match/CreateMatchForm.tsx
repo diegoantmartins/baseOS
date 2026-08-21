@@ -30,6 +30,7 @@ import { GENDER_CATEGORY_LABELS } from '@/types/registration';
 import type { CompetitionRecord } from '@/types/entities';
 import type { RefereeRecord } from '@/types/entities';
 import type { TeamRecord } from '@/types/entities';
+import type { VenueRecord } from '@/types/entities';
 import {
   Form,
   FormControl,
@@ -66,34 +67,42 @@ const createMatchSchema = z.object({
 
 type CreateMatchFormData = z.infer<typeof createMatchSchema>;
 
-// Dados carregados do repositório (seed/localStorage/Supabase)
-const mockVenues = [
-  { id: '1', name: 'Ginásio Municipal', city: 'Centro' },
-  { id: '2', name: 'Ginásio do Ibirapuera', city: 'São Paulo, SP' },
-  { id: '3', name: 'Arena Minas', city: 'Belo Horizonte, MG' },
-];
-
 interface CreateMatchFormProps {
   onSubmit?: (data: CreateMatchFormData) => void;
   onCancel?: () => void;
+  /** Quando informada, a competição fica fixa (fluxo "dentro da competição"). */
+  defaultCompetitionId?: string;
 }
 
-export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
+export function CreateMatchForm({ onSubmit, onCancel, defaultCompetitionId }: CreateMatchFormProps) {
   const [step, setStep] = useState(1);
   const totalSteps = 3;
   const [competitions, setCompetitions] = useState<CompetitionRecord[]>([]);
   const [teams, setTeams] = useState<TeamRecord[]>([]);
   const [referees, setReferees] = useState<RefereeRecord[]>([]);
+  const [venues, setVenues] = useState<VenueRecord[]>([]);
+  const [lockedCompetition, setLockedCompetition] = useState<CompetitionRecord | null>(null);
+  const [registeredTeamIds, setRegisteredTeamIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    Promise.all([dataAccess.listCompetitions(), dataAccess.listTeams(), dataAccess.listReferees()]).then(
-      ([comps, teams, refs]) => {
-        setCompetitions(comps);
-        setTeams(teams);
-        setReferees(refs);
-      },
-    );
-  }, []);
+    Promise.all([
+      dataAccess.listCompetitions(),
+      dataAccess.listTeams(),
+      dataAccess.listReferees(),
+      dataAccess.listVenues(),
+      defaultCompetitionId ? dataAccess.listCompetitionTeams(defaultCompetitionId) : Promise.resolve([]),
+    ]).then(([comps, teams, refs, venues, cts]) => {
+      setCompetitions(comps);
+      setTeams(teams);
+      setReferees(refs);
+      setVenues(venues);
+      if (defaultCompetitionId) {
+        const comp = comps.find(c => c.id === defaultCompetitionId) ?? null;
+        setLockedCompetition(comp);
+        setRegisteredTeamIds(new Set(cts.map(ct => ct.teamId)));
+      }
+    });
+  }, [defaultCompetitionId]);
 
   const form = useForm<CreateMatchFormData>({
     resolver: zodResolver(createMatchSchema),
@@ -106,11 +115,29 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
     },
   });
 
+  useEffect(() => {
+    if (lockedCompetition) {
+      form.setValue('competitionId', lockedCompetition.id);
+      form.setValue('modality', lockedCompetition.modality);
+      form.setValue('playerFormat', lockedCompetition.playerFormat as CreateMatchFormData['playerFormat']);
+      form.setValue('setFormat', lockedCompetition.setFormat as CreateMatchFormData['setFormat']);
+    }
+  }, [lockedCompetition, form]);
+
   const modality = form.watch('modality');
   const teamAId = form.watch('teamAId');
+  const selectedVenue = form.watch('venue');
 
-  const filteredTeams = useMemo(() => teams.filter(t => t.modality === modality), [teams, modality]);
+  const filteredTeams = useMemo(() => {
+    const byModality = teams.filter(t => t.modality === modality);
+    if (!lockedCompetition) return byModality;
+    return byModality.filter(t => registeredTeamIds.has(t.id));
+  }, [teams, modality, lockedCompetition, registeredTeamIds]);
   const availableTeamsForB = useMemo(() => filteredTeams.filter(t => t.id !== teamAId), [filteredTeams, teamAId]);
+  const venueCourts = useMemo(
+    () => venues.find(v => v.name === selectedVenue)?.courts ?? [],
+    [venues, selectedVenue],
+  );
 
   const handleSubmit = (data: CreateMatchFormData) => {
     onSubmit?.(data);
@@ -201,81 +228,119 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
               {/* Step 1: Competition & Format */}
               {step === 1 && (
                 <div className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="competitionId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Competição</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione a competição" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {competitions.map(comp => (
-                              <SelectItem key={comp.id} value={comp.id}>
-                                {comp.name}
-                                <span className="ml-2 text-xs text-muted-foreground">
-                                  {GENDER_CATEGORY_LABELS[comp.genderCategory]}
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {lockedCompetition ? (
+                    <div className="p-4 rounded-xl border border-accent/40 bg-accent/5 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Trophy className="w-5 h-5 text-accent" />
+                        <p className="font-semibold">Competição: {lockedCompetition.name}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                        <Badge variant="outline">{GENDER_CATEGORY_LABELS[lockedCompetition.genderCategory]}</Badge>
+                        <Badge variant="outline">
+                          {lockedCompetition.modality === 'indoor' ? 'Quadra' : 'Praia'} ·{' '}
+                          {lockedCompetition.playerFormat} · {lockedCompetition.setFormat}
+                        </Badge>
+                        {registeredTeamIds.size > 0 && (
+                          <Badge variant="secondary">{registeredTeamIds.size} equipe(s) inscrita(s)</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        A partida será agendada nesta competição. Use as equipes inscritas.
+                      </p>
+                    </div>
+                  ) : (
                     <FormField
                       control={form.control}
-                      name="modality"
+                      name="competitionId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Modalidade</FormLabel>
-                          <div className="grid grid-cols-2 gap-3">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                field.onChange('indoor');
-                                form.setValue('playerFormat', '6x6');
-                                form.setValue('setFormat', '3-sets');
-                              }}
-                              className={cn(
-                                'p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2',
-                                field.value === 'indoor'
-                                  ? 'border-indoor bg-indoor/10'
-                                  : 'border-border hover:border-indoor/50'
-                              )}
-                            >
-                              <Volleyball className={cn('w-8 h-8', field.value === 'indoor' ? 'text-indoor' : 'text-muted-foreground')} />
-                              <span className={cn('font-medium', field.value === 'indoor' ? 'text-indoor' : 'text-foreground')}>Quadra</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                field.onChange('beach');
-                                form.setValue('playerFormat', '2x2');
-                                form.setValue('setFormat', '2-sets');
-                              }}
-                              className={cn(
-                                'p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2',
-                                field.value === 'beach'
-                                  ? 'border-beach bg-beach/10'
-                                  : 'border-border hover:border-beach/50'
-                              )}
-                            >
-                              <Waves className={cn('w-8 h-8', field.value === 'beach' ? 'text-beach' : 'text-muted-foreground')} />
-                              <span className={cn('font-medium', field.value === 'beach' ? 'text-beach' : 'text-foreground')}>Praia</span>
-                            </button>
-                          </div>
+                          <FormLabel>Competição</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione a competição" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {competitions.map(comp => (
+                                <SelectItem key={comp.id} value={comp.id}>
+                                  {comp.name}
+                                  <span className="ml-2 text-xs text-muted-foreground">
+                                    {GENDER_CATEGORY_LABELS[comp.genderCategory]}
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {lockedCompetition ? (
+                      <div>
+                        <p className="text-sm font-medium mb-2">Modalidade</p>
+                        <div className="p-4 rounded-xl border-2 border-accent/40 bg-accent/5 flex items-center gap-3">
+                          {lockedCompetition.modality === 'indoor' ? (
+                            <Volleyball className="w-8 h-8 text-indoor" />
+                          ) : (
+                            <Waves className="w-8 h-8 text-beach" />
+                          )}
+                          <span className="font-medium">
+                            {lockedCompetition.modality === 'indoor' ? 'Quadra' : 'Praia'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <FormField
+                        control={form.control}
+                        name="modality"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Modalidade</FormLabel>
+                            <div className="grid grid-cols-2 gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  field.onChange('indoor');
+                                  form.setValue('playerFormat', '6x6');
+                                  form.setValue('setFormat', '3-sets');
+                                }}
+                                className={cn(
+                                  'p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2',
+                                  field.value === 'indoor'
+                                    ? 'border-indoor bg-indoor/10'
+                                    : 'border-border hover:border-indoor/50'
+                                )}
+                              >
+                                <Volleyball className={cn('w-8 h-8', field.value === 'indoor' ? 'text-indoor' : 'text-muted-foreground')} />
+                                <span className={cn('font-medium', field.value === 'indoor' ? 'text-indoor' : 'text-foreground')}>Quadra</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  field.onChange('beach');
+                                  form.setValue('playerFormat', '2x2');
+                                  form.setValue('setFormat', '2-sets');
+                                }}
+                                className={cn(
+                                  'p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2',
+                                  field.value === 'beach'
+                                    ? 'border-beach bg-beach/10'
+                                    : 'border-border hover:border-beach/50'
+                                )}
+                              >
+                                <Waves className={cn('w-8 h-8', field.value === 'beach' ? 'text-beach' : 'text-muted-foreground')} />
+                                <span className={cn('font-medium', field.value === 'beach' ? 'text-beach' : 'text-foreground')}>Praia</span>
+                              </button>
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     <div className="space-y-4">
                       <FormField
@@ -284,7 +349,7 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Formato de Jogadores</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
+                            <Select onValueChange={field.onChange} value={field.value} disabled={Boolean(lockedCompetition)}>
                               <FormControl>
                                 <SelectTrigger>
                                   <SelectValue />
@@ -315,7 +380,7 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Formato de Sets</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
+                            <Select onValueChange={field.onChange} value={field.value} disabled={Boolean(lockedCompetition)}>
                               <FormControl>
                                 <SelectTrigger>
                                   <SelectValue />
@@ -347,6 +412,11 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
               {/* Step 2: Teams */}
               {step === 2 && (
                 <div className="space-y-6">
+                  {lockedCompetition && filteredTeams.length === 0 && (
+                    <div className="p-3 rounded-lg border border-destructive/40 bg-destructive/5 text-sm text-destructive">
+                      Nenhuma equipe inscrita nesta competição. Faça as inscrições antes de agendar partidas.
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField
                       control={form.control}
@@ -473,18 +543,29 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
                             <MapPin className="w-4 h-4" />
                             Local
                           </FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select
+                            onValueChange={v => {
+                              field.onChange(v);
+                              form.setValue('court', '');
+                            }}
+                            value={field.value}
+                          >
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Selecione o local" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {mockVenues.map(venue => (
+                              {venues.length === 0 && (
+                                <SelectItem value="Ginásio Municipal">Ginásio Municipal</SelectItem>
+                              )}
+                              {venues.map(venue => (
                                 <SelectItem key={venue.id} value={venue.name}>
                                   <div className="flex flex-col">
                                     <span>{venue.name}</span>
-                                    <span className="text-xs text-muted-foreground">{venue.city}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {venue.address ?? `${venue.courts.length} quadra(s)`}
+                                    </span>
                                   </div>
                                 </SelectItem>
                               ))}
@@ -501,9 +582,26 @@ export function CreateMatchForm({ onSubmit, onCancel }: CreateMatchFormProps) {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Quadra/Arena</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Ex: Quadra Principal" {...field} />
-                          </FormControl>
+                          {venueCourts.length > 0 ? (
+                            <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione a quadra" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {venueCourts.map(court => (
+                                  <SelectItem key={court} value={court}>
+                                    {court}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <FormControl>
+                              <Input placeholder="Ex: Quadra Principal" {...field} />
+                            </FormControl>
+                          )}
                           <FormMessage />
                         </FormItem>
                       )}

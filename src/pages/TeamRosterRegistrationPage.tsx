@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   ShieldCheck,
   Send,
+  FileDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,6 +41,7 @@ import {
 } from '@/services/registrationService';
 import { dataAccess } from '@/services/dataAccess';
 import { GENDER_CATEGORY_LABELS, ROSTER_LIMITS } from '@/types/registration';
+import { generateTeamRosterReportPdf, downloadReportsPdf } from '@/lib/pdf/reportsPdf';
 import type { CompetitionAthlete, CompetitionAthleteInput, CompetitionTeam } from '@/types/registration';
 
 function countdownText(deadlineIso: string, nowMs: number): { label: string; expired: boolean } {
@@ -152,6 +154,34 @@ export function TeamRosterRegistrationPage() {
     }
   };
 
+  const handleExportRoster = async () => {
+    if (!team) return;
+    const teams = await dataAccess.listTeams();
+    const teamRecord = teams.find(t => t.id === team.teamId);
+    const doc = generateTeamRosterReportPdf(
+      [
+        {
+          name: team.teamName,
+          shortName: team.teamShortName,
+          coach: teamRecord?.coachName,
+          logoUrl: teamRecord?.logoUrl,
+          athletes: athletes.map(a => ({
+            jerseyNumber: a.jerseyNumber,
+            name: a.name,
+            position: a.position,
+            documentNumber: a.documentNumber,
+            isCaptain: a.isCaptain,
+            isLibero: a.isLibero,
+          })),
+        },
+      ],
+      competitionName || 'Competição',
+    );
+    const safeName = team.teamName.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase();
+    downloadReportsPdf(doc, `relacao_nominal_${safeName}.pdf`);
+    toast.success('Relação nominal gerada!');
+  };
+
   if (loading) {
     return (
       <PublicShell>
@@ -247,6 +277,7 @@ export function TeamRosterRegistrationPage() {
           }}
           onRemove={handleRemove}
           onSubmitRoster={handleSubmitRoster}
+          onExportRoster={handleExportRoster}
         />
 
         {/* Resumo de validação */}
@@ -298,9 +329,10 @@ interface RosterCardProps {
   onEdit: (athlete: CompetitionAthlete) => void;
   onRemove: (athlete: CompetitionAthlete) => void;
   onSubmitRoster: () => void;
+  onExportRoster: () => void;
 }
 
-function RosterCard({ team, athletes, limits, locked, submitting, onAdd, onEdit, onRemove, onSubmitRoster }: RosterCardProps) {
+function RosterCard({ team, athletes, limits, locked, submitting, onAdd, onEdit, onRemove, onSubmitRoster, onExportRoster }: RosterCardProps) {
   const captainCount = athletes.filter(a => a.isCaptain).length;
   const liberoCount = athletes.filter(a => a.isLibero).length;
 
@@ -321,6 +353,10 @@ function RosterCard({ team, athletes, limits, locked, submitting, onAdd, onEdit,
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={onExportRoster} disabled={athletes.length === 0}>
+              <FileDown className="w-4 h-4" />
+              Relação Nominal (PDF)
+            </Button>
             {!locked && athletes.length > 0 && (
               <Button
                 variant="outline"

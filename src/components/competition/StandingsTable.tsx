@@ -12,6 +12,8 @@ import type { TeamStandingResult } from '@/services/standingsService';
 interface StandingsTableProps {
   standings?: TeamStandingResult[];
   title?: string;
+  /** Mapa teamId -> logoUrl para exibir os escudos das equipes. */
+  logoUrlById?: Record<string, string>;
 }
 
 const mockStandings: TeamStandingResult[] = [
@@ -27,7 +29,8 @@ const mockStandings: TeamStandingResult[] = [
 
 export function StandingsTable({ 
   standings = mockStandings, 
-  title = 'Classificação' 
+  title = 'Classificação',
+  logoUrlById = {},
 }: StandingsTableProps) {
   return (
     <Card className="card-elevated">
@@ -83,9 +86,17 @@ export function StandingsTable({
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center font-bold text-sm text-foreground">
-                          {standing.teamShortName}
-                        </div>
+                        {logoUrlById[standing.teamId] ? (
+                          <img
+                            src={logoUrlById[standing.teamId]}
+                            alt={`Escudo ${standing.teamName}`}
+                            className="w-10 h-10 rounded-lg object-contain bg-muted p-0.5"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center font-bold text-sm text-foreground">
+                            {standing.teamShortName}
+                          </div>
+                        )}
                         <span className="font-medium text-foreground">{standing.teamName}</span>
                       </div>
                     </td>

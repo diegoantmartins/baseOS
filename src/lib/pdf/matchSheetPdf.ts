@@ -4,7 +4,8 @@ import jsPDF from 'jspdf';
 interface TeamInfo {
   name: string;
   shortName: string;
-  athletes: { jerseyNumber?: number; name: string; position?: string; captain?: boolean; libero?: boolean }[];
+  logoUrl?: string;
+  athletes: { jerseyNumber?: number; name: string; position?: string; captain?: boolean; libero?: boolean; documentNumber?: string }[];
   coach?: string;
 }
 
@@ -16,6 +17,10 @@ interface SetResult {
 }
 
 export interface MatchSheetData {
+  /** Nome do sistema/organizador impresso no cabeçalho oficial. */
+  orgName?: string;
+  /** 'pre' = súmula em branco para preenchimento manual na mesa; 'post' = resultado final. */
+  sheetMode?: 'pre' | 'post';
   competition: string;
   category: string;
   genderCategory?: 'male' | 'female' | 'mixed';
@@ -26,6 +31,12 @@ export interface MatchSheetData {
   time: string;
   venue: string;
   court?: string;
+  /** Cidade do local (extraída do endereço do ginásio). */
+  city?: string;
+  /** Fase do jogo (ex.: 'classificatória', 'semifinal', 'final'). */
+  phase?: string;
+  /** Grupo/chave na fase classificatória (ex.: 'Grupo A'). */
+  groupName?: string;
   round: number;
   matchNumber: number;
   teamA: TeamInfo;
@@ -112,26 +123,36 @@ export function generateMatchSheetPdf(data: MatchSheetData): jsPDF {
 function drawHeader(doc: jsPDF, data: MatchSheetData, y: number): number {
   const modalityText = data.modality === 'indoor' ? 'VÔLEI DE QUADRA' : 'VÔLEI DE PRAIA';
   const formatText = data.format.toUpperCase().replace('-', ' ');
-  
+  const isPreGame = data.sheetMode === 'pre';
+
+  // Organizador/Sistema
+  if (data.orgName) {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(GRAY_MEDIUM);
+    doc.text(data.orgName.toUpperCase(), PAGE_WIDTH / 2, y, { align: 'center' });
+    y += 5;
+  }
+
   // Title
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(BLACK);
   doc.text('SÚMULA OFICIAL', PAGE_WIDTH / 2, y, { align: 'center' });
   y += 6;
-  
+
   // Modality and format
   doc.setFontSize(12);
   doc.setFont('helvetica', 'normal');
   doc.text(`${modalityText} - ${formatText} (${data.playerFormat})`, PAGE_WIDTH / 2, y, { align: 'center' });
   y += 8;
-  
+
   // Competition name
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.text(data.competition.toUpperCase(), PAGE_WIDTH / 2, y, { align: 'center' });
   y += 5;
-  
+
   // Category + Naipe
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
@@ -143,14 +164,25 @@ function drawHeader(doc: jsPDF, data: MatchSheetData, y: number): number {
     doc.text(`NAIPE: ${GENDER_CATEGORY_LABEL[data.genderCategory]}`, PAGE_WIDTH / 2, y, { align: 'center' });
     y += 4;
   }
+
+  // Modo da súmula (pré-jogo para a mesa / resultado final)
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(isPreGame ? BLACK : GRAY_MEDIUM);
+  doc.text(
+    isPreGame ? 'PRÉ-JOGO — PREENCHIMENTO MANUAL PELA MESA' : 'PÓS-JOGO — RESULTADO FINAL',
+    PAGE_WIDTH / 2,
+    y,
+    { align: 'center' },
+  );
   y += 4;
-  
+
   // Horizontal line
   doc.setDrawColor(BLACK);
   doc.setLineWidth(0.5);
   doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
   y += 5;
-  
+
   return y;
 }
 
@@ -232,12 +264,27 @@ function drawTeamsLineups(doc: jsPDF, data: MatchSheetData, y: number): number {
   return y + teamBoxHeight + 5;
 }
 
+function drawTeamLogo(doc: jsPDF, logoUrl: string | undefined, x: number, y: number, size: number): void {
+  if (!logoUrl) return;
+  try {
+    if (logoUrl.startsWith('data:image/svg+xml')) {
+      const svg = decodeURIComponent(logoUrl.replace(/^data:image\/svg\+xml;utf8,?/, ''));
+      doc.addSvgAsImage(svg, x, y, size, size);
+      return;
+    }
+    const format = logoUrl.startsWith('data:image/png') ? 'PNG' : logoUrl.startsWith('data:image/jpeg') ? 'JPEG' : undefined;
+    doc.addImage(logoUrl, format, x, y, size, size);
+  } catch {
+    // Logos são decorativos; se não renderizarem, o PDF segue sem eles.
+  }
+}
+
 function drawTeamBox(
-  doc: jsPDF, 
-  team: TeamInfo, 
-  x: number, 
-  y: number, 
-  width: number, 
+  doc: jsPDF,
+  team: TeamInfo,
+  x: number,
+  y: number,
+  width: number,
   height: number,
   label: string
 ): void {
@@ -245,58 +292,69 @@ function drawTeamBox(
   doc.setDrawColor(BLACK);
   doc.setLineWidth(0.5);
   doc.rect(x, y, width, height, 'S');
-  
+
   // Header
   doc.setFillColor(230, 230, 230);
   doc.rect(x, y, width, 8, 'F');
   doc.line(x, y + 8, x + width, y + 8);
-  
+
+  // Logo (se disponível)
+  const logoSize = 5.2;
+  const hasLogo = Boolean(team.logoUrl);
+  if (hasLogo) {
+    drawTeamLogo(doc, team.logoUrl, x + 2, y + 1.4, logoSize);
+  }
+
   // Team label
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(GRAY_MEDIUM);
-  doc.text(`EQUIPE ${label}`, x + 2, y + 5.5);
-  
+  doc.text(`EQUIPE ${label}`, x + (hasLogo ? 2 + logoSize + 2 : 2), y + 5.5);
+
   // Team name
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(BLACK);
   const nameX = x + width - 2;
   doc.text(team.name.toUpperCase(), nameX, y + 5.5, { align: 'right' });
-  
+
   // Athletes list (lista nominal completa)
   let lineY = y + 13;
   const lineHeight = 4.2;
-  
+
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
-  
+
   // Header row
   doc.setTextColor(GRAY_MEDIUM);
   doc.text('Nº', x + 2, lineY);
   doc.text('ATLETA', x + 12, lineY);
   doc.text('POSIÇÃO', x + 67, lineY);
   lineY += lineHeight;
-  
+
   // Athletes
   doc.setTextColor(BLACK);
+  let liberoIndex = 0;
   team.athletes.forEach((athlete, idx) => {
     const numStr = athlete.jerseyNumber !== undefined ? String(athlete.jerseyNumber).padStart(2, '0') : '--';
     let nameStr = athlete.name;
     if (athlete.captain) nameStr += ' (C)';
-    if (athlete.libero) nameStr += ' (L)';
-    
+    if (athlete.libero) {
+      liberoIndex += 1;
+      nameStr += ` (L${liberoIndex})`;
+    }
+
     if (idx % 2 === 0) {
       doc.setFillColor(248, 248, 248);
       doc.rect(x, lineY - 3, width, lineHeight, 'F');
     }
-    
+
     doc.text(numStr, x + 2, lineY);
     doc.text(nameStr.substring(0, 28), x + 12, lineY);
     doc.text((athlete.position ?? '').substring(0, 16), x + 67, lineY);
     lineY += lineHeight;
   });
-  
+
   // Coach
   if (team.coach) {
     doc.setFontSize(6);
@@ -599,6 +657,26 @@ export function previewMatchSheetPdf(data: MatchSheetData): void {
   const pdfBlob = doc.output('blob');
   const url = URL.createObjectURL(pdfBlob);
   window.open(url, '_blank');
+}
+
+/**
+ * Abre o PDF em nova aba e dispara a impressão.
+ */
+export function printMatchSheetPdf(data: MatchSheetData): void {
+  const doc = generateMatchSheetPdf(data);
+  const pdfBlob = doc.output('blob');
+  const url = URL.createObjectURL(pdfBlob);
+  const win = window.open(url, '_blank');
+  if (win) {
+    win.onload = () => {
+      try {
+        win.focus();
+        win.print();
+      } catch {
+        // O usuário imprime pela própria janela do PDF.
+      }
+    };
+  }
 }
 
 /**

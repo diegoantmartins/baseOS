@@ -184,9 +184,9 @@ describe('Limites de elenco', () => {
   });
 
   it('recusa ultrapassar o máximo de 14 atletas (6x6)', async () => {
-    // Seed do ct-2 já tem 9 atletas (camisas 3-22); adiciona até 14
-    for (let i = 0; i < 5; i++) {
-      const result = await addAthlete('ct-2', { ...baseInput, name: `Atleta ${i}`, jerseyNumber: 23 + i }, '6x6');
+    // Seed do ct-2 já tem 12 atletas (camisas 1-12); adiciona até 14
+    for (let i = 0; i < 2; i++) {
+      const result = await addAthlete('ct-2', { ...baseInput, name: `Atleta ${i}`, jerseyNumber: 20 + i }, '6x6');
       expect(result.ok).toBe(true);
     }
     const result = await addAthlete('ct-2', { ...baseInput, name: 'Extra', jerseyNumber: 99 }, '6x6');
@@ -197,21 +197,21 @@ describe('Limites de elenco', () => {
 
 describe('Operações de elenco', () => {
   it('cria, atualiza e remove atleta', async () => {
-    const created = await addAthlete('ct-2', baseInput, '6x6');
+    const created = await addAthlete('ct-2', { ...baseInput, jerseyNumber: 30 }, '6x6');
     expect(created.ok).toBe(true);
 
     const roster = await dataAccess.listCompetitionAthletes('ct-2');
     const athlete = roster.find(a => a.name === 'Teste Silva');
     expect(athlete).toBeDefined();
-    expect(roster.filter(a => a.isCaptain).length).toBe(1); // seed já tem 1 capitã
+    expect(roster.filter(a => a.isCaptain).length).toBe(1); // seed já tem 1 capitão
 
-    const updated = await updateAthlete(athlete!.id, { ...baseInput, name: 'Novo Nome' }, '6x6');
+    const updated = await updateAthlete(athlete!.id, { ...baseInput, jerseyNumber: 30, name: 'Novo Nome' }, '6x6');
     expect(updated.ok).toBe(true);
     expect(updated.athlete?.name).toBe('Novo Nome');
 
     const removed = await removeAthlete(athlete!.id);
     expect(removed.ok).toBe(true);
-    expect(await dataAccess.listCompetitionAthletes('ct-2')).toHaveLength(9);
+    expect(await dataAccess.listCompetitionAthletes('ct-2')).toHaveLength(12);
   });
 
   it('permite cadastrar atleta sem número de camisa (confirmação no dia)', async () => {
@@ -227,13 +227,16 @@ describe('Operações de elenco', () => {
   it('não permite editar atleta de equipe bloqueada', async () => {
     const roster = await dataAccess.listCompetitionAthletes('ct-1');
     const athlete = roster[0];
-    // ct-1 tem prazo expirado no seed
-    const result = await updateAthlete(athlete.id, { ...baseInput, name: 'X' }, '6x6');
+    // Trava o prazo do ct-1 (seed com prazo válido)
+    await dataAccess.updateCompetitionTeam('ct-1', {
+      registrationDeadline: new Date(Date.now() - 3600 * 1000).toISOString(),
+    });
+    const result = await updateAthlete(athlete.id, { ...baseInput, jerseyNumber: 99, name: 'X' }, '6x6');
     expect(result.ok).toBe(false);
   });
 
   it('busca inscrição por token', async () => {
-    const team = await getCompetitionTeamByToken('comp-1-osa-ct-1');
+    const team = await getCompetitionTeamByToken('comp-toledo-2026-osa-ct-1');
     expect(team).not.toBeNull();
     expect(team?.teamShortName).toBe('OSA');
   });

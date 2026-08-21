@@ -6,9 +6,20 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const isSupabaseConfigured = (): boolean => {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-  return Boolean(url && key);
+  const env = (typeof import.meta !== 'undefined' && import.meta.env) || (typeof process !== 'undefined' && process.env) || {};
+  const url = (env.VITE_SUPABASE_URL as string | undefined) ?? '';
+  const key = (env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? '';
+  if (!url || !key) return false;
+  if (
+    url.includes('seu-projeto') ||
+    url.includes('your-project') ||
+    url.includes('example.com') ||
+    key.includes('sua-anon-key') ||
+    key.includes('your-anon-key')
+  ) {
+    return false;
+  }
+  return true;
 };
 
 let clientPromise: Promise<SupabaseClient | null> | null = null;
@@ -34,4 +45,9 @@ export const SUPABASE_TABLES = {
   matches: 'matches',
   competitionTeams: 'competition_teams',
   competitionAthletes: 'competition_athletes',
+  venues: 'venues',
+  draws: 'draws',
+  appSettings: 'app_settings',
+  documentEdits: 'document_edits',
+  templateLayouts: 'template_layouts',
 } as const;

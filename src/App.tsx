@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -5,14 +6,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./components/auth/AuthContext";
 import { RequireAuth } from "./components/auth/RequireAuth";
+import { dataAccess } from "@/services/dataAccess";
 import Index from "./pages/Index";
 import MatchesPage from "./pages/MatchesPage";
 import MatchSheetPage from "./pages/MatchSheetPage";
 import CompetitionsPage from "./pages/CompetitionsPage";
 import TeamsPage from "./pages/TeamsPage";
+import VenuesPage from "./pages/VenuesPage";
 import AthletesPage from "./pages/AthletesPage";
 import RefereesPage from "./pages/RefereesPage";
 import StatisticsPage from "./pages/StatisticsPage";
+import ReportsPage from "./pages/ReportsPage";
+import DrawPage from "./pages/DrawPage";
+import DocumentEditorPage from "./pages/DocumentEditorPage";
 import SettingsPage from "./pages/SettingsPage";
 import CreateMatchPage from "./pages/CreateMatchPage";
 import LoginPage from "./pages/LoginPage";
@@ -22,10 +28,23 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+function AppThemeSync() {
+  useEffect(() => {
+    dataAccess.getSettings().then(s => {
+      const root = document.documentElement;
+      if (s.theme === 'dark') root.classList.add('dark');
+      else if (s.theme === 'light') root.classList.remove('dark');
+      else root.classList.toggle('dark', window.matchMedia('(prefers-color-scheme: dark)').matches);
+    });
+  }, []);
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
+        <AppThemeSync />
         <Toaster />
         <Sonner />
         <BrowserRouter>
@@ -72,6 +91,22 @@ const App = () => (
               }
             />
             <Route
+              path="/locais"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <VenuesPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/venues"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <VenuesPage />
+                </RequireAuth>
+              }
+            />
+            <Route
               path="/atletas"
               element={
                 <RequireAuth roles={['organizer']}>
@@ -96,10 +131,58 @@ const App = () => (
               }
             />
             <Route
+              path="/relatorios"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <ReportsPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <ReportsPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/sorteio"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <DrawPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/sorteio/:competitionId"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <DrawPage />
+                </RequireAuth>
+              }
+            />
+            <Route
               path="/configuracoes"
               element={
                 <RequireAuth roles={['organizer']}>
                   <SettingsPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/documentos/editar"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <DocumentEditorPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/documentos/editar/:matchId"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <DocumentEditorPage />
                 </RequireAuth>
               }
             />

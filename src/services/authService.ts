@@ -163,6 +163,36 @@ export const authService = {
     emit(null);
   },
 
+  /** Atualiza o perfil do usuário autenticado (nome) e propaga a nova sessão. */
+  async updateProfile(updates: Partial<Pick<UserProfile, 'name'>>): Promise<SignInResult> {
+    const stored = readStoredSession();
+    if (!stored) return { ok: false, error: 'Sessão expirada. Entre novamente.' };
+
+    if (isSupabaseConfigured()) {
+      const { getSupabaseClient } = await import('@/lib/supabaseClient');
+      const supabase = await getSupabaseClient();
+      if (!supabase) return { ok: false, error: 'Supabase não configurado.' };
+
+      const { error: authError } = await supabase.auth.updateUser({ data: updates });
+      if (authError) return { ok: false, error: authError.message };
+      if (updates.name) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ name: updates.name })
+          .eq('id', stored.user.id);
+        if (profileError) return { ok: false, error: profileError.message };
+      }
+      const refreshed = await supabaseSession();
+      if (!refreshed) return { ok: false, error: 'Falha ao atualizar a sessão.' };
+      return { ok: true, session: refreshed };
+    }
+
+    const next: AuthSession = { ...stored, user: { ...stored.user, ...updates } };
+    storeSession(next);
+    emit(next);
+    return { ok: true, session: next };
+  },
+
   subscribe(listener: SessionListener): () => void {
     listeners.add(listener);
     return () => listeners.delete(listener);

@@ -1,61 +1,92 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  Filter, 
-  Plus,
+import {
+  Calendar,
+  Clock,
+  MapPin,
   Play,
   Pause,
   CheckCircle,
   Volleyball,
-  Waves,
   Search,
-  ChevronDown
+  FileText,
+  Pencil,
+  ListChecks,
+  ClipboardList,
+  Trophy,
+  PenLine,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { dataAccess } from '@/services/dataAccess';
-import type { MatchRecord } from '@/types/entities';
+import { generateMatchesBoletimPdf, downloadReportsPdf } from '@/lib/pdf/reportsPdf';
+import { MatchSheetEmitDialog } from '@/components/match/MatchSheetEmitDialog';
+import type { CompetitionRecord, MatchRecord, TeamRecord, VenueRecord } from '@/types/entities';
 import { cn } from '@/lib/utils';
+
+const PHASE_OPTIONS = [
+  { value: 'classificatória', label: 'Classificatória' },
+  { value: 'quartas', label: 'Quartas de Final' },
+  { value: 'semifinal', label: 'Semifinal' },
+  { value: 'final', label: 'Final' },
+] as const;
 
 interface Match {
   id: string;
-  teamA: { name: string; shortName: string; score?: number };
-  teamB: { name: string; shortName: string; score?: number };
+  record: MatchRecord;
+  teamA: { name: string; shortName: string; logoUrl?: string; score?: number };
+  teamB: { name: string; shortName: string; logoUrl?: string; score?: number };
   date: string;
   time: string;
   venue: string;
-  court: string;
+  court?: string;
   modality: 'indoor' | 'beach';
   status: 'scheduled' | 'live' | 'completed' | 'postponed';
   competition: string;
+  phase?: string;
+  groupName?: string;
   sets?: { a: number; b: number }[];
 }
 
-function toLocalMatch(match: MatchRecord): Match {
+function toLocalMatch(match: MatchRecord, competition: CompetitionRecord | null, teamById: Map<string, TeamRecord>): Match {
   const scoreA = match.sets.filter(s => s.scoreA > s.scoreB).length;
   const scoreB = match.sets.filter(s => s.scoreB > s.scoreA).length;
   const hasResult = match.status === 'completed' && match.sets.length > 0;
+  const teamA = teamById.get(match.teamAId);
+  const teamB = teamById.get(match.teamBId);
   return {
     id: match.id,
-    teamA: { name: match.teamAName, shortName: match.teamAShortName, score: hasResult ? scoreA : undefined },
-    teamB: { name: match.teamBName, shortName: match.teamBShortName, score: hasResult ? scoreB : undefined },
+    record: match,
+    teamA: {
+      name: match.teamAName,
+      shortName: match.teamAShortName,
+      logoUrl: teamA?.logoUrl,
+      score: hasResult ? scoreA : undefined,
+    },
+    teamB: {
+      name: match.teamBName,
+      shortName: match.teamBShortName,
+      logoUrl: teamB?.logoUrl,
+      score: hasResult ? scoreB : undefined,
+    },
     date: match.scheduledTime,
     time: new Date(match.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     venue: match.venue,
-    court: match.court ?? '',
-    modality: 'indoor',
+    court: match.court,
+    modality: competition?.modality ?? 'indoor',
     status: (match.status === 'completed' ? 'completed' : match.status === 'scheduled' ? 'scheduled' : 'live') as Match['status'],
-    competition: match.competitionId,
+    competition: competition?.name ?? match.competitionId,
+    phase: match.phase,
+    groupName: match.groupName,
     sets: match.sets.map(s => ({ a: s.scoreA, b: s.scoreB })),
   };
 }
@@ -72,27 +103,92 @@ const item = {
 
 const MatchesPage = () => {
   const navigate = useNavigate();
-  const [mockMatches, setMockMatches] = useState<Match[]>([]);
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [competitions, setCompetitions] = useState<CompetitionRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'live' | 'scheduled' | 'completed'>('all');
-  const [modalityFilter, setModalityFilter] = useState<'all' | 'indoor' | 'beach'>('all');
+  const [phaseFilter, setPhaseFilter] = useState<string>('all');
+  const [groupFilter, setGroupFilter] = useState<string>('all');
 
-  useEffect(() => {
-    dataAccess.listMatches().then(records => {
-      setMockMatches(records.map(toLocalMatch));
-      setLoading(false);
-    });
+  const [sheetMatch, setSheetMatch] = useState<Match | null>(null);
+  const [editMatch, setEditMatch] = useState<Match | null>(null);
+  const [resultMatch, setResultMatch] = useState<Match | null>(null);
+
+  const refresh = useCallback(async () => {
+    const [records, competitions, teams] = await Promise.all([
+      dataAccess.listMatches(),
+      dataAccess.listCompetitions(),
+      dataAccess.listTeams(),
+    ]);
+    const teamById = new Map(teams.map(t => [t.id, t]));
+    const compById = new Map(competitions.map(c => [c.id, c]));
+    setCompetitions(competitions);
+    setMatches(records.map(record => toLocalMatch(record, compById.get(record.competitionId) ?? null, teamById)));
+    setLoading(false);
   }, []);
 
-  const filteredMatches = mockMatches.filter(match => {
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const groupOptions = useMemo(() => {
+    const groups = new Set(matches.map(m => m.groupName).filter(Boolean) as string[]);
+    return [...groups].sort();
+  }, [matches]);
+
+  const filteredMatches = matches.filter(match => {
     if (filter !== 'all' && match.status !== filter) return false;
-    if (modalityFilter !== 'all' && match.modality !== modalityFilter) return false;
+    if (phaseFilter !== 'all' && match.phase !== phaseFilter) return false;
+    if (groupFilter !== 'all' && match.groupName !== groupFilter) return false;
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      const haystack = `${match.teamA.name} ${match.teamB.name} ${match.venue} ${match.competition} ${match.phase ?? ''} ${match.groupName ?? ''}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
     return true;
   });
 
-  const liveCount = mockMatches.filter(m => m.status === 'live').length;
-  const todayCount = mockMatches.filter(m => m.date === new Date().toISOString().slice(0, 10)).length;
-  const scheduledCount = mockMatches.filter(m => m.status === 'scheduled').length;
+  const liveCount = matches.filter(m => m.status === 'live').length;
+  const todayCount = matches.filter(m => new Date(m.date).toDateString() === new Date().toDateString()).length;
+  const scheduledCount = matches.filter(m => m.status === 'scheduled').length;
+
+  const handleEditSaved = async (updates: Partial<MatchRecord>) => {
+    if (!editMatch) return;
+    await dataAccess.updateMatch(editMatch.id, updates);
+    toast.success('Partida atualizada!');
+    setEditMatch(null);
+    await refresh();
+  };
+
+  const handleResultSaved = async (updates: Partial<MatchRecord>) => {
+    if (!resultMatch) return;
+    await dataAccess.updateMatch(resultMatch.id, updates);
+    toast.success('Resultado lançado! Classificação atualizada.');
+    setResultMatch(null);
+    await refresh();
+  };
+
+  const handleBoletim = () => {
+    const rows = filteredMatches.map(m => ({
+      matchNumber: m.record.matchNumber,
+      round: m.record.round,
+      phase: m.phase,
+      groupName: m.groupName,
+      date: new Date(m.date).toLocaleDateString('pt-BR'),
+      time: m.time,
+      venue: m.venue,
+      court: m.court,
+      teamAName: m.teamA.name,
+      teamBName: m.teamB.name,
+      scoreA: m.status === 'completed' ? m.teamA.score : undefined,
+      scoreB: m.status === 'completed' ? m.teamB.score : undefined,
+      statusLabel: m.status === 'completed' ? 'Finalizado' : m.status === 'live' ? 'Ao vivo' : m.status === 'postponed' ? 'Adiado' : 'Agendado',
+    }));
+    const doc = generateMatchesBoletimPdf(rows, 'Boletim de Jogos');
+    downloadReportsPdf(doc, `boletim_jogos_${new Date().toISOString().slice(0, 10)}.pdf`);
+    toast.success('Boletim de jogos gerado!');
+  };
 
   return (
     <MainLayout>
@@ -101,12 +197,14 @@ const MatchesPage = () => {
         <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-display font-bold text-foreground">Jogos</h1>
-            <p className="text-muted-foreground mt-1">Gerencie partidas e acompanhe resultados em tempo real</p>
+            <p className="text-muted-foreground mt-1">Gerencie partidas, fases, grupos e resultados</p>
           </div>
-          <Button variant="accent" className="gap-2" onClick={() => navigate('/jogos/novo')}>
-            <Plus className="w-4 h-4" />
-            Agendar Jogo
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="gap-2" onClick={handleBoletim}>
+              <ClipboardList className="w-4 h-4" />
+              Boletim de Jogos
+            </Button>
+          </div>
         </motion.div>
 
         {/* Stats Cards */}
@@ -147,13 +245,13 @@ const MatchesPage = () => {
         </motion.div>
 
         {/* Filters */}
-        <motion.div variants={item} className="flex flex-col md:flex-row gap-4">
+        <motion.div variants={item} className="flex flex-col lg:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Buscar jogos, equipes..." className="pl-10" />
+            <Input placeholder="Buscar jogos, equipes, locais..." className="pl-10" value={query} onChange={e => setQuery(e.target.value)} />
           </div>
           <Select value={filter} onValueChange={(v: typeof filter) => setFilter(v)}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -163,14 +261,30 @@ const MatchesPage = () => {
               <SelectItem value="completed">Finalizados</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={modalityFilter} onValueChange={(v: typeof modalityFilter) => setModalityFilter(v)}>
+          <Select value={phaseFilter} onValueChange={setPhaseFilter}>
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Modalidade" />
+              <SelectValue placeholder="Fase" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="indoor">Quadra</SelectItem>
-              <SelectItem value="beach">Praia</SelectItem>
+              <SelectItem value="all">Todas as fases</SelectItem>
+              {PHASE_OPTIONS.map(phase => (
+                <SelectItem key={phase.value} value={phase.value}>
+                  {phase.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={groupFilter} onValueChange={setGroupFilter}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Grupo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os grupos</SelectItem>
+              {groupOptions.map(group => (
+                <SelectItem key={group} value={group}>
+                  {group}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </motion.div>
@@ -181,8 +295,15 @@ const MatchesPage = () => {
             <Skeleton className="h-40 w-full" />
           ) : (
             <>
-              {filteredMatches.map((match) => (
-                <MatchCard key={match.id} match={match} onClick={() => navigate(`/sumulas/${match.id}`)} />
+              {filteredMatches.map(match => (
+                <MatchCard
+                  key={match.id}
+                  match={match}
+                  onOpenSheet={() => setSheetMatch(match)}
+                  onEdit={() => setEditMatch(match)}
+                  onResult={() => setResultMatch(match)}
+                  onEditDocument={() => navigate(`/documentos/editar/${match.id}`)}
+                />
               ))}
               {filteredMatches.length === 0 && (
                 <Card className="card-elevated">
@@ -195,11 +316,42 @@ const MatchesPage = () => {
           )}
         </motion.div>
       </motion.div>
+
+      <EditMatchDialog match={editMatch} onOpenChange={open => { if (!open) setEditMatch(null); }} onSaved={handleEditSaved} />
+      <ResultMatchDialog match={resultMatch} onOpenChange={open => { if (!open) setResultMatch(null); }} onSaved={handleResultSaved} />
+      <MatchSheetEmitDialog
+        match={sheetMatch?.record ?? null}
+        competition={sheetMatch ? competitions.find(c => c.id === sheetMatch.record.competitionId) ?? null : null}
+        open={sheetMatch !== null}
+        onOpenChange={open => { if (!open) setSheetMatch(null); }}
+      />
     </MainLayout>
   );
 };
 
-function MatchCard({ match, onClick }: { match: Match; onClick: () => void }) {
+function TeamBadge({ shortName, name, logoUrl, score, winner }: { shortName: string; name: string; logoUrl?: string; score?: number; winner?: boolean }) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        {logoUrl ? (
+          <img src={logoUrl} alt={`Escudo ${name}`} className="w-12 h-12 rounded-xl object-contain bg-muted p-1" />
+        ) : (
+          <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center font-bold text-foreground">
+            {shortName}
+          </div>
+        )}
+        <span className={cn('font-semibold text-lg', winner && 'text-success')}>{name}</span>
+      </div>
+      {score !== undefined && (
+        <span className={cn('text-3xl font-display font-bold', winner ? 'text-success' : 'text-foreground')}>
+          {score}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MatchCard({ match, onOpenSheet, onEdit, onResult, onEditDocument }: { match: Match; onOpenSheet: () => void; onEdit: () => void; onResult: () => void; onEditDocument: () => void }) {
   const statusConfig = {
     live: { label: 'AO VIVO', variant: 'destructive' as const, icon: Play },
     scheduled: { label: 'AGENDADO', variant: 'secondary' as const, icon: Clock },
@@ -208,72 +360,41 @@ function MatchCard({ match, onClick }: { match: Match; onClick: () => void }) {
   };
 
   const status = statusConfig[match.status];
+  const teamAWin = match.status === 'completed' && (match.teamA.score ?? 0) > (match.teamB.score ?? 0);
+  const teamBWin = match.status === 'completed' && (match.teamB.score ?? 0) > (match.teamA.score ?? 0);
 
   return (
-    <Card className="card-elevated hover:shadow-lg transition-all cursor-pointer" onClick={onClick}>
+    <Card className="card-elevated hover:shadow-lg transition-all">
       <CardContent className="p-0">
         <div className="flex flex-col md:flex-row">
           {/* Left: Match Info */}
           <div className="flex-1 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className={cn(
-                'p-2 rounded-lg',
-                match.modality === 'indoor' ? 'bg-indoor text-indoor-foreground' : 'bg-beach text-beach-foreground'
-              )}>
-                {match.modality === 'indoor' ? <Volleyball className="w-4 h-4" /> : <Waves className="w-4 h-4" />}
+            <div className="flex items-center gap-3 mb-4 flex-wrap">
+              <div className="p-2 rounded-lg bg-indoor text-indoor-foreground">
+                <Volleyball className="w-4 h-4" />
               </div>
               <span className="text-sm font-medium text-muted-foreground">{match.competition}</span>
-              {match.status === 'live' && (
-                <Badge variant="destructive" className="gap-1">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-current"></span>
-                  </span>
-                  AO VIVO
+              {match.phase && (
+                <Badge variant="outline">
+                  <Trophy className="w-3 h-3 mr-1" />
+                  {match.phase}
                 </Badge>
               )}
+              {match.groupName && <Badge variant="secondary">{match.groupName}</Badge>}
+              <Badge variant={status.variant} className="gap-1">
+                <status.icon className="w-3 h-3" />
+                {status.label}
+              </Badge>
             </div>
 
             {/* Teams */}
-            <div className="flex items-center gap-6">
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center font-bold text-foreground">
-                      {match.teamA.shortName}
-                    </div>
-                    <span className="font-semibold text-lg">{match.teamA.name}</span>
-                  </div>
-                  {match.teamA.score !== undefined && (
-                    <span className={cn(
-                      'text-3xl font-display font-bold',
-                      match.status === 'completed' && match.teamA.score > (match.teamB.score || 0) ? 'text-success' : 'text-foreground'
-                    )}>
-                      {match.teamA.score}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center font-bold text-foreground">
-                      {match.teamB.shortName}
-                    </div>
-                    <span className="font-semibold text-lg">{match.teamB.name}</span>
-                  </div>
-                  {match.teamB.score !== undefined && (
-                    <span className={cn(
-                      'text-3xl font-display font-bold',
-                      match.status === 'completed' && match.teamB.score > (match.teamA.score || 0) ? 'text-success' : 'text-foreground'
-                    )}>
-                      {match.teamB.score}
-                    </span>
-                  )}
-                </div>
-              </div>
+            <div className="space-y-4">
+              <TeamBadge shortName={match.teamA.shortName} name={match.teamA.name} logoUrl={match.teamA.logoUrl} score={match.teamA.score} winner={teamAWin} />
+              <TeamBadge shortName={match.teamB.shortName} name={match.teamB.name} logoUrl={match.teamB.logoUrl} score={match.teamB.score} winner={teamBWin} />
             </div>
 
             {/* Sets */}
-            {match.sets && (
+            {match.sets && match.sets.length > 0 && (
               <div className="mt-4 flex gap-2">
                 {match.sets.map((set, idx) => (
                   <div key={idx} className="px-3 py-1.5 rounded-lg bg-muted text-sm">
@@ -286,8 +407,8 @@ function MatchCard({ match, onClick }: { match: Match; onClick: () => void }) {
             )}
           </div>
 
-          {/* Right: Date/Venue */}
-          <div className="w-full md:w-64 p-6 bg-muted/30 border-t md:border-t-0 md:border-l border-border flex flex-col justify-center gap-3">
+          {/* Right: Date/Venue + Actions */}
+          <div className="w-full md:w-72 p-6 bg-muted/30 border-t md:border-t-0 md:border-l border-border flex flex-col justify-center gap-3">
             <div className="flex items-center gap-2 text-sm">
               <Calendar className="w-4 h-4 text-muted-foreground" />
               <span>{new Date(match.date).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
@@ -298,15 +419,303 @@ function MatchCard({ match, onClick }: { match: Match; onClick: () => void }) {
             </div>
             <div className="flex items-center gap-2 text-sm">
               <MapPin className="w-4 h-4 text-muted-foreground" />
-              <span className="truncate">{match.venue}</span>
+              <span className="truncate">
+                {match.venue}
+                {match.court ? ` - ${match.court}` : ''}
+              </span>
             </div>
-            <Button variant={match.status === 'live' ? 'accent' : 'outline'} size="sm" className="mt-2">
-              {match.status === 'live' ? 'Acompanhar' : match.status === 'scheduled' ? 'Iniciar Súmula' : 'Ver Súmula'}
-            </Button>
+            <div className="flex flex-col gap-2 mt-2">
+              <Button variant="outline" size="sm" className="gap-2" onClick={onOpenSheet}>
+                <FileText className="w-4 h-4" />
+                Súmula do Jogo
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2" onClick={onEditDocument}>
+                <PenLine className="w-4 h-4" />
+                Editor de Documentos
+              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" size="sm" className="gap-2" onClick={onEdit}>
+                  <Pencil className="w-4 h-4" />
+                  Editar
+                </Button>
+                <Button
+                  variant={match.status === 'completed' ? 'outline' : 'accent'}
+                  size="sm"
+                  className="gap-2"
+                  onClick={onResult}
+                  disabled={match.status === 'completed'}
+                >
+                  <ListChecks className="w-4 h-4" />
+                  Resultado
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// ============================================================================
+// Modal de edição rápida da partida
+// ============================================================================
+
+function EditMatchDialog({
+  match,
+  onOpenChange,
+  onSaved,
+}: {
+  match: Match | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (updates: Partial<MatchRecord>) => Promise<void>;
+}) {
+  const [venues, setVenues] = useState<VenueRecord[]>([]);
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [venue, setVenue] = useState('');
+  const [court, setCourt] = useState('');
+  const [phase, setPhase] = useState('');
+  const [groupName, setGroupName] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (match) {
+      const d = new Date(match.record.scheduledTime);
+      setDate(d.toISOString().slice(0, 10));
+      setTime(d.toTimeString().slice(0, 5));
+      setVenue(match.record.venue ?? '');
+      setCourt(match.record.court ?? '');
+      setPhase(match.record.phase ?? '');
+      setGroupName(match.record.groupName ?? '');
+      dataAccess.listVenues().then(setVenues);
+    }
+  }, [match]);
+
+  const venueCourts = venues.find(v => v.name === venue)?.courts ?? [];
+
+  const handleSave = async () => {
+    if (!match || saving) return;
+    setSaving(true);
+    try {
+      const scheduledTime = date && time ? new Date(`${date}T${time}:00`).toISOString() : match.record.scheduledTime;
+      await onSaved({
+        scheduledTime,
+        venue,
+        court: court || undefined,
+        phase: phase || undefined,
+        groupName: groupName || undefined,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={match !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar Partida</DialogTitle>
+          <DialogDescription>
+            {match ? `${match.teamA.name} vs ${match.teamB.name}` : ''}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-date">Data</Label>
+              <Input id="edit-date" type="date" value={date} onChange={e => setDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-time">Horário</Label>
+              <Input id="edit-time" type="time" value={time} onChange={e => setTime(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Local</Label>
+              <Select value={venue} onValueChange={v => { setVenue(v); setCourt(''); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o local" />
+                </SelectTrigger>
+                <SelectContent>
+                  {venues.map(v => (
+                    <SelectItem key={v.id} value={v.name}>
+                      {v.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Quadra</Label>
+              <Select value={court} onValueChange={setCourt}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a quadra" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(venueCourts.length > 0 ? venueCourts : [court]).map(c => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                  {venueCourts.length === 0 && <SelectItem value="Quadra Principal">Quadra Principal</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Fase</Label>
+              <Select value={phase} onValueChange={setPhase}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Fase do jogo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="classificatória">Classificatória</SelectItem>
+                  <SelectItem value="quartas">Quartas de Final</SelectItem>
+                  <SelectItem value="semifinal">Semifinal</SelectItem>
+                  <SelectItem value="final">Final</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-group">Grupo/Chave</Label>
+              <Input
+                id="edit-group"
+                value={groupName}
+                onChange={e => setGroupName(e.target.value)}
+                placeholder="Ex.: Grupo A"
+              />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="accent" disabled={saving} onClick={handleSave}>
+            {saving ? 'Salvando...' : 'Salvar Alterações'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============================================================================
+// Modal de lançamento de resultado (parciais dos sets)
+// ============================================================================
+
+function ResultMatchDialog({
+  match,
+  onOpenChange,
+  onSaved,
+}: {
+  match: Match | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (updates: Partial<MatchRecord>) => Promise<void>;
+}) {
+  const [setScores, setSetScores] = useState<{ a: string; b: string }[]>([]);
+  const [saving, setSaving] = useState(false);
+  const maxSets = 5;
+
+  useEffect(() => {
+    if (match) {
+      const existing = match.record.sets.map(s => ({ a: String(s.scoreA), b: String(s.scoreB) }));
+      setSetScores([...existing, ...Array.from({ length: maxSets - existing.length }, () => ({ a: '', b: '' }))].slice(0, maxSets));
+    }
+  }, [match]);
+
+  if (!match) return null;
+
+  const filledSets = setScores.filter(s => s.a !== '' && s.b !== '').map((s, idx) => ({
+    setNumber: idx + 1,
+    scoreA: Number(s.a),
+    scoreB: Number(s.b),
+  }));
+  const setsWonA = filledSets.filter(s => s.scoreA > s.scoreB).length;
+  const setsWonB = filledSets.filter(s => s.scoreB > s.scoreA).length;
+
+  const handleSave = async (closeMatch: boolean) => {
+    if (saving) return;
+    if (filledSets.length === 0) {
+      toast.error('Informe ao menos uma parcial de set.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const winnerId = setsWonA !== setsWonB ? (setsWonA > setsWonB ? match.record.teamAId : match.record.teamBId) : undefined;
+      await onSaved({
+        sets: filledSets,
+        status: closeMatch ? 'completed' : match.record.status === 'scheduled' ? 'in-progress' : match.record.status,
+        winnerId,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Lançar Resultado</DialogTitle>
+          <DialogDescription>
+            {match.teamA.name} vs {match.teamB.name} — digite as parciais de cada set.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="flex items-center gap-3 px-1 text-sm font-semibold text-muted-foreground">
+            <span className="flex-1 truncate">{match.teamA.shortName}</span>
+            <span className="w-16 text-center">SET</span>
+            <span className="flex-1 text-right truncate">{match.teamB.shortName}</span>
+          </div>
+          {setScores.map((set, idx) => (
+            <div key={idx} className="flex items-center gap-3">
+              <Input
+                type="number"
+                min={0}
+                max={50}
+                placeholder="--"
+                className="flex-1 text-center"
+                value={set.a}
+                onChange={e => setSetScores(prev => prev.map((s, i) => (i === idx ? { ...s, a: e.target.value } : s)))}
+                aria-label={`Pontos ${match.teamA.shortName} no set ${idx + 1}`}
+              />
+              <span className="w-16 text-center text-sm font-bold bg-muted py-2 rounded-lg">Set {idx + 1}</span>
+              <Input
+                type="number"
+                min={0}
+                max={50}
+                placeholder="--"
+                className="flex-1 text-center"
+                value={set.b}
+                onChange={e => setSetScores(prev => prev.map((s, i) => (i === idx ? { ...s, b: e.target.value } : s)))}
+                aria-label={`Pontos ${match.teamB.shortName} no set ${idx + 1}`}
+              />
+            </div>
+          ))}
+          {filledSets.length > 0 && (
+            <div className="p-3 rounded-lg bg-muted/50 text-sm">
+              Parciais lançadas: <strong>{setsWonA} x {setsWonB}</strong>{' '}
+              {setsWonA !== setsWonB && (
+                <span>
+                  — vencedor: <strong>{setsWonA > setsWonB ? match.teamA.name : match.teamB.name}</strong>
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" disabled={saving || filledSets.length === 0} onClick={() => handleSave(false)}>
+            Salvar Parciais
+          </Button>
+          <Button variant="accent" disabled={saving || filledSets.length === 0} onClick={() => handleSave(true)}>
+            {saving ? 'Salvando...' : 'Fechar Partida'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

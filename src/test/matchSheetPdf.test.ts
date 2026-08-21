@@ -21,8 +21,8 @@ function baseData(overrides: Partial<MatchSheetData> = {}): MatchSheetData {
       name: 'Osasco Voleibol',
       shortName: 'OSA',
       athletes: [
-        { jerseyNumber: 1, name: 'Ana Souza', position: 'Levantadora', captain: true },
-        { jerseyNumber: 9, name: 'Bia Lima', position: 'Ponteira', libero: true },
+        { jerseyNumber: 1, name: 'Ana Souza', position: 'Levantadora', captain: true, documentNumber: '123.456.789-00' },
+        { jerseyNumber: 9, name: 'Bia Lima', position: 'Ponteira', libero: true, documentNumber: '987.654.321-00' },
       ],
       coach: 'Prof. Carlos',
     },
@@ -49,6 +49,8 @@ function baseData(overrides: Partial<MatchSheetData> = {}): MatchSheetData {
     substitutions: [{ team: 'B', set: 3, playerIn: 4, playerOut: 2, score: '12:10' }],
     sanctions: [{ team: 'B', player: 'Carla Dias', type: 'Cartão amarelo', set: 3 }],
     observations: 'Jogo válido pela fase classificatória.',
+    orgName: 'Federação Teste',
+    sheetMode: 'post',
     ...overrides,
   };
 }
@@ -102,6 +104,27 @@ describe('generateMatchSheetPdf', () => {
         finalScoreA: 0,
         finalScoreB: 0,
         winner: undefined,
+        sheetMode: 'pre',
+      }),
+    );
+    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
+  });
+
+  it('usa o nome da organização no cabeçalho e aceita escudos SVG', () => {
+    const svgLogo =
+      'data:image/svg+xml;utf8,' +
+      encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><circle cx="50" cy="50" r="40" fill="#222"/></svg>');
+    const doc = generateMatchSheetPdf(
+      baseData({
+        orgName: 'Liga Regional de Vôlei',
+        teamA: {
+          ...baseData().teamA,
+          logoUrl: svgLogo,
+        },
+        teamB: {
+          ...baseData().teamB,
+          logoUrl: svgLogo,
+        },
       }),
     );
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
