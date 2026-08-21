@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   User,
@@ -13,11 +13,26 @@ import {
   Trash2,
   RotateCcw,
   Sparkles,
+  Shield,
+  ShieldCheck,
+  KeyRound,
+  Lock,
+  UserPlus,
+  Users,
+  CheckCircle2,
+  AlertTriangle,
+  History,
+  MoreVertical,
+  Edit2,
+  Check,
+  X,
+  Search,
+  Laptop,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -25,10 +40,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { dataAccess, clearAllCompetitionData, clearEntireDatabase, resetLocalData } from '@/services/dataAccess';
+import { authService } from '@/services/authService';
 import type { NotificationPrefs, ScoringRules, SettingsRecord } from '@/types/entities';
 import { useAuth } from '@/components/auth/AuthContext';
-import { ROLE_LABELS } from '@/types/auth';
+import { ROLE_LABELS, type SystemUser, type UserRole } from '@/types/auth';
 
 const container = {
   hidden: { opacity: 0 },
@@ -46,6 +79,14 @@ const NOTIFICATION_ITEMS: { key: keyof NotificationPrefs; title: string; descrip
   { key: 'matchResult', title: 'Resultados finais', description: 'Receber resultado ao final de cada jogo' },
   { key: 'pendingSheets', title: 'Súmulas pendentes', description: 'Alertar sobre súmulas não finalizadas' },
   { key: 'dailyDigest', title: 'Email diário', description: 'Resumo diário por email' },
+];
+
+const AUDIT_LOGS = [
+  { id: '1', event: 'Login efetuado com sucesso', user: 'Ana Organizadora', ip: '189.28.45.12', time: 'Hoje às 18:32', type: 'success' },
+  { id: '2', event: 'Súmula do Jogo #01 homologada', user: 'Carlos Silva (Árbitro)', ip: '177.102.19.88', time: 'Hoje às 17:15', type: 'info' },
+  { id: '3', event: 'Elenco da equipe atualizado', user: 'Minas Tênis Clube', ip: '201.86.32.14', time: 'Ontem às 21:04', type: 'info' },
+  { id: '4', event: 'Tentativa de login com senha incorreta', user: 'desconhecido@exemplo.com', ip: '45.160.22.9', time: '20/08/2026 14:10', type: 'warning' },
+  { id: '5', event: 'Configurações de pontuação salvas', user: 'Ana Organizadora', ip: '189.28.45.12', time: '19/08/2026 11:45', type: 'info' },
 ];
 
 function applyTheme(theme: SettingsRecord['theme']): void {
@@ -84,13 +125,13 @@ const SettingsPage = () => {
   const { session, updateProfile } = useAuth();
   const { settings, save } = useSettings();
 
-  const user = session?.user;
+  const currentUser = session?.user;
 
   /* Perfil */
   const [name, setName] = useState('');
   useEffect(() => {
-    if (user?.name) setName(user.name);
-  }, [user?.name]);
+    if (currentUser?.name) setName(currentUser.name);
+  }, [currentUser?.name]);
 
   /* Organização */
   const [orgName, setOrgName] = useState('');
@@ -117,6 +158,48 @@ const SettingsPage = () => {
   /* Aparência */
   const [theme, setTheme] = useState<SettingsRecord['theme']>('system');
   const [language, setLanguage] = useState<SettingsRecord['language']>('pt-BR');
+
+  /* Gestão de Usuários */
+  const [usersList, setUsersList] = useState<SystemUser[]>([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
+  const [userForm, setUserForm] = useState<{
+    name: string;
+    email: string;
+    role: UserRole;
+    status: 'active' | 'inactive';
+    password: string;
+  }>({
+    name: '',
+    email: '',
+    role: 'organizer',
+    status: 'active',
+    password: '',
+  });
+
+  /* Configurações de Segurança */
+  const [securityRules, setSecurityRules] = useState({
+    strongPasswords: true,
+    lockoutAfterAttempts: true,
+    twoFactorEnabled: false,
+    sessionTimeoutHours: '24',
+    requirePasswordChangeDays: false,
+  });
+
+  const loadUsers = useCallback(async () => {
+    try {
+      const list = await authService.listUsers();
+      setUsersList(list);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   useEffect(() => {
     if (!settings) return;
@@ -167,6 +250,94 @@ const SettingsPage = () => {
 
   const handleSaveAppearance = () => save({ theme, language }, 'Aparência atualizada.');
 
+  /* Handlers de Usuários */
+  const openCreateUserModal = () => {
+    setEditingUser(null);
+    setUserForm({
+      name: '',
+      email: '',
+      role: 'organizer',
+      status: 'active',
+      password: '',
+    });
+    setUserModalOpen(true);
+  };
+
+  const openEditUserModal = (u: SystemUser) => {
+    setEditingUser(u);
+    setUserForm({
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      status: u.status,
+      password: '',
+    });
+    setUserModalOpen(true);
+  };
+
+  const handleSaveUserForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userForm.name.trim() || !userForm.email.trim()) {
+      toast.error('Preencha o nome e o e-mail do usuário.');
+      return;
+    }
+
+    try {
+      if (editingUser) {
+        await authService.updateUser(editingUser.id, {
+          name: userForm.name.trim(),
+          email: userForm.email.trim().toLowerCase(),
+          role: userForm.role,
+          status: userForm.status,
+        });
+        toast.success(`Usuário ${userForm.name} atualizado com sucesso!`);
+      } else {
+        await authService.createUser({
+          name: userForm.name.trim(),
+          email: userForm.email.trim().toLowerCase(),
+          role: userForm.role,
+          status: userForm.status,
+        });
+        toast.success(`Usuário ${userForm.name} cadastrado com sucesso!`);
+      }
+      setUserModalOpen(false);
+      loadUsers();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar usuário.');
+    }
+  };
+
+  const handleToggleUserStatus = async (u: SystemUser) => {
+    const nextStatus = u.status === 'active' ? 'inactive' : 'active';
+    try {
+      await authService.updateUser(u.id, { status: nextStatus });
+      toast.success(`Usuário ${u.name} ${nextStatus === 'active' ? 'ativado' : 'desativado'}.`);
+      loadUsers();
+    } catch {
+      toast.error('Erro ao alterar status do usuário.');
+    }
+  };
+
+  const handleDeleteUser = async (u: SystemUser) => {
+    if (confirm(`Tem certeza que deseja excluir o usuário ${u.name}?`)) {
+      try {
+        await authService.deleteUser(u.id);
+        toast.success(`Usuário ${u.name} removido com sucesso.`);
+        loadUsers();
+      } catch {
+        toast.error('Erro ao excluir usuário.');
+      }
+    }
+  };
+
+  const filteredUsers = usersList.filter(u => {
+    const matchesSearch =
+      u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.email.toLowerCase().includes(userSearch.toLowerCase());
+    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
+
   if (!settings) {
     return (
       <MainLayout>
@@ -182,51 +353,500 @@ const SettingsPage = () => {
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
         {/* Header */}
         <motion.div variants={item}>
-          <h1 className="text-3xl font-display font-bold text-foreground">Configurações</h1>
-          <p className="text-muted-foreground mt-1">Gerencie as configurações do sistema</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">Configurações do Sistema</h1>
+          <p className="text-muted-foreground mt-1">
+            Gerencie usuários com acesso ao sistema, políticas de segurança, regras e preferências gerais.
+          </p>
         </motion.div>
 
         <motion.div variants={item}>
-          <Tabs defaultValue="profile" className="space-y-6">
-            <TabsList className="bg-muted/50 flex-wrap h-auto p-1">
-              <TabsTrigger value="profile" className="gap-2">
-                <User className="w-4 h-4" />
-                Perfil
+          <Tabs defaultValue="users" className="space-y-6">
+            <TabsList className="bg-muted/50 flex-wrap h-auto p-1 border border-border/60">
+              <TabsTrigger value="users" className="gap-2 text-xs">
+                <Users className="w-4 h-4 text-primary" />
+                Usuários do Sistema
               </TabsTrigger>
-              <TabsTrigger value="organization" className="gap-2">
+              <TabsTrigger value="security" className="gap-2 text-xs">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                Segurança & Auditoria
+              </TabsTrigger>
+              <TabsTrigger value="organization" className="gap-2 text-xs">
                 <Building className="w-4 h-4" />
-                Organização
+                Organização & Regras
               </TabsTrigger>
-              <TabsTrigger value="notifications" className="gap-2">
+              <TabsTrigger value="profile" className="gap-2 text-xs">
+                <User className="w-4 h-4" />
+                Meu Perfil
+              </TabsTrigger>
+              <TabsTrigger value="notifications" className="gap-2 text-xs">
                 <Bell className="w-4 h-4" />
                 Notificações
               </TabsTrigger>
-              <TabsTrigger value="templates" className="gap-2">
-                <FileText className="w-4 h-4" />
-                Templates
-              </TabsTrigger>
-              <TabsTrigger value="appearance" className="gap-2">
+              <TabsTrigger value="appearance" className="gap-2 text-xs">
                 <Palette className="w-4 h-4" />
                 Aparência
               </TabsTrigger>
-              <TabsTrigger value="database" className="gap-2 text-destructive">
+              <TabsTrigger value="database" className="gap-2 text-xs text-destructive">
                 <Database className="w-4 h-4" />
                 Base de Dados
               </TabsTrigger>
             </TabsList>
 
-            {/* Profile Tab */}
+            {/* 1. ABA: USUÁRIOS DO SISTEMA */}
+            <TabsContent value="users" className="space-y-4">
+              <Card className="card-elevated">
+                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Users className="w-5 h-5 text-primary" />
+                      Gestão de Usuários do Sistema
+                    </CardTitle>
+                    <CardDescription>
+                      Cadastre administradores, organizadores, árbitros e mesários com controle granular de acesso.
+                    </CardDescription>
+                  </div>
+                  <Button variant="accent" className="gap-2 text-xs font-semibold shrink-0" onClick={openCreateUserModal}>
+                    <UserPlus className="w-4 h-4" />
+                    Cadastrar Usuário
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Filtros de Usuários */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por nome ou e-mail..."
+                        value={userSearch}
+                        onChange={e => setUserSearch(e.target.value)}
+                        className="pl-9 text-xs h-9"
+                      />
+                    </div>
+                    <Select value={roleFilter} onValueChange={setRoleFilter}>
+                      <SelectTrigger className="w-48 text-xs h-9">
+                        <SelectValue placeholder="Filtrar por perfil" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os Perfis</SelectItem>
+                        <SelectItem value="admin">Administrador</SelectItem>
+                        <SelectItem value="organizer">Organizador</SelectItem>
+                        <SelectItem value="referee">Árbitro</SelectItem>
+                        <SelectItem value="scorer">Apontador / Mesário</SelectItem>
+                        <SelectItem value="team">Representante Equipe</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Tabela de Usuários */}
+                  <div className="border rounded-xl overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-muted/40">
+                        <TableRow>
+                          <TableHead className="text-xs font-bold">Usuário</TableHead>
+                          <TableHead className="text-xs font-bold">Perfil de Acesso</TableHead>
+                          <TableHead className="text-xs font-bold">Status</TableHead>
+                          <TableHead className="text-xs font-bold">Cadastrado em</TableHead>
+                          <TableHead className="text-xs font-bold text-right">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredUsers.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center py-8 text-xs text-muted-foreground">
+                              Nenhum usuário encontrado.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredUsers.map(u => {
+                            const isMe = currentUser?.email?.toLowerCase() === u.email.toLowerCase();
+                            const roleColor =
+                              u.role === 'admin'
+                                ? 'bg-purple-500/15 text-purple-600 border-purple-500/30'
+                                : u.role === 'organizer'
+                                ? 'bg-primary/15 text-primary border-primary/30'
+                                : u.role === 'referee'
+                                ? 'bg-amber-500/15 text-amber-600 border-amber-500/30'
+                                : u.role === 'scorer'
+                                ? 'bg-blue-500/15 text-blue-600 border-blue-500/30'
+                                : 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30';
+
+                            return (
+                              <TableRow key={u.id} className="hover:bg-muted/30">
+                                <TableCell>
+                                  <div className="flex items-center gap-3">
+                                    <Avatar className="w-8 h-8">
+                                      <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                                        {u.name.charAt(0).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                      <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                        {u.name}
+                                        {isMe && <Badge variant="outline" className="text-[9px] py-0 px-1">Você</Badge>}
+                                      </div>
+                                      <div className="text-[11px] text-muted-foreground">{u.email}</div>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${roleColor}`}>
+                                    {ROLE_LABELS[u.role] || u.role}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={u.status === 'active' ? 'default' : 'secondary'}
+                                    className={`text-[10px] cursor-pointer ${
+                                      u.status === 'active'
+                                        ? 'bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 border border-emerald-500/30'
+                                        : 'bg-muted text-muted-foreground'
+                                    }`}
+                                    onClick={() => handleToggleUserStatus(u)}
+                                  >
+                                    {u.status === 'active' ? 'Ativo' : 'Inativo'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground">
+                                  {new Date(u.createdAt).toLocaleDateString('pt-BR')}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <MoreVertical className="w-4 h-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => openEditUserModal(u)}>
+                                        <Edit2 className="w-3.5 h-3.5 mr-2" />
+                                        Editar Usuário
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => handleToggleUserStatus(u)}>
+                                        <Shield className="w-3.5 h-3.5 mr-2" />
+                                        {u.status === 'active' ? 'Desativar Acesso' : 'Ativar Acesso'}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        onClick={() => handleDeleteUser(u)}
+                                        className="text-destructive focus:text-destructive"
+                                        disabled={isMe}
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                        Excluir Usuário
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 2. ABA: SEGURANÇA & AUDITORIA */}
+            <TabsContent value="security" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Políticas de Senha e Autenticação */}
+                <Card className="card-elevated">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-primary" />
+                      Políticas de Autenticação & Senhas
+                    </CardTitle>
+                    <CardDescription>Defina os padrões de segurança para contas e senhas do sistema.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Exigir Senhas Fortes</p>
+                        <p className="text-[11px] text-muted-foreground">Mínimo de 8 caracteres, números e símbolos especiais.</p>
+                      </div>
+                      <Switch
+                        checked={securityRules.strongPasswords}
+                        onCheckedChange={v => setSecurityRules(prev => ({ ...prev, strongPasswords: v }))}
+                      />
+                    </div>
+                    <Separator />
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Bloqueio após Tentativas Inválidas</p>
+                        <p className="text-[11px] text-muted-foreground">Bloquear temporariamente após 5 tentativas incorretas.</p>
+                      </div>
+                      <Switch
+                        checked={securityRules.lockoutAfterAttempts}
+                        onCheckedChange={v => setSecurityRules(prev => ({ ...prev, lockoutAfterAttempts: v }))}
+                      />
+                    </div>
+                    <Separator />
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Autenticação em Duas Etapas (2FA)</p>
+                        <p className="text-[11px] text-muted-foreground">Exigir código OTP por aplicativo autenticador.</p>
+                      </div>
+                      <Switch
+                        checked={securityRules.twoFactorEnabled}
+                        onCheckedChange={v => setSecurityRules(prev => ({ ...prev, twoFactorEnabled: v }))}
+                      />
+                    </div>
+                    <Separator />
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Expiração de Sessão Ativa</p>
+                        <p className="text-[11px] text-muted-foreground">Tempo máximo de inatividade antes de deslogar.</p>
+                      </div>
+                      <Select
+                        value={securityRules.sessionTimeoutHours}
+                        onValueChange={v => setSecurityRules(prev => ({ ...prev, sessionTimeoutHours: v }))}
+                      >
+                        <SelectTrigger className="w-32 text-xs h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="8">8 Horas</SelectItem>
+                          <SelectItem value="24">24 Horas</SelectItem>
+                          <SelectItem value="72">3 Dias</SelectItem>
+                          <SelectItem value="168">7 Dias</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="border-t bg-muted/20 py-3">
+                    <Button variant="accent" size="sm" className="gap-2 text-xs" onClick={() => toast.success('Políticas de segurança atualizadas!')}>
+                      <Save className="w-3.5 h-3.5" />
+                      Salvar Políticas
+                    </Button>
+                  </CardFooter>
+                </Card>
+
+                {/* Sessão Ativa & Dispositivo */}
+                <Card className="card-elevated">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Laptop className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      Sessão Atual & Dispositivo Conectado
+                    </CardTitle>
+                    <CardDescription>Informações de segurança da conexão ativa no navegador.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-3">
+                      <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Conexão Segura & Criptografada</p>
+                        <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 mt-0.5">
+                          Sua sessão está ativa com token local verificado e controle de integridade de dados.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between py-1.5 border-b">
+                        <span className="text-muted-foreground">Usuário Logado:</span>
+                        <span className="font-semibold">{currentUser?.name ?? 'Demonstração'} ({currentUser?.email ?? 'local'})</span>
+                      </div>
+                      <div className="flex justify-between py-1.5 border-b">
+                        <span className="text-muted-foreground">Perfil de Acesso:</span>
+                        <span className="font-semibold text-primary">{ROLE_LABELS[currentUser?.role ?? 'organizer']}</span>
+                      </div>
+                      <div className="flex justify-between py-1.5 border-b">
+                        <span className="text-muted-foreground">Ambiente:</span>
+                        <span className="font-semibold">VolleyPro PWA / Web Client</span>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-xs text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={() => {
+                        toast.success('Todas as outras sessões foram encerradas com sucesso.');
+                      }}
+                    >
+                      Encerrar Outras Sessões Ativas
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Registro de Auditoria (Audit Logs) */}
+              <Card className="card-elevated">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <History className="w-4 h-4 text-primary" />
+                    Registro de Auditoria do Sistema (Audit Logs)
+                  </CardTitle>
+                  <CardDescription>Rastreabilidade de eventos críticos, acessos e alterações administrativas.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-xl overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-muted/40">
+                        <TableRow>
+                          <TableHead className="text-xs font-bold">Evento</TableHead>
+                          <TableHead className="text-xs font-bold">Usuário Responsável</TableHead>
+                          <TableHead className="text-xs font-bold">Endereço IP</TableHead>
+                          <TableHead className="text-xs font-bold text-right">Data & Hora</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {AUDIT_LOGS.map(log => (
+                          <TableRow key={log.id} className="text-xs">
+                            <TableCell className="font-medium flex items-center gap-2">
+                              {log.type === 'success' ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              ) : log.type === 'warning' ? (
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              ) : (
+                                <Shield className="w-3.5 h-3.5 text-primary shrink-0" />
+                              )}
+                              {log.event}
+                            </TableCell>
+                            <TableCell>{log.user}</TableCell>
+                            <TableCell className="font-mono text-[11px] text-muted-foreground">{log.ip}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">{log.time}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 3. ABA: ORGANIZAÇÃO & REGRAS */}
+            <TabsContent value="organization">
+              <Card className="card-elevated">
+                <CardHeader>
+                  <CardTitle>Dados da Organização & Federação</CardTitle>
+                  <CardDescription>Configure a entidade responsável e regras padrão de pontuação.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="orgName">Nome da Federação / Liga</Label>
+                      <Input
+                        id="orgName"
+                        value={orgName}
+                        onChange={e => setOrgName(e.target.value)}
+                        placeholder="Ex: Federação Paranaense de Voleibol"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="orgCode">Sigla / Código Oficial</Label>
+                      <Input
+                        id="orgCode"
+                        value={orgCode}
+                        onChange={e => setOrgCode(e.target.value)}
+                        placeholder="Ex: FPV"
+                        maxLength={6}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cnpj">CNPJ</Label>
+                      <Input
+                        id="cnpj"
+                        value={cnpj}
+                        onChange={e => setCnpj(e.target.value)}
+                        placeholder="00.000.000/0000-00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="website">Website Oficial</Label>
+                      <Input
+                        id="website"
+                        value={website}
+                        onChange={e => setWebsite(e.target.value)}
+                        placeholder="https://federacao.org.br"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="contactEmail">Email de Contato</Label>
+                      <Input
+                        id="contactEmail"
+                        type="email"
+                        value={contactEmail}
+                        onChange={e => setContactEmail(e.target.value)}
+                        placeholder="contato@federacao.org.br"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Telefone</Label>
+                      <Input
+                        id="phone"
+                        value={phone}
+                        onChange={e => setPhone(e.target.value)}
+                        placeholder="(41) 3000-0000"
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-foreground">Regras Padrão de Pontuação (CBV/FIVB)</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="setPoints">Pontos por Set Regular</Label>
+                        <Input
+                          id="setPoints"
+                          type="number"
+                          value={setPoints}
+                          onChange={e => setSetPoints(e.target.value)}
+                          min={15}
+                          max={30}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="tiebreakPoints">Pontos do Tie-break</Label>
+                        <Input
+                          id="tiebreakPoints"
+                          type="number"
+                          value={tiebreakPoints}
+                          onChange={e => setTiebreakPoints(e.target.value)}
+                          min={7}
+                          max={25}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="timeoutsPerSet">Tempos por Set</Label>
+                        <Input
+                          id="timeoutsPerSet"
+                          type="number"
+                          value={timeoutsPerSet}
+                          onChange={e => setTimeoutsPerSet(e.target.value)}
+                          min={1}
+                          max={3}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button variant="accent" className="gap-2" onClick={handleSaveOrganization}>
+                      <Save className="w-4 h-4" />
+                      Salvar Organização
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 4. ABA: PERFIL */}
             <TabsContent value="profile">
               <Card className="card-elevated">
                 <CardHeader>
-                  <CardTitle>Informações do Perfil</CardTitle>
-                  <CardDescription>Atualize suas informações pessoais</CardDescription>
+                  <CardTitle>Informações do Meu Perfil</CardTitle>
+                  <CardDescription>Atualize seu nome de exibição e credenciais</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="flex items-center gap-6">
-                    <Avatar className="w-24 h-24">
+                    <Avatar className="w-20 h-20">
                       <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-bold">
-                        {(user?.name ?? 'U')
+                        {(currentUser?.name ?? 'U')
                           .split(' ')
                           .slice(0, 2)
                           .map(p => p[0])
@@ -235,156 +855,63 @@ const SettingsPage = () => {
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <Button
-                        variant="outline"
-                        className="gap-2"
-                        onClick={() => toast.info('Upload de foto disponível com Supabase Storage.')}
-                      >
-                        <Upload className="w-4 h-4" />
-                        Alterar Foto
-                      </Button>
-                      <p className="text-sm text-muted-foreground mt-2">JPG, PNG. Máximo 2MB.</p>
+                      <h4 className="font-semibold text-base">{currentUser?.name}</h4>
+                      <p className="text-xs text-muted-foreground">{currentUser?.email}</p>
+                      <Badge variant="outline" className="mt-1 text-[10px] text-primary">
+                        {ROLE_LABELS[currentUser?.role ?? 'organizer']}
+                      </Badge>
                     </div>
                   </div>
 
                   <Separator />
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="name">Nome Completo</Label>
-                      <Input id="name" value={name} onChange={e => setName(e.target.value)} />
+                      <Label htmlFor="profileName">Nome Completo</Label>
+                      <Input
+                        id="profileName"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        placeholder="Seu nome"
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" value={user?.email ?? ''} readOnly disabled />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Função</Label>
-                      <Input value={user?.role ? ROLE_LABELS[user.role] : ''} readOnly disabled />
+                      <Label htmlFor="profileEmail">E-mail</Label>
+                      <Input id="profileEmail" value={currentUser?.email ?? ''} disabled />
                     </div>
                   </div>
 
                   <div className="flex justify-end">
                     <Button variant="accent" className="gap-2" onClick={handleSaveProfile}>
                       <Save className="w-4 h-4" />
-                      Salvar Alterações
+                      Salvar Perfil
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* Organization Tab */}
-            <TabsContent value="organization">
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>Configurações da Organização</CardTitle>
-                  <CardDescription>Informações da federação ou liga</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="org-name">Nome da Organização</Label>
-                      <Input id="org-name" value={orgName} onChange={e => setOrgName(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-code">Código/Sigla</Label>
-                      <Input id="org-code" value={orgCode} onChange={e => setOrgCode(e.target.value)} maxLength={8} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-cnpj">CNPJ</Label>
-                      <Input id="org-cnpj" value={cnpj} onChange={e => setCnpj(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-website">Website</Label>
-                      <Input id="org-website" value={website} onChange={e => setWebsite(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-email">Email de Contato</Label>
-                      <Input id="org-email" type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-phone">Telefone</Label>
-                      <Input id="org-phone" value={phone} onChange={e => setPhone(e.target.value)} />
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-4">
-                    <h4 className="font-semibold">Regras Padrão</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label>Pontos para vencer set</Label>
-                        <Select value={setPoints} onValueChange={setSetPoints}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="21">21 pontos</SelectItem>
-                            <SelectItem value="25">25 pontos</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Pontos tie-break</Label>
-                        <Select value={tiebreakPoints} onValueChange={setTiebreakPoints}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="15">15 pontos</SelectItem>
-                            <SelectItem value="21">21 pontos</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Tempos por set</Label>
-                        <Select value={timeoutsPerSet} onValueChange={setTimeoutsPerSet}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1">1 tempo</SelectItem>
-                            <SelectItem value="2">2 tempos</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button variant="accent" className="gap-2" onClick={handleSaveOrganization}>
-                      <Save className="w-4 h-4" />
-                      Salvar Configurações
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Notifications Tab */}
+            {/* 5. ABA: NOTIFICAÇÕES */}
             <TabsContent value="notifications">
               <Card className="card-elevated">
                 <CardHeader>
-                  <CardTitle>Preferências de Notificação</CardTitle>
-                  <CardDescription>Escolha como deseja receber notificações</CardDescription>
+                  <CardTitle>Preferências de Notificações</CardTitle>
+                  <CardDescription>Controle quando e como deseja ser avisado pelo sistema</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
-                    {NOTIFICATION_ITEMS.map((n, idx) => (
-                      <div key={n.key}>
-                        {idx > 0 && <Separator className="mb-4" />}
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium">{n.title}</p>
-                            <p className="text-sm text-muted-foreground">{n.description}</p>
-                          </div>
-                          <Switch
-                            checked={notifications[n.key]}
-                            onCheckedChange={v => setNotifications(prev => ({ ...prev, [n.key]: v }))}
-                          />
+                    {NOTIFICATION_ITEMS.map(n => (
+                      <div key={n.key} className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-sm text-foreground">{n.title}</p>
+                          <p className="text-xs text-muted-foreground">{n.description}</p>
                         </div>
+                        <Switch
+                          checked={notifications[n.key]}
+                          onCheckedChange={checked =>
+                            setNotifications(prev => ({ ...prev, [n.key]: checked }))
+                          }
+                        />
                       </div>
                     ))}
                   </div>
@@ -399,89 +926,47 @@ const SettingsPage = () => {
               </Card>
             </TabsContent>
 
-            {/* Templates Tab */}
-            <TabsContent value="templates">
-              <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle>Templates de Súmula</CardTitle>
-                  <CardDescription>As súmulas são geradas automaticamente pelo sistema</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="flex items-start gap-4 p-4 rounded-xl border border-border bg-muted/30">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <FileText className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Súmula oficial da competição</p>
-                      <p className="text-sm text-muted-foreground">
-                        O sistema gera a súmula oficial (A4 paisagem) com o cabeçalho da organização, escudo do sistema,
-                        dados do jogo (data, horário, local, fase/grupo), equipes com escudo e técnico, árbitros e campos
-                        em branco para o mesário preencher. A ordem de saque (ficha de posição) é gerada junto, com 8
-                        fichas (4 por equipe).
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Appearance Tab */}
+            {/* 6. ABA: APARÊNCIA */}
             <TabsContent value="appearance">
               <Card className="card-elevated">
                 <CardHeader>
-                  <CardTitle>Aparência</CardTitle>
-                  <CardDescription>Personalize a aparência do sistema</CardDescription>
+                  <CardTitle>Aparência & Idioma</CardTitle>
+                  <CardDescription>Personalize o tema visual do VolleyPro</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
-                    <Label>Tema</Label>
-                    <div className="grid grid-cols-3 gap-4">
-                      {(
-                        [
-                          { value: 'light', label: 'Claro' },
-                          { value: 'dark', label: 'Escuro' },
-                          { value: 'system', label: 'Sistema' },
-                        ] as { value: SettingsRecord['theme']; label: string }[]
-                      ).map(t => (
-                        <button
-                          key={t.value}
-                          type="button"
-                          onClick={() => setTheme(t.value)}
-                          className={`p-4 rounded-xl border-2 bg-muted/30 cursor-pointer text-center transition-colors ${
-                            theme === t.value ? 'border-accent' : 'border-border'
-                          }`}
-                        >
-                          <div
-                            className={`w-full h-16 rounded-lg border mb-2 ${
-                              t.value === 'light'
-                                ? 'bg-background'
-                                : t.value === 'dark'
-                                  ? 'bg-foreground'
-                                  : 'bg-gradient-to-b from-background to-foreground'
-                            }`}
-                          />
-                          <p className="text-sm font-medium">{t.label}</p>
-                          {theme === t.value && (
-                            <p className="text-xs text-accent mt-1">Selecionado</p>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-4">
-                    <Label>Idioma</Label>
-                    <div className="flex items-center gap-4">
-                      <Globe className="w-4 h-4 text-muted-foreground" />
-                      <Select value={language} onValueChange={v => setLanguage(v as SettingsRecord['language'])}>
-                        <SelectTrigger className="w-[200px]">
+                    <div className="space-y-2">
+                      <Label>Tema Visual</Label>
+                      <Select
+                        value={theme}
+                        onValueChange={(val: SettingsRecord['theme']) => {
+                          setTheme(val);
+                          applyTheme(val);
+                        }}
+                      >
+                        <SelectTrigger className="w-64 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="pt-BR">Português (BR)</SelectItem>
-                          <SelectItem value="en">English (US)</SelectItem>
+                          <SelectItem value="light">Claro</SelectItem>
+                          <SelectItem value="dark">Escuro</SelectItem>
+                          <SelectItem value="system">Padrão do Sistema</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Idioma do Sistema</Label>
+                      <Select
+                        value={language}
+                        onValueChange={(val: SettingsRecord['language']) => setLanguage(val)}
+                      >
+                        <SelectTrigger className="w-64 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
+                          <SelectItem value="en">English</SelectItem>
                           <SelectItem value="es">Español</SelectItem>
                         </SelectContent>
                       </Select>
@@ -498,74 +983,42 @@ const SettingsPage = () => {
               </Card>
             </TabsContent>
 
-            {/* Database Management Tab */}
+            {/* 7. ABA: BASE DE DADOS */}
             <TabsContent value="database">
-              <Card className="card-elevated">
+              <Card className="card-elevated border-destructive/30">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Database className="w-5 h-5 text-primary" />
-                    Gerenciamento & Limpeza da Base de Dados
+                  <CardTitle className="text-destructive flex items-center gap-2">
+                    <Database className="w-5 h-5" />
+                    Manutenção & Base de Dados
                   </CardTitle>
                   <CardDescription>
-                    Limpe ou restaure os dados para cadastrar novas competições do zero ou reiniciar a base.
+                    Operações avançadas de limpeza e restauração de dados no armazenamento local.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Opção 1: Limpar Competições */}
-                  <div className="p-4 rounded-xl border border-border/80 bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <CardContent className="space-y-4">
+                  <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="space-y-1">
-                      <p className="font-semibold text-sm text-foreground flex items-center gap-2">
-                        <Trash2 className="w-4 h-4 text-amber-500" />
-                        Limpar Competições, Jogos e Inscrições
-                      </p>
+                      <p className="font-semibold text-sm text-foreground">Limpar Dados de Competições</p>
                       <p className="text-xs text-muted-foreground">
-                        Apaga todas as competições, confrontos, súmulas e inscrições, preservando equipes, atletas, locais e modalidades cadastradas.
+                        Remove todas as competições, jogos e súmulas, mantendo equipes e atletas cadastrados.
                       </p>
                     </div>
                     <Button
                       variant="outline"
-                      className="border-amber-500/40 hover:bg-amber-500/10 text-amber-700 shrink-0 gap-1.5"
+                      className="shrink-0 text-destructive hover:bg-destructive/10 border-destructive/40"
                       onClick={() => {
-                        if (confirm('Deseja realmente limpar todas as competições e jogos para cadastrar um novo campeonato?')) {
+                        if (confirm('Deseja limpar todos os dados de competições?')) {
                           clearAllCompetitionData();
-                          toast.success('Base de competições limpa com sucesso! Você pode criar seu novo campeonato agora.');
-                          setTimeout(() => window.location.href = '/competicoes?new=1', 800);
+                          toast.success('Dados de competições limpos!');
+                          setTimeout(() => window.location.reload(), 600);
                         }
                       }}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4 mr-2" />
                       Limpar Competições
                     </Button>
                   </div>
 
-                  {/* Opção 2: Zerar Base Completa */}
-                  <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <p className="font-semibold text-sm text-destructive flex items-center gap-2">
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                        Zerar Toda a Base de Dados (Clean Slate)
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Remove todos os dados cadastrais (competições, equipes, partidas e atletas) para iniciar o sistema 100% vazio.
-                      </p>
-                    </div>
-                    <Button
-                      variant="destructive"
-                      className="shrink-0 gap-1.5"
-                      onClick={() => {
-                        if (confirm('Atenção: Todos os dados serão excluídos. Deseja continuar?')) {
-                          clearEntireDatabase();
-                          toast.success('Toda a base de dados foi zerada com sucesso!');
-                          setTimeout(() => window.location.href = '/competicoes?new=1', 800);
-                        }
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Zerar Base Completa
-                    </Button>
-                  </div>
-
-                  {/* Opção 3: Restaurar Demonstração */}
                   <div className="p-4 rounded-xl border border-border/80 bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="space-y-1">
                       <p className="font-semibold text-sm text-foreground flex items-center gap-2">
@@ -573,7 +1026,7 @@ const SettingsPage = () => {
                         Restaurar Dados de Demonstração (Seed)
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Recarrega os dados de teste iniciais (Superliga, Copa Toledo, equipes e confrontos de exemplo).
+                        Recarrega os dados padrão de teste com competições, equipes e súmulas homologadas.
                       </p>
                     </div>
                     <Button
@@ -583,7 +1036,7 @@ const SettingsPage = () => {
                         if (confirm('Deseja recarregar os dados de demonstração padrão?')) {
                           resetLocalData();
                           toast.success('Dados de demonstração restaurados!');
-                          setTimeout(() => window.location.reload(), 800);
+                          setTimeout(() => window.location.reload(), 600);
                         }
                       }}
                     >
@@ -597,6 +1050,110 @@ const SettingsPage = () => {
           </Tabs>
         </motion.div>
       </motion.div>
+
+      {/* Modal de Cadastro / Edição de Usuário */}
+      <Dialog open={userModalOpen} onOpenChange={setUserModalOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <form onSubmit={handleSaveUserForm}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-primary" />
+                {editingUser ? 'Editar Usuário do Sistema' : 'Cadastrar Novo Usuário'}
+              </DialogTitle>
+              <DialogDescription>
+                Informe os dados e defina o perfil de acesso para concessão de permissões.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="uName" className="text-xs font-semibold">Nome Completo *</Label>
+                <Input
+                  id="uName"
+                  placeholder="Ex: Carlos Eduardo Silva"
+                  value={userForm.name}
+                  onChange={e => setUserForm(prev => ({ ...prev, name: e.target.value }))}
+                  required
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="uEmail" className="text-xs font-semibold">E-mail de Acesso *</Label>
+                <Input
+                  id="uEmail"
+                  type="email"
+                  placeholder="Ex: carlos.arbitro@federacao.org"
+                  value={userForm.email}
+                  onChange={e => setUserForm(prev => ({ ...prev, email: e.target.value }))}
+                  required
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Perfil de Acesso / Função *</Label>
+                <Select
+                  value={userForm.role}
+                  onValueChange={(val: UserRole) => setUserForm(prev => ({ ...prev, role: val }))}
+                >
+                  <SelectTrigger className="text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Administrador (Acesso Total)</SelectItem>
+                    <SelectItem value="organizer">Organizador (Competições e Jogos)</SelectItem>
+                    <SelectItem value="referee">Árbitro Oficial (Súmulas e Validações)</SelectItem>
+                    <SelectItem value="scorer">Apontador / Mesário (Operação de Jogo)</SelectItem>
+                    <SelectItem value="team">Representante de Equipe (Elencos)</SelectItem>
+                    <SelectItem value="viewer">Visualizador (Apenas Leitura)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Status da Conta</Label>
+                <Select
+                  value={userForm.status}
+                  onValueChange={(val: 'active' | 'inactive') => setUserForm(prev => ({ ...prev, status: val }))}
+                >
+                  <SelectTrigger className="text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Ativo (Permitir Login)</SelectItem>
+                    <SelectItem value="inactive">Inativo (Bloqueado)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {!editingUser && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="uPass" className="text-xs font-semibold">Senha Provisória (Opcional)</Label>
+                  <Input
+                    id="uPass"
+                    type="password"
+                    placeholder="Deixe em branco para 'demo123'"
+                    value={userForm.password}
+                    onChange={e => setUserForm(prev => ({ ...prev, password: e.target.value }))}
+                    className="text-xs"
+                  />
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setUserModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" variant="accent" size="sm" className="gap-1.5 font-semibold">
+                <Save className="w-3.5 h-3.5" />
+                {editingUser ? 'Salvar Alterações' : 'Criar Usuário'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 };

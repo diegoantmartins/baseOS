@@ -199,9 +199,67 @@ export const authService = {
   },
 
   hasRole(session: AuthSession | null, roles: UserRole[]): boolean {
-    return !!session && roles.includes(session.user.role);
+    return !!session && (roles.includes(session.user.role) || session.user.role === 'admin');
+  },
+
+  // ── Gestão de Usuários do Sistema ──────────────────────────────────────────
+  async listUsers(): Promise<import('@/types/auth').SystemUser[]> {
+    return readStoredUsers();
+  },
+
+  async createUser(input: Omit<import('@/types/auth').SystemUser, 'id' | 'createdAt'>): Promise<import('@/types/auth').SystemUser> {
+    const users = readStoredUsers();
+    const newUser: import('@/types/auth').SystemUser = {
+      ...input,
+      id: 'usr-' + Date.now(),
+      createdAt: new Date().toISOString(),
+    };
+    users.push(newUser);
+    writeStoredUsers(users);
+    return newUser;
+  },
+
+  async updateUser(id: string, updates: Partial<import('@/types/auth').SystemUser>): Promise<import('@/types/auth').SystemUser> {
+    const users = readStoredUsers();
+    const idx = users.findIndex(u => u.id === id);
+    if (idx === -1) throw new Error('Usuário não encontrado');
+    users[idx] = { ...users[idx], ...updates };
+    writeStoredUsers(users);
+    return users[idx];
+  },
+
+  async deleteUser(id: string): Promise<void> {
+    const users = readStoredUsers().filter(u => u.id !== id);
+    writeStoredUsers(users);
   },
 };
+
+const USERS_STORAGE_KEY = 'voleipro.system.users.v1';
+
+function readStoredUsers(): import('@/types/auth').SystemUser[] {
+  try {
+    const raw = localStorage.getItem(USERS_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // fallback
+  }
+  const initial: import('@/types/auth').SystemUser[] = DEMO_USERS.map((u, i) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    status: 'active',
+    competitionTeamId: u.competitionTeamId,
+    createdAt: new Date(Date.now() - (i + 1) * 86400000 * 5).toISOString(),
+    lastLoginAt: new Date(Date.now() - (i + 1) * 3600000 * 2).toISOString(),
+  }));
+  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initial));
+  return initial;
+}
+
+function writeStoredUsers(users: import('@/types/auth').SystemUser[]): void {
+  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+}
 
 export function clearAuthSession(): void {
   localStorage.removeItem(SESSION_KEY);

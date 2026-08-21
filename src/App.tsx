@@ -11,6 +11,7 @@ import Index from "./pages/Index";
 import MatchesPage from "./pages/MatchesPage";
 import MatchSheetPage from "./pages/MatchSheetPage";
 import CompetitionsPage from "./pages/CompetitionsPage";
+import ActiveCompetitionsPage from "./pages/ActiveCompetitionsPage";
 import TeamsPage from "./pages/TeamsPage";
 import VenuesPage from "./pages/VenuesPage";
 import AthletesPage from "./pages/AthletesPage";
@@ -41,7 +42,9 @@ const App = () => (
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             {/* Públicas */}
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<ActiveCompetitionsPage />} />
+            <Route path="/competicoes-ativas" element={<ActiveCompetitionsPage />} />
+            <Route path="/dashboard" element={<Index />} />
             <Route path="/jogos" element={<MatchesPage />} />
             <Route path="/sumulas" element={<MatchSheetPage />} />
             <Route path="/sumulas/:matchId" element={<MatchSheetPage />} />
