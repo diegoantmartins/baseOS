@@ -198,27 +198,7 @@ export function Header() {
                 showText={false}
               />
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden xl:inline-flex gap-1.5 text-xs h-9 px-2.5"
-                onClick={() => setBlankSheetOpen(true)}
-              >
-                <FileText className="w-3.5 h-3.5 text-primary" />
-                <span>Súmula em Branco</span>
-              </Button>
-
               <NotificationsMenu />
-
-              <Button
-                variant="accent"
-                size="sm"
-                className="gap-1.5 text-xs h-9 px-3 hidden sm:inline-flex font-semibold"
-                onClick={() => navigate('/competicoes?new=1')}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Nova Competição</span>
-              </Button>
 
               {session ? (
                 <DropdownMenu>
@@ -282,30 +262,6 @@ export function Header() {
         {/* Mobile Drawer Menu */}
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-border bg-card px-4 pt-3 pb-5 space-y-3 shadow-xl animate-in slide-in-from-top-2">
-            <div className="grid grid-cols-2 gap-2 pb-2 border-b">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => { setMobileMenuOpen(false); setBlankSheetOpen(true); }}
-                className="text-xs gap-1.5 justify-start h-9"
-              >
-                <FileText className="w-3.5 h-3.5 text-primary" />
-                Súmula em Branco
-              </Button>
-              <Button
-                variant="accent"
-                size="sm"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  navigate('/competicoes?new=1');
-                }}
-                className="text-xs gap-1.5 justify-start h-9 font-semibold"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Nova Competição
-              </Button>
-            </div>
-
             {/* Seção 1: Geral */}
             <div className="space-y-1">
               <div className="text-[10px] uppercase font-bold text-muted-foreground px-2 py-1">Geral</div>
