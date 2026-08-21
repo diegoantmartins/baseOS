@@ -23,6 +23,8 @@ import {
   GitBranch,
   Dices,
   FileSpreadsheet,
+  Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -40,7 +42,12 @@ import { MatchSheetEmitDialog } from '@/components/match/MatchSheetEmitDialog';
 import { BlankSheetEmitDialog } from '@/components/match/BlankSheetEmitDialog';
 import { detectScheduleConflicts, type ScheduleConflict } from '@/services/scheduleConflictService';
 import { validateMatchResult, DEFAULT_INDOOR_CONFIG, DEFAULT_BEACH_CONFIG } from '@/services/matchValidationService';
-import { advancePlayoffMatches } from '@/services/playoffsService';
+import {
+  advancePlayoffMatches,
+  generateFourGroupPlayoffs,
+  generateTwoGroupPlayoffs,
+} from '@/services/playoffsService';
+import { computeStandingsByGroup } from '@/services/standingsService';
 import type { CompetitionRecord, MatchRecord, TeamRecord, VenueRecord } from '@/types/entities';
 import { cn } from '@/lib/utils';
 
@@ -244,6 +251,104 @@ export default function MatchesPage() {
     toast.success('Boletim de jogos gerado com sucesso!');
   };
 
+  // Sincronização e geração de confrontos eliminatórios a partir da fase de grupos
+  const handleSyncPlayoffsFromGroups = async () => {
+    let compId = competitionFilter;
+    if (!compId || compId === 'all') {
+      if (competitions.length === 1) {
+        compId = competitions[0].id;
+      } else {
+        toast.info('Selecione uma competição específica no filtro acima para gerar o mata-mata.');
+        return;
+      }
+    }
+    const currentComp = compById.get(compId);
+    if (!currentComp) return;
+
+    try {
+      const compMatches = matches.filter(m => m.competitionId === currentComp.id);
+      const compTeams = await dataAccess.listCompetitionTeams();
+      const filteredCt = compTeams.filter(ct => ct.competitionId === currentComp.id);
+
+      const registrations = filteredCt
+        .map(ct => {
+          const team = teamById.get(ct.teamId);
+          const groupMatch = compMatches.find(m => m.teamAId === ct.teamId || m.teamBId === ct.teamId);
+          return { team: team!, groupName: groupMatch?.groupName ?? currentComp.groupName ?? 'A' };
+        })
+        .filter(r => !!r.team);
+
+      if (registrations.length === 0) {
+        toast.error('Nenhuma equipe inscrita nesta competição.');
+        return;
+      }
+
+      const standings = computeStandingsByGroup(registrations, compMatches, {
+        criteria: currentComp.tiebreakCriteriaOrder,
+      });
+
+      if (standings.length === 0) {
+        toast.error('Não foi possível calcular a classificação da fase de grupos.');
+        return;
+      }
+
+      const slots =
+        standings.length >= 4
+          ? generateFourGroupPlayoffs(standings)
+          : generateTwoGroupPlayoffs(standings);
+
+      let createdCount = 0;
+      let updatedCount = 0;
+
+      for (const slot of slots) {
+        const teamA = slot.sourceTeamA.teamId ? teamById.get(slot.sourceTeamA.teamId) : undefined;
+        const teamB = slot.sourceTeamB.teamId ? teamById.get(slot.sourceTeamB.teamId) : undefined;
+
+        const existingPlayoffMatch = compMatches.find(
+          m => m.phase === slot.phase && m.matchNumber === slot.matchIndex,
+        );
+
+        if (existingPlayoffMatch) {
+          await dataAccess.updateMatch(existingPlayoffMatch.id, {
+            teamAId: teamA?.id ?? existingPlayoffMatch.teamAId,
+            teamBId: teamB?.id ?? existingPlayoffMatch.teamBId,
+            teamAName: teamA?.name ?? existingPlayoffMatch.teamAName,
+            teamBName: teamB?.name ?? existingPlayoffMatch.teamBName,
+            teamAShortName: teamA?.shortName ?? existingPlayoffMatch.teamAShortName,
+            teamBShortName: teamB?.shortName ?? existingPlayoffMatch.teamBShortName,
+          });
+          updatedCount++;
+        } else {
+          await dataAccess.createMatch({
+            competitionId: currentComp.id,
+            matchNumber: compMatches.length + createdCount + 1,
+            round: 1,
+            phase: slot.phase,
+            teamAId: teamA?.id ?? 'tbd-a',
+            teamBId: teamB?.id ?? 'tbd-b',
+            teamAName: teamA?.name ?? slot.sourceTeamA.description,
+            teamBName: teamB?.name ?? slot.sourceTeamB.description,
+            teamAShortName: teamA?.shortName ?? 'TBD',
+            teamBShortName: teamB?.shortName ?? 'TBD',
+            scheduledTime: new Date(Date.now() + 86400000).toISOString(),
+            venue: currentComp.venue || venues[0]?.name || 'Ginásio Principal',
+            court: 'Quadra 1',
+            status: 'scheduled',
+            sets: [],
+            referees: [],
+          });
+          createdCount++;
+        }
+      }
+
+      toast.success(`Mata-mata sincronizado! ${createdCount} novos confrontos criados, ${updatedCount} atualizados.`);
+      await refresh();
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao sincronizar mata-mata.');
+    }
+  };
+
   return (
     <MainLayout>
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -344,6 +449,54 @@ export default function MatchesPage() {
             </Select>
           </div>
         </motion.div>
+
+        {/* Banner específico da aba Mata-mata */}
+        {activeSubTab === 'mata-mata' && (
+          <motion.div variants={item} className="p-4 rounded-2xl bg-primary/10 border border-primary/25 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-display font-bold text-foreground text-sm sm:text-base">
+                <GitBranch className="w-5 h-5 text-primary" />
+                Chaveamento Eliminatório & Mata-mata
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Após o término da fase de grupos, sincronize os classificados ou clique em <strong>Editar Confronto & Horários</strong> em qualquer partida para ajustar equipes, locais e horários.
+              </p>
+            </div>
+            <Button
+              variant="accent"
+              size="sm"
+              className="gap-2 text-xs font-semibold shrink-0"
+              onClick={handleSyncPlayoffsFromGroups}
+            >
+              <Sparkles className="w-4 h-4" />
+              Sincronizar com Fase de Grupos
+            </Button>
+          </motion.div>
+        )}
+
+        {/* Banner específico da aba Agenda */}
+        {activeSubTab === 'agenda' && (
+          <motion.div variants={item} className="p-4 rounded-2xl bg-muted/40 border border-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-display font-bold text-foreground text-sm sm:text-base">
+                <Clock className="w-5 h-5 text-primary" />
+                Agenda & Programação de Horários
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Ajuste os horários, quadras e confrontos sorteados de qualquer fase com prevenção automática de conflitos de quadra e descanso.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-xs shrink-0"
+              onClick={() => navigate('/jogos/novo')}
+            >
+              <Plus className="w-4 h-4" />
+              Novo Confronto
+            </Button>
+          </motion.div>
+        )}
 
         {/* Matches List Grid */}
         {loading ? (
@@ -464,11 +617,11 @@ export default function MatchesPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 px-2 text-xs"
+                          className="h-8 px-2 text-xs font-medium"
                           onClick={() => setEditMatch(m.record)}
                         >
-                          <Pencil className="w-3.5 h-3.5 mr-1" />
-                          Agendar
+                          <Pencil className="w-3.5 h-3.5 mr-1 text-primary" />
+                          Editar / Agendar
                         </Button>
 
                         <Button
@@ -508,11 +661,12 @@ export default function MatchesPage() {
           match={editMatch}
           competition={compById.get(editMatch.competitionId) || null}
           allMatches={matches}
+          teams={teams}
           venues={venues}
           onClose={() => setEditMatch(null)}
           onSaved={async (updates) => {
             await dataAccess.updateMatch(editMatch.id, updates);
-            toast.success('Agendamento salvo com sucesso!');
+            toast.success('Confronto e agendamento salvos com sucesso!');
             setEditMatch(null);
             await refresh();
           }}
@@ -558,19 +712,22 @@ export default function MatchesPage() {
 }
 
 // ============================================================================
-// Modal de Agendamento com Verificação de Conflitos
+// Modal de Edição de Confronto & Agendamento com Verificação de Conflitos
 // ============================================================================
 
 interface ScheduleMatchDialogProps {
   match: MatchRecord;
   competition: CompetitionRecord | null;
   allMatches: MatchRecord[];
+  teams: TeamRecord[];
   venues: VenueRecord[];
   onClose: () => void;
   onSaved: (updates: Partial<MatchRecord>) => Promise<void>;
 }
 
-function ScheduleMatchDialog({ match, competition, allMatches, venues, onClose, onSaved }: ScheduleMatchDialogProps) {
+function ScheduleMatchDialog({ match, competition, allMatches, teams, venues, onClose, onSaved }: ScheduleMatchDialogProps) {
+  const [teamAId, setTeamAId] = useState(match.teamAId || '');
+  const [teamBId, setTeamBId] = useState(match.teamBId || '');
   const [date, setDate] = useState(match.scheduledTime ? match.scheduledTime.split('T')[0] : '');
   const [time, setTime] = useState(
     match.scheduledTime ? new Date(match.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
@@ -578,6 +735,8 @@ function ScheduleMatchDialog({ match, competition, allMatches, venues, onClose, 
   const [venue, setVenue] = useState(match.venue || venues[0]?.name || '');
   const [court, setCourt] = useState(match.court || '');
   const [phase, setPhase] = useState(match.phase || 'classificatória');
+  const [matchNumber, setMatchNumber] = useState(String(match.matchNumber || 1));
+  const [round, setRound] = useState(String(match.round || 1));
   const [groupName, setGroupName] = useState(match.groupName || '');
   const [saving, setSaving] = useState(false);
 
@@ -593,28 +752,40 @@ function ScheduleMatchDialog({ match, competition, allMatches, venues, onClose, 
       scheduledTime: isoDateTime,
       venueName: venue,
       courtName: court,
-      teamAId: match.teamAId,
-      teamBId: match.teamBId,
+      teamAId: teamAId || match.teamAId,
+      teamBId: teamBId || match.teamBId,
       competition,
       allMatches,
       venues,
     });
-  }, [date, time, venue, court, match, competition, allMatches, venues]);
+  }, [date, time, venue, court, match, teamAId, teamBId, competition, allMatches, venues]);
 
   const hasBlockingError = conflicts.some(c => c.severity === 'error');
+  const isSameTeam = teamAId && teamBId && teamAId === teamBId;
 
   const handleSave = async () => {
-    if (saving) return;
+    if (saving || isSameTeam) return;
     setSaving(true);
     try {
+      const selectedTeamA = teams.find(t => t.id === teamAId);
+      const selectedTeamB = teams.find(t => t.id === teamBId);
       const scheduledTime = date && time ? new Date(`${date}T${time}:00`).toISOString() : match.scheduledTime;
+
       await onSaved({
+        teamAId: teamAId || match.teamAId,
+        teamBId: teamBId || match.teamBId,
+        teamAName: selectedTeamA?.name ?? match.teamAName,
+        teamBName: selectedTeamB?.name ?? match.teamBName,
+        teamAShortName: selectedTeamA?.shortName ?? match.teamAShortName,
+        teamBShortName: selectedTeamB?.shortName ?? match.teamBShortName,
         scheduledTime,
         venue,
         court: court || undefined,
         phase: phase || undefined,
+        matchNumber: Number(matchNumber) || match.matchNumber,
+        round: Number(round) || match.round,
         groupName: groupName || undefined,
-        status: court ? 'scheduled' : 'awaiting_schedule',
+        status: court && date && time ? (match.status === 'awaiting_schedule' ? 'scheduled' : match.status) : match.status,
       });
     } finally {
       setSaving(false);
@@ -623,31 +794,117 @@ function ScheduleMatchDialog({ match, competition, allMatches, venues, onClose, 
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Agendar Confronto</DialogTitle>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Pencil className="w-4 h-4 text-primary" />
+            Editar Confronto & Horários
+          </DialogTitle>
           <DialogDescription>
-            {match.teamAName} vs {match.teamBName} (Jogo #{match.matchNumber})
+            Ajuste as equipes sorteadas, fase, data, horário e quadra do Jogo #{match.matchNumber}.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="sched-date">Data da Partida</Label>
-              <Input id="sched-date" type="date" value={date} onChange={e => setDate(e.target.value)} />
+          {/* Equipes do Confronto */}
+          <div className="p-3 bg-muted/40 rounded-xl border border-border/70 space-y-3">
+            <p className="text-xs font-bold text-foreground">Equipes do Confronto (Sorteio / Chaveamento)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold text-muted-foreground">Equipe A (Mandante)</Label>
+                <Select value={teamAId} onValueChange={setTeamAId}>
+                  <SelectTrigger className="text-xs h-9">
+                    <SelectValue placeholder="Selecione a Equipe A" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map(t => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name} ({t.shortName || 'TBD'})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold text-muted-foreground">Equipe B (Visitante)</Label>
+                <Select value={teamBId} onValueChange={setTeamBId}>
+                  <SelectTrigger className="text-xs h-9">
+                    <SelectValue placeholder="Selecione a Equipe B" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map(t => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name} ({t.shortName || 'TBD'})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            {isSameTeam && (
+              <p className="text-[11px] text-destructive font-medium">As equipes A e B não podem ser iguais.</p>
+            )}
+          </div>
+
+          {/* Fase e Identificação */}
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="sched-time">Horário</Label>
-              <Input id="sched-time" type="time" value={time} onChange={e => setTime(e.target.value)} />
+              <Label className="text-[11px] font-semibold">Fase do Torneio</Label>
+              <Select value={phase} onValueChange={setPhase}>
+                <SelectTrigger className="text-xs h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="group-stage">Fase de Grupos</SelectItem>
+                  <SelectItem value="oitavas">Oitavas de Final</SelectItem>
+                  <SelectItem value="quartas">Quartas de Final</SelectItem>
+                  <SelectItem value="semifinal">Semifinais</SelectItem>
+                  <SelectItem value="terceiro_lugar">Disputa 3º Lugar</SelectItem>
+                  <SelectItem value="final">Grande Final</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold">Nº do Jogo</Label>
+              <Input
+                type="number"
+                value={matchNumber}
+                onChange={e => setMatchNumber(e.target.value)}
+                className="text-xs h-9"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold">Chave / Grupo</Label>
+              <Input
+                value={groupName}
+                onChange={e => setGroupName(e.target.value)}
+                placeholder="Ex: A, B, Chave 1"
+                className="text-xs h-9"
+              />
             </div>
           </div>
 
+          {/* Data e Horário */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Ginásio / Local</Label>
+              <Label htmlFor="sched-date" className="text-[11px] font-semibold">Data da Partida</Label>
+              <Input id="sched-date" type="date" value={date} onChange={e => setDate(e.target.value)} className="text-xs h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="sched-time" className="text-[11px] font-semibold">Horário de Início</Label>
+              <Input id="sched-time" type="time" value={time} onChange={e => setTime(e.target.value)} className="text-xs h-9" />
+            </div>
+          </div>
+
+          {/* Local e Quadra */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold">Ginásio / Local</Label>
               <Select value={venue} onValueChange={v => { setVenue(v); setCourt(''); }}>
-                <SelectTrigger>
+                <SelectTrigger className="text-xs h-9">
                   <SelectValue placeholder="Selecione o local" />
                 </SelectTrigger>
                 <SelectContent>
@@ -658,9 +915,9 @@ function ScheduleMatchDialog({ match, competition, allMatches, venues, onClose, 
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Quadra</Label>
+              <Label className="text-[11px] font-semibold">Quadra</Label>
               <Select value={court} onValueChange={setCourt}>
-                <SelectTrigger>
+                <SelectTrigger className="text-xs h-9">
                   <SelectValue placeholder="Selecione a quadra" />
                 </SelectTrigger>
                 <SelectContent>
@@ -673,7 +930,7 @@ function ScheduleMatchDialog({ match, competition, allMatches, venues, onClose, 
             </div>
           </div>
 
-          {/* Conflict Alerts Display */}
+          {/* Alertas de Conflito de Horário / Quadra */}
           {conflicts.length > 0 && (
             <div className="space-y-2 pt-1">
               {conflicts.map((c, i) => (
@@ -691,10 +948,10 @@ function ScheduleMatchDialog({ match, competition, allMatches, venues, onClose, 
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button variant="accent" disabled={saving || hasBlockingError} onClick={handleSave}>
-            {saving ? 'Salvando...' : 'Salvar Agendamento'}
+        <DialogFooter className="gap-2">
+          <Button variant="outline" size="sm" onClick={onClose}>Cancelar</Button>
+          <Button variant="accent" size="sm" disabled={saving || hasBlockingError || isSameTeam} onClick={handleSave} className="font-semibold">
+            {saving ? 'Salvando...' : 'Salvar Alterações'}
           </Button>
         </DialogFooter>
       </DialogContent>

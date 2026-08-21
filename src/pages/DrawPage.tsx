@@ -11,6 +11,8 @@ import {
   ClipboardList,
   CheckCircle2,
   Dices,
+  Calendar,
+  ArrowRight,
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -484,6 +486,18 @@ const DrawPage = () => {
                       </div>
                     </CardContent>
                   </Card>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-xl bg-card border border-border">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Deseja ajustar os horários e quadras?</p>
+                      <p className="text-xs text-muted-foreground">Acesse a Central de Jogos para definir as datas, horários e quadras de cada confronto.</p>
+                    </div>
+                    <Button variant="accent" size="sm" className="gap-2 shrink-0" onClick={() => navigate('/jogos')}>
+                      <Calendar className="w-4 h-4" />
+                      Ir para Agenda & Horários
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </div>
 
                   {!preview && existingDraw && (
                     <p className="text-xs text-muted-foreground flex items-center gap-1.5">
