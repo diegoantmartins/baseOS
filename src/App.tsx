@@ -19,7 +19,6 @@ import StatisticsPage from "./pages/StatisticsPage";
 import ReportsPage from "./pages/ReportsPage";
 import DrawPage from "./pages/DrawPage";
 import SettingsPage from "./pages/SettingsPage";
-import PrintDocumentsPage from "./pages/PrintDocumentsPage";
 import CreateMatchPage from "./pages/CreateMatchPage";
 import LoginPage from "./pages/LoginPage";
 import ModalitiesPage from "./pages/ModalitiesPage";
@@ -175,22 +174,6 @@ const App = () => (
               element={
                 <RequireAuth roles={['organizer']}>
                   <SettingsPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/imprimir-documentos"
-              element={
-                <RequireAuth roles={['organizer']}>
-                  <PrintDocumentsPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/imprimir-documentos/:matchId"
-              element={
-                <RequireAuth roles={['organizer']}>
-                  <PrintDocumentsPage />
                 </RequireAuth>
               }
             />
