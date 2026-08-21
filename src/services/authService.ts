@@ -60,11 +60,30 @@ function storeSession(session: AuthSession | null): void {
   else localStorage.removeItem(SESSION_KEY);
 }
 
+import { LoginRateLimiter } from '@/lib/security';
+
 async function localSignIn(email: string, password: string): Promise<SignInResult> {
+  const lockout = LoginRateLimiter.isLockedOut(email);
+  if (lockout.locked) {
+    return {
+      ok: false,
+      error: `Conta temporariamente bloqueada por segurança devido a excesso de tentativas. Tente novamente em ${lockout.remainingSeconds}s.`,
+    };
+  }
+
   const user = DEMO_USERS.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
   if (!user || user.password !== password) {
-    return { ok: false, error: 'E-mail ou senha inválidos.' };
+    const fail = LoginRateLimiter.recordFailure(email);
+    if (fail.locked) {
+      return {
+        ok: false,
+        error: 'Limite de tentativas excedido (5). Sua conta foi bloqueada temporariamente por 5 minutos.',
+      };
+    }
+    return { ok: false, error: `E-mail ou senha inválidos. Restam ${fail.attemptsLeft} tentativas.` };
   }
+
+  LoginRateLimiter.recordSuccess(email);
   const session: AuthSession = { user: publicProfile(user) };
   storeSession(session);
   return { ok: true, session };
