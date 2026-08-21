@@ -5,25 +5,25 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold ring-offset-background transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer select-none",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-xs",
-        outline: "border border-border bg-background hover:bg-muted text-foreground",
-        "outline-primary": "border border-primary text-primary hover:bg-primary hover:text-primary-foreground",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/85 shadow-xs",
-        ghost: "hover:bg-muted hover:text-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
-        accent: "bg-accent text-accent-foreground hover:bg-accent/90 shadow-xs",
-        success: "bg-success text-success-foreground hover:bg-success/90 shadow-xs",
-        warning: "bg-warning text-warning-foreground hover:bg-warning/90 shadow-xs",
-        hero: "bg-primary text-primary-foreground hover:bg-primary/95 shadow-xs font-bold tracking-wide",
-        "hero-outline": "border border-primary text-primary hover:bg-primary hover:text-primary-foreground font-bold tracking-wide",
-        indoor: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs",
-        beach: "bg-accent text-accent-foreground hover:bg-accent/90 shadow-xs",
-        score: "bg-primary text-primary-foreground hover:bg-primary/90 font-display text-2xl min-w-[60px] h-14 shadow-xs",
+        default: "bg-amber-500 text-zinc-950 font-semibold hover:bg-amber-400 shadow-sm active:scale-[0.98]",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-xs active:scale-[0.98]",
+        outline: "border border-cyan-500/50 text-cyan-400 hover:bg-cyan-950/30 hover:text-cyan-300 hover:border-cyan-400 active:scale-[0.98]",
+        "outline-primary": "border border-amber-500/60 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 active:scale-[0.98]",
+        secondary: "bg-zinc-800 text-zinc-200 hover:bg-zinc-700/80 border border-zinc-700/50 shadow-xs active:scale-[0.98]",
+        ghost: "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60",
+        link: "text-cyan-400 underline-offset-4 hover:underline",
+        accent: "bg-amber-500 text-zinc-950 font-semibold hover:bg-amber-400 shadow-sm active:scale-[0.98]",
+        success: "bg-emerald-600 text-zinc-950 font-semibold hover:bg-emerald-500 shadow-xs active:scale-[0.98]",
+        warning: "bg-amber-500 text-zinc-950 font-semibold hover:bg-amber-400 shadow-xs active:scale-[0.98]",
+        hero: "bg-amber-500 text-zinc-950 hover:bg-amber-400 shadow-md font-bold tracking-wide active:scale-[0.98]",
+        "hero-outline": "border border-cyan-500 text-cyan-400 hover:bg-cyan-950/40 font-bold tracking-wide active:scale-[0.98]",
+        indoor: "bg-amber-500 text-zinc-950 hover:bg-amber-400 shadow-xs font-semibold",
+        beach: "bg-cyan-500 text-zinc-950 hover:bg-cyan-400 shadow-xs font-semibold",
+        score: "bg-zinc-900 border border-zinc-800 text-amber-400 hover:border-amber-500/50 font-display text-2xl min-w-[60px] h-14 shadow-xs",
       },
       size: {
         default: "h-9 px-4 py-2",

@@ -34,6 +34,7 @@ import {
 import { NotificationsMenu } from '@/components/pwa/NotificationsMenu';
 import { PwaInstallButton } from '@/components/pwa/PwaInstallButton';
 import { BlankSheetEmitDialog } from '@/components/match/BlankSheetEmitDialog';
+import { BaseOsLogo } from '@/components/common/BaseOsLogo';
 
 export const CADASTROS_SUBMENU = [
   { label: 'Competições', path: '/competicoes', icon: Trophy, description: 'Gerenciar campeonatos e fases' },
@@ -63,23 +64,13 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full bg-card/95 backdrop-blur border-b border-border shadow-xs">
+      <header className="sticky top-0 z-40 w-full bg-zinc-950/85 backdrop-blur-md border-b border-zinc-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-2">
-            {/* Logo & Brand */}
+            {/* Logo & Brand BaseOS */}
             <div className="flex items-center gap-2.5 shrink-0">
-              <Link to="/competicoes-ativas" className="flex items-center gap-2.5 group">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground shadow-md transition-transform group-hover:scale-105">
-                  <Volleyball className="w-5 h-5 sm:w-6 sm:h-6" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-display font-bold text-foreground text-base sm:text-lg leading-tight tracking-tight">
-                    VolleyPro
-                  </span>
-                  <span className="text-[9px] sm:text-[10px] uppercase font-semibold text-primary tracking-wider">
-                    Competições CBV/FPV
-                  </span>
-                </div>
+              <Link to="/competicoes-ativas" className="flex items-center gap-2 group">
+                <BaseOsLogo size="md" showSubtitle />
               </Link>
             </div>
 

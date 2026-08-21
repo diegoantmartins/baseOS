@@ -13,8 +13,8 @@ export function MainLayout({ children, containerClassName = 'max-w-7xl mx-auto p
       <main className={`flex-1 w-full max-w-full min-w-0 ${containerClassName}`}>
         {children}
       </main>
-      <footer className="border-t border-border/60 py-3 text-center text-xs text-muted-foreground bg-card/40 w-full max-w-full">
-        VolleyPro · Motor de Competições de Voleibol de Quadra e Praia
+      <footer className="border-t border-zinc-800/80 py-3 text-center text-xs text-zinc-500 bg-zinc-950/80 w-full max-w-full">
+        BaseOS · Sistema Operacional de Gestão de Competições Esportivas
       </footer>
     </div>
   );

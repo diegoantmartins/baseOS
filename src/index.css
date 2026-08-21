@@ -5,162 +5,96 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* =====================================================================
-       DESIGN TOKENS — PALETA PRINCIPAL ESPORTIVA VOLLEYPRO (LIGHT MODE)
-       ===================================================================== */
-    --background: 120 3% 97%;       /* #F7F8F7 Background Neutro */
-    --foreground: 204 30% 13%;      /* #17232B INK Principal */
-
-    --card: 0 0% 100%;              /* #FFFFFF SURFACE */
-    --card-foreground: 204 30% 13%; /* #17232B INK */
-
-    --popover: 0 0% 100%;           /* #FFFFFF SURFACE */
-    --popover-foreground: 204 30% 13%;
-
-    /* PRIMARY (#1796BB - Turquesa Esportivo Oficial) */
-    --primary: 194 78% 41%;
-    --primary-foreground: 0 0% 100%;
-
-    /* SECONDARY (#4FC8BD - Verde Água Energético) */
-    --secondary: 175 52% 55%;
-    --secondary-foreground: 204 30% 13%;
-
-    /* MUTED & SURFACES (#F5F0EB / #B9A7B4) */
-    --muted: 33 25% 94%;            /* #F5F0EB Warm Light */
-    --muted-foreground: 202 24% 36%;/* #465E6B Slate Médio */
-
-    /* ACCENT / WARNING (#E8735A - Coral de Ação e Alerta) */
-    --accent: 11 75% 63%;
-    --accent-foreground: 0 0% 100%;
-
-    /* SUCCESS (#66B03F - Verde Vitória/Homologado) */
-    --success: 99 47% 47%;
-    --success-foreground: 0 0% 100%;
-
-    /* WARNING (#E8735A) */
-    --warning: 11 75% 63%;
-    --warning-foreground: 0 0% 100%;
-
-    /* DESTRUCTIVE */
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-
-    /* INFO (#79B2D0) */
-    --info: 201 48% 65%;
-    --info-foreground: 204 30% 13%;
-
-    /* HIGHLIGHT (#A4F9E4) */
-    --highlight: 165 89% 81%;
-    --highlight-foreground: 204 30% 13%;
-
-    /* BRAND SPECIFIC TOKENS */
-    --ink: 204 30% 13%;             /* #17232B */
-    --deep: 198 55% 14%;            /* #102C38 */
-    --slate: 202 24% 27%;           /* #344955 */
-    --warm-light: 33 33% 94%;       /* #F5F0EB */
-
-    /* BORDER & RING */
-    --border: 200 15% 88%;          /* Bordas sutis */
-    --input: 200 15% 88%;
-    --ring: 194 78% 41%;            /* #1796BB */
-
-    /* RADIUS BASE: 8px (escala esportiva sm: 6px, md: 8px, lg: 10px, xl: 12px) */
-    --radius: 0.5rem;
-
-    /* ESTADOS ESPORTIVOS (Status Tokens) */
-    --status-scheduled: 201 48% 65%;  /* Info */
-    --status-live: 11 75% 63%;        /* Coral Live */
-    --status-completed: 99 47% 47%;   /* Success */
-    --status-homologated: 105 45% 36%;/* Success escuro */
-    --status-pending: 33 20% 65%;     /* Warm Muted */
-    --status-cancelled: 0 65% 50%;    /* Red */
-    --status-walkover: 280 40% 45%;   /* Purple */
-
-    /* SIDEBAR NAVIGATION */
-    --sidebar-background: 198 55% 14%; /* #102C38 Deep */
-    --sidebar-foreground: 33 33% 94%;  /* #F5F0EB Warm Light */
-    --sidebar-primary: 175 52% 55%;    /* #4FC8BD Secondary */
-    --sidebar-primary-foreground: 204 30% 13%;
-    --sidebar-accent: 200 32% 18%;     /* #20343E Elevated */
-    --sidebar-accent-foreground: 33 33% 94%;
-    --sidebar-border: 200 25% 18%;
-    --sidebar-ring: 175 52% 55%;
-
-    /* SOMBRAS DISCRETAS */
-    --shadow-subtle: 0 1px 2px 0 rgba(23, 35, 43, 0.04);
-    --shadow-card: 0 1px 3px 0 rgba(23, 35, 43, 0.06), 0 1px 2px -1px rgba(23, 35, 43, 0.04);
-    --shadow-elevated: 0 4px 6px -1px rgba(23, 35, 43, 0.06), 0 2px 4px -2px rgba(23, 35, 43, 0.03);
-  }
-
+  :root,
   .dark {
     /* =====================================================================
-       DESIGN TOKENS — PALETA PRINCIPAL ESPORTIVA VOLLEYPRO (DARK MODE)
+       DESIGN TOKENS — BASEOS DARK TECH PALETTE (STRICT DARK MODE)
        ===================================================================== */
-    --background: 200 40% 9%;       /* #0E1B21 Background Dark */
-    --foreground: 33 33% 94%;       /* #F5F0EB Warm Light */
+    /* Background principal: bg-zinc-950 (#09090b) */
+    --background: 240 10% 3.9%;
+    /* Texto principal / Títulos: text-zinc-100 (#f4f4f5) */
+    --foreground: 240 4.8% 95.9%;
 
-    --card: 204 30% 13%;            /* #17232B SURFACE Dark */
-    --card-foreground: 33 33% 94%;  /* #F5F0EB */
+    /* Superfícies (Cards, Modais, Dropdowns): bg-zinc-900 (#18181b) */
+    --card: 240 3.7% 15.9%;
+    --card-foreground: 240 4.8% 95.9%;
 
-    --popover: 200 32% 18%;         /* #20343E ELEVATED Dark */
-    --popover-foreground: 33 33% 94%;
+    --popover: 240 3.7% 15.9%;
+    --popover-foreground: 240 4.8% 95.9%;
 
-    /* PRIMARY NO DARK (#4FC8BD - Alta legibilidade e contraste) */
-    --primary: 175 52% 55%;
-    --primary-foreground: 204 30% 13%;
+    /* Ação Principal (Areia / Energia): amber-500 (#f59e0b) */
+    --primary: 38 92% 50%;
+    /* Texto escuro no botão primário para alto contraste: text-zinc-950 */
+    --primary-foreground: 240 10% 3.9%;
 
-    /* SECONDARY NO DARK (#1796BB) */
-    --secondary: 194 78% 41%;
-    --secondary-foreground: 33 33% 94%;
+    /* Ação Secundária (Quadra / Tech): cyan-400 (#22d3ee) */
+    --secondary: 187 92% 53%;
+    --secondary-foreground: 240 10% 3.9%;
 
-    /* MUTED NO DARK */
-    --muted: 200 30% 16%;           /* #1D2E37 */
-    --muted-foreground: 317 11% 69%;/* #B9A7B4 */
+    /* Suporte e Neutros: bg-zinc-900 e text-zinc-400 (#a1a1aa) */
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
 
-    /* ACCENT / WARNING (#E8735A) */
-    --accent: 11 75% 63%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent: amber-500 */
+    --accent: 38 92% 50%;
+    --accent-foreground: 240 10% 3.9%;
 
-    /* SUCCESS (#66B03F) */
-    --success: 99 47% 47%;
-    --success-foreground: 0 0% 100%;
+    /* Success (#22c55e - Emerald) */
+    --success: 142 71% 45%;
+    --success-foreground: 240 10% 3.9%;
 
-    /* WARNING (#E8735A) */
-    --warning: 11 75% 63%;
-    --warning-foreground: 0 0% 100%;
+    /* Warning (#f59e0b - Amber) */
+    --warning: 38 92% 50%;
+    --warning-foreground: 240 10% 3.9%;
 
-    /* DESTRUCTIVE */
-    --destructive: 0 72% 51%;
+    /* Destructive (#ef4444 - Red) */
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    /* INFO (#79B2D0) */
-    --info: 201 48% 65%;
-    --info-foreground: 33 33% 94%;
+    /* Info / Tech Highlight (cyan-400) */
+    --info: 187 92% 53%;
+    --info-foreground: 240 10% 3.9%;
 
-    /* HIGHLIGHT (#A4F9E4) */
-    --highlight: 165 89% 81%;
-    --highlight-foreground: 204 30% 13%;
+    --highlight: 187 92% 53%;
+    --highlight-foreground: 240 10% 3.9%;
 
-    /* BORDER & RING DARK */
-    --border: 200 25% 18%;          /* #22353E Baixa intensidade */
-    --input: 200 25% 18%;
-    --ring: 175 52% 55%;
+    /* BRAND SPECIFIC TOKENS */
+    --ink: 240 4.8% 95.9%;
+    --deep: 240 10% 3.9%;
+    --slate: 240 5% 64.9%;
+    --warm-light: 38 92% 50%;
+
+    /* Bordas sutis: border-zinc-800 (#27272a) */
+    --border: 240 3.7% 20%;
+    --input: 240 3.7% 20%;
+    --ring: 38 92% 50%;
+
+    /* RADIUS BASE: 12px / rounded-xl */
+    --radius: 0.75rem;
+
+    /* ESTADOS ESPORTIVOS (Status Tokens) */
+    --status-scheduled: 187 92% 53%;  /* Cyan Tech */
+    --status-live: 38 92% 50%;        /* Amber Live */
+    --status-completed: 142 71% 45%;  /* Emerald Success */
+    --status-homologated: 142 71% 45%;/* Emerald Homologado */
+    --status-pending: 240 5% 64.9%;   /* Zinc Muted */
+    --status-cancelled: 0 84% 60%;    /* Red Cancelled */
+    --status-walkover: 280 65% 60%;   /* Purple Walkover */
 
     /* SIDEBAR NAVIGATION DARK */
-    --sidebar-background: 200 45% 7%;
-    --sidebar-foreground: 33 33% 94%;
-    --sidebar-primary: 175 52% 55%;
-    --sidebar-primary-foreground: 204 30% 13%;
-    --sidebar-accent: 200 32% 16%;
-    --sidebar-accent-foreground: 33 33% 94%;
-    --sidebar-border: 200 25% 16%;
-    --sidebar-ring: 175 52% 55%;
+    --sidebar-background: 240 10% 3.9%; /* zinc-950 */
+    --sidebar-foreground: 240 4.8% 95.9%; /* zinc-100 */
+    --sidebar-primary: 38 92% 50%;       /* amber-500 */
+    --sidebar-primary-foreground: 240 10% 3.9%;
+    --sidebar-accent: 240 3.7% 15.9%;   /* zinc-900 */
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 20%;      /* zinc-800 */
+    --sidebar-ring: 38 92% 50%;
 
-    /* SOMBRAS DARK */
-    --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
-    --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.2);
-    --shadow-elevated: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+    /* SOMBRAS DARK TECH */
+    --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+    --shadow-card: 0 4px 12px 0 rgba(0, 0, 0, 0.5), 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+    --shadow-elevated: 0 10px 25px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
   }
 }
 
