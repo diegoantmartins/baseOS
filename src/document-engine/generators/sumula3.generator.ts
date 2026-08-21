@@ -19,6 +19,7 @@ import { drawDynamicText } from '../utils/drawText';
 import type { FieldLayoutOverride } from '../../types/documentEdit';
 import {
   cleanTemplate,
+  createEmptyMatchDocument,
   drawSystemLogo,
   loadFonts,
   mergeFieldOverrides,
@@ -76,6 +77,31 @@ export async function generateThreeSetScoresheet(
     winnerName,
     values,
   );
+
+  return savePdf(doc);
+}
+
+/** Gera a Súmula Oficial de 3 Sets em Branco no formato homologado. */
+export async function generateBlankThreeSetScoresheet(
+  orgName = 'VolleyPro',
+  options: GenerationOptions = {},
+): Promise<Uint8Array> {
+  const doc = options.templateBytes
+    ? await import('pdf-lib').then(m => m.PDFDocument.load(options.templateBytes as Uint8Array, { updateMetadata: false }))
+    : await openTemplate('sumula3');
+  const page = doc.getPage(0);
+  const fonts = await loadFonts(doc);
+  const fields = mergeFieldOverrides(SUMULA3_GEOMETRY.fields, options.layoutOverrides);
+  const geometry = { ...SUMULA3_GEOMETRY, fields };
+
+  // Limpa logos de terceiros
+  cleanTemplate(page, SUMULA3_GEOMETRY);
+  await drawSystemLogo(doc, page, geometry.logoZone, options.logoBytes);
+
+  // Cabeçalho padrão VolleyPro em branco
+  const emptyMatch = createEmptyMatchDocument('3-sets');
+
+  renderHeaderFields(page, geometry, fonts, emptyMatch, orgName, options.valueOverrides);
 
   return savePdf(doc);
 }

@@ -35,6 +35,21 @@ export async function generateServeOrderSheet(
   return savePdf(doc);
 }
 
+/** Gera a folha de Fichas de Ordem de Saque em Branco (8 filipetas) sem logos de terceiros. */
+export async function generateBlankServeOrderSheet(
+  options: GenerationOptions = {},
+): Promise<Uint8Array> {
+  const doc = options.templateBytes
+    ? await import('pdf-lib').then(m => m.PDFDocument.load(options.templateBytes as Uint8Array, { updateMetadata: false }))
+    : await openTemplate('ordem-saque');
+  const page = doc.getPage(0);
+
+  cleanTemplate(page, ORDEM_SAQUE_GEOMETRY);
+  await drawSystemLogo(doc, page, ORDEM_SAQUE_GEOMETRY.logoZone, options.logoBytes);
+
+  return savePdf(doc);
+}
+
 /**
  * Preenche cada filipeta com os dados da equipe/set correspondente.
  * Valores manuais (DocumentEdit.values) usam chave `slot<slot>.<campo>`.

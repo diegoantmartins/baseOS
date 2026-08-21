@@ -16,10 +16,6 @@ import {
   generateTeamRosterReportPdf,
   downloadReportsPdf,
 } from '@/lib/pdf/reportsPdf';
-import {
-  generateBlankOfficialMatchSheetPdf,
-  generateBlankPositionSheetsPdf,
-} from '@/lib/pdf/officialMatchSheetPdf';
 import { BlankSheetEmitDialog } from '@/components/match/BlankSheetEmitDialog';
 import { MatchSheetEmitDialog } from '@/components/match/MatchSheetEmitDialog';
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
@@ -40,6 +36,7 @@ export default function ReportsPage() {
   const [competitionId, setCompetitionId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [blankDialogOpen, setBlankDialogOpen] = useState(false);
+  const [blankDefaultFormat, setBlankDefaultFormat] = useState<'3-sets' | '5-sets'>('3-sets');
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<MatchRecord | null>(null);
 
@@ -183,24 +180,6 @@ export default function ReportsPage() {
     toast.success('Relatório de Pódio e Encerramento gerado com sucesso!');
   };
 
-  const exportBlankSheet3 = () => {
-    const doc = generateBlankOfficialMatchSheetPdf('3-sets', 'VolleyPro');
-    downloadReportsPdf(doc, 'sumula_oficial_em_branco_3sets.pdf');
-    toast.success('Súmula oficial de 3 sets em branco gerada!');
-  };
-
-  const exportBlankSheet5 = () => {
-    const doc = generateBlankOfficialMatchSheetPdf('5-sets', 'VolleyPro');
-    downloadReportsPdf(doc, 'sumula_oficial_em_branco_5sets.pdf');
-    toast.success('Súmula oficial de 5 sets em branco gerada!');
-  };
-
-  const exportBlankPositionSheets = () => {
-    const doc = generateBlankPositionSheetsPdf('3-sets', 'VolleyPro');
-    downloadReportsPdf(doc, 'fichas_posicao_em_branco.pdf');
-    toast.success('Fichas de posição (ordem de saque) em branco geradas!');
-  };
-
   const reports = [
     {
       title: 'Boletim de Jogos & Confrontos',
@@ -234,21 +213,29 @@ export default function ReportsPage() {
       title: 'Súmula Oficial em Branco (3 Sets)',
       description: 'Modelo oficial padrão A4 em branco para preenchimento manual na mesa de arbitragem.',
       icon: FileSpreadsheet,
-      action: () => setBlankDialogOpen(true),
+      action: () => {
+        setBlankDefaultFormat('3-sets');
+        setBlankDialogOpen(true);
+      },
       requiresComp: false,
     },
     {
       title: 'Súmula Oficial em Branco (5 Sets)',
       description: 'Modelo oficial padrão A3 em branco para partidas de até 5 sets com tiebreak.',
       icon: FileSpreadsheet,
-      action: () => setBlankDialogOpen(true),
+      action: () => {
+        setBlankDefaultFormat('5-sets');
+        setBlankDialogOpen(true);
+      },
       requiresComp: false,
     },
     {
       title: 'Fichas de Posição / Saque em Branco',
       description: 'Conjunto de 8 fichas em folha A4 com quadrículas de rotação I a VI e assinatura do técnico.',
       icon: ClipboardList,
-      action: () => setBlankDialogOpen(true),
+      action: () => {
+        setBlankDialogOpen(true);
+      },
       requiresComp: false,
     },
   ];
@@ -310,6 +297,7 @@ export default function ReportsPage() {
       <BlankSheetEmitDialog
         open={blankDialogOpen}
         onOpenChange={setBlankDialogOpen}
+        defaultFormat={blankDefaultFormat}
       />
 
       {/* Modal de Emissão de Súmula Oficial de Jogo */}

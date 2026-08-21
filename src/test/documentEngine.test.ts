@@ -7,9 +7,9 @@
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import { loadTemplateBytes, TEMPLATE_PAGE_SIZES } from '@/document-engine/utils/pdfUtils';
-import { generateThreeSetScoresheet } from '@/document-engine/generators/sumula3.generator';
-import { generateFiveSetScoresheet } from '@/document-engine/generators/sumula5.generator';
-import { generateServeOrderSheet } from '@/document-engine/generators/ordemSaque.generator';
+import { generateThreeSetScoresheet, generateBlankThreeSetScoresheet } from '@/document-engine/generators/sumula3.generator';
+import { generateFiveSetScoresheet, generateBlankFiveSetScoresheet } from '@/document-engine/generators/sumula5.generator';
+import { generateServeOrderSheet, generateBlankServeOrderSheet } from '@/document-engine/generators/ordemSaque.generator';
 import { buildOrdemSaqueData, buildSumulaData, generateMatchDocuments } from '@/document-engine/generators';
 import type { MatchDocument } from '@/document-engine/schemas/match.schema';
 import type { OrdemSaqueData } from '@/document-engine/schemas/ordemSaque.schema';
@@ -147,5 +147,32 @@ describe('geração de documentos (Fase 1)', () => {
     const match = buildMatch('3-sets');
     match.sets = [];
     await expect(generateMatchDocuments(match)).rejects.toThrow(/sem sets/i);
+  });
+
+  it('gera súmula 3 sets em branco oficial homologada (1 página, 992x566)', async () => {
+    const bytes = await generateBlankThreeSetScoresheet();
+    expect(bytes.length).toBeGreaterThan(10_000);
+    const doc = await PDFDocument.load(bytes);
+    expect(doc.getPageCount()).toBe(1);
+    expect(doc.getPage(0).getWidth()).toBeCloseTo(992, 1);
+    expect(doc.getPage(0).getHeight()).toBeCloseTo(566, 1);
+  });
+
+  it('gera súmula 5 sets em branco oficial homologada (1 página, 1190x841)', async () => {
+    const bytes = await generateBlankFiveSetScoresheet();
+    expect(bytes.length).toBeGreaterThan(10_000);
+    const doc = await PDFDocument.load(bytes);
+    expect(doc.getPageCount()).toBe(1);
+    expect(doc.getPage(0).getWidth()).toBeCloseTo(1190, 1);
+    expect(doc.getPage(0).getHeight()).toBeCloseTo(841, 1);
+  });
+
+  it('gera ficha de ordem de saque em branco oficial homologada (1 página, 841x595)', async () => {
+    const bytes = await generateBlankServeOrderSheet();
+    expect(bytes.length).toBeGreaterThan(10_000);
+    const doc = await PDFDocument.load(bytes);
+    expect(doc.getPageCount()).toBe(1);
+    expect(doc.getPage(0).getWidth()).toBeCloseTo(841, 1);
+    expect(doc.getPage(0).getHeight()).toBeCloseTo(595, 1);
   });
 });

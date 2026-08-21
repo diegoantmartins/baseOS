@@ -59,7 +59,7 @@ import {
   generateTeamRosterReportPdf,
   downloadReportsPdf,
 } from '@/lib/pdf/reportsPdf';
-import { generateBlankPositionSheetsPdf } from '@/lib/pdf/officialMatchSheetPdf';
+import { generateBlankServeOrderSheet } from '@/document-engine/generators/ordemSaque.generator';
 import type { CompetitionAthlete, CompetitionAthleteInput, CompetitionTeam } from '@/types/registration';
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
 
@@ -252,10 +252,23 @@ export function TeamRosterRegistrationPage() {
     toast.success('Boletim de jogos gerado em PDF!');
   };
 
-  const handleExportPositionSheets = () => {
-    const doc = generateBlankPositionSheetsPdf('3-sets', competition?.name || 'VolleyPro');
-    downloadReportsPdf(doc, 'fichas_ordem_de_saque.pdf');
-    toast.success('Fichas de posição (ordem de saque) geradas!');
+  const handleExportPositionSheets = async () => {
+    try {
+      const bytes = await generateBlankServeOrderSheet();
+      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'fichas_ordem_de_saque.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Fichas de posição (ordem de saque) geradas!');
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao gerar fichas de ordem de saque.');
+    }
   };
 
   // Cálculo da Classificação

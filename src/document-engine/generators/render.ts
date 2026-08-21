@@ -28,6 +28,42 @@ const TEXT_DARK = rgb(0.1, 0.15, 0.2);
 const TEXT_MUTED = rgb(0.4, 0.5, 0.6);
 const WHITE = rgb(1, 1, 1);
 
+/** Cria uma estrutura MatchDocument limpa para emissão de súmula oficial em branco. */
+export function createEmptyMatchDocument(format: '3-sets' | '5-sets' = '3-sets'): MatchDocument {
+  return {
+    id: 'blank',
+    matchNumber: 0,
+    competitionId: '',
+    competitionName: '',
+    categoryName: '',
+    gender: 'mixed',
+    phase: '',
+    round: 1,
+    date: '',
+    startTime: '',
+    venue: '',
+    format,
+    status: 'DRAFT',
+    teamA: {
+      id: 'team-a',
+      name: '',
+      shortName: '',
+      players: [],
+      liberoPlayers: [],
+    },
+    teamB: {
+      id: 'team-b',
+      name: '',
+      shortName: '',
+      players: [],
+      liberoPlayers: [],
+    },
+    lineups: [],
+    sets: [],
+    officials: {},
+  };
+}
+
 /** Valor efetivo de um campo: override manual tem precedência. */
 export function resolveFieldValue(
   values: Record<string, string> | undefined,
@@ -164,17 +200,23 @@ export function renderHeaderFields(
   // Box 1: Competição
   page.drawRectangle({ x: 18, y: toPdfY(66), width: 270, height: 26, color: LIGHT_BG, borderColor: BORDER_GRAY, borderWidth: 0.8 });
   page.drawText('COMPETIÇÃO', { x: 24, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
-  page.drawText(match.competitionName, { x: 24, y: toPdfY(60), size: 8.5, font: fonts.boldFont, color: TEXT_DARK });
+  if (match.competitionName) {
+    page.drawText(match.competitionName, { x: 24, y: toPdfY(60), size: 8.5, font: fonts.boldFont, color: TEXT_DARK });
+  }
 
   // Box 2: Local e Cidade
-  const venueText = match.court ? `${match.venue} (${match.court})` : match.venue;
+  const venueText = match.venue ? (match.court ? `${match.venue} (${match.court})` : match.venue) : '';
   const defaultCity = match.teamA?.city
     ? `${match.teamA.city}${match.teamA.state ? ' / ' + match.teamA.state : ''}`
-    : 'Toledo / PR';
+    : '';
   const cityText = resolveFieldValue(values, 'city', defaultCity);
+  const locationCombined = venueText && cityText ? `${venueText} - ${cityText}` : (venueText || cityText);
+
   page.drawRectangle({ x: 292, y: toPdfY(66), width: 273, height: 26, color: LIGHT_BG, borderColor: BORDER_GRAY, borderWidth: 0.8 });
   page.drawText('GINÁSIO / CIDADE', { x: 298, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
-  page.drawText(`${venueText} - ${cityText}`, { x: 298, y: toPdfY(60), size: 8, font: fonts.boldFont, color: TEXT_DARK });
+  if (locationCombined) {
+    page.drawText(locationCombined, { x: 298, y: toPdfY(60), size: 8, font: fonts.boldFont, color: TEXT_DARK });
+  }
 
   // Box 3: Metadados Jogo (x: 570 a 984) com 4 colunas estritamente separadas
   page.drawRectangle({ x: 570, y: toPdfY(66), width: 414, height: 26, color: LIGHT_BG, borderColor: BORDER_GRAY, borderWidth: 0.8 });
@@ -184,35 +226,51 @@ export function renderHeaderFields(
 
   // Sub 1: JOGO
   page.drawText('JOGO', { x: 576, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
-  page.drawText(`Nº ${match.matchNumber ? String(match.matchNumber).padStart(2, '0') : '01'}`, { x: 576, y: toPdfY(60), size: 8.5, font: fonts.boldFont, color: NAVY });
+  const matchNumText = match.matchNumber ? `Nº ${String(match.matchNumber).padStart(2, '0')}` : 'Nº ___';
+  page.drawText(matchNumText, { x: 576, y: toPdfY(60), size: 8.5, font: fonts.boldFont, color: NAVY });
 
   // Sub 2: FASE
-  const phaseClean = (match.phase || 'Fase de Grupos').slice(0, 16);
   page.drawText('FASE', { x: 624, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
-  page.drawText(phaseClean, { x: 624, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
+  if (match.phase) {
+    const phaseClean = match.phase.slice(0, 16);
+    page.drawText(phaseClean, { x: 624, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
+  }
 
   // Sub 3: DATA / HORA
   page.drawText('DATA / HORA', { x: 724, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
-  page.drawText(`${match.date} ${match.startTime ? '- ' + match.startTime : ''}`, { x: 724, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
+  const dateTimeText = match.date ? `${match.date} ${match.startTime ? '- ' + match.startTime : ''}` : '___/___/______';
+  page.drawText(dateTimeText, { x: 724, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
 
   // Sub 4: CATEGORIA / SEXO
-  const genderName = match.gender === 'female' ? 'Feminino' : match.gender === 'male' ? 'Masculino' : 'Misto';
-  const catText = `${match.categoryName || 'Adulto'} | ${genderName}`.slice(0, 22);
+  const genderName = match.gender === 'female' ? 'Feminino' : match.gender === 'male' ? 'Masculino' : match.gender === 'mixed' ? 'Misto' : '';
+  const catText = match.categoryName ? `${match.categoryName}${genderName ? ' | ' + genderName : ''}`.slice(0, 22) : (genderName || '');
   page.drawText('CATEGORIA / SEXO', { x: 846, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
-  page.drawText(catText, { x: 846, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
+  if (catText) {
+    page.drawText(catText, { x: 846, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
+  }
 
   // 3. Linha de Confronto (y: 69 a 96, x: 18 a 984) — Limpa com nomes completos das equipes
   page.drawRectangle({ x: 18, y: toPdfY(96), width: 966, height: 27, color: rgb(0.92, 0.96, 1), borderColor: BORDER_GRAY, borderWidth: 0.8 });
 
   // Nome Equipe 1
-  page.drawText(match.teamA.name, { x: 35, y: toPdfY(86), size: 12, font: fonts.boldFont, color: NAVY });
+  if (match.teamA.name) {
+    page.drawText(match.teamA.name, { x: 35, y: toPdfY(86), size: 12, font: fonts.boldFont, color: NAVY });
+  } else {
+    page.drawText('EQUIPE 1: __________________________________', { x: 35, y: toPdfY(86), size: 10, font: fonts.boldFont, color: TEXT_MUTED });
+  }
 
   // VS Central
   page.drawText('VS', { x: 490, y: toPdfY(86), size: 10, font: fonts.boldFont, color: rgb(0.3, 0.4, 0.6) });
 
   // Nome Equipe 2
-  const nameBWidth = fonts.boldFont.widthOfTextAtSize(match.teamB.name, 12);
-  page.drawText(match.teamB.name, { x: 966 - 17 - nameBWidth, y: toPdfY(86), size: 12, font: fonts.boldFont, color: NAVY });
+  if (match.teamB.name) {
+    const nameBWidth = fonts.boldFont.widthOfTextAtSize(match.teamB.name, 12);
+    page.drawText(match.teamB.name, { x: 966 - 17 - nameBWidth, y: toPdfY(86), size: 12, font: fonts.boldFont, color: NAVY });
+  } else {
+    const placeholder = 'EQUIPE 2: __________________________________';
+    const placeWidth = fonts.boldFont.widthOfTextAtSize(placeholder, 10);
+    page.drawText(placeholder, { x: 966 - 17 - placeWidth, y: toPdfY(86), size: 10, font: fonts.boldFont, color: TEXT_MUTED });
+  }
 }
 
 /**

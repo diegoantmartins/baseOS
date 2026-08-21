@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { loadTemplateBytes } from '@/document-engine/utils/pdfUtils';
-import type { TemplateKind } from '@/document-engine/schemas/sumula.schema';
+import { generateBlankThreeSetScoresheet } from '@/document-engine/generators/sumula3.generator';
+import { generateBlankFiveSetScoresheet } from '@/document-engine/generators/sumula5.generator';
+import { generateBlankServeOrderSheet } from '@/document-engine/generators/ordemSaque.generator';
 
 interface Props {
   open: boolean;
@@ -22,21 +23,21 @@ export function BlankSheetEmitDialog({ open, onOpenChange, defaultFormat = '3-se
   );
   const [loading, setLoading] = useState(false);
 
-  const getTemplateKind = (type: BlankDocumentType): TemplateKind => {
-    if (type === 'sumula-3') return 'sumula3';
-    if (type === 'sumula-5') return 'sumula5';
-    return 'ordem-saque';
-  };
-
   const getFilename = () => {
-    if (docType === 'sumula-3') return 'sumula_oficial_cbv_fpv_3sets_em_branco.pdf';
-    if (docType === 'sumula-5') return 'sumula_oficial_cbv_fpv_5sets_em_branco.pdf';
+    if (docType === 'sumula-3') return 'sumula_oficial_volleypro_3sets_em_branco.pdf';
+    if (docType === 'sumula-5') return 'sumula_oficial_volleypro_5sets_em_branco.pdf';
     return 'fichas_ordem_de_saque_em_branco.pdf';
   };
 
   const getPdfBlobUrl = async (): Promise<string> => {
-    const kind = getTemplateKind(docType);
-    const bytes = await loadTemplateBytes(kind);
+    let bytes: Uint8Array;
+    if (docType === 'sumula-3') {
+      bytes = await generateBlankThreeSetScoresheet();
+    } else if (docType === 'sumula-5') {
+      bytes = await generateBlankFiveSetScoresheet();
+    } else {
+      bytes = await generateBlankServeOrderSheet();
+    }
     const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
     return URL.createObjectURL(blob);
   };
