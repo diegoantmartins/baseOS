@@ -25,6 +25,8 @@ import {
   playerLabel,
   renderFooterFields,
   renderHeaderFields,
+  renderRostersAndStaff,
+  renderTeamBadges,
   resolveFieldValue,
   type LoadedFonts,
 } from './render';
@@ -57,6 +59,8 @@ export async function generateThreeSetScoresheet(
   await drawSystemLogo(doc, page, geometry.logoZone, options.logoBytes);
   renderHeaderFields(page, geometry, fonts, data.match, data.orgName, values);
   renderSetBlocks(page, fonts, data, values, fields);
+  renderRostersAndStaff(page, fonts, data.match, values);
+  renderTeamBadges(page, fonts, data.match);
 
   const winnerName = data.winnerTeamId
     ? data.winnerTeamId === data.match.teamA.id

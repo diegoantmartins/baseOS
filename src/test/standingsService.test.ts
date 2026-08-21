@@ -6,7 +6,9 @@ import {
   competitionPointsFromSets,
   computeStandings,
   computeStandingsByGroup,
+  computeBestThirds,
   headToHeadWinner,
+  type StandingsByGroup,
 } from '@/services/standingsService';
 
 function team(id: string, name: string, shortName: string, groupName?: string) {
@@ -225,5 +227,76 @@ describe('Classificação', () => {
     );
     expect(byGroup.map(g => g.groupName)).toEqual(['Grupo A', 'Classificação Geral']);
     expect(byGroup[0].standings[0].position).toBe(1);
+  });
+
+  it('respeita ordem customizada de critérios definida pelo gestor (ex: vitórias antes de pontos)', () => {
+    // Equipe A: 2 vitórias por 3x2 = 4 pontos
+    // Equipe B: 1 vitória por 3x0 e 1 derrota 2x3 = 4 pontos (1 vitória)
+    const matches = [
+      completedMatch('m1', 'A', 'C', [
+        { scoreA: 25, scoreB: 20 },
+        { scoreA: 20, scoreB: 25 },
+        { scoreA: 25, scoreB: 22 },
+        { scoreA: 22, scoreB: 25 },
+        { scoreA: 15, scoreB: 13 },
+      ]),
+      completedMatch('m2', 'A', 'D', [
+        { scoreA: 25, scoreB: 20 },
+        { scoreA: 20, scoreB: 25 },
+        { scoreA: 25, scoreB: 22 },
+        { scoreA: 22, scoreB: 25 },
+        { scoreA: 15, scoreB: 13 },
+      ]),
+      completedMatch('m3', 'B', 'C', [
+        { scoreA: 25, scoreB: 15 },
+        { scoreA: 25, scoreB: 18 },
+        { scoreA: 25, scoreB: 20 },
+      ]),
+      completedMatch('m4', 'D', 'B', [
+        { scoreA: 25, scoreB: 20 },
+        { scoreA: 20, scoreB: 25 },
+        { scoreA: 25, scoreB: 22 },
+        { scoreA: 22, scoreB: 25 },
+        { scoreA: 15, scoreB: 13 },
+      ]),
+    ];
+
+    const standings = computeStandings(
+      [team('B', 'Bravo', 'BRA'), team('A', 'Alpha', 'ALP')],
+      matches,
+      { criteria: ['victories', 'points', 'sets-balance'] },
+    );
+
+    // Com critério 'victories' primeiro, Equipe A (2 vitórias) fica à frente de B (1 vitória)
+    expect(standings[0].teamId).toBe('A');
+    expect(standings[0].matchesWon).toBe(2);
+    expect(standings[1].teamId).toBe('B');
+    expect(standings[1].matchesWon).toBe(1);
+    expect(standings[0].tiebreakReason).toContain('mais vitórias');
+  });
+
+  it('calcula o ranking dos Melhores Terceiros colocados', () => {
+    const groupAStandings = [
+      { position: 1, teamId: 'A1', teamName: 'A1', teamShortName: 'A1', matchesPlayed: 3, matchesWon: 3, matchesLost: 0, setsWon: 9, setsLost: 0, setsRatio: 9, pointsWon: 225, pointsLost: 150, pointsBalance: 75, pointsRatio: 1.5, competitionPoints: 9 },
+      { position: 2, teamId: 'A2', teamName: 'A2', teamShortName: 'A2', matchesPlayed: 3, matchesWon: 2, matchesLost: 1, setsWon: 6, setsLost: 3, setsRatio: 2, pointsWon: 210, pointsLost: 180, pointsBalance: 30, pointsRatio: 1.16, competitionPoints: 6 },
+      { position: 3, teamId: 'A3', teamName: 'Equipe A3', teamShortName: 'A3', matchesPlayed: 3, matchesWon: 1, matchesLost: 2, setsWon: 4, setsLost: 6, setsRatio: 0.66, pointsWon: 200, pointsLost: 210, pointsBalance: -10, pointsRatio: 0.95, competitionPoints: 4 },
+    ];
+    const groupBStandings = [
+      { position: 1, teamId: 'B1', teamName: 'B1', teamShortName: 'B1', matchesPlayed: 3, matchesWon: 3, matchesLost: 0, setsWon: 9, setsLost: 0, setsRatio: 9, pointsWon: 225, pointsLost: 150, pointsBalance: 75, pointsRatio: 1.5, competitionPoints: 9 },
+      { position: 2, teamId: 'B2', teamName: 'B2', teamShortName: 'B2', matchesPlayed: 3, matchesWon: 2, matchesLost: 1, setsWon: 6, setsLost: 3, setsRatio: 2, pointsWon: 210, pointsLost: 180, pointsBalance: 30, pointsRatio: 1.16, competitionPoints: 6 },
+      { position: 3, teamId: 'B3', teamName: 'Equipe B3', teamShortName: 'B3', matchesPlayed: 3, matchesWon: 1, matchesLost: 2, setsWon: 3, setsLost: 7, setsRatio: 0.42, pointsWon: 180, pointsLost: 220, pointsBalance: -40, pointsRatio: 0.81, competitionPoints: 2 },
+    ];
+
+    const groupStandings: StandingsByGroup = [
+      { groupName: 'Grupo A', standings: groupAStandings },
+      { groupName: 'Grupo B', standings: groupBStandings },
+    ];
+
+    const bestThirds = computeBestThirds(groupStandings, 1);
+    expect(bestThirds.length).toBe(2);
+    expect(bestThirds[0].teamId).toBe('A3');
+    expect(bestThirds[0].qualified).toBe(true);
+    expect(bestThirds[1].teamId).toBe('B3');
+    expect(bestThirds[1].qualified).toBe(false);
   });
 });

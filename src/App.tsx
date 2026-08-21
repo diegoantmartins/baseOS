@@ -18,36 +18,28 @@ import RefereesPage from "./pages/RefereesPage";
 import StatisticsPage from "./pages/StatisticsPage";
 import ReportsPage from "./pages/ReportsPage";
 import DrawPage from "./pages/DrawPage";
-import DocumentEditorPage from "./pages/DocumentEditorPage";
 import SettingsPage from "./pages/SettingsPage";
+import PrintDocumentsPage from "./pages/PrintDocumentsPage";
 import CreateMatchPage from "./pages/CreateMatchPage";
 import LoginPage from "./pages/LoginPage";
+import ModalitiesPage from "./pages/ModalitiesPage";
+import PeoplePage from "./pages/PeoplePage";
 import { CompetitionRegistrationsPage } from "./pages/CompetitionRegistrationsPage";
 import { TeamRosterRegistrationPage } from "./pages/TeamRosterRegistrationPage";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+import { ThemeProvider } from "./components/theme/ThemeProvider";
 
-function AppThemeSync() {
-  useEffect(() => {
-    dataAccess.getSettings().then(s => {
-      const root = document.documentElement;
-      if (s.theme === 'dark') root.classList.add('dark');
-      else if (s.theme === 'light') root.classList.remove('dark');
-      else root.classList.toggle('dark', window.matchMedia('(prefers-color-scheme: dark)').matches);
-    });
-  }, []);
-  return null;
-}
+const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <AuthProvider>
-        <AppThemeSync />
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+    <ThemeProvider>
+      <TooltipProvider>
+        <AuthProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             {/* Públicas */}
             <Route path="/" element={<Index />} />
@@ -87,6 +79,22 @@ const App = () => (
               element={
                 <RequireAuth roles={['organizer']}>
                   <TeamsPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/modalidades"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <ModalitiesPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/pessoas"
+              element={
+                <RequireAuth roles={['organizer']}>
+                  <PeoplePage />
                 </RequireAuth>
               }
             />
@@ -171,18 +179,18 @@ const App = () => (
               }
             />
             <Route
-              path="/documentos/editar"
+              path="/imprimir-documentos"
               element={
                 <RequireAuth roles={['organizer']}>
-                  <DocumentEditorPage />
+                  <PrintDocumentsPage />
                 </RequireAuth>
               }
             />
             <Route
-              path="/documentos/editar/:matchId"
+              path="/imprimir-documentos/:matchId"
               element={
                 <RequireAuth roles={['organizer']}>
-                  <DocumentEditorPage />
+                  <PrintDocumentsPage />
                 </RequireAuth>
               }
             />
@@ -244,7 +252,8 @@ const App = () => (
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
-  </QueryClientProvider>
+  </ThemeProvider>
+</QueryClientProvider>
 );
 
 export default App;

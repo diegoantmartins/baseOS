@@ -51,6 +51,21 @@ function chk(d: jsPDF, x: number, y: number, sz: number, checked: boolean) {
   }
 }
 
+function drawTeamLogo(d: jsPDF, logoUrl: string | undefined, x: number, y: number, size: number): void {
+  if (!logoUrl) return;
+  try {
+    if (logoUrl.startsWith('data:image/svg+xml')) {
+      const svg = decodeURIComponent(logoUrl.replace(/^data:image\/svg\+xml;utf8,?/, ''));
+      d.addSvgAsImage(svg, x, y, size, size);
+      return;
+    }
+    const format = logoUrl.startsWith('data:image/png') ? 'PNG' : logoUrl.startsWith('data:image/jpeg') ? 'JPEG' : undefined;
+    d.addImage(logoUrl, format, x, y, size, size);
+  } catch {
+    // Silently fallback if logo is not renderable in current context
+  }
+}
+
 // ── geometry constants for 3-sets A4 landscape (297 × 210 mm) ───────
 const W3 = 297, H3 = 210, M = 4; // page width, height, margin
 
@@ -127,14 +142,26 @@ function drawMatchInfo3(d: jsPDF, data: MatchSheetData) {
   // Row 2 values
   val(data.date || '', xpos[0], y + 13.5);
   val(data.time || '', xpos[1], y + 13.5);
-  // Teams A vs B centered in remaining width
+  // Teams A vs B centered in remaining width with logos
   const teamsX = xpos[2] + 1.5;
   tx(d, 'A', teamsX, y + 12, 5, { b: true });
-  tx(d, data.teamA.name.toUpperCase(), teamsX + 4.5, y + 12, 5.5, { b: true });
+  if (data.teamA.logoUrl) {
+    drawTeamLogo(d, data.teamA.logoUrl, teamsX + 4, y + 8, 5.5);
+    tx(d, data.teamA.name.toUpperCase(), teamsX + 11, y + 12, 5.5, { b: true });
+  } else {
+    tx(d, data.teamA.name.toUpperCase(), teamsX + 4.5, y + 12, 5.5, { b: true });
+  }
+
   const vsX = xpos[2] + (w - xpos[2] + M) / 2;
   tx(d, 'VS', vsX, y + 13.5, 5.5, { a: 'center', c: GRAY, b: true });
+
   tx(d, 'B', W3 - M - 2, y + 12, 5, { a: 'right', b: true });
-  tx(d, data.teamB.name.toUpperCase(), W3 - M - 7, y + 12, 5.5, { a: 'right', b: true });
+  if (data.teamB.logoUrl) {
+    drawTeamLogo(d, data.teamB.logoUrl, W3 - M - 13, y + 8, 5.5);
+    tx(d, data.teamB.name.toUpperCase(), W3 - M - 15, y + 12, 5.5, { a: 'right', b: true });
+  } else {
+    tx(d, data.teamB.name.toUpperCase(), W3 - M - 7, y + 12, 5.5, { a: 'right', b: true });
+  }
 }
 
 // ── SET BLOCK drawing ───────────────────────────────────────────────
@@ -763,45 +790,65 @@ function build5Sets(d: jsPDF, data: MatchSheetData) {
   tx(d, `Gerado: ${new Date().toLocaleDateString('pt-BR')}`, W - M, H - 2, 3.5, { a: 'right', c: LGRAY });
 }
 
-// ── FICHAS DE POSIÇÃO / ORDEM DE SAQUE ──────────────────────────────
-// 8 fichas por folha A4 paisagem (4 colunas × 2 linhas)
-
-function drawPositionCard(d: jsPDF, x: number, y: number, cw: number, ch: number,
-  team: MatchSheetData['teamA'], setLabel: string, orgName: string) {
+function drawPositionCard(
+  d: jsPDF,
+  x: number,
+  y: number,
+  cw: number,
+  ch: number,
+  data: MatchSheetData,
+  team: MatchSheetData['teamA'],
+  opponent: MatchSheetData['teamB'],
+  setLabel: string,
+  orgName: string,
+) {
   // Card border
   bx(d, x, y, cw, ch, 0.4);
 
   // Header bar
   const hdrH = 7;
   fbx(d, x, y, cw, hdrH, '#1e3a5f');
-  // Emblem placeholder (left)
-  d.setDrawColor(WHITE); d.setLineWidth(0.3);
-  d.circle(x + 6, y + hdrH / 2, 3, 'S');
-  tx(d, 'V', x + 6, y + hdrH / 2 + 1, 3.5, { a: 'center', c: WHITE, b: true });
+
+  // Team logo (if available) or emblem circle
+  if (team.logoUrl) {
+    drawTeamLogo(d, team.logoUrl, x + 1.5, y + 1, 5);
+  } else {
+    d.setDrawColor(WHITE); d.setLineWidth(0.3);
+    d.circle(x + 4, y + hdrH / 2, 2.5, 'S');
+    tx(d, 'V', x + 4, y + hdrH / 2 + 0.8, 3, { a: 'center', c: WHITE, b: true });
+  }
+
   // Title
-  tx(d, 'FICHA DE POSIÇÃO', x + cw / 2, y + 4.5, 6, { a: 'center', c: WHITE, b: true });
+  tx(d, 'FICHA DE POSIÇÃO', x + cw / 2, y + 4.5, 5.5, { a: 'center', c: WHITE, b: true });
   // Org name (right)
-  tx(d, orgName.substring(0, 14).toUpperCase(), x + cw - 3, y + 4.5, 3.5, { a: 'right', c: '#c0d0e0' });
+  tx(d, orgName.substring(0, 12).toUpperCase(), x + cw - 2, y + 4.5, 3.5, { a: 'right', c: '#c0d0e0' });
 
-  // Líbero field
-  tx(d, 'Líbero', x + cw - 20, y + hdrH + 3, 3.5, { c: GRAY });
-  ln(d, x + cw - 12, y + hdrH + 3.5, x + cw - 2, y + hdrH + 3.5, 0.15, LGRAY);
+  // Match details sub-strip (Jogo, Quadra, Adversário)
+  const subH = 5.5;
+  fbx(d, x, y + hdrH, cw, subH, '#f4f6f8');
+  ln(d, x, y + hdrH + subH, x + cw, y + hdrH + subH, 0.2, LGRAY);
 
-  // SET label
-  tx(d, setLabel, x + cw / 2, y + hdrH + 5, 8, { a: 'center', b: true });
+  const matchInfoLine = `J#${data.matchNumber || '-'} · ${data.court || data.venue || ''} · Adv: ${(opponent.shortName || opponent.name).substring(0, 10)}`;
+  tx(d, matchInfoLine, x + 2, y + hdrH + 3.8, 3, { c: GRAY });
 
-  // Equipe label
-  tx(d, 'Equipe', x + 3, y + hdrH + 3, 3.5, { c: GRAY });
-  tx(d, team.name.toUpperCase().substring(0, 18), x + 3, y + hdrH + 6, 4.5, { b: true });
+  // Equipe & Set header
+  const teamY = y + hdrH + subH + 1;
+  tx(d, team.name.toUpperCase().substring(0, 14), x + 2, teamY + 3.5, 4.5, { b: true });
+  tx(d, setLabel, x + cw - 2, teamY + 3.5, 6, { a: 'right', b: true });
+
+  // Líbero & Capitão line
+  const libY = teamY + 5;
+  tx(d, 'Líbero:', x + 2, libY + 2.5, 3.5, { c: GRAY });
+  ln(d, x + 12, libY + 3, x + 28, libY + 3, 0.15, LGRAY);
+  tx(d, 'Capitão:', x + 32, libY + 2.5, 3.5, { c: GRAY });
+  ln(d, x + 43, libY + 3, x + cw - 2, libY + 3, 0.15, LGRAY);
 
   // 6-position grid: 3 cols × 2 rows
-  // Top row: IV, III, II
-  // Bottom row: V, VI, I (I = Saque with thick border)
   const posMap = [['IV', 'III', 'II'], ['V', 'VI', 'I']];
-  const gridX = x + 5;
-  const gridY = y + hdrH + 9;
-  const cellW = (cw - 10) / 3;
-  const cellH = (ch - hdrH - 19) / 2;
+  const gridX = x + 3;
+  const gridY = libY + 5;
+  const cellW = (cw - 6) / 3;
+  const cellH = (ch - (gridY - y) - 8) / 2;
 
   for (let r = 0; r < 2; r++) {
     for (let c = 0; c < 3; c++) {
@@ -809,59 +856,78 @@ function drawPositionCard(d: jsPDF, x: number, y: number, cw: number, ch: number
       const py = gridY + r * cellH;
       const pos = posMap[r][c];
       const isSaque = pos === 'I';
-      bx(d, px, py, cellW, cellH, isSaque ? 0.6 : 0.25);
-      // Position label in top-left corner
-      tx(d, pos, px + 2, py + 3.5, 4.5, { b: true });
-      // Saque label for position I
+      bx(d, px, py, cellW, cellH, isSaque ? 0.5 : 0.2);
+      tx(d, pos, px + 1.5, py + 3, 4, { b: true });
       if (isSaque) {
-        tx(d, 'Saque', px + cellW / 2, py + cellH - 2, 3.5, { a: 'center', c: GRAY });
+        tx(d, 'Saque', px + cellW / 2, py + cellH - 1.5, 3, { a: 'center', c: GRAY });
       }
     }
   }
 
-  // "Rede" indicator (top center)
-  // (omitted — implicit from position layout)
-
   // Assinatura do Técnico
   const sigY2 = y + ch - 5;
-  tx(d, 'Assinatura do Técnico', x + 3, sigY2 + 3.5, 3.5, { c: GRAY });
-  ln(d, x + 3, sigY2 + 4, x + cw - 3, sigY2 + 4, 0.15, LGRAY);
+  tx(d, 'Assinatura do Técnico:', x + 3, sigY2 + 3.5, 3, { c: GRAY });
+  ln(d, x + 32, sigY2 + 3.5, x + cw - 3, sigY2 + 3.5, 0.15, LGRAY);
 }
 
 function buildPositionSheet(d: jsPDF, data: MatchSheetData) {
   const orgName = data.orgName || 'VolleyPro';
-  const numSets = data.format === '5-sets' ? 5 : data.format === '3-sets' ? 3 : 3;
+  const isFiveSets = data.format === '5-sets';
 
-  // For 3-sets: 8 cards (4 per team, sets 1-3 + blank)
-  // For 5-sets: 10 cards (5 per team) — needs 2 pages or adjusted layout
-  // Standard: 8 cards per page (4 cols × 2 rows)
+  // 3-sets: 4 fichas por equipe (Sets 1, 2, 3 + Extra) -> 8 fichas (1 página)
+  // 5-sets: 6 fichas por equipe (Sets 1, 2, 3, 4, 5 + Extra) -> 12 fichas (2 páginas)
+  const cardsPerTeam = isFiveSets ? 6 : 4;
 
   const cardCols = 4;
   const cardRows = 2;
   const gapX = 3, gapY = 4;
   const cw = (W3 - 2 * M - (cardCols - 1) * gapX) / cardCols;
-  const ch = (H3 - 2 * M - 8 - (cardRows - 1) * gapY) / cardRows; // 8mm for header
+  const ch = (H3 - 2 * M - 8 - (cardRows - 1) * gapY) / cardRows;
 
-  // Page header
+  // Página 1 (Sets 1 a 4 para cada equipe)
   tx(d, `${orgName.toUpperCase()} · FICHAS DE POSIÇÃO`, W3 / 2, M + 3, 6, { a: 'center', b: true, c: DARK });
   tx(d, `${data.competition.toUpperCase()} · ${data.teamA.name.toUpperCase()} x ${data.teamB.name.toUpperCase()} · ${data.date || ''}`, W3 / 2, M + 7, 4, { a: 'center', c: GRAY });
 
-  // Generate cards: Row 0 = Team A (sets 1-4), Row 1 = Team B (sets 1-4)
-  // Or: alternating team/set for practical use
-  for (let r = 0; r < cardRows; r++) {
-    for (let c = 0; c < cardCols; c++) {
-      const cx = M + c * (cw + gapX);
-      const cy = M + 8 + r * (ch + gapY);
-      const team = r === 0 ? data.teamA : data.teamB;
-      const teamLabel = r === 0 ? 'A' : 'B';
-      const setNum = c + 1;
-      const setLabel = setNum <= numSets ? `SET ${setNum}` : `SET __`;
-      drawPositionCard(d, cx, cy, cw, ch, team, `${setLabel} · EQ. ${teamLabel}`, orgName);
-    }
+  for (let c = 0; c < 4; c++) {
+    const setNum = c + 1;
+    const setLabel = setNum <= (isFiveSets ? 5 : 3) ? `SET ${setNum}` : `SET EXTRA`;
+
+    // Team A
+    const cxA = M + c * (cw + gapX);
+    const cyA = M + 8;
+    drawPositionCard(d, cxA, cyA, cw, ch, data, data.teamA, data.teamB, `${setLabel} (A)`, orgName);
+
+    // Team B
+    const cxB = M + c * (cw + gapX);
+    const cyB = M + 8 + (ch + gapY);
+    drawPositionCard(d, cxB, cyB, cw, ch, data, data.teamB, data.teamA, `${setLabel} (B)`, orgName);
   }
 
-  // Footer
-  tx(d, 'VolleyPro · Fichas de Posição / Ordem de Saque', M, H3 - 2, 3.5, { c: LGRAY });
+  tx(d, `VolleyPro · Fichas de Posição / Ordem de Saque ${isFiveSets ? '(Página 1/2)' : ''}`, M, H3 - 2, 3.5, { c: LGRAY });
+
+  // Página 2 para 5 sets (Sets 5 e Extra)
+  if (isFiveSets) {
+    d.addPage('a4', 'landscape');
+    tx(d, `${orgName.toUpperCase()} · FICHAS DE POSIÇÃO (SETS DECISIVOS)`, W3 / 2, M + 3, 6, { a: 'center', b: true, c: DARK });
+    tx(d, `${data.competition.toUpperCase()} · ${data.teamA.name.toUpperCase()} x ${data.teamB.name.toUpperCase()} · ${data.date || ''}`, W3 / 2, M + 7, 4, { a: 'center', c: GRAY });
+
+    for (let c = 0; c < 2; c++) {
+      const setNum = c + 5;
+      const setLabel = setNum === 5 ? `SET 5 (TB)` : `SET EXTRA`;
+
+      // Team A
+      const cxA = M + c * (cw + gapX);
+      const cyA = M + 8;
+      drawPositionCard(d, cxA, cyA, cw, ch, data, data.teamA, data.teamB, `${setLabel} (A)`, orgName);
+
+      // Team B
+      const cxB = M + c * (cw + gapX);
+      const cyB = M + 8 + (ch + gapY);
+      drawPositionCard(d, cxB, cyB, cw, ch, data, data.teamB, data.teamA, `${setLabel} (B)`, orgName);
+    }
+
+    tx(d, 'VolleyPro · Fichas de Posição / Ordem de Saque (Página 2/2)', M, H3 - 2, 3.5, { c: LGRAY });
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -892,6 +958,74 @@ export function generatePositionOrderSheetPdf(data: MatchSheetData): jsPDF {
   return doc;
 }
 
+export function generateBlankOfficialMatchSheetPdf(
+  format: '3-sets' | '5-sets' = '3-sets',
+  orgName = 'VolleyPro',
+): jsPDF {
+  const blankData: MatchSheetData = {
+    orgName,
+    competition: '___________________________',
+    category: 'Geral',
+    genderCategory: 'mixed',
+    modality: 'indoor',
+    format,
+    playerFormat: '6x6',
+    date: '____/____/________',
+    time: '____:____',
+    venue: '___________________________',
+    court: '___',
+    city: '___________________________',
+    phase: '_______________',
+    groupName: '_____',
+    round: 0,
+    matchNumber: 0,
+    teamA: { name: 'EQUIPE A', shortName: 'EQ. A', athletes: [] },
+    teamB: { name: 'EQUIPE B', shortName: 'EQ. B', athletes: [] },
+    sets: [],
+    finalScoreA: 0,
+    finalScoreB: 0,
+    referees: [],
+    timeouts: [],
+    substitutions: [],
+    sanctions: [],
+  };
+  return generateOfficialMatchSheetPdf(blankData);
+}
+
+export function generateBlankPositionSheetsPdf(
+  format: '3-sets' | '5-sets' = '3-sets',
+  orgName = 'VolleyPro',
+): jsPDF {
+  const blankData: MatchSheetData = {
+    orgName,
+    competition: '___________________________',
+    category: 'Geral',
+    genderCategory: 'mixed',
+    modality: 'indoor',
+    format,
+    playerFormat: '6x6',
+    date: '____/____/________',
+    time: '____:____',
+    venue: '___________________________',
+    court: '___',
+    city: '___________________________',
+    phase: '_______________',
+    groupName: '_____',
+    round: 0,
+    matchNumber: 0,
+    teamA: { name: 'EQUIPE A', shortName: 'EQ. A', athletes: [] },
+    teamB: { name: 'EQUIPE B', shortName: 'EQ. B', athletes: [] },
+    sets: [],
+    finalScoreA: 0,
+    finalScoreB: 0,
+    referees: [],
+    timeouts: [],
+    substitutions: [],
+    sanctions: [],
+  };
+  return generatePositionOrderSheetPdf(blankData);
+}
+
 function openPdf(doc: jsPDF, autoPrint: boolean): void {
   if (autoPrint) doc.autoPrint();
   const url = doc.output('bloburl');
@@ -903,6 +1037,7 @@ export function printOfficialPdf(doc: jsPDF): void { openPdf(doc, true); }
 export function printPositionPdf(doc: jsPDF): void { openPdf(doc, true); }
 export function previewOfficialPdf(doc: jsPDF): jsPDF { openPdf(doc, false); return doc; }
 export function previewPositionPdf(doc: jsPDF): jsPDF { openPdf(doc, false); return doc; }
+
 export function downloadOfficialPdf(doc: jsPDF, filename = 'sumula-oficial.pdf'): void {
   doc.save(filename);
 }

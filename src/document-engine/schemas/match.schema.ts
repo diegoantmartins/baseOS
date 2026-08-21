@@ -37,6 +37,7 @@ export type Player = {
   shirtNumber?: number;
   /** Posição de jogo (Levantador, Ponteiro, Central, Oposto, Líbero...). */
   position?: string;
+  isCaptain?: boolean;
   active: boolean;
 };
 
@@ -44,6 +45,10 @@ export type Team = {
   id: string;
   name: string;
   shortName: string;
+  captainId?: string;
+  logoUrl?: string;
+  city?: string;
+  state?: string;
   players: Player[];
   liberoPlayers: Player[];
   coach?: string;

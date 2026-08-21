@@ -8,11 +8,23 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-        secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        success: "border-transparent bg-green-600 text-white hover:bg-green-600/80",
-        outline: "text-foreground",
+        default: "border-transparent bg-primary text-primary-foreground",
+        secondary: "border-transparent bg-secondary text-secondary-foreground",
+        destructive: "border-transparent bg-destructive text-destructive-foreground",
+        success: "border-transparent bg-success text-success-foreground",
+        warning: "border-transparent bg-warning text-warning-foreground",
+        accent: "border-transparent bg-accent text-accent-foreground",
+        info: "border-transparent bg-info text-info-foreground",
+        muted: "border-border bg-muted text-muted-foreground",
+        outline: "border-border text-foreground",
+        // Status esportivos
+        scheduled: "border-transparent bg-info/15 text-info dark:bg-info/25",
+        live: "border-transparent bg-accent text-accent-foreground animate-pulse-subtle",
+        completed: "border-transparent bg-success/15 text-success dark:bg-success/25",
+        homologated: "border-transparent bg-success text-success-foreground",
+        pending: "border-border bg-muted text-muted-foreground",
+        cancelled: "border-transparent bg-destructive/15 text-destructive",
+        walkover: "border-transparent bg-destructive/15 text-destructive font-bold",
       },
     },
     defaultVariants: {

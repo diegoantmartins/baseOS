@@ -1,22 +1,23 @@
 import { useEffect, useState } from 'react';
-import { FileText, ListOrdered, Eye, Printer, Download } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { FileText, ListOrdered, Eye, Printer, Download, Loader2, PenLine } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { dataAccess } from '@/services/dataAccess';
-import { getMatchRosters } from '@/services/registrationService';
-import { buildMatchSheetData } from '@/lib/pdf/matchSheetDataBuilder';
 import {
-  downloadOfficialPdf,
-  generateOfficialMatchSheetPdf,
-  generatePositionOrderSheetPdf,
-  printOfficialPdf,
-  previewOfficialPdf,
-} from '@/lib/pdf/officialMatchSheetPdf';
-import type { MatchSheetData } from '@/lib/pdf/matchSheetPdf';
-import type { CompetitionRecord, MatchRecord } from '@/types/entities';
-import { cn } from '@/lib/utils';
+  buildMatchDocument,
+  loadDocumentEdits,
+  loadMatchContext,
+} from '@/services/documentEditorService';
+import {
+  buildOrdemSaqueData,
+  buildSumulaData,
+  generateFiveSetScoresheet,
+  generateServeOrderSheet,
+  generateThreeSetScoresheet,
+} from '@/document-engine/generators';
+import type { MatchRecord, CompetitionRecord } from '@/types/entities';
 
 type Tab = 'sumula' | 'ficha';
 
@@ -28,171 +29,186 @@ interface Props {
 }
 
 export function MatchSheetEmitDialog({ match, competition, open, onOpenChange }: Props) {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('sumula');
-  const [mode, setMode] = useState<'pre' | 'post'>('pre');
-  const [data, setData] = useState<MatchSheetData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open || !match) return;
+    if (!open || !match) {
+      setPdfBlobUrl(null);
+      return;
+    }
+
+    let isCancelled = false;
     setLoading(true);
-    setTab('sumula');
-    const isPost = match.status === 'completed' && match.sets.length > 0;
-    setMode(isPost ? 'post' : 'pre');
+
     (async () => {
       try {
-        const rosters = await getMatchRosters(match.id);
-        const built = await buildMatchSheetData(match, competition, rosters.teamA, rosters.teamB, {
-          sheetMode: isPost ? 'post' : 'pre',
-        });
-        setData(built);
-      } catch (error) {
-        console.error(error);
-        toast.error('Não foi possível carregar os dados da partida.');
+        const ctx = await loadMatchContext(match.id);
+        if (!ctx) throw new Error('Não foi possível carregar a partida');
+
+        const doc = buildMatchDocument(ctx);
+        const format = doc.format;
+        const docType = format === '5-sets' ? 'SUMMULA_5' : 'SUMMULA_3';
+        const templateKind = format === '5-sets' ? 'sumula5' : 'sumula3';
+
+        const { edit, layout } = await loadDocumentEdits(match.id, docType, templateKind);
+        const options = {
+          layoutOverrides: layout?.fields,
+          valueOverrides: edit?.values,
+        };
+
+        let bytes: Uint8Array;
+        if (tab === 'ficha') {
+          bytes = await generateServeOrderSheet(buildOrdemSaqueData(doc), options);
+        } else if (format === '5-sets') {
+          bytes = await generateFiveSetScoresheet(buildSumulaData(doc), options);
+        } else {
+          bytes = await generateThreeSetScoresheet(buildSumulaData(doc), options);
+        }
+
+        if (!isCancelled) {
+          const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          setPdfBlobUrl(prev => {
+            if (prev) URL.revokeObjectURL(prev);
+            return url;
+          });
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error('Erro ao gerar documento oficial.');
       } finally {
-        setLoading(false);
+        if (!isCancelled) setLoading(false);
       }
     })();
-  }, [open, match, competition]);
 
-  const effectiveData = data ? { ...data, sheetMode: mode } : null;
+    return () => {
+      isCancelled = true;
+    };
+  }, [open, match, competition, tab]);
 
   const handlePreview = () => {
-    if (!effectiveData) return;
-    try {
-      const doc = tab === 'ficha' ? generatePositionOrderSheetPdf(effectiveData) : generateOfficialMatchSheetPdf(effectiveData);
-      previewOfficialPdf(doc);
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao gerar o documento.');
-    }
+    if (!pdfBlobUrl) return;
+    window.open(pdfBlobUrl, '_blank');
+    toast.success('Visualizando súmula oficial homologada em nova aba.');
   };
 
   const handlePrint = () => {
-    if (!effectiveData) return;
-    try {
-      const doc = tab === 'ficha' ? generatePositionOrderSheetPdf(effectiveData) : generateOfficialMatchSheetPdf(effectiveData);
-      printOfficialPdf(doc);
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao gerar o documento.');
-    }
+    if (!pdfBlobUrl) return;
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.src = pdfBlobUrl;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 60000);
+    };
+    toast.success('Enviado para impressão!');
   };
 
   const handleDownload = () => {
-    if (!effectiveData) return;
-    try {
-      const safe = effectiveData.teamA.shortName + '_x_' + effectiveData.teamB.shortName;
-      const doc = tab === 'ficha'
-        ? generatePositionOrderSheetPdf(effectiveData)
-        : generateOfficialMatchSheetPdf(effectiveData);
-      downloadOfficialPdf(doc, `${tab === 'ficha' ? 'ordem_de_saque' : 'sumula'}_${safe}.pdf`);
-      toast.success('Documento gerado!');
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao gerar o documento.');
-    }
+    if (!pdfBlobUrl || !match) return;
+    const a = document.createElement('a');
+    a.href = pdfBlobUrl;
+    const safeA = match.teamAShortName || match.teamAName;
+    const safeB = match.teamBShortName || match.teamBName;
+    const filename = tab === 'ficha'
+      ? `ordem_saque_jogo_${match.matchNumber}_${safeA}_x_${safeB}.pdf`
+      : `sumula_oficial_cbv_jogo_${match.matchNumber}_${safeA}_x_${safeB}.pdf`;
+    a.download = filename.replace(/[^\w.-]/g, '_');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast.success('Súmula oficial homologada baixada!');
+    onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            Emissão de Súmula
+          <DialogTitle className="flex items-center gap-2 text-foreground font-bold">
+            <FileText className="w-5 h-5 text-primary" />
+            Emissão de Súmula Oficial CBV / FPV
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs">
             {match
-              ? `${match.teamAName} x ${match.teamBName} · ${competition?.name ?? match.competitionId}`
-              : ''}
+              ? `Jogo #${match.matchNumber}: ${match.teamAName} vs ${match.teamBName} · ${match.phase ?? 'Fase de Grupos'}`
+              : 'Selecione uma partida para gerar o documento oficial'}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 py-2">
           <Tabs value={tab} onValueChange={v => setTab(v as Tab)}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="sumula" className="gap-2">
-                <FileText className="w-4 h-4" />
-                Súmula ({competition?.setFormat === '5-sets' ? '5 Sets' : '3 Sets'})
+              <TabsTrigger value="sumula" className="gap-2 text-xs">
+                <FileText className="w-3.5 h-3.5" />
+                Súmula Oficial ({competition?.setFormat === '5-sets' ? '5 Sets / A3' : '3 Sets / A4'})
               </TabsTrigger>
-              <TabsTrigger value="ficha" className="gap-2">
-                <ListOrdered className="w-4 h-4" />
-                Ficha de Posição
+              <TabsTrigger value="ficha" className="gap-2 text-xs">
+                <ListOrdered className="w-3.5 h-3.5" />
+                Ordem de Saque / Posição
               </TabsTrigger>
             </TabsList>
           </Tabs>
 
-          {tab === 'sumula' && (
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setMode('pre')}
-                className={cn(
-                  'rounded-xl border p-3 text-left transition-colors',
-                  mode === 'pre' ? 'border-accent bg-accent/5 ring-1 ring-accent' : 'border-border hover:bg-muted/40',
-                )}
-              >
-                <p className="font-medium text-sm">Pré-Jogo</p>
-                <p className="text-xs text-muted-foreground">Formulário em branco para os mesários preencherem na mesa.</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('post')}
-                className={cn(
-                  'rounded-xl border p-3 text-left transition-colors',
-                  mode === 'post' ? 'border-accent bg-accent/5 ring-1 ring-accent' : 'border-border hover:bg-muted/40',
-                )}
-              >
-                <p className="font-medium text-sm">Pós-Jogo</p>
-                <p className="text-xs text-muted-foreground">Consolida o resultado final e o vencedor da partida.</p>
-              </button>
-            </div>
-          )}
-
-          {tab === 'ficha' && (
-            <p className="text-xs text-muted-foreground">
-              8 fichas de posição (4 por equipe, sets 1-4) com a quadra e as 6 posições de rotação —
-              entregue ao mesário antes de cada set, mesmo que o tiebreak não ocorra.
+          <div className="p-3 bg-muted/40 rounded-xl border border-border/60 text-xs space-y-1.5">
+            <p className="font-semibold text-foreground flex items-center justify-between">
+              <span>Padrão Oficial CBV / FPV Homologado</span>
+              <span className="text-[10px] text-primary font-mono uppercase bg-primary/10 px-2 py-0.5 rounded">
+                Document Engine
+              </span>
             </p>
-          )}
-
-          {loading && (
-            <p className="text-sm text-muted-foreground py-4 text-center">Carregando elencos e dados da partida...</p>
-          )}
-
-          {!loading && effectiveData && (
-            <div className="p-3 rounded-xl bg-muted/50 text-xs text-muted-foreground space-y-1">
-              <p>
-                <span className="font-medium text-foreground">{effectiveData.teamA.name}</span> vs{' '}
-                <span className="font-medium text-foreground">{effectiveData.teamB.name}</span>
-              </p>
-              <p>
-                {effectiveData.date} às {effectiveData.time} · {effectiveData.venue}
-                {effectiveData.court ? ` - ${effectiveData.court}` : ''}
-              </p>
-              <p>
-                Elenco: {effectiveData.teamA.athletes.length} x {effectiveData.teamB.athletes.length} atletas ·{' '}
-                {effectiveData.category}
-              </p>
-            </div>
-          )}
-
-          <div className="flex items-center gap-3">
-            <Button variant="outline" className="flex-1 gap-2" disabled={!effectiveData || loading} onClick={handlePreview}>
-              <Eye className="w-4 h-4" />
-              Visualizar
-            </Button>
-            <Button variant="outline" className="flex-1 gap-2" disabled={!effectiveData || loading} onClick={handlePrint}>
-              <Printer className="w-4 h-4" />
-              Imprimir
-            </Button>
-            <Button variant="accent" className="flex-1 gap-2" disabled={!effectiveData || loading} onClick={handleDownload}>
-              <Download className="w-4 h-4" />
-              Baixar
-            </Button>
+            <p className="text-muted-foreground text-[11px]">
+              O documento inclui cabeçalho oficial, escalação I a VI, quadrículas de pontos de 1 a 32, quadro de sanções, comissão técnica e assinaturas.
+            </p>
           </div>
         </div>
+
+        <div className="flex items-center justify-end gap-2 pt-3 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handlePreview}
+              disabled={loading || !pdfBlobUrl}
+              className="text-xs gap-1.5"
+            >
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+              Visualizar
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handlePrint}
+              disabled={loading || !pdfBlobUrl}
+              className="text-xs gap-1.5"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Imprimir
+            </Button>
+
+            <Button
+              type="button"
+              variant="accent"
+              size="sm"
+              onClick={handleDownload}
+              disabled={loading || !pdfBlobUrl}
+              className="text-xs gap-1.5 font-semibold"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Baixar PDF Oficial
+            </Button>
+          </div>
       </DialogContent>
     </Dialog>
   );

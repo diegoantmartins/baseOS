@@ -50,4 +50,7 @@ export const SUPABASE_TABLES = {
   appSettings: 'app_settings',
   documentEdits: 'document_edits',
   templateLayouts: 'template_layouts',
+  modalities: 'modalities',
+  persons: 'persons',
+  auditLogs: 'audit_logs',
 } as const;

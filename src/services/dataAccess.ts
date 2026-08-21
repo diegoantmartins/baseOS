@@ -7,12 +7,13 @@
 // Toda a aplicação consome apenas este módulo, então a troca de backend
 // é transparente.
 
-import type { CompetitionRecord, MatchRecord, RefereeRecord, SettingsRecord, TeamRecord, VenueRecord } from '@/types/entities';
+import type { CompetitionRecord, MatchAuditEntry, MatchRecord, ModalityRecord, PersonRecord, RefereeRecord, SettingsRecord, TeamRecord, VenueRecord } from '@/types/entities';
 import type { CompetitionAthlete, CompetitionAthleteInput, CompetitionTeam } from '@/types/registration';
 import type { DrawRecord, DrawResult } from '@/types/draw';
 import type { DocumentEdit, DocumentEditKey, TemplateLayout } from '@/types/documentEdit';
-import { SEED_VERSION, seedCompetitionAthletes, seedCompetitionTeams, seedCompetitions, seedDraws, seedMatches, seedReferees, seedTeams, seedVenues } from '@/data/seed';
+import { SEED_VERSION, seedCompetitionAthletes, seedCompetitionTeams, seedCompetitions, seedDraws, seedMatches, seedModalities, seedPersons, seedReferees, seedTeams, seedVenues } from '@/data/seed';
 import { getSupabaseClient, isSupabaseConfigured, SUPABASE_TABLES } from '@/lib/supabaseClient';
+import { notificationService } from '@/services/notificationService';
 type CompetitionAthleteCreate = CompetitionAthleteInput & { competitionTeamId: string };
 
 const STORAGE_PREFIX = 'voleipro.v1';
@@ -60,7 +61,10 @@ type CollectionName =
   | 'draws'
   | 'app_settings'
   | 'document_edits'
-  | 'template_layouts';
+  | 'template_layouts'
+  | 'modalities'
+  | 'persons'
+  | 'audit_logs';
 
 function storageKey(collection: CollectionName): string {
   return `${STORAGE_PREFIX}.${collection}`;
@@ -91,6 +95,8 @@ function ensureSeeded(): void {
   writeCollection('competition_athletes', seedCompetitionAthletes);
   writeCollection('venues', seedVenues);
   writeCollection('draws', seedDraws);
+  writeCollection('modalities', seedModalities);
+  writeCollection('persons', seedPersons);
   localStorage.setItem(SEED_VERSION, '1');
 }
 
@@ -282,8 +288,19 @@ const localStorageAdapter = {
     const all = readCollection<MatchRecord>('matches');
     const idx = all.findIndex(m => m.id === id);
     if (idx === -1) return null;
+    const prevStatus = all[idx].status;
     all[idx] = patch(all[idx], updates);
     writeCollection('matches', all);
+
+    // Notificação em tempo real quando o resultado é lançado/finalizado
+    if ((updates.status === 'completed' || updates.status === 'homologated') && prevStatus !== updates.status) {
+      try {
+        notificationService.notifyMatchResult(all[idx]);
+      } catch (err) {
+        console.warn('Notification trigger note:', err);
+      }
+    }
+
     return all[idx];
   },
 
@@ -333,7 +350,28 @@ const localStorageAdapter = {
 
   async getCompetitionTeamByToken(token: string): Promise<CompetitionTeam | null> {
     const all = await this.listCompetitionTeams();
-    return all.find(ct => ct.accessToken === token) ?? null;
+    const found = all.find(ct => ct.accessToken === token || ct.id === token);
+    if (found) return found;
+    const teams = await this.listTeams();
+    const matchingTeam = teams.find(t => t.registrationToken === token || t.id === token);
+    if (matchingTeam) {
+      const ct = all.find(c => c.teamId === matchingTeam.id);
+      if (ct) return ct;
+      return {
+        id: `ct-${matchingTeam.id}`,
+        competitionId: 'geral',
+        teamId: matchingTeam.id,
+        teamName: matchingTeam.name,
+        teamShortName: matchingTeam.shortName,
+        accessToken: token,
+        registrationDeadline: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(),
+        isLocked: false,
+        status: 'in_progress',
+        createdAt: matchingTeam.createdAt || new Date().toISOString(),
+        updatedAt: matchingTeam.updatedAt || new Date().toISOString(),
+      };
+    }
+    return null;
   },
 
   async createCompetitionTeam(input: Omit<CompetitionTeam, 'id' | 'accessToken' | 'createdAt' | 'updatedAt'>): Promise<CompetitionTeam> {
@@ -444,6 +482,86 @@ const localStorageAdapter = {
     all[idx] = updated;
     writeCollection('template_layouts', all);
     return updated;
+  },
+
+  async listModalities(): Promise<ModalityRecord[]> {
+    ensureSeeded();
+    return readCollection<ModalityRecord>('modalities');
+  },
+
+  async getModality(id: string): Promise<ModalityRecord | null> {
+    const all = await this.listModalities();
+    return all.find(m => m.id === id) ?? null;
+  },
+
+  async createModality(input: Omit<ModalityRecord, 'id'>): Promise<ModalityRecord> {
+    const record: ModalityRecord = { ...input, id: generateId('mod') };
+    const all = readCollection<ModalityRecord>('modalities');
+    all.push(record);
+    writeCollection('modalities', all);
+    return record;
+  },
+
+  async updateModality(id: string, updates: Partial<ModalityRecord>): Promise<ModalityRecord | null> {
+    const all = readCollection<ModalityRecord>('modalities');
+    const idx = all.findIndex(m => m.id === id);
+    if (idx === -1) return null;
+    all[idx] = { ...all[idx], ...updates };
+    writeCollection('modalities', all);
+    return all[idx];
+  },
+
+  async deleteModality(id: string): Promise<void> {
+    writeCollection('modalities', readCollection<ModalityRecord>('modalities').filter(m => m.id !== id));
+  },
+
+  async listPersons(): Promise<PersonRecord[]> {
+    ensureSeeded();
+    return readCollection<PersonRecord>('persons');
+  },
+
+  async getPerson(id: string): Promise<PersonRecord | null> {
+    const all = await this.listPersons();
+    return all.find(p => p.id === id) ?? null;
+  },
+
+  async createPerson(input: Omit<PersonRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<PersonRecord> {
+    const now = new Date().toISOString();
+    const record: PersonRecord = { ...input, id: generateId('per'), createdAt: now, updatedAt: now };
+    const all = readCollection<PersonRecord>('persons');
+    all.push(record);
+    writeCollection('persons', all);
+    return record;
+  },
+
+  async updatePerson(id: string, updates: Partial<PersonRecord>): Promise<PersonRecord | null> {
+    const all = readCollection<PersonRecord>('persons');
+    const idx = all.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    all[idx] = { ...all[idx], ...updates, updatedAt: new Date().toISOString() };
+    writeCollection('persons', all);
+    return all[idx];
+  },
+
+  async deletePerson(id: string): Promise<void> {
+    writeCollection('persons', readCollection<PersonRecord>('persons').filter(p => p.id !== id));
+  },
+
+  async listAuditLogs(): Promise<MatchAuditEntry[]> {
+    ensureSeeded();
+    return readCollection<MatchAuditEntry>('audit_logs');
+  },
+
+  async addAuditLog(entry: Omit<MatchAuditEntry, 'id' | 'timestamp'>): Promise<MatchAuditEntry> {
+    const record: MatchAuditEntry = {
+      ...entry,
+      id: generateId('audit'),
+      timestamp: new Date().toISOString(),
+    };
+    const all = readCollection<MatchAuditEntry>('audit_logs');
+    all.unshift(record);
+    writeCollection('audit_logs', all.slice(0, 500)); // Limita a 500 mais recentes
+    return record;
   },
 };
 
@@ -834,6 +952,90 @@ const supabaseAdapter = {
           .single();
     return mapRow<TemplateLayout>(data) ?? (data as unknown as TemplateLayout);
   },
+
+  async listModalities(): Promise<ModalityRecord[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data } = await supabase.from(SUPABASE_TABLES.modalities).select('*');
+    return mapRows<ModalityRecord>(data ?? []);
+  },
+
+  async getModality(id: string): Promise<ModalityRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data } = await supabase.from(SUPABASE_TABLES.modalities).select('*').eq('id', id).maybeSingle();
+    return mapRow<ModalityRecord>(data);
+  },
+
+  async createModality(input: Omit<ModalityRecord, 'id'>): Promise<ModalityRecord> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const { data } = await supabase.from(SUPABASE_TABLES.modalities).insert(toSnake(input)).select().single();
+    return mapRow<ModalityRecord>(data) ?? (data as unknown as ModalityRecord);
+  },
+
+  async updateModality(id: string, updates: Partial<ModalityRecord>): Promise<ModalityRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data } = await supabase.from(SUPABASE_TABLES.modalities).update(toSnake(updates)).eq('id', id).select().maybeSingle();
+    return mapRow<ModalityRecord>(data);
+  },
+
+  async deleteModality(id: string): Promise<void> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return;
+    await supabase.from(SUPABASE_TABLES.modalities).delete().eq('id', id);
+  },
+
+  async listPersons(): Promise<PersonRecord[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data } = await supabase.from(SUPABASE_TABLES.persons).select('*');
+    return mapRows<PersonRecord>(data ?? []);
+  },
+
+  async getPerson(id: string): Promise<PersonRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data } = await supabase.from(SUPABASE_TABLES.persons).select('*').eq('id', id).maybeSingle();
+    return mapRow<PersonRecord>(data);
+  },
+
+  async createPerson(input: Omit<PersonRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<PersonRecord> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const now = new Date().toISOString();
+    const { data } = await supabase.from(SUPABASE_TABLES.persons).insert(toSnake({ ...input, created_at: now, updated_at: now })).select().single();
+    return mapRow<PersonRecord>(data) ?? (data as unknown as PersonRecord);
+  },
+
+  async updatePerson(id: string, updates: Partial<PersonRecord>): Promise<PersonRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data } = await supabase.from(SUPABASE_TABLES.persons).update(toSnake({ ...updates, updated_at: new Date().toISOString() })).eq('id', id).select().maybeSingle();
+    return mapRow<PersonRecord>(data);
+  },
+
+  async deletePerson(id: string): Promise<void> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return;
+    await supabase.from(SUPABASE_TABLES.persons).delete().eq('id', id);
+  },
+
+  async listAuditLogs(): Promise<MatchAuditEntry[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data } = await supabase.from(SUPABASE_TABLES.auditLogs).select('*').order('timestamp', { ascending: false }).limit(500);
+    return mapRows<MatchAuditEntry>(data ?? []);
+  },
+
+  async addAuditLog(entry: Omit<MatchAuditEntry, 'id' | 'timestamp'>): Promise<MatchAuditEntry> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const now = new Date().toISOString();
+    const { data } = await supabase.from(SUPABASE_TABLES.auditLogs).insert(toSnake({ ...entry, timestamp: now })).select().single();
+    return mapRow<MatchAuditEntry>(data) ?? (data as unknown as MatchAuditEntry);
+  },
 };
 
 // ============================================================================
@@ -843,6 +1045,29 @@ const supabaseAdapter = {
 export const dataAccess = isSupabaseConfigured() ? supabaseAdapter : localStorageAdapter;
 
 export const dataProvider = isSupabaseConfigured() ? 'supabase' : 'localstorage';
+
+export function clearAllCompetitionData(): void {
+  writeCollection('competitions', []);
+  writeCollection('matches', []);
+  writeCollection('competition_teams', []);
+  writeCollection('competition_athletes', []);
+  writeCollection('draws', []);
+  writeCollection('audit_logs', []);
+  localStorage.setItem(SEED_VERSION, 'clean');
+}
+
+export function clearEntireDatabase(): void {
+  writeCollection('competitions', []);
+  writeCollection('teams', []);
+  writeCollection('referees', []);
+  writeCollection('matches', []);
+  writeCollection('competition_teams', []);
+  writeCollection('competition_athletes', []);
+  writeCollection('draws', []);
+  writeCollection('audit_logs', []);
+  writeCollection('persons', []);
+  localStorage.setItem(SEED_VERSION, 'clean');
+}
 
 export function resetLocalData(): void {
   Object.keys(localStorage)

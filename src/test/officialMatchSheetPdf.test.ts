@@ -113,8 +113,8 @@ describe('generatePositionOrderSheetPdf', () => {
     expect(doc.internal.pageSize.getHeight()).toBeCloseTo(210, 0);
   });
 
-  it('gera PDF também para formato 5 sets', () => {
+  it('gera PDF também para formato 5 sets (6 fichas por equipe em 2 páginas)', () => {
     const doc = generatePositionOrderSheetPdf(baseData({ format: '5-sets' }));
-    expect(doc.getNumberOfPages()).toBe(1);
+    expect(doc.getNumberOfPages()).toBe(2);
   });
 });

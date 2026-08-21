@@ -88,14 +88,20 @@ function buildTeam(
     name: a.name,
     shirtNumber: a.jerseyNumber,
     position: a.position,
+    isCaptain: a.isCaptain,
     active: true,
   }));
   const coach = record?.coachName;
+  const captain = roster.find(a => a.isCaptain);
   const liberoIds = new Set(roster.filter(a => a.isLibero).map(a => a.id));
   return {
     id,
     name,
     shortName,
+    captainId: captain?.id || match.lineups?.[side === 'A' ? 'teamA' : 'teamB']?.captainId,
+    logoUrl: record?.logoUrl,
+    city: record?.city,
+    state: record?.state,
     players,
     liberoPlayers: players.filter(p => liberoIds.has(p.id)),
     coach,
@@ -137,9 +143,9 @@ export function buildMatchDocument(ctx: MatchContext): MatchDocument {
   const teamB = buildTeam(ctx.teamB, ctx.rosterB, match, 'B');
 
   const officials: MatchDocument['officials'] = {
-    referee1: match.referees.find(r => r.role.includes('1'))?.name,
-    referee2: match.referees.find(r => r.role.includes('2'))?.name,
-    scorer: match.referees.find(r => r.role.includes('pont'))?.name,
+    referee1: match.referees.find(r => r.role.includes('1') || r.role.toLowerCase().includes('primeiro'))?.name,
+    referee2: match.referees.find(r => r.role.includes('2') || r.role.toLowerCase().includes('segundo'))?.name,
+    scorer: match.referees.find(r => r.role.toLowerCase().includes('pont') || r.role.toLowerCase().includes('anot') || r.role.toLowerCase().includes('mesa'))?.name,
   };
 
   const format = match.sets.length <= 3 ? '3-sets' : '5-sets';
@@ -168,6 +174,13 @@ export function buildMatchDocument(ctx: MatchContext): MatchDocument {
   const setsA = match.sets.filter(s => s.scoreA > s.scoreB).length;
   const setsB = match.sets.filter(s => s.scoreB > s.scoreA).length;
 
+  const formattedDate = match.scheduledTime.slice(0, 10);
+  const formattedTime = match.scheduledTime.slice(11, 16);
+
+  const phaseLabel = match.phase
+    ? (match.groupName && !match.phase.includes(match.groupName) ? `${match.phase} (${match.groupName})` : match.phase)
+    : (match.groupName ? `Fase de Grupos (${match.groupName})` : 'Fase de Grupos');
+
   return {
     id: match.id,
     matchNumber: match.matchNumber,
@@ -175,10 +188,10 @@ export function buildMatchDocument(ctx: MatchContext): MatchDocument {
     competitionName: ctx.competitionName,
     categoryName: ctx.competitionCategory,
     gender: ctx.gender,
-    phase: match.phase,
+    phase: phaseLabel,
     round: match.round,
-    date: match.scheduledTime.slice(0, 10),
-    startTime: match.scheduledTime.slice(11, 16),
+    date: formattedDate,
+    startTime: formattedTime,
     venue: match.venue,
     court: match.court,
     format,

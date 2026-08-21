@@ -48,6 +48,14 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+        },
+        highlight: {
+          DEFAULT: "hsl(var(--highlight))",
+          foreground: "hsl(var(--highlight-foreground))",
+        },
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
@@ -56,21 +64,20 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        indoor: {
-          DEFAULT: "hsl(var(--indoor))",
-          foreground: "hsl(var(--indoor-foreground))",
-        },
-        beach: {
-          DEFAULT: "hsl(var(--beach))",
-          foreground: "hsl(var(--beach-foreground))",
-        },
-        teamA: {
-          DEFAULT: "hsl(var(--team-a))",
-          foreground: "hsl(var(--team-a-foreground))",
-        },
-        teamB: {
-          DEFAULT: "hsl(var(--team-b))",
-          foreground: "hsl(var(--team-b-foreground))",
+        // Brand Named Tokens
+        ink: "hsl(var(--ink))",
+        deep: "hsl(var(--deep))",
+        slate: "hsl(var(--slate))",
+        "warm-light": "hsl(var(--warm-light))",
+        // Estados Esportivos
+        status: {
+          scheduled: "hsl(var(--status-scheduled))",
+          live: "hsl(var(--status-live))",
+          completed: "hsl(var(--status-completed))",
+          homologated: "hsl(var(--status-homologated))",
+          pending: "hsl(var(--status-pending))",
+          cancelled: "hsl(var(--status-cancelled))",
+          walkover: "hsl(var(--status-walkover))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
@@ -84,17 +91,24 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        display: ['Space Grotesk', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        display: ['Inter', 'Space Grotesk', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        none: '0',
+        sm: '6px',
+        DEFAULT: '8px',
+        md: '8px',
+        lg: '10px',
+        xl: '12px',
+        '2xl': '16px',
+        full: '9999px',
       },
       boxShadow: {
-        'glow': '0 0 20px hsl(var(--accent) / 0.3)',
-        'glow-lg': '0 0 40px hsl(var(--accent) / 0.4)',
+        xs: 'var(--shadow-subtle)',
+        sm: 'var(--shadow-card)',
+        md: 'var(--shadow-elevated)',
+        none: 'none',
       },
       keyframes: {
         "accordion-down": {
@@ -106,29 +120,24 @@ export default {
           to: { height: "0" },
         },
         "fade-in": {
-          from: { opacity: "0", transform: "translateY(10px)" },
+          from: { opacity: "0", transform: "translateY(6px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
-        "slide-in-right": {
-          from: { opacity: "0", transform: "translateX(20px)" },
-          to: { opacity: "1", transform: "translateX(0)" },
+        "fade-out": {
+          from: { opacity: "1", transform: "translateY(0)" },
+          to: { opacity: "0", transform: "translateY(6px)" },
         },
-        "scale-in": {
-          from: { opacity: "0", transform: "scale(0.95)" },
-          to: { opacity: "1", transform: "scale(1)" },
-        },
-        "pulse-glow": {
-          "0%, 100%": { boxShadow: "0 0 20px hsl(var(--accent) / 0.3)" },
-          "50%": { boxShadow: "0 0 40px hsl(var(--accent) / 0.6)" },
+        "pulse-subtle": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.75" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "fade-in": "fade-in 0.5s ease-out",
-        "slide-in-right": "slide-in-right 0.3s ease-out",
-        "scale-in": "scale-in 0.2s ease-out",
-        "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "fade-in": "fade-in 0.2s ease-out",
+        "fade-out": "fade-out 0.2s ease-out",
+        "pulse-subtle": "pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
       },
     },
   },

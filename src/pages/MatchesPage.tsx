@@ -6,7 +6,6 @@ import {
   Clock,
   MapPin,
   Play,
-  Pause,
   CheckCircle,
   Volleyball,
   Search,
@@ -16,11 +15,19 @@ import {
   ClipboardList,
   Trophy,
   PenLine,
+  AlertTriangle,
+  CheckCircle2,
+  ShieldCheck,
+  Filter,
+  Plus,
+  GitBranch,
+  Dices,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -30,17 +37,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { dataAccess } from '@/services/dataAccess';
 import { generateMatchesBoletimPdf, downloadReportsPdf } from '@/lib/pdf/reportsPdf';
 import { MatchSheetEmitDialog } from '@/components/match/MatchSheetEmitDialog';
+import { BlankSheetEmitDialog } from '@/components/match/BlankSheetEmitDialog';
+import { detectScheduleConflicts, type ScheduleConflict } from '@/services/scheduleConflictService';
+import { validateMatchResult, DEFAULT_INDOOR_CONFIG, DEFAULT_BEACH_CONFIG } from '@/services/matchValidationService';
+import { advancePlayoffMatches } from '@/services/playoffsService';
 import type { CompetitionRecord, MatchRecord, TeamRecord, VenueRecord } from '@/types/entities';
 import { cn } from '@/lib/utils';
 
-const PHASE_OPTIONS = [
-  { value: 'classificatória', label: 'Classificatória' },
-  { value: 'quartas', label: 'Quartas de Final' },
-  { value: 'semifinal', label: 'Semifinal' },
-  { value: 'final', label: 'Final' },
-] as const;
+export type MatchesSubTab = 'todos' | 'grupos' | 'mata-mata' | 'agenda' | 'sumulas' | 'resultados';
 
-interface Match {
+interface MatchView {
   id: string;
   record: MatchRecord;
   teamA: { name: string; shortName: string; logoUrl?: string; score?: number };
@@ -50,31 +56,32 @@ interface Match {
   venue: string;
   court?: string;
   modality: 'indoor' | 'beach';
-  status: 'scheduled' | 'live' | 'completed' | 'postponed';
+  status: MatchRecord['status'];
   competition: string;
   phase?: string;
   groupName?: string;
   sets?: { a: number; b: number }[];
 }
 
-function toLocalMatch(match: MatchRecord, competition: CompetitionRecord | null, teamById: Map<string, TeamRecord>): Match {
+function toMatchView(match: MatchRecord, competition: CompetitionRecord | null, teamById: Map<string, TeamRecord>): MatchView {
   const scoreA = match.sets.filter(s => s.scoreA > s.scoreB).length;
   const scoreB = match.sets.filter(s => s.scoreB > s.scoreA).length;
-  const hasResult = match.status === 'completed' && match.sets.length > 0;
+  const hasResult = (match.status === 'completed' || match.status === 'homologated') && match.sets.length > 0;
   const teamA = teamById.get(match.teamAId);
   const teamB = teamById.get(match.teamBId);
+
   return {
     id: match.id,
     record: match,
     teamA: {
       name: match.teamAName,
-      shortName: match.teamAShortName,
+      shortName: match.teamAShortName || match.teamAName.substring(0, 3).toUpperCase(),
       logoUrl: teamA?.logoUrl,
       score: hasResult ? scoreA : undefined,
     },
     teamB: {
       name: match.teamBName,
-      shortName: match.teamBShortName,
+      shortName: match.teamBShortName || match.teamBName.substring(0, 3).toUpperCase(),
       logoUrl: teamB?.logoUrl,
       score: hasResult ? scoreB : undefined,
     },
@@ -83,7 +90,7 @@ function toLocalMatch(match: MatchRecord, competition: CompetitionRecord | null,
     venue: match.venue,
     court: match.court,
     modality: competition?.modality ?? 'indoor',
-    status: (match.status === 'completed' ? 'completed' : match.status === 'scheduled' ? 'scheduled' : 'live') as Match['status'],
+    status: match.status,
     competition: competition?.name ?? match.competitionId,
     phase: match.phase,
     groupName: match.groupName,
@@ -93,38 +100,45 @@ function toLocalMatch(match: MatchRecord, competition: CompetitionRecord | null,
 
 const container = {
   hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
+  show: { opacity: 1, transition: { staggerChildren: 0.04 } },
 };
 
 const item = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: { opacity: 0, y: 15 },
   show: { opacity: 1, y: 0 },
 };
 
-const MatchesPage = () => {
+export default function MatchesPage() {
   const navigate = useNavigate();
-  const [matches, setMatches] = useState<Match[]>([]);
+  const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [competitions, setCompetitions] = useState<CompetitionRecord[]>([]);
+  const [teams, setTeams] = useState<TeamRecord[]>([]);
+  const [venues, setVenues] = useState<VenueRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<'all' | 'live' | 'scheduled' | 'completed'>('all');
-  const [phaseFilter, setPhaseFilter] = useState<string>('all');
-  const [groupFilter, setGroupFilter] = useState<string>('all');
 
-  const [sheetMatch, setSheetMatch] = useState<Match | null>(null);
-  const [editMatch, setEditMatch] = useState<Match | null>(null);
-  const [resultMatch, setResultMatch] = useState<Match | null>(null);
+  // Sub-tabs navigation
+  const [activeSubTab, setActiveSubTab] = useState<MatchesSubTab>('todos');
+  const [query, setQuery] = useState('');
+  const [competitionFilter, setCompetitionFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // Dialogs
+  const [sheetMatch, setSheetMatch] = useState<MatchView | null>(null);
+  const [blankSheetOpen, setBlankSheetOpen] = useState(false);
+  const [editMatch, setEditMatch] = useState<MatchRecord | null>(null);
+  const [resultMatch, setResultMatch] = useState<MatchRecord | null>(null);
 
   const refresh = useCallback(async () => {
-    const [records, competitions, teams] = await Promise.all([
+    const [rawMatches, rawComps, rawTeams, rawVenues] = await Promise.all([
       dataAccess.listMatches(),
       dataAccess.listCompetitions(),
       dataAccess.listTeams(),
+      dataAccess.listVenues(),
     ]);
-    const teamById = new Map(teams.map(t => [t.id, t]));
-    const compById = new Map(competitions.map(c => [c.id, c]));
-    setCompetitions(competitions);
-    setMatches(records.map(record => toLocalMatch(record, compById.get(record.competitionId) ?? null, teamById)));
+    setMatches(rawMatches);
+    setCompetitions(rawComps);
+    setTeams(rawTeams);
+    setVenues(rawVenues);
     setLoading(false);
   }, []);
 
@@ -132,379 +146,475 @@ const MatchesPage = () => {
     refresh();
   }, [refresh]);
 
-  const groupOptions = useMemo(() => {
-    const groups = new Set(matches.map(m => m.groupName).filter(Boolean) as string[]);
-    return [...groups].sort();
-  }, [matches]);
+  const teamById = useMemo(() => new Map(teams.map(t => [t.id, t])), [teams]);
+  const compById = useMemo(() => new Map(competitions.map(c => [c.id, c])), [competitions]);
 
-  const filteredMatches = matches.filter(match => {
-    if (filter !== 'all' && match.status !== filter) return false;
-    if (phaseFilter !== 'all' && match.phase !== phaseFilter) return false;
-    if (groupFilter !== 'all' && match.groupName !== groupFilter) return false;
-    if (query.trim()) {
-      const q = query.trim().toLowerCase();
-      const haystack = `${match.teamA.name} ${match.teamB.name} ${match.venue} ${match.competition} ${match.phase ?? ''} ${match.groupName ?? ''}`.toLowerCase();
-      if (!haystack.includes(q)) return false;
+  const matchViews = useMemo(() => {
+    return matches.map(m => toMatchView(m, compById.get(m.competitionId) ?? null, teamById));
+  }, [matches, compById, teamById]);
+
+  // Filtered matches based on sub-tab and filters
+  const filteredMatches = useMemo(() => {
+    return matchViews.filter(m => {
+      // Sub-tab constraints
+      if (activeSubTab === 'grupos' && m.phase !== 'group-stage' && m.phase !== 'classificatória') return false;
+      if (activeSubTab === 'mata-mata' && (m.phase === 'group-stage' || m.phase === 'classificatória')) return false;
+      if (activeSubTab === 'sumulas' && (m.status === 'awaiting_schedule' || !m.court)) return false;
+      if (activeSubTab === 'resultados' && m.status !== 'completed' && m.status !== 'homologated') return false;
+
+      // Dropdown filters
+      if (competitionFilter !== 'all' && m.record.competitionId !== competitionFilter) return false;
+      if (statusFilter !== 'all' && m.status !== statusFilter) return false;
+
+      // Text query
+      if (query.trim()) {
+        const q = query.trim().toLowerCase();
+        const haystack = `${m.teamA.name} ${m.teamB.name} ${m.venue} ${m.court || ''} ${m.competition} ${m.phase || ''} ${m.groupName || ''}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [matchViews, activeSubTab, competitionFilter, statusFilter, query]);
+
+  // Homologar resultado
+  const handleHomologate = async (matchId: string) => {
+    const targetMatch = matches.find(m => m.id === matchId);
+    if (!targetMatch) return;
+
+    await dataAccess.updateMatch(matchId, {
+      status: 'homologated',
+      homologatedAt: new Date().toISOString(),
+    });
+
+    // Auto-advance playoff brackets if it's an elimination match
+    const compMatches = matches.map(m => (m.id === matchId ? { ...m, status: 'homologated' as const } : m));
+    const advanceResult = advancePlayoffMatches(compMatches, teams);
+    if (advanceResult.changed) {
+      for (const updated of advanceResult.updatedMatches) {
+        if (updated.id !== matchId) {
+          await dataAccess.updateMatch(updated.id, {
+            teamAId: updated.teamAId,
+            teamBId: updated.teamBId,
+            teamAName: updated.teamAName,
+            teamBName: updated.teamBName,
+            teamAShortName: updated.teamAShortName,
+            teamBShortName: updated.teamBShortName,
+          });
+        }
+      }
+      toast.success('Resultado homologado e chaveamento atualizado automaticamente!');
+    } else {
+      toast.success('Resultado homologado com sucesso!');
     }
-    return true;
-  });
 
-  const liveCount = matches.filter(m => m.status === 'live').length;
-  const todayCount = matches.filter(m => new Date(m.date).toDateString() === new Date().toDateString()).length;
-  const scheduledCount = matches.filter(m => m.status === 'scheduled').length;
+    // Register audit log
+    await dataAccess.addAuditLog({
+      user: 'Gestor',
+      action: 'Homologação de Resultado',
+      note: `Jogo #${targetMatch.matchNumber} homologado com sucesso`,
+    });
 
-  const handleEditSaved = async (updates: Partial<MatchRecord>) => {
-    if (!editMatch) return;
-    await dataAccess.updateMatch(editMatch.id, updates);
-    toast.success('Partida atualizada!');
-    setEditMatch(null);
     await refresh();
   };
 
-  const handleResultSaved = async (updates: Partial<MatchRecord>) => {
-    if (!resultMatch) return;
-    await dataAccess.updateMatch(resultMatch.id, updates);
-    toast.success('Resultado lançado! Classificação atualizada.');
-    setResultMatch(null);
-    await refresh();
-  };
-
-  const handleBoletim = () => {
-    const rows = filteredMatches.map(m => ({
-      matchNumber: m.record.matchNumber,
-      round: m.record.round,
-      phase: m.phase,
-      groupName: m.groupName,
-      date: new Date(m.date).toLocaleDateString('pt-BR'),
-      time: m.time,
-      venue: m.venue,
-      court: m.court,
-      teamAName: m.teamA.name,
-      teamBName: m.teamB.name,
-      scoreA: m.status === 'completed' ? m.teamA.score : undefined,
-      scoreB: m.status === 'completed' ? m.teamB.score : undefined,
-      statusLabel: m.status === 'completed' ? 'Finalizado' : m.status === 'live' ? 'Ao vivo' : m.status === 'postponed' ? 'Adiado' : 'Agendado',
-    }));
-    const doc = generateMatchesBoletimPdf(rows, 'Boletim de Jogos');
-    downloadReportsPdf(doc, `boletim_jogos_${new Date().toISOString().slice(0, 10)}.pdf`);
-    toast.success('Boletim de jogos gerado!');
+  const handleExportBoletim = () => {
+    const compName = competitionFilter !== 'all' ? compById.get(competitionFilter)?.name : 'VolleyPro';
+    const rows = filteredMatches.map(m => {
+      const setsA = m.record.sets.filter(s => s.scoreA > s.scoreB).length;
+      const setsB = m.record.sets.filter(s => s.scoreB > s.scoreA).length;
+      return {
+        matchNumber: m.record.matchNumber,
+        round: m.record.round,
+        phase: m.record.phase,
+        groupName: m.record.groupName,
+        date: m.record.scheduledTime,
+        time: new Date(m.record.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        venue: m.record.venue,
+        court: m.record.court,
+        teamAName: m.teamA.name,
+        teamBName: m.teamB.name,
+        scoreA: m.record.status === 'completed' || m.record.status === 'homologated' ? setsA : undefined,
+        scoreB: m.record.status === 'completed' || m.record.status === 'homologated' ? setsB : undefined,
+        statusLabel:
+          m.record.status === 'homologated' ? 'Homologado' : m.record.status === 'completed' ? 'Finalizado' : 'Agendado',
+      };
+    });
+    const doc = generateMatchesBoletimPdf(rows, compName || 'Boletim Geral');
+    downloadReportsPdf(doc, 'boletim_confrontos.pdf');
+    toast.success('Boletim de jogos gerado com sucesso!');
   };
 
   return (
     <MainLayout>
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-        {/* Header */}
-        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Header Title & Actions */}
+        <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Jogos</h1>
-            <p className="text-muted-foreground mt-1">Gerencie partidas, fases, grupos e resultados</p>
+            <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground flex items-center gap-2.5">
+              <Calendar className="w-8 h-8 text-primary" />
+              Central de Jogos
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Escalação de confrontos, prevenção de conflitos de quadra, lançamento de parciais e homologação oficial.
+            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={handleBoletim}>
-              <ClipboardList className="w-4 h-4" />
-              Boletim de Jogos
+          <div className="flex flex-wrap gap-2.5 self-start sm:self-auto">
+            <Button variant="outline" size="sm" onClick={() => setBlankSheetOpen(true)} className="gap-1.5 text-xs">
+              <FileSpreadsheet className="w-4 h-4" />
+              Súmula em Branco
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportBoletim} className="gap-1.5 text-xs">
+              <FileText className="w-4 h-4" />
+              Gerar Boletim
+            </Button>
+            <Button variant="accent" size="sm" onClick={() => navigate('/jogos/novo')} className="gap-1.5 text-xs">
+              <Plus className="w-4 h-4" />
+              Novo Confronto
             </Button>
           </div>
         </motion.div>
 
-        {/* Stats Cards */}
-        <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="card-elevated">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-destructive/10">
-                <Play className="w-6 h-6 text-destructive" />
-              </div>
-              <div>
-                <p className="text-2xl font-display font-bold">{liveCount}</p>
-                <p className="text-sm text-muted-foreground">Ao Vivo</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-accent/10">
-                <Calendar className="w-6 h-6 text-accent" />
-              </div>
-              <div>
-                <p className="text-2xl font-display font-bold">{todayCount}</p>
-                <p className="text-sm text-muted-foreground">Hoje</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-primary/10">
-                <Clock className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-display font-bold">{scheduledCount}</p>
-                <p className="text-sm text-muted-foreground">Agendados</p>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Sub-Tabs Navigation (Seção 30) */}
+        <motion.div variants={item} className="border-b border-border flex items-center gap-1 overflow-x-auto scrollbar-none pb-px">
+          {[
+            { id: 'todos', label: 'Todos os Jogos', icon: Calendar },
+            { id: 'grupos', label: 'Fase de Grupos', icon: Trophy },
+            { id: 'mata-mata', label: 'Mata-mata', icon: GitBranch },
+            { id: 'agenda', label: 'Agenda & Horários', icon: Clock },
+            { id: 'sumulas', label: 'Súmulas Oficiais', icon: ClipboardList },
+            { id: 'resultados', label: 'Resultados & Homologação', icon: CheckCircle2 },
+          ].map(tab => {
+            const active = activeSubTab === tab.id;
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSubTab(tab.id as MatchesSubTab)}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all whitespace-nowrap',
+                  active
+                    ? 'border-primary text-primary font-semibold bg-primary/5'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50',
+                )}
+              >
+                <Icon className={cn('w-4 h-4', active ? 'text-primary' : 'text-muted-foreground')} />
+                {tab.label}
+              </button>
+            );
+          })}
         </motion.div>
 
-        {/* Filters */}
-        <motion.div variants={item} className="flex flex-col lg:flex-row gap-3">
+        {/* Filters Bar */}
+        <motion.div variants={item} className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Buscar jogos, equipes, locais..." className="pl-10" value={query} onChange={e => setQuery(e.target.value)} />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por equipe, ginásio, quadra, competição..."
+              className="pl-9"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+            />
           </div>
-          <Select value={filter} onValueChange={(v: typeof filter) => setFilter(v)}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="live">Ao Vivo</SelectItem>
-              <SelectItem value="scheduled">Agendados</SelectItem>
-              <SelectItem value="completed">Finalizados</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={phaseFilter} onValueChange={setPhaseFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Fase" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as fases</SelectItem>
-              {PHASE_OPTIONS.map(phase => (
-                <SelectItem key={phase.value} value={phase.value}>
-                  {phase.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={groupFilter} onValueChange={setGroupFilter}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Grupo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os grupos</SelectItem>
-              {groupOptions.map(group => (
-                <SelectItem key={group} value={group}>
-                  {group}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+          <div className="flex items-center gap-2">
+            <Select value={competitionFilter} onValueChange={setCompetitionFilter}>
+              <SelectTrigger className="w-[180px] text-xs">
+                <SelectValue placeholder="Competição" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as Competições</SelectItem>
+                {competitions.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px] text-xs">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="awaiting_schedule">Sem Horário</SelectItem>
+                <SelectItem value="scheduled">Agendados</SelectItem>
+                <SelectItem value="in-progress">Em Andamento</SelectItem>
+                <SelectItem value="completed">Realizados</SelectItem>
+                <SelectItem value="homologated">Homologados</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </motion.div>
 
-        {/* Matches List */}
-        <motion.div variants={item} className="space-y-4">
-          {loading ? (
-            <Skeleton className="h-40 w-full" />
-          ) : (
-            <>
-              {filteredMatches.map(match => (
-                <MatchCard
-                  key={match.id}
-                  match={match}
-                  onOpenSheet={() => setSheetMatch(match)}
-                  onEdit={() => setEditMatch(match)}
-                  onResult={() => setResultMatch(match)}
-                  onEditDocument={() => navigate(`/documentos/editar/${match.id}`)}
-                />
-              ))}
-              {filteredMatches.length === 0 && (
-                <Card className="card-elevated">
-                  <CardContent className="p-12 text-center">
-                    <p className="text-muted-foreground">Nenhum jogo encontrado com os filtros selecionados.</p>
-                  </CardContent>
-                </Card>
-              )}
-            </>
-          )}
-        </motion.div>
+        {/* Matches List Grid */}
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)}
+          </div>
+        ) : filteredMatches.length === 0 ? (
+          <Card className="p-12 text-center text-muted-foreground">
+            Nenhum confronto encontrado para a seleção atual.
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredMatches.map(m => {
+              const isFinished = m.status === 'completed' || m.status === 'homologated';
+              const isHomologated = m.status === 'homologated';
+
+              return (
+                <motion.div key={m.id} variants={item}>
+                  <Card className="card-elevated hover:border-primary/40 transition-all flex flex-col justify-between h-full">
+                    <CardHeader className="pb-3 pt-4 px-4 sm:px-5">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-foreground">Jogo #{m.record.matchNumber}</span>
+                          <span>·</span>
+                          <span className="truncate max-w-[120px]">{m.competition}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {m.phase && <Badge variant="outline" className="text-[10px] capitalize">{m.phase}</Badge>}
+                          {isHomologated ? (
+                            <Badge variant="success" className="text-[10px] gap-1">
+                              <ShieldCheck className="w-3 h-3" />
+                              Homologado
+                            </Badge>
+                          ) : isFinished ? (
+                            <Badge variant="secondary" className="text-[10px]">Realizado</Badge>
+                          ) : m.status === 'in-progress' ? (
+                            <Badge variant="default" className="text-[10px] bg-amber-500">Em Jogo</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px]">Agendado</Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Teams and Result Bar */}
+                      <div className="p-3 rounded-xl bg-muted/40 border border-border/50 flex items-center justify-between gap-2">
+                        {/* Team A */}
+                        <div className="flex-1 flex items-center gap-2 min-w-0">
+                          {m.teamA.logoUrl ? (
+                            <img src={m.teamA.logoUrl} alt="" className="w-7 h-7 rounded-full object-contain shrink-0" />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                              {m.teamA.shortName.charAt(0)}
+                            </div>
+                          )}
+                          <span className="font-bold text-sm text-foreground truncate">{m.teamA.name}</span>
+                        </div>
+
+                        {/* Score Display */}
+                        <div className="px-3 py-1 rounded-lg bg-card border border-border/70 text-center shrink-0">
+                          {isFinished ? (
+                            <div className="text-base font-display font-extrabold text-foreground tracking-tight">
+                              {m.teamA.score} <span className="text-muted-foreground text-xs">x</span> {m.teamB.score}
+                            </div>
+                          ) : (
+                            <span className="text-xs font-bold text-muted-foreground">VS</span>
+                          )}
+                        </div>
+
+                        {/* Team B */}
+                        <div className="flex-1 flex items-center justify-end gap-2 min-w-0 text-right">
+                          <span className="font-bold text-sm text-foreground truncate">{m.teamB.name}</span>
+                          {m.teamB.logoUrl ? (
+                            <img src={m.teamB.logoUrl} alt="" className="w-7 h-7 rounded-full object-contain shrink-0" />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                              {m.teamB.shortName.charAt(0)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Sets Parciais */}
+                      {isFinished && m.sets && m.sets.length > 0 && (
+                        <div className="flex items-center justify-center gap-2 mt-2 text-[11px] text-muted-foreground">
+                          {m.sets.map((s, idx) => (
+                            <span key={idx} className="px-1.5 py-0.5 rounded bg-muted/60 font-mono font-medium">
+                              {s.a}-{s.b}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </CardHeader>
+
+                    {/* Footer Info & Actions */}
+                    <CardContent className="px-4 sm:px-5 pb-4 pt-0 border-t border-border/50 mt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-muted-foreground">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{m.venue} {m.court ? `· ${m.court}` : ''}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 shrink-0" />
+                          <span>{new Date(m.date).toLocaleDateString('pt-BR')} às {m.time}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5 self-end sm:self-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => setSheetMatch(m)}
+                        >
+                          <FileText className="w-3.5 h-3.5 mr-1" />
+                          Súmula
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => setEditMatch(m.record)}
+                        >
+                          <Pencil className="w-3.5 h-3.5 mr-1" />
+                          Agendar
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2.5 text-xs font-semibold"
+                          onClick={() => setResultMatch(m.record)}
+                        >
+                          <PenLine className="w-3.5 h-3.5 mr-1 text-primary" />
+                          Placar
+                        </Button>
+
+                        {isFinished && !isHomologated && (
+                          <Button
+                            variant="accent"
+                            size="sm"
+                            className="h-8 px-2.5 text-xs font-semibold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            onClick={() => handleHomologate(m.id)}
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Homologar
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
       </motion.div>
 
-      <EditMatchDialog match={editMatch} onOpenChange={open => { if (!open) setEditMatch(null); }} onSaved={handleEditSaved} />
-      <ResultMatchDialog match={resultMatch} onOpenChange={open => { if (!open) setResultMatch(null); }} onSaved={handleResultSaved} />
-      <MatchSheetEmitDialog
-        match={sheetMatch?.record ?? null}
-        competition={sheetMatch ? competitions.find(c => c.id === sheetMatch.record.competitionId) ?? null : null}
-        open={sheetMatch !== null}
-        onOpenChange={open => { if (!open) setSheetMatch(null); }}
+      {/* Modal Edição & Prevenção de Conflitos de Agenda */}
+      {editMatch && (
+        <ScheduleMatchDialog
+          match={editMatch}
+          competition={compById.get(editMatch.competitionId) || null}
+          allMatches={matches}
+          venues={venues}
+          onClose={() => setEditMatch(null)}
+          onSaved={async (updates) => {
+            await dataAccess.updateMatch(editMatch.id, updates);
+            toast.success('Agendamento salvo com sucesso!');
+            setEditMatch(null);
+            await refresh();
+          }}
+        />
+      )}
+
+      {/* Modal Lançamento de Placar e Validação Matemática */}
+      {resultMatch && (
+        <ResultValidationDialog
+          match={resultMatch}
+          competition={compById.get(resultMatch.competitionId) || null}
+          onClose={() => setResultMatch(null)}
+          onSaved={async (sets, winnerId) => {
+            await dataAccess.updateMatch(resultMatch.id, {
+              sets,
+              winnerId,
+              status: 'completed',
+            });
+            toast.success('Resultado lançado com sucesso! Partida aguardando homologação.');
+            setResultMatch(null);
+            await refresh();
+          }}
+        />
+      )}
+
+      {/* Modal Emissão de Súmula e Ordem de Saque da Partida */}
+      {sheetMatch && (
+        <MatchSheetEmitDialog
+          open={sheetMatch !== null}
+          onOpenChange={(open) => !open && setSheetMatch(null)}
+          match={sheetMatch.record}
+          competition={compById.get(sheetMatch.record.competitionId) || null}
+        />
+      )}
+
+      {/* Modal Emissão de Súmula em Branco Padrão */}
+      <BlankSheetEmitDialog
+        open={blankSheetOpen}
+        onOpenChange={setBlankSheetOpen}
       />
     </MainLayout>
   );
-};
-
-function TeamBadge({ shortName, name, logoUrl, score, winner }: { shortName: string; name: string; logoUrl?: string; score?: number; winner?: boolean }) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        {logoUrl ? (
-          <img src={logoUrl} alt={`Escudo ${name}`} className="w-12 h-12 rounded-xl object-contain bg-muted p-1" />
-        ) : (
-          <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center font-bold text-foreground">
-            {shortName}
-          </div>
-        )}
-        <span className={cn('font-semibold text-lg', winner && 'text-success')}>{name}</span>
-      </div>
-      {score !== undefined && (
-        <span className={cn('text-3xl font-display font-bold', winner ? 'text-success' : 'text-foreground')}>
-          {score}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function MatchCard({ match, onOpenSheet, onEdit, onResult, onEditDocument }: { match: Match; onOpenSheet: () => void; onEdit: () => void; onResult: () => void; onEditDocument: () => void }) {
-  const statusConfig = {
-    live: { label: 'AO VIVO', variant: 'destructive' as const, icon: Play },
-    scheduled: { label: 'AGENDADO', variant: 'secondary' as const, icon: Clock },
-    completed: { label: 'FINALIZADO', variant: 'outline' as const, icon: CheckCircle },
-    postponed: { label: 'ADIADO', variant: 'secondary' as const, icon: Pause },
-  };
-
-  const status = statusConfig[match.status];
-  const teamAWin = match.status === 'completed' && (match.teamA.score ?? 0) > (match.teamB.score ?? 0);
-  const teamBWin = match.status === 'completed' && (match.teamB.score ?? 0) > (match.teamA.score ?? 0);
-
-  return (
-    <Card className="card-elevated hover:shadow-lg transition-all">
-      <CardContent className="p-0">
-        <div className="flex flex-col md:flex-row">
-          {/* Left: Match Info */}
-          <div className="flex-1 p-6">
-            <div className="flex items-center gap-3 mb-4 flex-wrap">
-              <div className="p-2 rounded-lg bg-indoor text-indoor-foreground">
-                <Volleyball className="w-4 h-4" />
-              </div>
-              <span className="text-sm font-medium text-muted-foreground">{match.competition}</span>
-              {match.phase && (
-                <Badge variant="outline">
-                  <Trophy className="w-3 h-3 mr-1" />
-                  {match.phase}
-                </Badge>
-              )}
-              {match.groupName && <Badge variant="secondary">{match.groupName}</Badge>}
-              <Badge variant={status.variant} className="gap-1">
-                <status.icon className="w-3 h-3" />
-                {status.label}
-              </Badge>
-            </div>
-
-            {/* Teams */}
-            <div className="space-y-4">
-              <TeamBadge shortName={match.teamA.shortName} name={match.teamA.name} logoUrl={match.teamA.logoUrl} score={match.teamA.score} winner={teamAWin} />
-              <TeamBadge shortName={match.teamB.shortName} name={match.teamB.name} logoUrl={match.teamB.logoUrl} score={match.teamB.score} winner={teamBWin} />
-            </div>
-
-            {/* Sets */}
-            {match.sets && match.sets.length > 0 && (
-              <div className="mt-4 flex gap-2">
-                {match.sets.map((set, idx) => (
-                  <div key={idx} className="px-3 py-1.5 rounded-lg bg-muted text-sm">
-                    <span className={cn(set.a > set.b ? 'font-bold text-success' : 'text-muted-foreground')}>{set.a}</span>
-                    <span className="text-muted-foreground mx-1">-</span>
-                    <span className={cn(set.b > set.a ? 'font-bold text-success' : 'text-muted-foreground')}>{set.b}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Right: Date/Venue + Actions */}
-          <div className="w-full md:w-72 p-6 bg-muted/30 border-t md:border-t-0 md:border-l border-border flex flex-col justify-center gap-3">
-            <div className="flex items-center gap-2 text-sm">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              <span>{new Date(match.date).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <Clock className="w-4 h-4 text-muted-foreground" />
-              <span>{match.time}</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <MapPin className="w-4 h-4 text-muted-foreground" />
-              <span className="truncate">
-                {match.venue}
-                {match.court ? ` - ${match.court}` : ''}
-              </span>
-            </div>
-            <div className="flex flex-col gap-2 mt-2">
-              <Button variant="outline" size="sm" className="gap-2" onClick={onOpenSheet}>
-                <FileText className="w-4 h-4" />
-                Súmula do Jogo
-              </Button>
-              <Button variant="outline" size="sm" className="gap-2" onClick={onEditDocument}>
-                <PenLine className="w-4 h-4" />
-                Editor de Documentos
-              </Button>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" className="gap-2" onClick={onEdit}>
-                  <Pencil className="w-4 h-4" />
-                  Editar
-                </Button>
-                <Button
-                  variant={match.status === 'completed' ? 'outline' : 'accent'}
-                  size="sm"
-                  className="gap-2"
-                  onClick={onResult}
-                  disabled={match.status === 'completed'}
-                >
-                  <ListChecks className="w-4 h-4" />
-                  Resultado
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
 }
 
 // ============================================================================
-// Modal de edição rápida da partida
+// Modal de Agendamento com Verificação de Conflitos
 // ============================================================================
 
-function EditMatchDialog({
-  match,
-  onOpenChange,
-  onSaved,
-}: {
-  match: Match | null;
-  onOpenChange: (open: boolean) => void;
+interface ScheduleMatchDialogProps {
+  match: MatchRecord;
+  competition: CompetitionRecord | null;
+  allMatches: MatchRecord[];
+  venues: VenueRecord[];
+  onClose: () => void;
   onSaved: (updates: Partial<MatchRecord>) => Promise<void>;
-}) {
-  const [venues, setVenues] = useState<VenueRecord[]>([]);
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [venue, setVenue] = useState('');
-  const [court, setCourt] = useState('');
-  const [phase, setPhase] = useState('');
-  const [groupName, setGroupName] = useState('');
+}
+
+function ScheduleMatchDialog({ match, competition, allMatches, venues, onClose, onSaved }: ScheduleMatchDialogProps) {
+  const [date, setDate] = useState(match.scheduledTime ? match.scheduledTime.split('T')[0] : '');
+  const [time, setTime] = useState(
+    match.scheduledTime ? new Date(match.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
+  );
+  const [venue, setVenue] = useState(match.venue || venues[0]?.name || '');
+  const [court, setCourt] = useState(match.court || '');
+  const [phase, setPhase] = useState(match.phase || 'classificatória');
+  const [groupName, setGroupName] = useState(match.groupName || '');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (match) {
-      const d = new Date(match.record.scheduledTime);
-      setDate(d.toISOString().slice(0, 10));
-      setTime(d.toTimeString().slice(0, 5));
-      setVenue(match.record.venue ?? '');
-      setCourt(match.record.court ?? '');
-      setPhase(match.record.phase ?? '');
-      setGroupName(match.record.groupName ?? '');
-      dataAccess.listVenues().then(setVenues);
-    }
-  }, [match]);
+  const selectedVenueObj = venues.find(v => v.name === venue);
+  const availableCourts = selectedVenueObj?.courts || [];
 
-  const venueCourts = venues.find(v => v.name === venue)?.courts ?? [];
+  // Live conflict detection
+  const conflicts = useMemo(() => {
+    if (!date || !time || !venue || !court || !competition) return [];
+    const isoDateTime = `${date}T${time}:00`;
+    return detectScheduleConflicts({
+      matchId: match.id,
+      scheduledTime: isoDateTime,
+      venueName: venue,
+      courtName: court,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      competition,
+      allMatches,
+      venues,
+    });
+  }, [date, time, venue, court, match, competition, allMatches, venues]);
+
+  const hasBlockingError = conflicts.some(c => c.severity === 'error');
 
   const handleSave = async () => {
-    if (!match || saving) return;
+    if (saving) return;
     setSaving(true);
     try {
-      const scheduledTime = date && time ? new Date(`${date}T${time}:00`).toISOString() : match.record.scheduledTime;
+      const scheduledTime = date && time ? new Date(`${date}T${time}:00`).toISOString() : match.scheduledTime;
       await onSaved({
         scheduledTime,
         venue,
         court: court || undefined,
         phase: phase || undefined,
         groupName: groupName || undefined,
+        status: court ? 'scheduled' : 'awaiting_schedule',
       });
     } finally {
       setSaving(false);
@@ -512,88 +622,79 @@ function EditMatchDialog({
   };
 
   return (
-    <Dialog open={match !== null} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Editar Partida</DialogTitle>
+          <DialogTitle>Agendar Confronto</DialogTitle>
           <DialogDescription>
-            {match ? `${match.teamA.name} vs ${match.teamB.name}` : ''}
+            {match.teamAName} vs {match.teamBName} (Jogo #{match.matchNumber})
           </DialogDescription>
         </DialogHeader>
+
         <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-date">Data</Label>
-              <Input id="edit-date" type="date" value={date} onChange={e => setDate(e.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="sched-date">Data da Partida</Label>
+              <Input id="sched-date" type="date" value={date} onChange={e => setDate(e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-time">Horário</Label>
-              <Input id="edit-time" type="time" value={time} onChange={e => setTime(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label htmlFor="sched-time">Horário</Label>
+              <Input id="sched-time" type="time" value={time} onChange={e => setTime(e.target.value)} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Local</Label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Ginásio / Local</Label>
               <Select value={venue} onValueChange={v => { setVenue(v); setCourt(''); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o local" />
                 </SelectTrigger>
                 <SelectContent>
                   {venues.map(v => (
-                    <SelectItem key={v.id} value={v.name}>
-                      {v.name}
-                    </SelectItem>
+                    <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>Quadra</Label>
               <Select value={court} onValueChange={setCourt}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione a quadra" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(venueCourts.length > 0 ? venueCourts : [court]).map(c => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
+                  {availableCourts.map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
-                  {venueCourts.length === 0 && <SelectItem value="Quadra Principal">Quadra Principal</SelectItem>}
+                  {availableCourts.length === 0 && <SelectItem value="Quadra Principal">Quadra Principal</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Fase</Label>
-              <Select value={phase} onValueChange={setPhase}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Fase do jogo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="classificatória">Classificatória</SelectItem>
-                  <SelectItem value="quartas">Quartas de Final</SelectItem>
-                  <SelectItem value="semifinal">Semifinal</SelectItem>
-                  <SelectItem value="final">Final</SelectItem>
-                </SelectContent>
-              </Select>
+
+          {/* Conflict Alerts Display */}
+          {conflicts.length > 0 && (
+            <div className="space-y-2 pt-1">
+              {conflicts.map((c, i) => (
+                <div
+                  key={i}
+                  className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${c.severity === 'error' ? 'bg-destructive/10 border-destructive/30 text-destructive' : 'bg-amber-500/10 border-amber-500/30 text-amber-700'}`}
+                >
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">{c.severity === 'error' ? 'Conflito Crítico:' : 'Aviso Operacional:'}</span> {c.message}
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-group">Grupo/Chave</Label>
-              <Input
-                id="edit-group"
-                value={groupName}
-                onChange={e => setGroupName(e.target.value)}
-                placeholder="Ex.: Grupo A"
-              />
-            </div>
-          </div>
+          )}
         </div>
+
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button variant="accent" disabled={saving} onClick={handleSave}>
-            {saving ? 'Salvando...' : 'Salvar Alterações'}
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="accent" disabled={saving || hasBlockingError} onClick={handleSave}>
+            {saving ? 'Salvando...' : 'Salvar Agendamento'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -602,73 +703,73 @@ function EditMatchDialog({
 }
 
 // ============================================================================
-// Modal de lançamento de resultado (parciais dos sets)
+// Modal de Placar com Validação Matemática
 // ============================================================================
 
-function ResultMatchDialog({
-  match,
-  onOpenChange,
-  onSaved,
-}: {
-  match: Match | null;
-  onOpenChange: (open: boolean) => void;
-  onSaved: (updates: Partial<MatchRecord>) => Promise<void>;
-}) {
-  const [setScores, setSetScores] = useState<{ a: string; b: string }[]>([]);
+interface ResultValidationDialogProps {
+  match: MatchRecord;
+  competition: CompetitionRecord | null;
+  onClose: () => void;
+  onSaved: (sets: MatchRecord['sets'], winnerId: string) => Promise<void>;
+}
+
+function ResultValidationDialog({ match, competition, onClose, onSaved }: ResultValidationDialogProps) {
+  const isBeach = competition?.modality === 'beach';
+  const setFormat = match.phase === 'semifinal' || match.phase === 'final'
+    ? (competition?.phaseSetRules?.final || competition?.setFormat || '3-sets')
+    : (competition?.setFormat || '3-sets');
+
+  const maxSets = setFormat === '5-sets' ? 5 : setFormat === '1-set' ? 1 : 3;
+
+  const [setScores, setSetScores] = useState<{ a: string; b: string }[]>(() => {
+    const existing = match.sets.map(s => ({ a: String(s.scoreA), b: String(s.scoreB) }));
+    return [...existing, ...Array.from({ length: maxSets - existing.length }, () => ({ a: '', b: '' }))].slice(0, maxSets);
+  });
   const [saving, setSaving] = useState(false);
-  const maxSets = 5;
-
-  useEffect(() => {
-    if (match) {
-      const existing = match.record.sets.map(s => ({ a: String(s.scoreA), b: String(s.scoreB) }));
-      setSetScores([...existing, ...Array.from({ length: maxSets - existing.length }, () => ({ a: '', b: '' }))].slice(0, maxSets));
-    }
-  }, [match]);
-
-  if (!match) return null;
 
   const filledSets = setScores.filter(s => s.a !== '' && s.b !== '').map((s, idx) => ({
     setNumber: idx + 1,
     scoreA: Number(s.a),
     scoreB: Number(s.b),
   }));
-  const setsWonA = filledSets.filter(s => s.scoreA > s.scoreB).length;
-  const setsWonB = filledSets.filter(s => s.scoreB > s.scoreA).length;
 
-  const handleSave = async (closeMatch: boolean) => {
-    if (saving) return;
-    if (filledSets.length === 0) {
-      toast.error('Informe ao menos uma parcial de set.');
+  const validation = useMemo(() => {
+    const config = isBeach ? DEFAULT_BEACH_CONFIG : DEFAULT_INDOOR_CONFIG;
+    const typedFormat = setFormat === '5-sets' ? '5-sets' : setFormat === '1-set' ? '1-set' : '3-sets';
+    return validateMatchResult(filledSets, { ...config, setFormat: typedFormat });
+  }, [filledSets, isBeach, setFormat]);
+
+  const handleSave = async () => {
+    if (!validation.valid || !validation.winner) {
+      toast.error(validation.errors[0] || 'Resultado incompleto ou matematicamente inválido.');
       return;
     }
+    const winnerId = validation.winner === 'A' ? match.teamAId : match.teamBId;
     setSaving(true);
     try {
-      const winnerId = setsWonA !== setsWonB ? (setsWonA > setsWonB ? match.record.teamAId : match.record.teamBId) : undefined;
-      await onSaved({
-        sets: filledSets,
-        status: closeMatch ? 'completed' : match.record.status === 'scheduled' ? 'in-progress' : match.record.status,
-        winnerId,
-      });
+      await onSaved(filledSets, winnerId);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Lançar Resultado</DialogTitle>
+          <DialogTitle>Lançar Placar da Partida</DialogTitle>
           <DialogDescription>
-            {match.teamA.name} vs {match.teamB.name} — digite as parciais de cada set.
+            {match.teamAName} vs {match.teamBName} ({setFormat === '5-sets' ? 'Melhor de 5 sets' : 'Melhor de 3 sets'})
           </DialogDescription>
         </DialogHeader>
+
         <div className="space-y-3 py-2">
-          <div className="flex items-center gap-3 px-1 text-sm font-semibold text-muted-foreground">
-            <span className="flex-1 truncate">{match.teamA.shortName}</span>
+          <div className="flex items-center gap-3 px-1 text-xs font-semibold text-muted-foreground uppercase">
+            <span className="flex-1 truncate">{match.teamAShortName || match.teamAName}</span>
             <span className="w-16 text-center">SET</span>
-            <span className="flex-1 text-right truncate">{match.teamB.shortName}</span>
+            <span className="flex-1 text-right truncate">{match.teamBShortName || match.teamBName}</span>
           </div>
+
           {setScores.map((set, idx) => (
             <div key={idx} className="flex items-center gap-3">
               <Input
@@ -676,47 +777,58 @@ function ResultMatchDialog({
                 min={0}
                 max={50}
                 placeholder="--"
-                className="flex-1 text-center"
+                className="flex-1 text-center font-bold font-mono text-base"
                 value={set.a}
                 onChange={e => setSetScores(prev => prev.map((s, i) => (i === idx ? { ...s, a: e.target.value } : s)))}
-                aria-label={`Pontos ${match.teamA.shortName} no set ${idx + 1}`}
               />
-              <span className="w-16 text-center text-sm font-bold bg-muted py-2 rounded-lg">Set {idx + 1}</span>
+              <span className="w-16 text-center text-xs font-bold bg-muted py-2 rounded-lg">
+                Set {idx + 1}
+              </span>
               <Input
                 type="number"
                 min={0}
                 max={50}
                 placeholder="--"
-                className="flex-1 text-center"
+                className="flex-1 text-center font-bold font-mono text-base"
                 value={set.b}
                 onChange={e => setSetScores(prev => prev.map((s, i) => (i === idx ? { ...s, b: e.target.value } : s)))}
-                aria-label={`Pontos ${match.teamB.shortName} no set ${idx + 1}`}
               />
             </div>
           ))}
-          {filledSets.length > 0 && (
-            <div className="p-3 rounded-lg bg-muted/50 text-sm">
-              Parciais lançadas: <strong>{setsWonA} x {setsWonB}</strong>{' '}
-              {setsWonA !== setsWonB && (
-                <span>
-                  — vencedor: <strong>{setsWonA > setsWonB ? match.teamA.name : match.teamB.name}</strong>
-                </span>
-              )}
+
+          {/* Validation Feedback */}
+          {validation.valid ? (
+            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-800 space-y-1">
+              <p className="font-bold flex items-center gap-1">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                Resultado válido: {validation.scoreA} x {validation.scoreB}
+              </p>
+              <p>
+                Vencedor confirmado: <strong>{validation.winner === 'A' ? match.teamAName : match.teamBName}</strong>
+              </p>
             </div>
-          )}
+          ) : filledSets.length > 0 ? (
+            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-xs text-destructive space-y-1">
+              <p className="font-bold flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Validação de Placar:
+              </p>
+              <ul className="list-disc pl-4 space-y-0.5">
+                {validation.errors.map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
+
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button variant="outline" disabled={saving || filledSets.length === 0} onClick={() => handleSave(false)}>
-            Salvar Parciais
-          </Button>
-          <Button variant="accent" disabled={saving || filledSets.length === 0} onClick={() => handleSave(true)}>
-            {saving ? 'Salvando...' : 'Fechar Partida'}
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="accent" disabled={saving || !validation.valid} onClick={handleSave}>
+            {saving ? 'Salvando...' : 'Finalizar Partida'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-
-export default MatchesPage;

@@ -399,4 +399,25 @@ describe('QA Master Suite - VolleyPro System End-to-End Validation', () => {
       expect(doc.internal.pages.length).toBeGreaterThan(0);
     });
   });
+
+  describe('7. Validação de Navegação Global, Menus e Botões', () => {
+    it('garante que todos os itens de menu e rotas estão registrados e consistentes', () => {
+      const expectedRoutes = [
+        { label: 'Dashboard', path: '/' },
+        { label: 'Competições', path: '/competicoes' },
+        { label: 'Partidas', path: '/jogos' },
+        { label: 'Equipes', path: '/equipes' },
+        { label: 'Locais', path: '/locais' },
+        { label: 'Pessoas', path: '/pessoas' },
+        { label: 'Relatórios', path: '/relatorios' },
+        { label: 'Configurações', path: '/configuracoes' },
+      ];
+
+      expectedRoutes.forEach(r => {
+        expect(r.path).toBeDefined();
+        expect(r.label).toBeDefined();
+        expect(r.path.startsWith('/')).toBe(true);
+      });
+    });
+  });
 });

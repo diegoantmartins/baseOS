@@ -1,11 +1,11 @@
 // Dados de demonstração (seed) do VolleyPro.
 // Datas de prazo são relativas a Date.now() para a demo sempre funcionar.
 
-import type { CompetitionRecord, MatchRecord, RefereeRecord, TeamRecord, VenueRecord } from '@/types/entities';
+import type { CompetitionRecord, MatchRecord, ModalityRecord, PersonRecord, RefereeRecord, TeamRecord, VenueRecord } from '@/types/entities';
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
 import type { DrawRecord } from '@/types/draw';
 
-export const SEED_VERSION = 'voleipro.v2';
+export const SEED_VERSION = 'voleipro.v6_championship_2groups4teams';
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
@@ -20,12 +20,40 @@ function teamLogo(shortName: string, bg: string, fg = '#ffffff'): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
+export const seedModalities: ModalityRecord[] = [
+  {
+    id: 'mod-indoor',
+    name: 'Vôlei de Quadra',
+    type: 'indoor',
+    defaultPlayerFormat: '6x6',
+    defaultSetFormat: '3-sets',
+    defaultSetPoints: 25,
+    defaultTiebreakPoints: 15,
+    description: 'Voleibol de quadra oficial (6x6 ou 4x4) regulamento FIVB/CBV.',
+  },
+  {
+    id: 'mod-beach',
+    name: 'Vôlei de Praia',
+    type: 'beach',
+    defaultPlayerFormat: '2x2',
+    defaultSetFormat: '3-sets',
+    defaultSetPoints: 21,
+    defaultTiebreakPoints: 15,
+    description: 'Vôlei de praia em duplas (2x2) ou quartetos (4x4) regulamento FIVB.',
+  },
+];
+
 export const seedVenues: VenueRecord[] = [
   {
     id: 'venue-1',
     name: 'Ginásio UNIPAR',
     address: 'Rua da Integração, s/n - Toledo/PR',
+    responsible: 'Coordenação Esportiva UNIPAR',
     courts: ['Quadra 1', 'Quadra 2'],
+    courtDetails: [
+      { id: 'c1', name: 'Quadra 1', status: 'active', notes: 'Piso de madeira flutuante' },
+      { id: 'c2', name: 'Quadra 2', status: 'active', notes: 'Piso vinílico' },
+    ],
     createdAt: iso(-10 * DAY),
     updatedAt: iso(-10 * DAY),
   },
@@ -33,7 +61,12 @@ export const seedVenues: VenueRecord[] = [
     id: 'venue-2',
     name: 'Ginásio Municipal',
     address: 'Centro Esportivo, Toledo/PR',
+    responsible: 'Secretaria de Esportes',
     courts: ['Quadra Principal', 'Quadra Auxiliar'],
+    courtDetails: [
+      { id: 'c3', name: 'Quadra Principal', status: 'active', notes: 'Capacidade 2000 pessoas' },
+      { id: 'c4', name: 'Quadra Auxiliar', status: 'active', notes: 'Aquecimento e jogos paralelos' },
+    ],
     createdAt: iso(-10 * DAY),
     updatedAt: iso(-10 * DAY),
   },
@@ -41,14 +74,17 @@ export const seedVenues: VenueRecord[] = [
     id: 'venue-3',
     name: 'Arena de Praia',
     address: 'Orla do Lago, Toledo/PR',
+    responsible: 'Clube de Praia Toledo',
     courts: ['Areia 1', 'Areia 2'],
+    courtDetails: [
+      { id: 'c5', name: 'Areia 1', status: 'active', notes: 'Quadra central de areia' },
+      { id: 'c6', name: 'Areia 2', status: 'active', notes: 'Quadra secundária' },
+    ],
     createdAt: iso(-10 * DAY),
     updatedAt: iso(-10 * DAY),
   },
 ];
 
-// Competição única: 8 equipes em 2 grupos de 4, sem partidas/horários
-// (o organizador cria os confrontos e horários após o sorteio).
 export const seedCompetitions: CompetitionRecord[] = [
   {
     id: 'comp-toledo-2026',
@@ -66,8 +102,32 @@ export const seedCompetitions: CompetitionRecord[] = [
 ];
 
 export const seedTeams: TeamRecord[] = [
-  { id: 'team-1', name: 'Osasco Voleibol', shortName: 'OSA', modality: 'indoor', coachName: 'Luizomar de Moura', logoUrl: teamLogo('OSA', '#1a5aa8') },
-  { id: 'team-2', name: 'Minas Tênis Clube', shortName: 'MIN', modality: 'indoor', coachName: 'Nicola Negro', logoUrl: teamLogo('MIN', '#7a1f2b') },
+  {
+    id: 'team-1',
+    name: 'Osasco Voleibol',
+    shortName: 'OSA',
+    modality: 'indoor',
+    coachName: 'Luizomar de Moura',
+    managerName: 'Diego Martins',
+    managerPhone: '(45) 99999-1111',
+    managerEmail: 'diego@voleipro.com',
+    managerPassword: 'OSA@2026',
+    registrationToken: 'token-osa-2026',
+    logoUrl: teamLogo('OSA', '#1a5aa8'),
+  },
+  {
+    id: 'team-2',
+    name: 'Minas Tênis Clube',
+    shortName: 'MIN',
+    modality: 'indoor',
+    coachName: 'Nicola Negro',
+    managerName: 'Roberto Silva',
+    managerPhone: '(31) 98888-2222',
+    managerEmail: 'minas@volei.com',
+    managerPassword: 'MIN@2026',
+    registrationToken: 'token-min-2026',
+    logoUrl: teamLogo('MIN', '#7a1f2b'),
+  },
   { id: 'team-3', name: 'Praia Clube', shortName: 'PRA', modality: 'indoor', coachName: 'Paulo Coco', logoUrl: teamLogo('PRA', '#c8102e') },
   { id: 'team-4', name: 'Flamengo', shortName: 'FLA', modality: 'indoor', coachName: 'Bernardinho', logoUrl: teamLogo('FLA', '#8b1f2c') },
   { id: 'team-5', name: 'Sesi-SP', shortName: 'SES', modality: 'indoor', coachName: 'Rubinho Guimarães', logoUrl: teamLogo('SES', '#e5383b') },
@@ -164,9 +224,97 @@ export const seedCompetitionAthletes: CompetitionAthlete[] = [
   ...makeRoster('ath-8', 'ct-8', MALE_NAMES, 6, 'male'),
 ];
 
-// Sem partidas pré-criadas: o organizador gera os confrontos (Sorteio) e
-// define horários depois. As chaves já ficam definidas (2 grupos de 4).
-export const seedMatches: MatchRecord[] = [];
+function makeMatch(
+  id: string,
+  matchNumber: number,
+  round: number,
+  groupName: string,
+  teamAId: string,
+  teamBId: string,
+  athPrefixA: string,
+  athPrefixB: string,
+  dateDeltaHours: number,
+  court: string,
+): MatchRecord {
+  const teamA = seedTeams.find(t => t.id === teamAId)!;
+  const teamB = seedTeams.find(t => t.id === teamBId)!;
+  return {
+    id,
+    competitionId: 'comp-toledo-2026',
+    round,
+    matchNumber,
+    teamAId,
+    teamBId,
+    teamAName: teamA.name,
+    teamBName: teamB.name,
+    teamAShortName: teamA.shortName,
+    teamBShortName: teamB.shortName,
+    venue: 'Ginásio Municipal',
+    court,
+    phase: 'Fase de Grupos',
+    groupName,
+    scheduledTime: iso(dateDeltaHours * HOUR),
+    status: 'scheduled',
+    sets: [],
+    referees: [
+      { role: 'first', name: 'Carlos Silva' },
+      { role: 'second', name: 'Ana Santos' },
+    ],
+    lineups: {
+      teamA: {
+        starterIds: [
+          `${athPrefixA}-01`,
+          `${athPrefixA}-02`,
+          `${athPrefixA}-03`,
+          `${athPrefixA}-04`,
+          `${athPrefixA}-05`,
+          `${athPrefixA}-06`,
+        ],
+        captainId: `${athPrefixA}-01`,
+        liberoId: `${athPrefixA}-06`,
+      },
+      teamB: {
+        starterIds: [
+          `${athPrefixB}-01`,
+          `${athPrefixB}-02`,
+          `${athPrefixB}-03`,
+          `${athPrefixB}-04`,
+          `${athPrefixB}-05`,
+          `${athPrefixB}-06`,
+        ],
+        captainId: `${athPrefixB}-01`,
+        liberoId: `${athPrefixB}-06`,
+      },
+    },
+    customSetFormat: '3-sets',
+    createdAt: iso(-1 * DAY),
+    updatedAt: iso(-1 * DAY),
+  };
+}
+
+export const seedMatches: MatchRecord[] = [
+  // --- GRUPO A ---
+  // Rodada 1
+  makeMatch('match-01', 1, 1, 'Grupo A', 'team-1', 'team-2', 'ath-1', 'ath-2', 24, 'Quadra Principal'),
+  makeMatch('match-02', 2, 1, 'Grupo A', 'team-3', 'team-4', 'ath-3', 'ath-4', 24, 'Quadra Auxiliar'),
+  // Rodada 2
+  makeMatch('match-03', 3, 2, 'Grupo A', 'team-1', 'team-3', 'ath-1', 'ath-3', 26, 'Quadra Principal'),
+  makeMatch('match-04', 4, 2, 'Grupo A', 'team-2', 'team-4', 'ath-2', 'ath-4', 26, 'Quadra Auxiliar'),
+  // Rodada 3
+  makeMatch('match-05', 5, 3, 'Grupo A', 'team-4', 'team-1', 'ath-4', 'ath-1', 29, 'Quadra Principal'),
+  makeMatch('match-06', 6, 3, 'Grupo A', 'team-2', 'team-3', 'ath-2', 'ath-3', 29, 'Quadra Auxiliar'),
+
+  // --- GRUPO B ---
+  // Rodada 1
+  makeMatch('match-07', 7, 1, 'Grupo B', 'team-5', 'team-6', 'ath-5', 'ath-6', 25, 'Quadra Principal'),
+  makeMatch('match-08', 8, 1, 'Grupo B', 'team-7', 'team-8', 'ath-7', 'ath-8', 25, 'Quadra Auxiliar'),
+  // Rodada 2
+  makeMatch('match-09', 9, 2, 'Grupo B', 'team-5', 'team-7', 'ath-5', 'ath-7', 27, 'Quadra Principal'),
+  makeMatch('match-10', 10, 2, 'Grupo B', 'team-6', 'team-8', 'ath-6', 'ath-8', 27, 'Quadra Auxiliar'),
+  // Rodada 3
+  makeMatch('match-11', 11, 3, 'Grupo B', 'team-8', 'team-5', 'ath-8', 'ath-5', 30, 'Quadra Principal'),
+  makeMatch('match-12', 12, 3, 'Grupo B', 'team-6', 'team-7', 'ath-6', 'ath-7', 30, 'Quadra Auxiliar'),
+];
 
 export const seedDraws: DrawRecord[] = [
   {
@@ -193,8 +341,56 @@ export const seedDraws: DrawRecord[] = [
         ],
       },
     ],
-    matches: [],
+    matches: [
+      { round: 1, matchNumber: 1, teamAId: 'team-1', teamBId: 'team-2', groupName: 'Grupo A', phase: 'groups' },
+      { round: 1, matchNumber: 2, teamAId: 'team-3', teamBId: 'team-4', groupName: 'Grupo A', phase: 'groups' },
+      { round: 2, matchNumber: 3, teamAId: 'team-1', teamBId: 'team-3', groupName: 'Grupo A', phase: 'groups' },
+      { round: 2, matchNumber: 4, teamAId: 'team-2', teamBId: 'team-4', groupName: 'Grupo A', phase: 'groups' },
+      { round: 3, matchNumber: 5, teamAId: 'team-4', teamBId: 'team-1', groupName: 'Grupo A', phase: 'groups' },
+      { round: 3, matchNumber: 6, teamAId: 'team-2', teamBId: 'team-3', groupName: 'Grupo A', phase: 'groups' },
+      { round: 1, matchNumber: 7, teamAId: 'team-5', teamBId: 'team-6', groupName: 'Grupo B', phase: 'groups' },
+      { round: 1, matchNumber: 8, teamAId: 'team-7', teamBId: 'team-8', groupName: 'Grupo B', phase: 'groups' },
+      { round: 2, matchNumber: 9, teamAId: 'team-5', teamBId: 'team-7', groupName: 'Grupo B', phase: 'groups' },
+      { round: 2, matchNumber: 10, teamAId: 'team-6', teamBId: 'team-8', groupName: 'Grupo B', phase: 'groups' },
+      { round: 3, matchNumber: 11, teamAId: 'team-8', teamBId: 'team-5', groupName: 'Grupo B', phase: 'groups' },
+      { round: 3, matchNumber: 12, teamAId: 'team-6', teamBId: 'team-7', groupName: 'Grupo B', phase: 'groups' },
+    ],
     createdAt: iso(-1 * DAY),
     updatedAt: iso(-1 * DAY),
+  },
+];
+
+export const seedPersons: PersonRecord[] = [
+  {
+    id: 'per-1',
+    fullName: 'Diego Martins',
+    nickname: 'Diego',
+    documentId: '123.456.789-00',
+    roles: ['manager', 'athlete'],
+    teamIds: ['team-1'],
+    email: 'diego@voleipro.com',
+    phone: '(45) 99999-1111',
+    createdAt: iso(-30 * DAY),
+    updatedAt: iso(-30 * DAY),
+  },
+  {
+    id: 'per-2',
+    fullName: 'Luizomar de Moura',
+    nickname: 'Luizomar',
+    roles: ['coach'],
+    teamIds: ['team-1'],
+    email: 'luizomar@osasco.com',
+    phone: '(11) 98888-2222',
+    createdAt: iso(-30 * DAY),
+    updatedAt: iso(-30 * DAY),
+  },
+  {
+    id: 'per-3',
+    fullName: 'Carlos Silva',
+    nickname: 'Carlos Árbitro',
+    roles: ['referee'],
+    email: 'carlos.arbitro@cbv.com',
+    createdAt: iso(-30 * DAY),
+    updatedAt: iso(-30 * DAY),
   },
 ];

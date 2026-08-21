@@ -1,16 +1,16 @@
 // Motor de classificação e desempate do VolleyPro.
 //
-// Critérios de classificação (por chave/grupo), nesta ordem:
-//  1º  Maior número de pontos (competition points)
-//  2º  Confronto direto (somente quando o empate envolve 2 equipes;
-//      com 3+ equipes ou confronto 1x1, passa ao critério seguinte)
-//  3º  Set Average = sets vencidos ÷ sets perdidos (maior índice)
-//  4º  Pontos Average = pontos marcados ÷ pontos sofridos (maior índice)
-//  5º  Saldo de pontos = pontos marcados − pontos sofridos (maior saldo)
-//  6º  Maior número de pontos marcados
-//  7º  Sorteio (aqui, ordem estável determinística)
+// Suporta critérios ordenáveis configurados pelo gestor da competição:
+//  - 'points': Maior número de pontos (competition points)
+//  - 'victories': Maior número de vitórias
+//  - 'sets-balance': Saldo de sets (sets vencidos − sets perdidos)
+//  - 'points-balance': Saldo de pontos (pontos marcados − pontos sofridos)
+//  - 'head-to-head': Confronto direto (somente para empate direto entre 2 equipes)
+//  - 'set-average': Set Average = sets vencidos ÷ sets perdidos (maior índice)
+//  - 'points-average': Pontos Average = pontos marcados ÷ pontos sofridos (maior índice)
+//  - 'draw': Sorteio / Ordem estável determinística
 
-import type { MatchRecord, TeamRecord } from '@/types/entities';
+import type { MatchRecord, TeamRecord, TiebreakCriterionId } from '@/types/entities';
 
 export type StandingInput = {
   team: TeamRecord;
@@ -28,12 +28,41 @@ export type TeamStandingResult = {
   matchesLost: number;
   setsWon: number;
   setsLost: number;
+  setsBalance?: number;
   setsRatio: number;
   pointsWon: number;
   pointsLost: number;
-  pointsRatio: number;
   pointsBalance: number;
+  pointsRatio: number;
   competitionPoints: number;
+  /** Explicação detalhada de desempate quando aplicável */
+  tiebreakReason?: string;
+  /** Se a classificação inclui jogos ainda não homologados */
+  isProvisional?: boolean;
+};
+
+export const DEFAULT_TIEBREAK_CRITERIA: TiebreakCriterionId[] = [
+  'points',
+  'head-to-head',
+  'set-average',
+  'points-average',
+  'sets-balance',
+  'points-balance',
+  'victories',
+  'draw',
+];
+
+export const TIEBREAK_CRITERIA_LABELS: Record<TiebreakCriterionId, string> = {
+  points: '1. Pontos na Tabela',
+  victories: '2. Número de Vitórias',
+  'sets-balance': '3. Saldo de Sets',
+  'points-balance': '4. Saldo de Pontos',
+  'head-to-head': '5. Confronto Direto',
+  'set-average': '6. Set Average (Razão de Sets)',
+  'sets-ratio': '6. Razão de Sets (Set Average)',
+  'points-average': '7. Pontos Average (Razão de Pontos)',
+  'points-ratio': '7. Razão de Pontos (Pontos Average)',
+  draw: '8. Sorteio / Determinístico',
 };
 
 /**
@@ -47,8 +76,16 @@ export function competitionPointsFromSets(setsWon: number, setsLost: number): nu
   return setsLost - setsWon === 1 ? 1 : 0;
 }
 
+export function isMatchCompleted(match: MatchRecord, onlyHomologated = false): boolean {
+  if (onlyHomologated) {
+    return match.status === 'homologated';
+  }
+  return match.status === 'completed' || match.status === 'homologated';
+}
+
 export function matchWinner(match: MatchRecord): string | null {
-  if (match.status !== 'completed') return null;
+  if (match.winnerId) return match.winnerId;
+  if (!isMatchCompleted(match)) return null;
   const setsA = match.sets.filter(s => s.scoreA > s.scoreB).length;
   const setsB = match.sets.filter(s => s.scoreB > s.scoreA).length;
   if (setsA === setsB) return null;
@@ -56,23 +93,28 @@ export function matchWinner(match: MatchRecord): string | null {
 }
 
 /** Agrega as estatísticas de uma equipe em uma lista de partidas. */
-export function accumulateStats(matches: MatchRecord[], teamId: string): Omit<TeamStandingResult, 'teamId' | 'teamName' | 'teamShortName' | 'groupName' | 'position'> {
+export function accumulateStats(
+  matches: MatchRecord[],
+  teamId: string,
+  onlyHomologated = false,
+): Omit<TeamStandingResult, 'teamId' | 'teamName' | 'teamShortName' | 'groupName' | 'position' | 'tiebreakReason' | 'isProvisional'> {
   const stats = {
     matchesPlayed: 0,
     matchesWon: 0,
     matchesLost: 0,
     setsWon: 0,
     setsLost: 0,
+    setsBalance: 0,
+    setsRatio: 0,
     pointsWon: 0,
     pointsLost: 0,
-    competitionPoints: 0,
-    setsRatio: 0,
-    pointsRatio: 0,
     pointsBalance: 0,
+    pointsRatio: 0,
+    competitionPoints: 0,
   };
 
   for (const match of matches) {
-    if (match.status !== 'completed') continue;
+    if (!isMatchCompleted(match, onlyHomologated)) continue;
     const isA = match.teamAId === teamId;
     if (!isA && match.teamBId !== teamId) continue;
 
@@ -99,19 +141,25 @@ export function accumulateStats(matches: MatchRecord[], teamId: string): Omit<Te
     stats.competitionPoints += competitionPointsFromSets(setsWon, setsLost);
   }
 
+  stats.setsBalance = stats.setsWon - stats.setsLost;
+  stats.pointsBalance = stats.pointsWon - stats.pointsLost;
   stats.setsRatio = stats.setsLost === 0 ? stats.setsWon : stats.setsWon / stats.setsLost;
   stats.pointsRatio = stats.pointsLost === 0 ? stats.pointsWon : stats.pointsWon / stats.pointsLost;
-  stats.pointsBalance = stats.pointsWon - stats.pointsLost;
 
   return stats;
 }
 
-/** Confronto direto entre duas equipes (retorna a vencedora, ou null se 1x1/inexistente). */
-export function headToHeadWinner(matches: MatchRecord[], teamAId: string, teamBId: string): string | null {
+/** Confronto direto entre duas equipes (retorna a vencedora, ou null se empate/inexistente). */
+export function headToHeadWinner(
+  matches: MatchRecord[],
+  teamAId: string,
+  teamBId: string,
+  onlyHomologated = false,
+): string | null {
   let winsA = 0;
   let winsB = 0;
   for (const match of matches) {
-    if (match.status !== 'completed') continue;
+    if (!isMatchCompleted(match, onlyHomologated)) continue;
     const involvesBoth =
       (match.teamAId === teamAId && match.teamBId === teamBId) ||
       (match.teamAId === teamBId && match.teamBId === teamAId);
@@ -125,54 +173,132 @@ export function headToHeadWinner(matches: MatchRecord[], teamAId: string, teamBI
 }
 
 /**
- * Compara duas equipes pelos critérios 1º a 6º.
- * Retorna 0 quando deve ir ao critério seguinte.
+ * Avalia um único critério entre duas equipes.
+ * Retorna < 0 se A > B, > 0 se B > A, ou 0 se empatado.
  */
-function compareByCriteria(
+function evaluateSingleCriterion(
+  criterion: TiebreakCriterionId,
   a: TeamStandingResult,
   b: TeamStandingResult,
   matches: MatchRecord[],
-): number {
-  // 1º - Maior número de pontos
-  if (a.competitionPoints !== b.competitionPoints) return b.competitionPoints - a.competitionPoints;
-  // 2º - Confronto direto (apenas empate entre 2 equipes)
-  const directWinner = headToHeadWinner(matches, a.teamId, b.teamId);
-  if (directWinner === a.teamId) return -1;
-  if (directWinner === b.teamId) return 1;
-  // 3º - Set Average
-  if (a.setsRatio !== b.setsRatio) return b.setsRatio - a.setsRatio;
-  // 4º - Pontos Average
-  if (a.pointsRatio !== b.pointsRatio) return b.pointsRatio - a.pointsRatio;
-  // 5º - Saldo de pontos
-  if (a.pointsBalance !== b.pointsBalance) return b.pointsBalance - a.pointsBalance;
-  // 6º - Maior número de pontos marcados
-  return b.pointsWon - a.pointsWon;
+  onlyHomologated: boolean,
+): { diff: number; reason?: string } {
+  switch (criterion) {
+    case 'points':
+      if (a.competitionPoints !== b.competitionPoints) {
+        return {
+          diff: b.competitionPoints - a.competitionPoints,
+          reason: `${a.competitionPoints > b.competitionPoints ? a.teamName : b.teamName} tem mais pontos (${Math.max(a.competitionPoints, b.competitionPoints)} vs ${Math.min(a.competitionPoints, b.competitionPoints)})`,
+        };
+      }
+      return { diff: 0 };
+
+    case 'victories':
+      if (a.matchesWon !== b.matchesWon) {
+        return {
+          diff: b.matchesWon - a.matchesWon,
+          reason: `${a.matchesWon > b.matchesWon ? a.teamName : b.teamName} tem mais vitórias (${Math.max(a.matchesWon, b.matchesWon)} vs ${Math.min(a.matchesWon, b.matchesWon)})`,
+        };
+      }
+      return { diff: 0 };
+
+    case 'head-to-head': {
+      const winner = headToHeadWinner(matches, a.teamId, b.teamId, onlyHomologated);
+      if (winner === a.teamId) {
+        return { diff: -1, reason: `${a.teamName} venceu o confronto direto contra ${b.teamName}` };
+      }
+      if (winner === b.teamId) {
+        return { diff: 1, reason: `${b.teamName} venceu o confronto direto contra ${a.teamName}` };
+      }
+      return { diff: 0 };
+    }
+
+    case 'sets-balance':
+      if (a.setsBalance !== b.setsBalance) {
+        return {
+          diff: b.setsBalance - a.setsBalance,
+          reason: `${a.setsBalance > b.setsBalance ? a.teamName : b.teamName} tem melhor saldo de sets (${Math.max(a.setsBalance, b.setsBalance)} vs ${Math.min(a.setsBalance, b.setsBalance)})`,
+        };
+      }
+      return { diff: 0 };
+
+    case 'set-average':
+    case 'sets-ratio':
+      if (Math.abs(a.setsRatio - b.setsRatio) > 0.0001) {
+        return {
+          diff: b.setsRatio - a.setsRatio,
+          reason: `${a.setsRatio > b.setsRatio ? a.teamName : b.teamName} tem melhor set average (${Math.max(a.setsRatio, b.setsRatio).toFixed(3)} vs ${Math.min(a.setsRatio, b.setsRatio).toFixed(3)})`,
+        };
+      }
+      return { diff: 0 };
+
+    case 'points-balance':
+      if (a.pointsBalance !== b.pointsBalance) {
+        return {
+          diff: b.pointsBalance - a.pointsBalance,
+          reason: `${a.pointsBalance > b.pointsBalance ? a.teamName : b.teamName} tem melhor saldo de pontos (${Math.max(a.pointsBalance, b.pointsBalance)} vs ${Math.min(a.pointsBalance, b.pointsBalance)})`,
+        };
+      }
+      return { diff: 0 };
+
+    case 'points-average':
+    case 'points-ratio':
+      if (Math.abs(a.pointsRatio - b.pointsRatio) > 0.0001) {
+        return {
+          diff: b.pointsRatio - a.pointsRatio,
+          reason: `${a.pointsRatio > b.pointsRatio ? a.teamName : b.teamName} tem melhor pontos average (${Math.max(a.pointsRatio, b.pointsRatio).toFixed(3)} vs ${Math.min(a.pointsRatio, b.pointsRatio).toFixed(3)})`,
+        };
+      }
+      return { diff: 0 };
+
+    case 'draw':
+    default: {
+      const diff = a.teamId.localeCompare(b.teamId);
+      return {
+        diff,
+        reason: diff !== 0 ? `Desempate por sorteio determinístico` : undefined,
+      };
+    }
+  }
 }
 
+export type StandingsOptions = {
+  criteria?: TiebreakCriterionId[];
+  onlyHomologated?: boolean;
+};
+
 /**
- * Calcula a classificação de um grupo.
- * Em empates com 3+ equipes nos critérios 1-2, os critérios 3-6 são
- * aplicados globalmente (evita arbitrariedade); o 7º critério (sorteio)
- * é resolvido por ordem estável (id lexicográfico), documentado no
- * regulamento como substituto determinístico do sorteio.
+ * Calcula a classificação de uma lista de equipes com critérios customizáveis.
  */
 export function computeStandings(
   teams: StandingInput[],
   matches: MatchRecord[],
+  options?: StandingsOptions,
 ): TeamStandingResult[] {
+  const criteria = options?.criteria?.length ? options.criteria : DEFAULT_TIEBREAK_CRITERIA;
+  const onlyHomologated = options?.onlyHomologated ?? false;
+
   const rows: TeamStandingResult[] = teams.map(({ team, groupName }) => ({
     teamId: team.id,
     teamName: team.name,
     teamShortName: team.shortName,
     groupName,
     position: 0,
-    ...accumulateStats(matches, team.id),
+    ...accumulateStats(matches, team.id, onlyHomologated),
+    isProvisional: !onlyHomologated && matches.some(m => m.status === 'completed' && !m.homologatedAt),
   }));
 
   rows.sort((a, b) => {
-    const byCriteria = compareByCriteria(a, b, matches);
-    if (byCriteria !== 0) return byCriteria;
-    // 7º - Sorteio: ordem estável determinística
+    for (const criterion of criteria) {
+      const { diff, reason } = evaluateSingleCriterion(criterion, a, b, matches, onlyHomologated);
+      if (diff !== 0) {
+        if (criterion !== 'points') {
+          if (diff < 0 && !a.tiebreakReason) a.tiebreakReason = reason;
+          else if (diff > 0 && !b.tiebreakReason) b.tiebreakReason = reason;
+        }
+        return diff;
+      }
+    }
     return a.teamId.localeCompare(b.teamId);
   });
 
@@ -189,12 +315,12 @@ export type StandingsByGroup = {
 }[];
 
 /**
- * Classificação separada por grupo (chave). Se nenhuma equipe tiver
- * groupName, retorna uma única chave genérica.
+ * Classificação separada por grupo (chave).
  */
 export function computeStandingsByGroup(
   teams: StandingInput[],
   matches: MatchRecord[],
+  options?: StandingsOptions,
 ): StandingsByGroup {
   const groups = new Map<string, StandingInput[]>();
   for (const entry of teams) {
@@ -206,8 +332,68 @@ export function computeStandingsByGroup(
 
   const result: StandingsByGroup = [];
   for (const [groupName, groupTeams] of groups) {
-    const sorted = computeStandings(groupTeams, matches);
+    const sorted = computeStandings(groupTeams, matches, options);
     result.push({ groupName: groupName || 'Classificação Geral', standings: sorted });
   }
   return result;
 }
+
+export type BestThirdResult = TeamStandingResult & {
+  originalGroupName: string;
+  originalPosition: number;
+  qualified: boolean;
+};
+
+/**
+ * Calcula o ranking dos Melhores Terceiros colocados entre todos os grupos.
+ */
+export function computeBestThirds(
+  groupStandings: StandingsByGroup,
+  qualifyingCount = 2,
+  options?: StandingsOptions,
+): BestThirdResult[] {
+  const thirdPlaces: BestThirdResult[] = [];
+
+  for (const group of groupStandings) {
+    const third = group.standings.find(s => s.position === 3);
+    if (third) {
+      thirdPlaces.push({
+        ...third,
+        originalGroupName: group.groupName,
+        originalPosition: 3,
+        qualified: false,
+      });
+    }
+  }
+
+  const criteria = options?.criteria?.length ? options.criteria : DEFAULT_TIEBREAK_CRITERIA;
+  const onlyHomologated = options?.onlyHomologated ?? false;
+
+  thirdPlaces.sort((a, b) => {
+    for (const criterion of criteria) {
+      if (criterion === 'head-to-head') continue; // Equipes de grupos diferentes não têm confronto direto
+      const { diff, reason } = evaluateSingleCriterion(criterion, a, b, [], onlyHomologated);
+      if (diff !== 0) {
+        if (criterion !== 'points') {
+          if (diff < 0 && !a.tiebreakReason) a.tiebreakReason = reason;
+          else if (diff > 0 && !b.tiebreakReason) b.tiebreakReason = reason;
+        }
+        return diff;
+      }
+    }
+    return a.teamId.localeCompare(b.teamId);
+  });
+
+  thirdPlaces.forEach((team, idx) => {
+    team.position = idx + 1;
+    team.qualified = idx < qualifyingCount;
+    if (team.qualified) {
+      team.tiebreakReason = team.tiebreakReason
+        ? `${team.tiebreakReason} (Avança como ${idx + 1}º Melhor 3º)`
+        : `Classificado como ${idx + 1}º Melhor 3º colocado`;
+    }
+  });
+
+  return thirdPlaces;
+}
+

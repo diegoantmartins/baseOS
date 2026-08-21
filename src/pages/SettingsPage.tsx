@@ -9,6 +9,10 @@ import {
   Upload,
   Save,
   Globe,
+  Database,
+  Trash2,
+  RotateCcw,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -21,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { dataAccess } from '@/services/dataAccess';
+import { dataAccess, clearAllCompetitionData, clearEntireDatabase, resetLocalData } from '@/services/dataAccess';
 import type { NotificationPrefs, ScoringRules, SettingsRecord } from '@/types/entities';
 import { useAuth } from '@/components/auth/AuthContext';
 import { ROLE_LABELS } from '@/types/auth';
@@ -204,6 +208,10 @@ const SettingsPage = () => {
               <TabsTrigger value="appearance" className="gap-2">
                 <Palette className="w-4 h-4" />
                 Aparência
+              </TabsTrigger>
+              <TabsTrigger value="database" className="gap-2 text-destructive">
+                <Database className="w-4 h-4" />
+                Base de Dados
               </TabsTrigger>
             </TabsList>
 
@@ -484,6 +492,103 @@ const SettingsPage = () => {
                     <Button variant="accent" className="gap-2" onClick={handleSaveAppearance}>
                       <Save className="w-4 h-4" />
                       Salvar Aparência
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Database Management Tab */}
+            <TabsContent value="database">
+              <Card className="card-elevated">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="w-5 h-5 text-primary" />
+                    Gerenciamento & Limpeza da Base de Dados
+                  </CardTitle>
+                  <CardDescription>
+                    Limpe ou restaure os dados para cadastrar novas competições do zero ou reiniciar a base.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Opção 1: Limpar Competições */}
+                  <div className="p-4 rounded-xl border border-border/80 bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="font-semibold text-sm text-foreground flex items-center gap-2">
+                        <Trash2 className="w-4 h-4 text-amber-500" />
+                        Limpar Competições, Jogos e Inscrições
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Apaga todas as competições, confrontos, súmulas e inscrições, preservando equipes, atletas, locais e modalidades cadastradas.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="border-amber-500/40 hover:bg-amber-500/10 text-amber-700 shrink-0 gap-1.5"
+                      onClick={() => {
+                        if (confirm('Deseja realmente limpar todas as competições e jogos para cadastrar um novo campeonato?')) {
+                          clearAllCompetitionData();
+                          toast.success('Base de competições limpa com sucesso! Você pode criar seu novo campeonato agora.');
+                          setTimeout(() => window.location.href = '/competicoes?new=1', 800);
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Limpar Competições
+                    </Button>
+                  </div>
+
+                  {/* Opção 2: Zerar Base Completa */}
+                  <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="font-semibold text-sm text-destructive flex items-center gap-2">
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                        Zerar Toda a Base de Dados (Clean Slate)
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Remove todos os dados cadastrais (competições, equipes, partidas e atletas) para iniciar o sistema 100% vazio.
+                      </p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      className="shrink-0 gap-1.5"
+                      onClick={() => {
+                        if (confirm('Atenção: Todos os dados serão excluídos. Deseja continuar?')) {
+                          clearEntireDatabase();
+                          toast.success('Toda a base de dados foi zerada com sucesso!');
+                          setTimeout(() => window.location.href = '/competicoes?new=1', 800);
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Zerar Base Completa
+                    </Button>
+                  </div>
+
+                  {/* Opção 3: Restaurar Demonstração */}
+                  <div className="p-4 rounded-xl border border-border/80 bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="font-semibold text-sm text-foreground flex items-center gap-2">
+                        <RotateCcw className="w-4 h-4 text-primary" />
+                        Restaurar Dados de Demonstração (Seed)
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Recarrega os dados de teste iniciais (Superliga, Copa Toledo, equipes e confrontos de exemplo).
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="shrink-0 gap-1.5"
+                      onClick={() => {
+                        if (confirm('Deseja recarregar os dados de demonstração padrão?')) {
+                          resetLocalData();
+                          toast.success('Dados de demonstração restaurados!');
+                          setTimeout(() => window.location.reload(), 800);
+                        }
+                      }}
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Restaurar Demonstração
                     </Button>
                   </div>
                 </CardContent>
