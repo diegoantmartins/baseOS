@@ -14,6 +14,7 @@ import {
   generateMatchesBoletimPdf,
   generateStandingsReportPdf,
   generateTeamRosterReportPdf,
+  generatePodiumReportPdf,
   downloadReportsPdf,
 } from '@/lib/pdf/reportsPdf';
 import { BlankSheetEmitDialog } from '@/components/match/BlankSheetEmitDialog';
@@ -41,11 +42,22 @@ export default function ReportsPage() {
   const [selectedMatch, setSelectedMatch] = useState<MatchRecord | null>(null);
 
   const refresh = useCallback(async () => {
-    const comps = await dataAccess.listCompetitions();
-    setCompetitions(comps);
-    setCompetitionId(prev => prev || comps[0]?.id || '');
-    setLoading(false);
-  }, []);
+    try {
+      const [comps, mList] = await Promise.all([
+        dataAccess.listCompetitions(),
+        dataAccess.listMatches(),
+      ]);
+      setCompetitions(comps);
+      setMatches(mList);
+      if (comps.length > 0 && !competitionId) {
+        setCompetitionId(comps[0].id);
+      }
+    } catch {
+      toast.error('Erro ao carregar dados dos relatórios');
+    } finally {
+      setLoading(false);
+    }
+  }, [competitionId]);
 
   useEffect(() => {
     refresh();
@@ -58,7 +70,7 @@ export default function ReportsPage() {
     const [matches, teams] = await Promise.all([dataAccess.listMatches(), dataAccess.listTeams()]);
     const rows = matches
       .filter(m => m.competitionId === competition.id)
-      .sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime))
+      .sort((a, b) => (a.scheduledTime || '').localeCompare(b.scheduledTime || ''))
       .map(m => {
         const teamA = teams.find(t => t.id === m.teamAId);
         const teamB = teams.find(t => t.id === m.teamBId);
@@ -69,12 +81,16 @@ export default function ReportsPage() {
           round: m.round,
           phase: m.phase,
           groupName: m.groupName,
-          date: m.scheduledTime,
-          time: new Date(m.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-          venue: m.venue,
+          date: m.scheduledTime ? (m.scheduledTime.includes('T') ? m.scheduledTime.split('T')[0] : m.scheduledTime.split(' ')[0]) : '',
+          time: m.scheduledTime ? (m.scheduledTime.includes('T') ? m.scheduledTime.split('T')[1].substring(0, 5) : m.scheduledTime.split(' ')[1]?.substring(0, 5) || '') : '',
+          venue: m.venue || 'Ginásio Principal',
           court: m.court,
           teamAName: teamA?.name ?? m.teamAName,
+          teamAShort: teamA?.shortName,
+          teamALogo: teamA?.logoUrl,
           teamBName: teamB?.name ?? m.teamBName,
+          teamBShort: teamB?.shortName,
+          teamBLogo: teamB?.logoUrl,
           scoreA: m.status === 'completed' || m.status === 'homologated' ? setsA : undefined,
           scoreB: m.status === 'completed' || m.status === 'homologated' ? setsB : undefined,
           statusLabel:
@@ -132,6 +148,11 @@ export default function ReportsPage() {
           name: team?.name ?? 'Equipe',
           shortName: team?.shortName ?? '—',
           coach: team?.coachName,
+          assistantCoach: undefined,
+          medicalStaff: team?.managerName ? `Dir: ${team.managerName}` : undefined,
+          city: team?.city,
+          state: team?.state,
+          modality: team?.modality,
           logoUrl: team?.logoUrl,
           athletes: list.map(a => ({
             jerseyNumber: a.jerseyNumber,
@@ -146,7 +167,7 @@ export default function ReportsPage() {
       competition ? competition.name : 'Todas as competições',
     );
     downloadReportsPdf(doc, 'relacao_nominal_equipes.pdf');
-    toast.success('Relação nominal de elencos gerada com sucesso!');
+    toast.success('Relação nominal de elencos (1 equipe por folha) gerada!');
   };
 
   const exportPodiumReport = async () => {
@@ -160,21 +181,15 @@ export default function ReportsPage() {
     const third = teams.find(t => t.id === podium.thirdPlaceTeamId);
     const fourth = teams.find(t => t.id === podium.fourthPlaceTeamId);
 
-    // Export using standings generator format
-    const doc = generateStandingsReportPdf(
-      [
-        {
-          groupName: 'Quadro de Honra & Pódio Final',
-          standings: [
-            { position: 1, teamId: champion?.id || '1', teamName: `🥇 CAMPEÃO: ${champion?.name || 'A definir'}`, teamShortName: champion?.shortName || '', matchesPlayed: 0, matchesWon: 0, matchesLost: 0, setsWon: 0, setsLost: 0, setsRatio: 0, pointsWon: 0, pointsLost: 0, pointsBalance: 0, pointsRatio: 0, competitionPoints: 0 },
-            { position: 2, teamId: runnerUp?.id || '2', teamName: `🥈 VICE-CAMPEÃO: ${runnerUp?.name || 'A definir'}`, teamShortName: runnerUp?.shortName || '', matchesPlayed: 0, matchesWon: 0, matchesLost: 0, setsWon: 0, setsLost: 0, setsRatio: 0, pointsWon: 0, pointsLost: 0, pointsBalance: 0, pointsRatio: 0, competitionPoints: 0 },
-            { position: 3, teamId: third?.id || '3', teamName: `🥉 3º LUGAR: ${third?.name || 'A definir'}`, teamShortName: third?.shortName || '', matchesPlayed: 0, matchesWon: 0, matchesLost: 0, setsWon: 0, setsLost: 0, setsRatio: 0, pointsWon: 0, pointsLost: 0, pointsBalance: 0, pointsRatio: 0, competitionPoints: 0 },
-            { position: 4, teamId: fourth?.id || '4', teamName: `4º LUGAR: ${fourth?.name || 'A definir'}`, teamShortName: fourth?.shortName || '', matchesPlayed: 0, matchesWon: 0, matchesLost: 0, setsWon: 0, setsLost: 0, setsRatio: 0, pointsWon: 0, pointsLost: 0, pointsBalance: 0, pointsRatio: 0, competitionPoints: 0 },
-          ],
-        },
-      ],
-      `Encerramento Oficial - ${competition.name}`,
-    );
+    const catName = competition.genderCategory === 'male' ? 'Masculino' : competition.genderCategory === 'female' ? 'Feminino' : 'Misto';
+    const doc = generatePodiumReportPdf({
+      competitionName: competition.name,
+      categoryName: catName,
+      champion: champion ? { name: champion.name, shortName: champion.shortName, logoUrl: champion.logoUrl } : undefined,
+      runnerUp: runnerUp ? { name: runnerUp.name, shortName: runnerUp.shortName, logoUrl: runnerUp.logoUrl } : undefined,
+      third: third ? { name: third.name, shortName: third.shortName, logoUrl: third.logoUrl } : undefined,
+      fourth: fourth ? { name: fourth.name, shortName: fourth.shortName, logoUrl: fourth.logoUrl } : undefined,
+    });
 
     downloadReportsPdf(doc, `podio_final_${competition.name.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase()}.pdf`);
     toast.success('Relatório de Pódio e Encerramento gerado com sucesso!');

@@ -116,8 +116,8 @@ export const SUMULA5_GEOMETRY: SumulaGeometry = {
   pageWidth: SUMULA5_PAGE.width,
   pageHeight: SUMULA5_PAGE.height,
   cleanZones: [
-    // Header completo: emblema FPV + títulos arqueados + caixas decorativas
-    { x: 82, y: 13, width: 1034, height: 122.6 },
+    // Header completo de alta resolução: limpa qualquer resquício e prepara para o cabeçalho VolleyPro
+    { x: 18, y: 10, width: 1154, height: 115 },
   ],
   logoZone: { x: 90, y: 20, width: 70, height: 55 },
   fields: SUMULA5_FIELDS,

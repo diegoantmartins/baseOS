@@ -170,6 +170,7 @@ export function renderTeamBadges(
 
 /**
  * Desenha o cabeçalho superior completo de alta resolução vetorial VolleyPro.
+ * Adapta dinamicamente para A4 paisagem (3 sets) e A3 paisagem (5 sets).
  */
 export function renderHeaderFields(
   page: PDFPage,
@@ -179,29 +180,43 @@ export function renderHeaderFields(
   orgName?: string,
   values?: Record<string, string>,
 ): void {
-  const toPdfY = (yTop: number) => 566 - yTop;
+  const pageHeight = page.getHeight();
+  const pageWidth = page.getWidth();
+  const toPdfY = (yTop: number) => pageHeight - yTop;
+
+  const totalWidth = pageWidth - 36; // 18 de margem em cada lado
+  const startX = 18;
 
   // 1. Top Bar Dark Navy (y: 10 a 36)
   page.drawRectangle({
-    x: 18,
+    x: startX,
     y: toPdfY(36),
-    width: 966,
+    width: totalWidth,
     height: 26,
     color: NAVY,
   });
-  page.drawText('VOLLEYPRO', { x: 30, y: toPdfY(29), size: 14, font: fonts.boldFont, color: WHITE });
-  page.drawText('SÚMULA OFICIAL DE VOLEIBOL DE QUADRA', { x: 130, y: toPdfY(28), size: 9, font: fonts.boldFont, color: rgb(0.7, 0.85, 1) });
+  page.drawText('VOLLEYPRO', { x: startX + 12, y: toPdfY(29), size: 14, font: fonts.boldFont, color: WHITE });
+  page.drawText('SÚMULA OFICIAL DE VOLEIBOL DE QUADRA', { x: startX + 112, y: toPdfY(28), size: 9, font: fonts.boldFont, color: rgb(0.7, 0.85, 1) });
   
   const formatText = match.format === '5-sets' ? '3 DE 5 SETS' : '2 DE 3 SETS';
   const formatWidth = fonts.boldFont.widthOfTextAtSize(formatText, 8.5);
-  page.drawText(formatText, { x: 964 - formatWidth, y: toPdfY(28), size: 8.5, font: fonts.boldFont, color: rgb(0.7, 0.85, 1) });
+  page.drawText(formatText, { x: startX + totalWidth - 12 - formatWidth, y: toPdfY(28), size: 8.5, font: fonts.boldFont, color: rgb(0.7, 0.85, 1) });
 
   // 2. Grid de Dados da Partida (y: 40 a 66)
+  // Box 1: Competição (28% da largura)
+  const box1W = Math.round(totalWidth * 0.28);
+  const box2W = Math.round(totalWidth * 0.28);
+  const box3W = totalWidth - box1W - box2W - 8; // 4px de gap entre caixas
+
+  const box1X = startX;
+  const box2X = box1X + box1W + 4;
+  const box3X = box2X + box2W + 4;
+
   // Box 1: Competição
-  page.drawRectangle({ x: 18, y: toPdfY(66), width: 270, height: 26, color: LIGHT_BG, borderColor: BORDER_GRAY, borderWidth: 0.8 });
-  page.drawText('COMPETIÇÃO', { x: 24, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
+  page.drawRectangle({ x: box1X, y: toPdfY(66), width: box1W, height: 26, color: LIGHT_BG, borderColor: BORDER_GRAY, borderWidth: 0.8 });
+  page.drawText('COMPETIÇÃO', { x: box1X + 6, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
   if (match.competitionName) {
-    page.drawText(match.competitionName, { x: 24, y: toPdfY(60), size: 8.5, font: fonts.boldFont, color: TEXT_DARK });
+    page.drawText(match.competitionName, { x: box1X + 6, y: toPdfY(60), size: 8.5, font: fonts.boldFont, color: TEXT_DARK });
   }
 
   // Box 2: Local e Cidade
@@ -212,64 +227,73 @@ export function renderHeaderFields(
   const cityText = resolveFieldValue(values, 'city', defaultCity);
   const locationCombined = venueText && cityText ? `${venueText} - ${cityText}` : (venueText || cityText);
 
-  page.drawRectangle({ x: 292, y: toPdfY(66), width: 273, height: 26, color: LIGHT_BG, borderColor: BORDER_GRAY, borderWidth: 0.8 });
-  page.drawText('GINÁSIO / CIDADE', { x: 298, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
+  page.drawRectangle({ x: box2X, y: toPdfY(66), width: box2W, height: 26, color: LIGHT_BG, borderColor: BORDER_GRAY, borderWidth: 0.8 });
+  page.drawText('GINÁSIO / CIDADE', { x: box2X + 6, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
   if (locationCombined) {
-    page.drawText(locationCombined, { x: 298, y: toPdfY(60), size: 8, font: fonts.boldFont, color: TEXT_DARK });
+    page.drawText(locationCombined, { x: box2X + 6, y: toPdfY(60), size: 8.5, font: fonts.boldFont, color: TEXT_DARK });
   }
 
-  // Box 3: Metadados Jogo (x: 570 a 984) com 4 colunas estritamente separadas
-  page.drawRectangle({ x: 570, y: toPdfY(66), width: 414, height: 26, color: LIGHT_BG, borderColor: BORDER_GRAY, borderWidth: 0.8 });
-  page.drawLine({ start: { x: 618, y: toPdfY(66) }, end: { x: 618, y: toPdfY(40) }, thickness: 0.5, color: rgb(0.85, 0.88, 0.92) });
-  page.drawLine({ start: { x: 718, y: toPdfY(66) }, end: { x: 718, y: toPdfY(40) }, thickness: 0.5, color: rgb(0.85, 0.88, 0.92) });
-  page.drawLine({ start: { x: 840, y: toPdfY(66) }, end: { x: 840, y: toPdfY(40) }, thickness: 0.5, color: rgb(0.85, 0.88, 0.92) });
+  // Box 3: Metadados Jogo (dividido em 4 subcolunas)
+  page.drawRectangle({ x: box3X, y: toPdfY(66), width: box3W, height: 26, color: LIGHT_BG, borderColor: BORDER_GRAY, borderWidth: 0.8 });
+  
+  const sub1W = Math.round(box3W * 0.12);
+  const sub2W = Math.round(box3W * 0.24);
+  const sub3W = Math.round(box3W * 0.30);
+
+  const div1X = box3X + sub1W;
+  const div2X = div1X + sub2W;
+  const div3X = div2X + sub3W;
+
+  page.drawLine({ start: { x: div1X, y: toPdfY(66) }, end: { x: div1X, y: toPdfY(40) }, thickness: 0.5, color: rgb(0.85, 0.88, 0.92) });
+  page.drawLine({ start: { x: div2X, y: toPdfY(66) }, end: { x: div2X, y: toPdfY(40) }, thickness: 0.5, color: rgb(0.85, 0.88, 0.92) });
+  page.drawLine({ start: { x: div3X, y: toPdfY(66) }, end: { x: div3X, y: toPdfY(40) }, thickness: 0.5, color: rgb(0.85, 0.88, 0.92) });
 
   // Sub 1: JOGO
-  page.drawText('JOGO', { x: 576, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
+  page.drawText('JOGO', { x: box3X + 6, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
   const matchNumText = match.matchNumber ? `Nº ${String(match.matchNumber).padStart(2, '0')}` : 'Nº ___';
-  page.drawText(matchNumText, { x: 576, y: toPdfY(60), size: 8.5, font: fonts.boldFont, color: NAVY });
+  page.drawText(matchNumText, { x: box3X + 6, y: toPdfY(60), size: 8.5, font: fonts.boldFont, color: NAVY });
 
   // Sub 2: FASE
-  page.drawText('FASE', { x: 624, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
+  page.drawText('FASE', { x: div1X + 6, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
   if (match.phase) {
     const phaseClean = match.phase.slice(0, 16);
-    page.drawText(phaseClean, { x: 624, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
+    page.drawText(phaseClean, { x: div1X + 6, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
   }
 
   // Sub 3: DATA / HORA
-  page.drawText('DATA / HORA', { x: 724, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
+  page.drawText('DATA / HORA', { x: div2X + 6, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
   const dateTimeText = match.date ? `${match.date} ${match.startTime ? '- ' + match.startTime : ''}` : '___/___/______';
-  page.drawText(dateTimeText, { x: 724, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
+  page.drawText(dateTimeText, { x: div2X + 6, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
 
   // Sub 4: CATEGORIA / SEXO
   const genderName = match.gender === 'female' ? 'Feminino' : match.gender === 'male' ? 'Masculino' : match.gender === 'mixed' ? 'Misto' : '';
-  const catText = match.categoryName ? `${match.categoryName}${genderName ? ' | ' + genderName : ''}`.slice(0, 22) : (genderName || '');
-  page.drawText('CATEGORIA / SEXO', { x: 846, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
+  const catText = match.categoryName ? `${match.categoryName}${genderName ? ' | ' + genderName : ''}`.slice(0, 26) : (genderName || '');
+  page.drawText('CATEGORIA / SEXO', { x: div3X + 6, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
   if (catText) {
-    page.drawText(catText, { x: 846, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
+    page.drawText(catText, { x: div3X + 6, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
   }
 
-  // 3. Linha de Confronto (y: 69 a 96, x: 18 a 984) — Limpa com nomes completos das equipes
-  page.drawRectangle({ x: 18, y: toPdfY(96), width: 966, height: 27, color: rgb(0.92, 0.96, 1), borderColor: BORDER_GRAY, borderWidth: 0.8 });
+  // 3. Linha de Confronto (y: 69 a 96)
+  page.drawRectangle({ x: startX, y: toPdfY(96), width: totalWidth, height: 27, color: rgb(0.92, 0.96, 1), borderColor: BORDER_GRAY, borderWidth: 0.8 });
 
   // Nome Equipe 1
   if (match.teamA.name) {
-    page.drawText(match.teamA.name, { x: 35, y: toPdfY(86), size: 12, font: fonts.boldFont, color: NAVY });
+    page.drawText(match.teamA.name, { x: startX + 17, y: toPdfY(86), size: 12, font: fonts.boldFont, color: NAVY });
   } else {
-    page.drawText('EQUIPE 1: __________________________________', { x: 35, y: toPdfY(86), size: 10, font: fonts.boldFont, color: TEXT_MUTED });
+    page.drawText('EQUIPE 1: __________________________________', { x: startX + 17, y: toPdfY(86), size: 10, font: fonts.boldFont, color: TEXT_MUTED });
   }
 
   // VS Central
-  page.drawText('VS', { x: 490, y: toPdfY(86), size: 10, font: fonts.boldFont, color: rgb(0.3, 0.4, 0.6) });
+  page.drawText('VS', { x: startX + totalWidth / 2 - 8, y: toPdfY(86), size: 10, font: fonts.boldFont, color: rgb(0.3, 0.4, 0.6) });
 
   // Nome Equipe 2
   if (match.teamB.name) {
     const nameBWidth = fonts.boldFont.widthOfTextAtSize(match.teamB.name, 12);
-    page.drawText(match.teamB.name, { x: 966 - 17 - nameBWidth, y: toPdfY(86), size: 12, font: fonts.boldFont, color: NAVY });
+    page.drawText(match.teamB.name, { x: startX + totalWidth - 17 - nameBWidth, y: toPdfY(86), size: 12, font: fonts.boldFont, color: NAVY });
   } else {
     const placeholder = 'EQUIPE 2: __________________________________';
     const placeWidth = fonts.boldFont.widthOfTextAtSize(placeholder, 10);
-    page.drawText(placeholder, { x: 966 - 17 - placeWidth, y: toPdfY(86), size: 10, font: fonts.boldFont, color: TEXT_MUTED });
+    page.drawText(placeholder, { x: startX + totalWidth - 17 - placeWidth, y: toPdfY(86), size: 10, font: fonts.boldFont, color: TEXT_MUTED });
   }
 }
 

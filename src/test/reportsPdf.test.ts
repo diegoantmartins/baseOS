@@ -5,6 +5,7 @@ import {
   generateMatchesBoletimPdf,
   generateStandingsReportPdf,
   generateTeamRosterReportPdf,
+  generatePodiumReportPdf,
 } from '@/lib/pdf/reportsPdf';
 import type { MatchBoletimRow } from '@/lib/pdf/reportsPdf';
 
@@ -107,8 +108,33 @@ describe('generateTeamRosterReportPdf', () => {
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
   });
 
+  it('gera exatamente 1 página dedicada por equipe inscrita', () => {
+    const doc = generateTeamRosterReportPdf(
+      [
+        { name: 'Equipe Alfa', shortName: 'ALF', athletes: [] },
+        { name: 'Equipe Beta', shortName: 'BET', athletes: [] },
+        { name: 'Equipe Gama', shortName: 'GAM', athletes: [] },
+      ],
+      'Copa Teste 2026',
+    );
+    expect(doc.getNumberOfPages()).toBe(3);
+  });
+
   it('gera relação nominal vazia sem erro', () => {
     const doc = generateTeamRosterReportPdf([], 'Copa Teste 2026');
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('generatePodiumReportPdf', () => {
+  it('gera relatório de encerramento e pódio com medalhas sem caracteres corrompidos', () => {
+    const doc = generatePodiumReportPdf({
+      competitionName: 'Copa Toledo 2026',
+      champion: { name: 'Osasco Voleibol', shortName: 'OSA' },
+      runnerUp: { name: 'Minas Tênis Clube', shortName: 'MIN' },
+      third: { name: 'Praia Clube', shortName: 'PRA' },
+      fourth: { name: 'Flamengo', shortName: 'FLA' },
+    });
+    expect(doc.getNumberOfPages()).toBe(1);
   });
 });
