@@ -452,7 +452,7 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
     }
   }, [open, initial, isEdit]);
 
-  const canSubmit = name.trim().length >= 2 && shortName.trim().length > 0;
+  const canSubmit = name.trim().length >= 2 && shortName.trim().length === 3;
 
   const handleLogoFile = async (file: File | undefined) => {
     if (!file) return;
@@ -569,15 +569,24 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="team-short">Sigla / Abreviação *</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="team-short" className="flex items-center justify-between">
+                  <span>Sigla Oficial (3 Letras) *</span>
+                  <span className={`text-[10px] ${shortName.trim().length === 3 ? 'text-emerald-500 font-bold' : 'text-amber-500'}`}>
+                    {shortName.trim().length}/3 letras
+                  </span>
+                </Label>
                 <Input
                   id="team-short"
                   value={shortName}
-                  onChange={e => setShortName(e.target.value)}
+                  onChange={e => setShortName(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3))}
                   placeholder="Ex.: CRU"
-                  maxLength={6}
+                  maxLength={3}
+                  className="font-mono font-bold tracking-widest text-center uppercase"
                 />
+                <p className="text-[10px] text-muted-foreground">
+                  Obrigatório para identificação na súmula oficial (ex.: OSA, MIN, FLA).
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Modalidade</Label>

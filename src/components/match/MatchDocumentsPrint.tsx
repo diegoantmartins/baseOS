@@ -146,11 +146,11 @@ const ThreeSetsScoresheet: React.FC<{ data: MatchPrintData }> = ({ data }) => {
 
         {/* Grid de Metadados da Partida */}
         <div className="grid grid-cols-12 text-[10px] border-t border-b border-slate-900 bg-slate-50/50">
-          <div className="col-span-4 border-r border-slate-800 p-1">
+          <div className="col-span-3 border-r border-slate-800 p-1">
             <span className="block text-[7.5px] font-bold text-slate-500 uppercase">Competição</span>
             <span className="font-bold text-slate-900 truncate block">{data.competitionName || '________________________'}</span>
           </div>
-          <div className="col-span-4 border-r border-slate-800 p-1">
+          <div className="col-span-3 border-r border-slate-800 p-1">
             <span className="block text-[7.5px] font-bold text-slate-500 uppercase">Ginásio / Cidade</span>
             <span className="font-semibold text-slate-900 truncate block">
               {data.venue ? `${data.venue}${data.court ? ' (' + data.court + ')' : ''} - ${data.city || 'Toledo / PR'}` : '________________________'}
@@ -162,15 +162,17 @@ const ThreeSetsScoresheet: React.FC<{ data: MatchPrintData }> = ({ data }) => {
           </div>
           <div className="col-span-1 border-r border-slate-800 p-1 text-center">
             <span className="block text-[7.5px] font-bold text-slate-500 uppercase">Fase</span>
-            <span className="text-[9px] text-slate-800 truncate block">{data.phase || 'Grupo'}</span>
+            <span className="text-[8.5px] text-slate-800 truncate block">{data.phase || 'Grupo'}</span>
           </div>
-          <div className="col-span-1 border-r border-slate-800 p-1 text-center">
+          <div className="col-span-2 border-r border-slate-800 p-1 text-center">
             <span className="block text-[7.5px] font-bold text-slate-500 uppercase">Data / Hora</span>
-            <span className="text-[8.5px] text-slate-800 block">{data.date ? `${data.date} ${data.time || ''}` : '__/__/____'}</span>
+            <span className="text-[8.5px] font-medium text-slate-800 block">{data.date ? `${data.date} ${data.time || ''}` : '__/__/____'}</span>
           </div>
-          <div className="col-span-1 p-1 text-center">
-            <span className="block text-[7.5px] font-bold text-slate-500 uppercase">Categoria</span>
-            <span className="text-[8.5px] font-bold text-slate-900 truncate block">{data.category || 'Adulto'}</span>
+          <div className="col-span-2 p-1 text-center">
+            <span className="block text-[7.5px] font-bold text-slate-500 uppercase">Categoria / Sexo</span>
+            <span className="text-[8.5px] font-bold text-slate-900 truncate block">
+              {data.category || 'Adulto'}{data.genderCategory ? ` | ${data.genderCategory}` : ''}
+            </span>
           </div>
         </div>
 
@@ -329,10 +331,14 @@ const ThreeSetsScoresheet: React.FC<{ data: MatchPrintData }> = ({ data }) => {
               Relação Nominal das Equipes
             </div>
 
-            {/* Cabeçalho Equipes (Sem siglas) */}
-            <div className="grid grid-cols-2 text-[7.5px] border-b border-slate-800 bg-slate-100 font-bold">
-              <div className="p-0.5 border-r border-slate-300 truncate text-center">{data.teamA.name || 'EQUIPE 1'}</div>
-              <div className="p-0.5 truncate text-center">{data.teamB.name || 'EQUIPE 2'}</div>
+            {/* Cabeçalho Equipes com Sigla de 3 Letras */}
+            <div className="grid grid-cols-2 text-[8.5px] border-b border-slate-800 bg-slate-100 font-black">
+              <div className="p-0.5 border-r border-slate-300 truncate text-center uppercase tracking-wider">
+                {data.teamA.shortName ? data.teamA.shortName.toUpperCase().slice(0, 3) : (data.teamA.name?.slice(0, 3) || 'EQ1')}
+              </div>
+              <div className="p-0.5 truncate text-center uppercase tracking-wider">
+                {data.teamB.shortName ? data.teamB.shortName.toUpperCase().slice(0, 3) : (data.teamB.name?.slice(0, 3) || 'EQ2')}
+              </div>
             </div>
 
             {/* 12 Linhas de Atletas Regulares */}
@@ -477,11 +483,11 @@ const FiveSetsScoresheet: React.FC<{ data: MatchPrintData }> = ({ data }) => {
         </div>
 
         <div className="grid grid-cols-12 text-[10px] border-t border-b border-slate-900 bg-slate-50/50">
-          <div className="col-span-4 border-r border-slate-800 p-1">
+          <div className="col-span-3 border-r border-slate-800 p-1">
             <span className="block text-[7.5px] font-bold text-slate-500 uppercase">Competição</span>
             <span className="font-bold text-slate-900 truncate block">{data.competitionName || '________________________'}</span>
           </div>
-          <div className="col-span-4 border-r border-slate-800 p-1">
+          <div className="col-span-3 border-r border-slate-800 p-1">
             <span className="block text-[7.5px] font-bold text-slate-500 uppercase">Ginásio / Cidade</span>
             <span className="font-semibold text-slate-900 truncate block">
               {data.venue ? `${data.venue}${data.court ? ' (' + data.court + ')' : ''} - ${data.city || 'Toledo / PR'}` : '________________________'}
@@ -493,15 +499,17 @@ const FiveSetsScoresheet: React.FC<{ data: MatchPrintData }> = ({ data }) => {
           </div>
           <div className="col-span-1 border-r border-slate-800 p-1 text-center">
             <span className="block text-[7.5px] font-bold text-slate-500 uppercase">Fase</span>
-            <span className="text-[9px] text-slate-800 truncate block">{data.phase || 'Final'}</span>
+            <span className="text-[8.5px] text-slate-800 truncate block">{data.phase || 'Final'}</span>
           </div>
-          <div className="col-span-1 border-r border-slate-800 p-1 text-center">
+          <div className="col-span-2 border-r border-slate-800 p-1 text-center">
             <span className="block text-[7.5px] font-bold text-slate-500 uppercase">Data / Hora</span>
-            <span className="text-[8.5px] text-slate-800 block">{data.date ? `${data.date} ${data.time || ''}` : '__/__/____'}</span>
+            <span className="text-[8.5px] font-medium text-slate-800 block">{data.date ? `${data.date} ${data.time || ''}` : '__/__/____'}</span>
           </div>
-          <div className="col-span-1 p-1 text-center">
-            <span className="block text-[7.5px] font-bold text-slate-500 uppercase">Categoria</span>
-            <span className="text-[8.5px] font-bold text-slate-900 truncate block">{data.category || 'Adulto'}</span>
+          <div className="col-span-2 p-1 text-center">
+            <span className="block text-[7.5px] font-bold text-slate-500 uppercase">Categoria / Sexo</span>
+            <span className="text-[8.5px] font-bold text-slate-900 truncate block">
+              {data.category || 'Adulto'}{data.genderCategory ? ` | ${data.genderCategory}` : ''}
+            </span>
           </div>
         </div>
 
@@ -541,9 +549,14 @@ const FiveSetsScoresheet: React.FC<{ data: MatchPrintData }> = ({ data }) => {
             <div className="bg-[#0f2942] text-white text-[8px] px-2 py-0.5 font-bold uppercase text-center">
               Relação Nominal das Equipes
             </div>
-            <div className="grid grid-cols-2 text-[7.5px] border-b border-slate-800 bg-slate-100 font-bold">
-              <div className="p-0.5 border-r border-slate-300 truncate text-center">{data.teamA.name || 'EQUIPE 1'}</div>
-              <div className="p-0.5 truncate text-center">{data.teamB.name || 'EQUIPE 2'}</div>
+            {/* Cabeçalho Equipes com Sigla de 3 Letras */}
+            <div className="grid grid-cols-2 text-[8.5px] border-b border-slate-800 bg-slate-100 font-black">
+              <div className="p-0.5 border-r border-slate-300 truncate text-center uppercase tracking-wider">
+                {data.teamA.shortName ? data.teamA.shortName.toUpperCase().slice(0, 3) : (data.teamA.name?.slice(0, 3) || 'EQ1')}
+              </div>
+              <div className="p-0.5 truncate text-center uppercase tracking-wider">
+                {data.teamB.shortName ? data.teamB.shortName.toUpperCase().slice(0, 3) : (data.teamB.name?.slice(0, 3) || 'EQ2')}
+              </div>
             </div>
 
             <div className="divide-y divide-slate-200">
