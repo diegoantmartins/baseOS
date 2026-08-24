@@ -16,6 +16,11 @@ import type { MatchRecord } from '@/types/entities';
 import type { CompetitionRecord } from '@/types/entities';
 import type { CompetitionAthlete } from '@/types/registration';
 
+import { CourtLineupDnd } from '@/components/match/CourtLineupDnd';
+import { MatchSocialCard } from '@/components/match/MatchSocialCard';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ClipboardList, LayoutGrid, Share2 } from 'lucide-react';
+
 const MatchSheetPage = () => {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
@@ -25,6 +30,8 @@ const MatchSheetPage = () => {
   const [teamARoster, setTeamARoster] = useState<CompetitionAthlete[]>([]);
   const [teamBRoster, setTeamBRoster] = useState<CompetitionAthlete[]>([]);
   const [pdfData, setPdfData] = useState<MatchSheetData | null>(null);
+  const [activeTab, setActiveTab] = useState<'sheet' | 'tactical' | 'social'>('sheet');
+  const [tacticalTeam, setTacticalTeam] = useState<'A' | 'B'>('A');
   const [loading, setLoading] = useState(Boolean(matchId));
   const [notFound, setNotFound] = useState(false);
 
@@ -86,21 +93,91 @@ const MatchSheetPage = () => {
               </CardContent>
             </Card>
           ) : match ? (
-            <MatchSheetInterface
-              modality="indoor"
-              format={(competition?.setFormat ?? '3-sets') as '3-sets' | '5-sets'}
-              match={match}
-              competition={competition}
-              teamARoster={teamARoster}
-              teamBRoster={teamBRoster}
-              onPersist={handlePersist}
-            />
+            <Tabs value={activeTab} onValueChange={v => setActiveTab(v as 'sheet' | 'tactical' | 'social')} className="space-y-4">
+              <TabsList className="grid w-full grid-cols-3 bg-muted/60">
+                <TabsTrigger value="sheet" className="gap-2 text-xs sm:text-sm">
+                  <ClipboardList className="w-4 h-4" />
+                  Súmula Digital
+                </TabsTrigger>
+                <TabsTrigger value="tactical" className="gap-2 text-xs sm:text-sm">
+                  <LayoutGrid className="w-4 h-4" />
+                  Escalação em Quadra
+                </TabsTrigger>
+                <TabsTrigger value="social" className="gap-2 text-xs sm:text-sm">
+                  <Share2 className="w-4 h-4" />
+                  Card para Redes
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="sheet" className="space-y-4">
+                <MatchSheetInterface
+                  modality="indoor"
+                  format={(competition?.setFormat ?? '3-sets') as '3-sets' | '5-sets'}
+                  match={match}
+                  competition={competition}
+                  teamARoster={teamARoster}
+                  teamBRoster={teamBRoster}
+                  onPersist={handlePersist}
+                />
+              </TabsContent>
+
+              <TabsContent value="tactical" className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Button
+                    variant={tacticalTeam === 'A' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setTacticalTeam('A')}
+                  >
+                    {match.teamAName} (Equipe A)
+                  </Button>
+                  <Button
+                    variant={tacticalTeam === 'B' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setTacticalTeam('B')}
+                  >
+                    {match.teamBName} (Equipe B)
+                  </Button>
+                </div>
+
+                {tacticalTeam === 'A' ? (
+                  <CourtLineupDnd
+                    teamName={match.teamAName}
+                    teamShortName={match.teamAShortName || 'A'}
+                    roster={teamARoster}
+                  />
+                ) : (
+                  <CourtLineupDnd
+                    teamName={match.teamBName}
+                    teamShortName={match.teamBShortName || 'B'}
+                    roster={teamBRoster}
+                  />
+                )}
+              </TabsContent>
+
+              <TabsContent value="social" className="space-y-4">
+                <MatchSocialCard
+                  competitionName={competition?.name || 'Campeonato'}
+                  categoryName={competition?.format || 'Voleibol'}
+                  genderCategory={competition?.genderCategory}
+                  teamAName={match.teamAName}
+                  teamAShortName={match.teamAShortName || 'A'}
+                  teamBName={match.teamBName}
+                  teamBShortName={match.teamBShortName || 'B'}
+                  sets={match.sets.map(s => ({ number: s.setNumber, scoreA: s.scoreA, scoreB: s.scoreB }))}
+                  finalScoreA={pdfData?.finalScoreA ?? 0}
+                  finalScoreB={pdfData?.finalScoreB ?? 0}
+                  winner={pdfData?.winner}
+                  date={new Date(match.scheduledTime).toLocaleDateString('pt-BR')}
+                  venue={match.venue}
+                />
+              </TabsContent>
+            </Tabs>
           ) : (
             <MatchSelector matches={matches} onSelect={id => navigate(`/sumulas/${id}`)} />
           )}
         </div>
         <div className="lg:col-span-1">
-          <MatchPdfPreview matchData={pdfData ?? undefined} matchId={match?.id} />
+          <MatchPdfPreview matchId={match?.id} />
         </div>
       </div>
     </MainLayout>

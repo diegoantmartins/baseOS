@@ -1,38 +1,34 @@
+// =====================================================================
+// BaseOS Component - Visualizador e Exportador de Documentos Oficiais
+// =====================================================================
+
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { FileText, ListOrdered, Download, Eye, Printer, Check, ShieldCheck, PenLine, Loader2 } from 'lucide-react';
+import { FileText, ListOrdered, Download, Eye, Printer, ShieldCheck, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  buildMatchDocument,
-  loadDocumentEdits,
-  loadMatchContext,
-} from '@/services/documentEditorService';
-import {
-  buildOrdemSaqueData,
-  buildSumulaData,
-  generateFiveSetScoresheet,
-  generateServeOrderSheet,
-  generateThreeSetScoresheet,
-} from '@/document-engine/generators';
-import type { MatchSheetData } from '@/lib/pdf/matchSheetPdf';
+  loadBaseosScoresheetData,
+  generateBaseosPdfBlob,
+  generateBlankBaseosPdfBlob,
+  downloadBaseosScoresheet,
+  printBaseosScoresheet,
+  type BaseosScoresheetData,
+} from '@/document-engine/baseos';
 import { toast } from 'sonner';
 
-type DocType = 'sumula' | 'ficha';
+type DocTab = 'prefilled' | 'blank';
 
 interface MatchPdfPreviewProps {
-  matchData?: MatchSheetData;
   matchId?: string;
 }
 
-export function MatchPdfPreview({ matchData, matchId }: MatchPdfPreviewProps) {
-  const navigate = useNavigate();
+export function MatchPdfPreview({ matchId }: MatchPdfPreviewProps) {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [docType, setDocType] = useState<DocType>('sumula');
+  const [activeTab, setActiveTab] = useState<DocTab>('prefilled');
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [scoresheetData, setScoresheetData] = useState<BaseosScoresheetData | null>(null);
 
   useEffect(() => {
     if (!matchId) return;
@@ -41,31 +37,19 @@ export function MatchPdfPreview({ matchData, matchId }: MatchPdfPreviewProps) {
 
     (async () => {
       try {
-        const ctx = await loadMatchContext(matchId);
-        if (!ctx) throw new Error('Não foi possível carregar o jogo.');
-
-        const doc = buildMatchDocument(ctx);
-        const format = doc.format;
-        const documentType = format === '5-sets' ? 'SUMMULA_5' : 'SUMMULA_3';
-        const templateKind = format === '5-sets' ? 'sumula5' : 'sumula3';
-
-        const { edit, layout } = await loadDocumentEdits(matchId, documentType, templateKind);
-        const options = {
-          layoutOverrides: layout?.fields,
-          valueOverrides: edit?.values,
-        };
-
-        let bytes: Uint8Array;
-        if (docType === 'ficha') {
-          bytes = await generateServeOrderSheet(buildOrdemSaqueData(doc), options);
-        } else if (format === '5-sets') {
-          bytes = await generateFiveSetScoresheet(buildSumulaData(doc), options);
-        } else {
-          bytes = await generateThreeSetScoresheet(buildSumulaData(doc), options);
-        }
+        const data = await loadBaseosScoresheetData(
+          matchId,
+          activeTab === 'blank' ? 'blank' : 'prefilled',
+        );
+        if (!data) throw new Error('Não foi possível carregar a partida.');
 
         if (!isCancelled) {
-          const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+          setScoresheetData(data);
+          const blob =
+            activeTab === 'blank'
+              ? await generateBlankBaseosPdfBlob(data.document.format)
+              : await generateBaseosPdfBlob(data);
+
           const url = URL.createObjectURL(blob);
           setPdfBlobUrl(prev => {
             if (prev) URL.revokeObjectURL(prev);
@@ -73,7 +57,8 @@ export function MatchPdfPreview({ matchData, matchId }: MatchPdfPreviewProps) {
           });
         }
       } catch (err) {
-        console.error(err);
+        console.error('Erro ao gerar documento BaseOS:', err);
+        toast.error('Erro ao processar a Súmula BaseOS.');
       } finally {
         if (!isCancelled) setIsGenerating(false);
       }
@@ -82,17 +67,29 @@ export function MatchPdfPreview({ matchData, matchId }: MatchPdfPreviewProps) {
     return () => {
       isCancelled = true;
     };
-  }, [matchId, docType]);
+  }, [matchId, activeTab]);
 
   const handleDownload = async () => {
-    if (!pdfBlobUrl) return;
-    const a = document.createElement('a');
-    a.href = pdfBlobUrl;
-    a.download = `${docType === 'ficha' ? 'ordem_de_saque' : 'sumula_oficial_cbv'}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    toast.success('Download da Súmula Oficial iniciado!');
+    if (!scoresheetData) return;
+    try {
+      if (activeTab === 'blank') {
+        const blob = await generateBlankBaseosPdfBlob(scoresheetData.document.format);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Sumula_BaseOS_Em_Branco_${scoresheetData.document.format}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        await downloadBaseosScoresheet(scoresheetData);
+      }
+      toast.success('Download da Súmula Oficial BaseOS iniciado!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao baixar documento.');
+    }
   };
 
   const handlePreview = () => {
@@ -100,23 +97,18 @@ export function MatchPdfPreview({ matchData, matchId }: MatchPdfPreviewProps) {
     window.open(pdfBlobUrl, '_blank');
   };
 
-  const handlePrint = () => {
-    if (!pdfBlobUrl) return;
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.src = pdfBlobUrl;
-    document.body.appendChild(iframe);
-    iframe.onload = () => {
-      iframe.contentWindow?.print();
-      setTimeout(() => document.body.removeChild(iframe), 60000);
-    };
-    toast.success('Enviado para a impressora!');
+  const handlePrint = async () => {
+    if (!scoresheetData) return;
+    try {
+      await printBaseosScoresheet(scoresheetData);
+      toast.success('Enviado para a impressora!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao imprimir.');
+    }
   };
+
+  const formatLabel = scoresheetData?.document.format === '5-sets' ? '5 Sets (A3)' : '3 Sets (A4)';
 
   return (
     <Card className="card-elevated">
@@ -127,84 +119,83 @@ export function MatchPdfPreview({ matchData, matchId }: MatchPdfPreviewProps) {
               <FileText className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-lg font-display">Súmula Oficial CBV / FPV</CardTitle>
+              <CardTitle className="text-lg font-display">
+                Súmula Oficial BaseOS ({formatLabel})
+              </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Documento oficial homologado vetorial padrão federação
+                Documento vetorial de alta definição regulamentar (100% nativo)
               </p>
             </div>
           </div>
           <Badge variant="outline" className="gap-1 text-xs">
             <ShieldCheck className="w-3 h-3 text-emerald-600" />
-            Homologado Oficial
+            Padrão Oficial BaseOS
           </Badge>
         </div>
       </CardHeader>
 
       <CardContent className="p-6 space-y-6">
-        <Tabs value={docType} onValueChange={v => setDocType(v as DocType)} className="w-full">
+        <Tabs value={activeTab} onValueChange={v => setActiveTab(v as DocTab)} className="w-full">
           <TabsList className="grid w-full grid-cols-2 bg-muted/50">
-            <TabsTrigger value="sumula" className="gap-2 text-xs">
-              <FileText className="w-4 h-4" />
-              Súmula Oficial
+            <TabsTrigger value="prefilled" className="gap-1.5 text-xs">
+              <Sparkles className="w-3.5 h-3.5" />
+              Súmula da Partida (Pré-Preenchida)
             </TabsTrigger>
-            <TabsTrigger value="ficha" className="gap-2 text-xs">
-              <ListOrdered className="w-4 h-4" />
-              Ficha de Posição (Ordem de Saque)
+            <TabsTrigger value="blank" className="gap-1.5 text-xs">
+              <FileText className="w-3.5 h-3.5" />
+              Súmula em Branco (Impressão Limpa)
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
-        {/* Live PDF Viewer */}
-        {pdfBlobUrl ? (
+        {/* Visualizador do PDF */}
+        {pdfBlobUrl && !isGenerating ? (
           <div className="w-full h-[520px] rounded-xl border border-border overflow-hidden bg-slate-900 shadow-inner">
             <iframe
               src={`${pdfBlobUrl}#toolbar=0&navpanes=0`}
-              title="Pré-visualização da Súmula Oficial"
+              title="Pré-visualização da Súmula BaseOS"
               className="w-full h-full border-0"
             />
           </div>
         ) : (
-          <div className="w-full h-[320px] rounded-xl border border-border flex flex-col items-center justify-center bg-muted/20 gap-3">
+          <div className="w-full h-[400px] rounded-xl border border-border flex flex-col items-center justify-center bg-muted/20 gap-3">
             <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            <p className="text-xs text-muted-foreground">Renderizando modelo oficial homologado...</p>
+            <p className="text-xs text-muted-foreground">Renderizando motor documental BaseOS...</p>
           </div>
         )}
 
         <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePreview}
-              disabled={isGenerating || !pdfBlobUrl}
-              className="text-xs gap-1.5"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              Abrir em Nova Aba
-            </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePreview}
+            disabled={isGenerating || !pdfBlobUrl}
+            className="text-xs gap-1.5"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            Abrir em Nova Aba
+          </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePrint}
-              disabled={isGenerating || !pdfBlobUrl}
-              className="text-xs gap-1.5"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              Imprimir
-            </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrint}
+            disabled={isGenerating || !pdfBlobUrl}
+            className="text-xs gap-1.5"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            Imprimir Súmula
+          </Button>
 
-            <Button
-              variant="accent"
-              size="sm"
-              onClick={handleDownload}
-              disabled={isGenerating || !pdfBlobUrl}
-              className="text-xs gap-1.5 font-semibold"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Baixar Súmula Oficial
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            onClick={handleDownload}
+            disabled={isGenerating || !pdfBlobUrl}
+            className="text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Baixar PDF Oficial ({formatLabel})
+          </Button>
         </div>
       </CardContent>
     </Card>

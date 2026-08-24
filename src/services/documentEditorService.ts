@@ -11,13 +11,14 @@
 import type { DocumentType, MatchDocument, PlayerPosition, Team } from '../document-engine/schemas/match.schema';
 import type { CompetitionTeam, CompetitionAthlete } from '../types/registration';
 import type { MatchRecord, TeamRecord } from '../types/entities';
-import type { DocumentEdit, TemplateLayout } from '../types/documentEdit';
+import type { DocumentEdit, FieldLayoutOverride, TemplateLayout } from '../types/documentEdit';
 import { dataAccess } from './dataAccess';
 
 export type MatchContext = {
   match: MatchRecord;
   competitionName: string;
   competitionCategory: string;
+  competitionSetFormat?: string;
   gender: MatchDocument['gender'];
   teamA: TeamRecord | undefined;
   teamB: TeamRecord | undefined;
@@ -50,17 +51,63 @@ export async function loadMatchContext(matchId: string): Promise<MatchContext | 
   const competitionTeamB = competitionTeams.find(
     ct => ct.competitionId === match.competitionId && ct.teamId === match.teamBId,
   );
-  const rosterA = competitionTeamA
+  
+  let rosterA = competitionTeamA
     ? athletes.filter(a => a.competitionTeamId === competitionTeamA.id)
     : [];
-  const rosterB = competitionTeamB
+  let rosterB = competitionTeamB
     ? athletes.filter(a => a.competitionTeamId === competitionTeamB.id)
     : [];
+
+  // Fallback para atletas globais cadastrados na equipe caso a equipe não tenha elenco específico nesta competição
+  if (rosterA.length === 0 || rosterB.length === 0) {
+    const persons = await dataAccess.listPersons();
+    const gender = (competition?.genderCategory === 'female' ? 'female' : 'male') as 'male' | 'female';
+    if (rosterA.length === 0 && match.teamAId) {
+      const teamPersons = persons.filter(p => p.teamIds?.includes(match.teamAId));
+      rosterA = teamPersons.map((p, i) => ({
+        id: p.id,
+        competitionTeamId: competitionTeamA?.id || 'ct-fallback-a',
+        name: p.fullName || p.nickname || `Jogador ${i + 1}`,
+        jerseyNumber: i + 1,
+        position: i < 6 ? 'Titular' : 'Reserva',
+        isCaptain: i === 0,
+        isLibero: false,
+        gender,
+        rg: p.documentId || '',
+        cpf: p.documentId || '',
+        birthDate: p.birthDate || '',
+        photoUrl: p.photoUrl,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+    }
+    if (rosterB.length === 0 && match.teamBId) {
+      const teamPersons = persons.filter(p => p.teamIds?.includes(match.teamBId));
+      rosterB = teamPersons.map((p, i) => ({
+        id: p.id,
+        competitionTeamId: competitionTeamB?.id || 'ct-fallback-b',
+        name: p.fullName || p.nickname || `Jogador ${i + 1}`,
+        jerseyNumber: i + 1,
+        position: i < 6 ? 'Titular' : 'Reserva',
+        isCaptain: i === 0,
+        isLibero: false,
+        gender,
+        rg: p.documentId || '',
+        cpf: p.documentId || '',
+        birthDate: p.birthDate || '',
+        photoUrl: p.photoUrl,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+    }
+  }
 
   return {
     match,
     competitionName: competition?.name ?? '',
     competitionCategory: competition?.playerFormat ?? '',
+    competitionSetFormat: competition?.setFormat,
     gender: (competition?.genderCategory ?? 'mixed') as MatchDocument['gender'],
     teamA,
     teamB,
@@ -83,10 +130,10 @@ function buildTeam(
   const id = side === 'A' ? match.teamAId : match.teamBId;
   const name = side === 'A' ? match.teamAName : match.teamBName;
   const shortName = side === 'A' ? match.teamAShortName : match.teamBShortName;
-  const players = roster.map(a => ({
+  const players = roster.map((a, idx) => ({
     id: a.id,
     name: a.name,
-    shirtNumber: a.jerseyNumber,
+    shirtNumber: a.jerseyNumber ?? (idx + 1),
     position: a.position,
     isCaptain: a.isCaptain,
     active: true,
@@ -119,24 +166,51 @@ function buildLineups(
   if (!match.lineups) return [];
   const startersA = match.lineups.teamA.starterIds ?? [];
   const startersB = match.lineups.teamB.starterIds ?? [];
-  if (startersA.length !== 6 || startersB.length !== 6) return [];
-  const buildFor = (teamId: string, starters: string[], liberoId?: string) =>
-    match.sets.map(set => ({
-      setNumber: set.setNumber,
-      teamId,
-      positions: Object.fromEntries(
-        POSITIONS.map((pos, i) => [pos, starters[i]]),
-      ) as Record<PlayerPosition, string>,
-      servingPosition: 'I' as const,
-      liberoPlayerId: liberoId,
-    }));
-  return [
-    ...buildFor(teamA.id, startersA, match.lineups?.teamA.liberoId),
-    ...buildFor(teamB.id, startersB, match.lineups?.teamB.liberoId),
-  ];
+  const totalSets = Math.max(match.sets.length, 1);
+  const lineups: MatchDocument['lineups'] = [];
+
+  for (let setNo = 1; setNo <= totalSets; setNo++) {
+    if (startersA.length >= 6) {
+      lineups.push({
+        setNumber: setNo,
+        teamId: teamA.id,
+        positions: {
+          I: startersA[0],
+          II: startersA[1],
+          III: startersA[2],
+          IV: startersA[3],
+          V: startersA[4],
+          VI: startersA[5],
+        },
+        servingPosition: 'I',
+        liberoPlayerId: teamA.liberoPlayers?.[0]?.id || match.lineups.teamA.liberoId,
+      });
+    }
+    if (startersB.length >= 6) {
+      lineups.push({
+        setNumber: setNo,
+        teamId: teamB.id,
+        positions: {
+          I: startersB[0],
+          II: startersB[1],
+          III: startersB[2],
+          IV: startersB[3],
+          V: startersB[4],
+          VI: startersB[5],
+        },
+        servingPosition: 'I',
+        liberoPlayerId: teamB.liberoPlayers?.[0]?.id || match.lineups.teamB.liberoId,
+      });
+    }
+  }
+
+  return lineups;
 }
 
-/** Constrói o modelo MatchDocument a partir do contexto persistido. */
+/**
+ * Constrói o modelo MatchDocument a partir do contexto da partida.
+ * Garante que dados de data, hora, local e categoria sejam formatados.
+ */
 export function buildMatchDocument(ctx: MatchContext): MatchDocument {
   const { match } = ctx;
   const teamA = buildTeam(ctx.teamA, ctx.rosterA, match, 'A');
@@ -148,7 +222,8 @@ export function buildMatchDocument(ctx: MatchContext): MatchDocument {
     scorer: match.referees.find(r => r.role.toLowerCase().includes('pont') || r.role.toLowerCase().includes('anot') || r.role.toLowerCase().includes('mesa'))?.name,
   };
 
-  const format = match.sets.length <= 3 ? '3-sets' : '5-sets';
+  const format: '3-sets' | '5-sets' =
+    ctx.competitionSetFormat === '5-sets' || match.sets.length > 3 ? '5-sets' : '3-sets';
 
   const lineups = buildLineups(match, teamA, teamB);
 
@@ -174,8 +249,8 @@ export function buildMatchDocument(ctx: MatchContext): MatchDocument {
   const setsA = match.sets.filter(s => s.scoreA > s.scoreB).length;
   const setsB = match.sets.filter(s => s.scoreB > s.scoreA).length;
 
-  const formattedDate = match.scheduledTime.slice(0, 10);
-  const formattedTime = match.scheduledTime.slice(11, 16);
+  const formattedDate = match.scheduledTime ? match.scheduledTime.slice(0, 10) : '';
+  const formattedTime = match.scheduledTime && match.scheduledTime.length >= 16 ? match.scheduledTime.slice(11, 16) : '';
 
   const phaseLabel = match.phase
     ? (match.groupName && !match.phase.includes(match.groupName) ? `${match.phase} (${match.groupName})` : match.phase)
@@ -218,7 +293,7 @@ export function buildMatchDocument(ctx: MatchContext): MatchDocument {
 export async function loadDocumentEdits(
   matchId: string,
   documentType: DocumentType,
-  templateKind: string,
+  templateKind: import('../document-engine/schemas/sumula.schema').TemplateKind,
 ): Promise<{ edit: DocumentEdit | null; layout: TemplateLayout | null }> {
   const [edit, layout] = await Promise.all([
     dataAccess.getDocumentEdit({ matchId, documentType }),
@@ -227,32 +302,54 @@ export async function loadDocumentEdits(
   return { edit, layout };
 }
 
-/** Salva a edição de conteúdo de um documento. */
-export function saveDocumentEdit(
+/** Salva as edições manuais de valores de campos da partida. */
+export async function saveDocumentEdit(
   matchId: string,
-  documentType: DocumentEdit['documentType'],
+  documentType: DocumentType,
   values: Record<string, string>,
 ): Promise<DocumentEdit> {
-  return dataAccess.saveDocumentEdit({ matchId, documentType, values });
+  const existing = await dataAccess.getDocumentEdit({ matchId, documentType });
+  const edit: DocumentEdit = {
+    id: existing?.id || `${matchId}_${documentType}`,
+    matchId,
+    documentType,
+    values,
+    createdAt: existing?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  return dataAccess.saveDocumentEdit(edit);
 }
 
-/** Salva o ajuste de layout de um template. */
-export function saveTemplateLayout(
-  templateKind: TemplateLayout['templateKind'],
-  fields: TemplateLayout['fields'],
+/** Salva as edições manuais de layout de campos do template. */
+export async function saveTemplateLayout(
+  templateKind: import('../document-engine/schemas/sumula.schema').TemplateKind,
+  fields: Record<string, FieldLayoutOverride>,
 ): Promise<TemplateLayout> {
-  return dataAccess.saveTemplateLayout({ templateKind, fields });
+  const layout: TemplateLayout = {
+    id: templateKind,
+    templateKind,
+    fields,
+    updatedAt: new Date().toISOString(),
+  };
+  return dataAccess.saveTemplateLayout(layout);
 }
 
-/** Converte data URI (settings.documentLogo) em bytes para o gerador. */
-export function dataUriToBytes(dataUri: string): Uint8Array | undefined {
-  if (!dataUri) return undefined;
-  const base64 = dataUri.split(',')[1];
-  if (!base64) return undefined;
+/** Utilitário para converter data URI para Uint8Array. */
+export function dataUriToBytes(dataUri?: string): Uint8Array | undefined {
+  if (!dataUri || typeof dataUri !== 'string' || !dataUri.startsWith('data:')) {
+    return undefined;
+  }
+  const parts = dataUri.split(',');
+  if (parts.length < 2 || !parts[1]) {
+    return undefined;
+  }
   try {
-    const binary = atob(base64);
+    const binary = atob(parts[1]);
+    if (binary.length === 0) return undefined;
     const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
     return bytes;
   } catch {
     return undefined;

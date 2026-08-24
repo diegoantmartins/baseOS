@@ -13,7 +13,19 @@ import {
   Dices,
   Calendar,
   ArrowRight,
+  GripVertical,
 } from 'lucide-react';
+import {
+  DndContext,
+  useDraggable,
+  useDroppable,
+  DragEndEvent,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,11 +37,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { dataAccess } from '@/services/dataAccess';
-import { runDraw, roundRobinMatchCount, roundRobinRoundCount } from '@/services/drawService';
+import { runDraw, roundRobinMatchCount, roundRobinRoundCount, generateDrawMatches } from '@/services/drawService';
 import { suggestGroupsCount } from '@/types/draw';
 import type { DrawConfig, DrawGroup, DrawMatchProposal, DrawRecord } from '@/types/draw';
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
 import type { CompetitionTeam } from '@/types/registration';
+import { cn } from '@/lib/utils';
 
 const container = {
   hidden: { opacity: 0 },
@@ -60,6 +73,40 @@ const DrawPage = () => {
   const [headSeeds, setHeadSeeds] = useState<string[]>([]);
 
   const [preview, setPreview] = useState<{ groups: DrawGroup[]; matches: DrawMatchProposal[] } | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+  );
+
+  const handleGroupDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    const currentGroups = preview?.groups ?? existingDraw?.groups ?? null;
+    if (!over || !currentGroups) return;
+
+    const teamId = String(active.id);
+    const targetGroupName = String(over.id);
+
+    const currentGroup = currentGroups.find(g => g.teams.some(t => t.teamId === teamId));
+    if (!currentGroup || currentGroup.name === targetGroupName) return;
+
+    const entryToMove = currentGroup.teams.find(t => t.teamId === teamId);
+    if (!entryToMove) return;
+
+    const newGroups = currentGroups.map(g => {
+      if (g.name === currentGroup.name) {
+        return { ...g, teams: g.teams.filter(t => t.teamId !== teamId) };
+      }
+      if (g.name === targetGroupName) {
+        return { ...g, teams: [...g.teams, entryToMove] };
+      }
+      return g;
+    });
+
+    const newMatches = generateDrawMatches(newGroups);
+    setPreview({ groups: newGroups, matches: newMatches });
+    toast.info(`Equipe movida para o ${targetGroupName} e tabela recalculada!`);
+  };
 
   const refresh = useCallback(async () => {
     const [comps, teams, cts, ms, draws] = await Promise.all([
@@ -407,34 +454,17 @@ const DrawPage = () => {
 
               {groupsToShow && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {groupsToShow.map(group => (
-                      <Card key={group.name} className="card-elevated">
-                        <CardHeader className="border-b border-border py-3">
-                          <CardTitle className="text-base font-display flex items-center justify-between">
-                            <span>{group.name}</span>
-                            <Badge variant="outline">{group.teams.length} equipes</Badge>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-3 space-y-1.5">
-                          {group.teams.map((entry, idx) => {
-                            const team = teams.find(t => t.id === entry.teamId);
-                            return (
-                              <div key={entry.teamId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
-                                <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">
-                                  {idx + 1}
-                                </span>
-                                {team?.logoUrl && (
-                                  <img src={team.logoUrl} alt="" className="w-8 h-8 rounded object-contain bg-muted p-0.5" />
-                                )}
-                                <span className="font-medium text-sm">{team?.name ?? entry.teamId}</span>
-                              </div>
-                            );
-                          })}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
+                  <DndContext sensors={sensors} onDragEnd={handleGroupDragEnd}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {groupsToShow.map(group => (
+                        <DroppableGroupCard
+                          key={group.name}
+                          group={group}
+                          teams={teams}
+                        />
+                      ))}
+                    </div>
+                  </DndContext>
 
                   <Card className="card-elevated">
                     <CardHeader className="border-b border-border py-3">
@@ -514,5 +544,88 @@ const DrawPage = () => {
     </MainLayout>
   );
 };
+
+function DroppableGroupCard({ group, teams }: { group: DrawGroup; teams: TeamRecord[] }) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: group.name,
+  });
+
+  return (
+    <Card
+      ref={setNodeRef}
+      className={cn(
+        'card-elevated transition-all',
+        isOver && 'border-primary ring-2 ring-primary/20 bg-primary/5'
+      )}
+    >
+      <CardHeader className="border-b border-border py-3">
+        <CardTitle className="text-base font-display flex items-center justify-between">
+          <span>{group.name}</span>
+          <Badge variant="outline">{group.teams.length} equipes</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-3 space-y-1.5 min-h-[120px]">
+        {group.teams.map((entry, idx) => {
+          const team = teams.find(t => t.id === entry.teamId);
+          return (
+            <DraggableTeamRow
+              key={entry.teamId}
+              teamId={entry.teamId}
+              idx={idx}
+              team={team}
+            />
+          );
+        })}
+        {group.teams.length === 0 && (
+          <div className="h-20 flex items-center justify-center text-xs text-muted-foreground border border-dashed rounded-lg">
+            Arraste uma equipe para cá
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DraggableTeamRow({
+  teamId,
+  idx,
+  team,
+}: {
+  teamId: string;
+  idx: number;
+  team?: TeamRecord;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: teamId,
+  });
+
+  const style = transform
+    ? {
+        transform: CSS.Translate.toString(transform),
+      }
+    : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        'flex items-center gap-3 p-2 rounded-lg bg-card border border-border/60 hover:bg-muted/50 cursor-grab active:cursor-grabbing transition-all select-none',
+        isDragging && 'opacity-40 shadow-xl ring-2 ring-primary'
+      )}
+    >
+      <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+      <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold shrink-0">
+        {idx + 1}
+      </span>
+      {team?.logoUrl && (
+        <img src={team.logoUrl} alt="" className="w-6 h-6 rounded object-contain bg-muted p-0.5" />
+      )}
+      <span className="font-medium text-sm truncate">{team?.name ?? teamId}</span>
+    </div>
+  );
+}
 
 export default DrawPage;

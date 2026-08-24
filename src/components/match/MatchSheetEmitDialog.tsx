@@ -1,25 +1,25 @@
+// =====================================================================
+// BaseOS Component - Modal de Emissão da Súmula Oficial da Partida
+// =====================================================================
+
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FileText, ListOrdered, Eye, Printer, Download, Loader2, PenLine } from 'lucide-react';
+import { FileText, Eye, Printer, Download, Loader2, Sparkles, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import {
-  buildMatchDocument,
-  loadDocumentEdits,
-  loadMatchContext,
-} from '@/services/documentEditorService';
-import {
-  buildOrdemSaqueData,
-  buildSumulaData,
-  generateFiveSetScoresheet,
-  generateServeOrderSheet,
-  generateThreeSetScoresheet,
-} from '@/document-engine/generators';
+  loadBaseosScoresheetData,
+  generateBaseosPdfBlob,
+  generateBlankBaseosPdfBlob,
+  downloadBaseosScoresheet,
+  printBaseosScoresheet,
+  type BaseosScoresheetData,
+} from '@/document-engine/baseos';
 import type { MatchRecord, CompetitionRecord } from '@/types/entities';
 
-type Tab = 'sumula' | 'ficha';
+type Tab = 'prefilled' | 'blank';
 
 interface Props {
   match: MatchRecord | null;
@@ -28,11 +28,11 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-export function MatchSheetEmitDialog({ match, competition, open, onOpenChange }: Props) {
-  const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>('sumula');
+export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
+  const [tab, setTab] = useState<Tab>('prefilled');
   const [loading, setLoading] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [scoresheetData, setScoresheetData] = useState<BaseosScoresheetData | null>(null);
 
   useEffect(() => {
     if (!open || !match) {
@@ -45,31 +45,19 @@ export function MatchSheetEmitDialog({ match, competition, open, onOpenChange }:
 
     (async () => {
       try {
-        const ctx = await loadMatchContext(match.id);
-        if (!ctx) throw new Error('Não foi possível carregar a partida');
-
-        const doc = buildMatchDocument(ctx);
-        const format = doc.format;
-        const docType = format === '5-sets' ? 'SUMMULA_5' : 'SUMMULA_3';
-        const templateKind = format === '5-sets' ? 'sumula5' : 'sumula3';
-
-        const { edit, layout } = await loadDocumentEdits(match.id, docType, templateKind);
-        const options = {
-          layoutOverrides: layout?.fields,
-          valueOverrides: edit?.values,
-        };
-
-        let bytes: Uint8Array;
-        if (tab === 'ficha') {
-          bytes = await generateServeOrderSheet(buildOrdemSaqueData(doc), options);
-        } else if (format === '5-sets') {
-          bytes = await generateFiveSetScoresheet(buildSumulaData(doc), options);
-        } else {
-          bytes = await generateThreeSetScoresheet(buildSumulaData(doc), options);
-        }
+        const data = await loadBaseosScoresheetData(
+          match.id,
+          tab === 'blank' ? 'blank' : 'prefilled',
+        );
+        if (!data) throw new Error('Não foi possível carregar a partida');
 
         if (!isCancelled) {
-          const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+          setScoresheetData(data);
+          const blob =
+            tab === 'blank'
+              ? await generateBlankBaseosPdfBlob(data.document.format)
+              : await generateBaseosPdfBlob(data);
+
           const url = URL.createObjectURL(blob);
           setPdfBlobUrl(prev => {
             if (prev) URL.revokeObjectURL(prev);
@@ -78,7 +66,7 @@ export function MatchSheetEmitDialog({ match, competition, open, onOpenChange }:
         }
       } catch (err) {
         console.error(err);
-        toast.error('Erro ao gerar documento oficial.');
+        toast.error('Erro ao gerar documento oficial BaseOS.');
       } finally {
         if (!isCancelled) setLoading(false);
       }
@@ -87,128 +75,141 @@ export function MatchSheetEmitDialog({ match, competition, open, onOpenChange }:
     return () => {
       isCancelled = true;
     };
-  }, [open, match, competition, tab]);
+  }, [open, match, tab]);
 
   const handlePreview = () => {
     if (!pdfBlobUrl) return;
     window.open(pdfBlobUrl, '_blank');
-    toast.success('Visualizando súmula oficial homologada em nova aba.');
+    toast.success('Visualizando Súmula Oficial BaseOS em nova aba.');
   };
 
-  const handlePrint = () => {
-    if (!pdfBlobUrl) return;
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.src = pdfBlobUrl;
-    document.body.appendChild(iframe);
-    iframe.onload = () => {
-      iframe.contentWindow?.print();
-      setTimeout(() => document.body.removeChild(iframe), 60000);
-    };
-    toast.success('Enviado para impressão!');
+  const handlePrint = async () => {
+    if (!scoresheetData) return;
+    try {
+      await printBaseosScoresheet(scoresheetData);
+      toast.success('Enviado para impressão!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao imprimir.');
+    }
   };
 
-  const handleDownload = () => {
-    if (!pdfBlobUrl || !match) return;
-    const a = document.createElement('a');
-    a.href = pdfBlobUrl;
-    const safeA = match.teamAShortName || match.teamAName;
-    const safeB = match.teamBShortName || match.teamBName;
-    const filename = tab === 'ficha'
-      ? `ordem_saque_jogo_${match.matchNumber}_${safeA}_x_${safeB}.pdf`
-      : `sumula_oficial_cbv_jogo_${match.matchNumber}_${safeA}_x_${safeB}.pdf`;
-    a.download = filename.replace(/[^\w.-]/g, '_');
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    toast.success('Súmula oficial homologada baixada!');
-    onOpenChange(false);
+  const handleDownload = async () => {
+    if (!scoresheetData) return;
+    try {
+      if (tab === 'blank') {
+        const blob = await generateBlankBaseosPdfBlob(scoresheetData.document.format);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Sumula_Oficial_BaseOS_${scoresheetData.document.format}_Em_Branco.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        await downloadBaseosScoresheet(scoresheetData);
+      }
+      toast.success('Download da Súmula Oficial BaseOS concluído!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao baixar documento.');
+    }
   };
+
+  const formatBadge = scoresheetData?.document.format === '5-sets' ? '5 Sets (A3)' : '3 Sets (A4)';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-foreground font-bold">
-            <FileText className="w-5 h-5 text-primary" />
-            Emissão de Súmula Oficial CBV / FPV
-          </DialogTitle>
-          <DialogDescription className="text-xs">
-            {match
-              ? `Jogo #${match.matchNumber}: ${match.teamAName} vs ${match.teamBName} · ${match.phase ?? 'Fase de Grupos'}`
-              : 'Selecione uma partida para gerar o documento oficial'}
+      <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-6">
+        <DialogHeader className="space-y-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <DialogTitle className="text-xl font-bold font-display">
+                Súmula Oficial BaseOS ({formatBadge})
+              </DialogTitle>
+              <Badge variant="outline" className="gap-1 text-xs">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                Vôlei Oficial
+              </Badge>
+            </div>
+          </div>
+          <DialogDescription className="text-xs text-muted-foreground">
+            {match?.teamAName} vs {match?.teamBName} · Jogo Nº {match?.matchNumber || 1}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <Tabs value={tab} onValueChange={v => setTab(v as Tab)}>
+        <div className="space-y-4 flex-1 flex flex-col min-h-0">
+          <Tabs value={tab} onValueChange={v => setTab(v as Tab)} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="sumula" className="gap-2 text-xs">
-                <FileText className="w-3.5 h-3.5" />
-                Súmula Oficial ({competition?.setFormat === '5-sets' ? '5 Sets / A3' : '3 Sets / A4'})
+              <TabsTrigger value="prefilled" className="text-xs gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                Súmula da Partida (Pré-Preenchida)
               </TabsTrigger>
-              <TabsTrigger value="ficha" className="gap-2 text-xs">
-                <ListOrdered className="w-3.5 h-3.5" />
-                Ordem de Saque / Posição
+              <TabsTrigger value="blank" className="text-xs gap-1.5">
+                <FileText className="w-3.5 h-3.5" />
+                Súmula em Branco (Impressão Limpa)
               </TabsTrigger>
             </TabsList>
           </Tabs>
 
-          <div className="p-3 bg-muted/40 rounded-xl border border-border/60 text-xs space-y-1.5">
-            <p className="font-semibold text-foreground flex items-center justify-between">
-              <span>Padrão Oficial CBV / FPV Homologado</span>
-              <span className="text-[10px] text-primary font-mono uppercase bg-primary/10 px-2 py-0.5 rounded">
-                Document Engine
-              </span>
+          <div className="flex-1 min-h-[460px] rounded-xl border border-border overflow-hidden bg-slate-900 shadow-inner flex items-center justify-center">
+            {loading ? (
+              <div className="flex flex-col items-center gap-3 text-white">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <span className="text-xs text-slate-300">Processando motor documental BaseOS...</span>
+              </div>
+            ) : pdfBlobUrl ? (
+              <iframe
+                src={`${pdfBlobUrl}#toolbar=0&navpanes=0`}
+                className="w-full h-full border-0"
+                title="Pré-visualização da Súmula"
+              />
+            ) : (
+              <span className="text-xs text-slate-400">Nenhum documento disponível</span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border">
+            <p className="text-[11px] text-muted-foreground">
+              Documento vetorial de alta definição com troca de lado no tie-break.
             </p>
-            <p className="text-muted-foreground text-[11px]">
-              O documento inclui cabeçalho oficial, escalação I a VI, quadrículas de pontos de 1 a 32, quadro de sanções, comissão técnica e assinaturas.
-            </p>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePreview}
+                disabled={loading || !pdfBlobUrl}
+                className="text-xs gap-1.5"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                Nova Aba
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrint}
+                disabled={loading || !pdfBlobUrl}
+                className="text-xs gap-1.5"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                Imprimir
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={handleDownload}
+                disabled={loading || !pdfBlobUrl}
+                className="text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Baixar PDF ({formatBadge})
+              </Button>
+            </div>
           </div>
         </div>
-
-        <div className="flex items-center justify-end gap-2 pt-3 border-t">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handlePreview}
-              disabled={loading || !pdfBlobUrl}
-              className="text-xs gap-1.5"
-            >
-              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
-              Visualizar
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handlePrint}
-              disabled={loading || !pdfBlobUrl}
-              className="text-xs gap-1.5"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              Imprimir
-            </Button>
-
-            <Button
-              type="button"
-              variant="accent"
-              size="sm"
-              onClick={handleDownload}
-              disabled={loading || !pdfBlobUrl}
-              className="text-xs gap-1.5 font-semibold"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Baixar PDF Oficial
-            </Button>
-          </div>
       </DialogContent>
     </Dialog>
   );

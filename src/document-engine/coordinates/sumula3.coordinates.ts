@@ -42,21 +42,23 @@ export const SANCTIONS_AREA = { x: 531.6, y: 104.1, width: 208.0, height: 149.6 
 export const RIGHT_COLUMN = { x: 746.0, y: 104.1, width: 238.0, height: 443.0 };
 
 export const SUMULA3_FIELDS = {
-  // ── Identificação do Cabeçalho Oficial (alinhado com as etiquetas) ───
-  competitionName: { x: 105, y: 48, width: 145, height: 11, fontSize: 7.5, bold: true, align: 'left' as const },
-  city: { x: 255, y: 48, width: 155, height: 11, fontSize: 7.5, align: 'left' as const },
-  venue: { x: 440, y: 48, width: 130, height: 11, fontSize: 7.5, align: 'left' as const },
-  date: { x: 375, y: 63, width: 90, height: 11, fontSize: 7.5, align: 'left' as const },
-  time: { x: 495, y: 63, width: 75, height: 11, fontSize: 7.5, align: 'left' as const },
-  phase: { x: 205, y: 76, width: 50, height: 11, fontSize: 7.5, align: 'left' as const },
-  matchNumber: { x: 295, y: 76, width: 40, height: 11, fontSize: 8, bold: true, align: 'center' as const },
-  gender: { x: 74, y: 90, width: 15, height: 11, fontSize: 8, bold: true, align: 'center' as const },
-  categoryName: { x: 185, y: 90, width: 150, height: 11, fontSize: 7.5, align: 'left' as const },
-  teamAName: { x: 365, y: 76, width: 100, height: 11, fontSize: 7.5, bold: true, align: 'left' as const },
-  teamBName: { x: 475, y: 76, width: 100, height: 11, fontSize: 7.5, bold: true, align: 'left' as const },
-
-  // ── Logo do sistema (settings.documentLogo) ───────────────────────
-  systemLogo: { x: 22, y: 15, width: 50, height: 25 },
+  // ── Identificação do Cabeçalho Oficial (alinhado estritamente com as linhas originais) ───
+  competitionName: { x: 105, y: 46.0, width: 230, height: 10, fontSize: 7.5, bold: true, align: 'left' as const },
+  city: { x: 55, y: 59.0, width: 135, height: 10, fontSize: 7, align: 'left' as const },
+  phase: { x: 230, y: 59.0, width: 50, height: 10, fontSize: 6.5, align: 'left' as const },
+  matchNumber: { x: 332, y: 59.0, width: 35, height: 10, fontSize: 7.5, bold: true, align: 'center' as const },
+  venue: { x: 60, y: 71.5, width: 275, height: 10, fontSize: 7, align: 'left' as const },
+  genderMasc: { x: 86, y: 84.0, width: 12, height: 10, fontSize: 8, bold: true, align: 'center' as const },
+  genderFem: { x: 130, y: 84.0, width: 12, height: 10, fontSize: 8, bold: true, align: 'center' as const },
+  categoryName: { x: 190, y: 84.0, width: 145, height: 10, fontSize: 7, align: 'left' as const },
+  
+  // Data e Horário (box central superior)
+  date: { x: 365, y: 50.0, width: 95, height: 10, fontSize: 7.5, bold: true, align: 'center' as const },
+  time: { x: 505, y: 50.0, width: 75, height: 10, fontSize: 7.5, bold: true, align: 'center' as const },
+  
+  // Equipes (box central inferior de confronto)
+  teamAName: { x: 362, y: 71.0, width: 100, height: 10, fontSize: 7.5, bold: true, align: 'left' as const },
+  teamBName: { x: 485, y: 71.0, width: 100, height: 10, fontSize: 7.5, bold: true, align: 'left' as const },
 
   // ── SET (placar + ordem de saque) ─────────────────────────────────
   pointsA: { x: 110, y: 108, width: 40, height: 14, fontSize: 12, bold: true, align: 'center' as const },
@@ -77,12 +79,12 @@ export const SUMULA3_FIELDS = {
   ) as Record<string, never>,
 
   // ── Observações ───────────────────────────────────────────────────
-  observations: { x: 748.6, y: 455, width: 228, height: 70, fontSize: 7, align: 'left' as const, minSize: 5, maxLines: 5 },
+  observations: { x: 755, y: 415, width: 225, height: 45, fontSize: 6.5, align: 'left' as const, minSize: 5, maxLines: 4 },
 
   // ── Funções dos oficiais / assinaturas ────────────────────────────
-  referee1: { x: 772.6, y: 501, width: 140, height: 10, fontSize: 7, align: 'center' as const },
-  referee2: { x: 772.6, y: 510.5, width: 140, height: 10, fontSize: 7, align: 'center' as const },
-  scorer: { x: 772.6, y: 521, width: 140, height: 10, fontSize: 7, align: 'center' as const },
+  referee1: { x: 775, y: 442.0, width: 140, height: 10, fontSize: 6.5, align: 'center' as const },
+  referee2: { x: 775, y: 452.0, width: 140, height: 10, fontSize: 6.5, align: 'center' as const },
+  scorer: { x: 775, y: 462.0, width: 140, height: 10, fontSize: 6.5, align: 'center' as const },
 
   // ── Vencedor ──────────────────────────────────────────────────────
   winner: { x: 547.4, y: 394, width: 170, height: 11, fontSize: 9, bold: true, align: 'left' as const },
@@ -91,10 +93,7 @@ export const SUMULA3_FIELDS = {
 export const SUMULA3_GEOMETRY: SumulaGeometry = {
   pageWidth: SUMULA3_PAGE.width,
   pageHeight: SUMULA3_PAGE.height,
-  cleanZones: [
-    // Branqueamento da área de cabeçalho para redesenho vetorial de alta definição
-    { x: 18, y: 10, width: 966, height: 88 },
-  ],
+  cleanZones: [], // Layout 100% imutável e original preservado
   logoZone: { x: 22, y: 12, width: 100, height: 22 },
   fields: SUMULA3_FIELDS,
 };

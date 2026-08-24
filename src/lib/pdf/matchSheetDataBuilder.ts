@@ -1,45 +1,52 @@
-// Converte registros persistentes (MatchRecord + elencos) no shape usado
-// pelo gerador de PDF (MatchSheetData).
+// Builder unificado para conversão de dados de partida
+// Converte registros da base de dados para formato padronizado do PDF
 
-import type { MatchRecord } from '@/types/entities';
-import type { CompetitionRecord } from '@/types/entities';
+import type { MatchRecord, CompetitionRecord } from '@/types/entities';
 import type { CompetitionAthlete } from '@/types/registration';
-import { dataAccess } from '@/services/dataAccess';
+import type { MatchSheetData, PdfAthlete, TeamInfo, SetResult } from './types';
 
-export type MatchSheetData = Parameters<typeof import('./matchSheetPdf').generateMatchSheetPdf>[0];
+export type { MatchSheetData };
 
-export type SheetMode = NonNullable<MatchSheetData['sheetMode']>;
+// --- Constantes de formatação ---
 
-function toSetFormat(setFormat: string): '3-sets' | '5-sets' | '1-set' | '2-sets' {
-  if (setFormat === '5-sets') return '5-sets';
-  if (setFormat === '2-sets') return '2-sets';
-  if (setFormat === '1-set') return '1-set';
-  return '3-sets';
+const GENDER_LABEL: Record<NonNullable<CompetitionRecord['genderCategory']>, string> = {
+  male: 'Masculino',
+  female: 'Feminino',
+  mixed: 'Misto',
+};
+
+// Mapeamento de formatos
+function toSetFormat(setFormat: string | undefined): '3-sets' | '5-sets' | '1-set' | '2-sets' {
+  switch (setFormat) {
+    case '5-sets': return '5-sets';
+    case '2-sets': return '2-sets';
+    case '1-set': return '1-set';
+    default: return '3-sets';
+  }
 }
 
-function toPlayerFormat(playerFormat: string): '6x6' | '4x4' | '2x2' | '3x3' {
-  if (playerFormat === '4x4') return '4x4';
-  if (playerFormat === '2x2') return '2x2';
-  if (playerFormat === '3x3') return '3x3';
-  return '6x6';
+function toPlayerFormat(playerFormat: string | undefined): '6x6' | '4x4' | '2x2' | '3x3' {
+  switch (playerFormat) {
+    case '4x4': return '4x4';
+    case '2x2': return '2x2';
+    case '3x3': return '3x3';
+    default: return '6x6';
+  }
 }
 
-function formatMatchDate(scheduledTime: string): { date: string; time: string } {
-  const d = new Date(scheduledTime);
-  if (Number.isNaN(d.getTime())) return { date: '-', time: '-' };
+/** Formata data e hora para exibição no PDF */
+function formatDateTime(scheduledTime: string | undefined): { date: string; time: string } {
+  const d = new Date(scheduledTime ?? Date.now());
+  if (Number.isNaN(d.getTime())) return { date: '__/__/____', time: '__:__' };
+  
   const date = d.toLocaleDateString('pt-BR');
   const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  
   return { date, time };
 }
 
-function athleteToPdf(athlete: CompetitionAthlete): {
-  jerseyNumber?: number;
-  name: string;
-  position?: string;
-  captain?: boolean;
-  libero?: boolean;
-  documentNumber?: string;
-} {
+/** Converte um atleta da base de dados para o formato PDF */
+function athleteToPdf(athlete: CompetitionAthlete): PdfAthlete {
   return {
     jerseyNumber: athlete.jerseyNumber,
     name: athlete.name,
@@ -50,71 +57,94 @@ function athleteToPdf(athlete: CompetitionAthlete): {
   };
 }
 
+/** Calcula placares finais a partir dos sets */
+function calculateFinalScore(sets: SetResult[]): { finalA: number; finalB: number } {
+  let setsA = 0;
+  let setsB = 0;
+  
+  sets.forEach(set => {
+    if (set.scoreA > set.scoreB) {
+      setsA++;
+    } else if (set.scoreB > set.scoreA) {
+      setsB++;
+    }
+  });
+  
+  return { finalA: setsA, finalB: setsB };
+}
+
+/** Determina o vencedor da partida */
+function determineWinner(match: MatchRecord, sets: SetResult[], finalA: number, finalB: number): 'A' | 'B' | undefined {
+  if (match.winnerId) {
+    return match.winnerId === match.teamAId ? 'A' : 'B';
+  }
+  
+  if (finalA > finalB) return 'A';
+  if (finalB > finalA) return 'B';
+  
+  return undefined;
+}
+
+/** Constrói as informações da equipe */
+function buildTeamInfo(
+  match: MatchRecord,
+  roster: CompetitionAthlete[],
+  isTeamA: boolean
+): TeamInfo {
+  return {
+    name: isTeamA ? match.teamAName : match.teamBName,
+    shortName: isTeamA ? match.teamAShortName : match.teamBShortName,
+    athletes: roster.map(athleteToPdf),
+    coach: undefined,
+  };
+}
+
 /**
- * Monta o MatchSheetData de uma partida a partir dos elencos inscritos.
+ * Construtor principal unificado para dados de súmula
+ * Converte registros da base de dados (MatchRecord, elencos) para o formato PDF
  */
 export async function buildMatchSheetData(
   match: MatchRecord,
   competition: CompetitionRecord | null,
   teamARoster: CompetitionAthlete[],
   teamBRoster: CompetitionAthlete[],
-  options: { sheetMode?: SheetMode } = {},
+  options: { sheetMode?: 'pre' | 'post' } = {}
 ): Promise<MatchSheetData> {
-  const { date, time } = formatMatchDate(match.scheduledTime);
-  const sets = match.sets.slice(0, 6).map(s => ({ setNumber: s.setNumber, scoreA: s.scoreA, scoreB: s.scoreB }));
-  const finalScoreA = sets.filter(s => s.scoreA > s.scoreB).length;
-  const finalScoreB = sets.filter(s => s.scoreB > s.scoreA).length;
-  const isPreGame = options.sheetMode === 'pre' || (match.status !== 'completed' && sets.length === 0);
-
-  let winner: 'A' | 'B' | undefined;
-  if (!isPreGame) {
-    if ((match.winnerId ?? null) === match.teamAId) winner = 'A';
-    else if ((match.winnerId ?? null) === match.teamBId) winner = 'B';
-    else if (match.status === 'completed' && finalScoreA !== finalScoreB) {
-      winner = finalScoreA > finalScoreB ? 'A' : 'B';
-    }
-  }
-
-  const [settings, teams, venues] = await Promise.all([dataAccess.getSettings(), dataAccess.listTeams(), dataAccess.listVenues()]);
-  const venueRecord = venues.find(v => v.name === match.venue);
-  const city = venueRecord?.address ? venueRecord.address.split('-').pop()?.trim() : undefined;
-  const teamAData = await (async () => {
-    const team = teams.find(t => t.id === match.teamAId);
-    return {
-      name: match.teamAName,
-      shortName: match.teamAShortName,
-      logoUrl: team?.logoUrl,
-      athletes: teamARoster.map(athleteToPdf),
-      coach: team?.coachName,
-    };
-  })();
-
-  const teamBData = await (async () => {
-    const team = teams.find(t => t.id === match.teamBId);
-    return {
-      name: match.teamBName,
-      shortName: match.teamBShortName,
-      logoUrl: team?.logoUrl,
-      athletes: teamBRoster.map(athleteToPdf),
-      coach: team?.coachName,
-    };
-  })();
-
+  const { date, time } = formatDateTime(match.scheduledTime);
+  
+  const sets: SetResult[] = match.sets.slice(0, 6).map(s => ({
+    setNumber: s.setNumber,
+    scoreA: s.scoreA,
+    scoreB: s.scoreB,
+  }));
+  
+  const { finalA, finalB } = calculateFinalScore(sets);
+  
+  const isPreGame = options.sheetMode === 'pre' || 
+    (match.status !== 'completed' && sets.length === 0);
+  
+  const winner = determineWinner(match, sets, finalA, finalB);
+  
+  const category = competition?.genderCategory
+    ? GENDER_LABEL[competition.genderCategory]
+    : 'Adulto';
+  
+  const modality = competition?.modality === 'beach' ? 'beach' : 'indoor';
+  const format = toSetFormat(competition?.setFormat);
+  const playerFormat = toPlayerFormat(competition?.playerFormat);
+  const city = match.venue.includes(',') 
+    ? match.venue.split(',').pop()?.trim() 
+    : undefined;
+  
   return {
-    orgName: settings.orgName || 'VolleyPro',
+    orgName: 'VolleyPro',
     sheetMode: isPreGame ? 'pre' : 'post',
     competition: competition?.name ?? match.competitionId,
-    category: competition?.genderCategory === 'male'
-      ? 'Masculino'
-      : competition?.genderCategory === 'mixed'
-        ? 'Misto'
-        : competition?.genderCategory === 'female'
-          ? 'Feminino'
-          : 'Adulto',
+    category,
     genderCategory: competition?.genderCategory,
-    modality: 'indoor',
-    format: toSetFormat(competition?.setFormat ?? '3-sets'),
-    playerFormat: toPlayerFormat(competition?.playerFormat ?? '6x6'),
+    modality,
+    format,
+    playerFormat,
     date,
     time,
     venue: match.venue,
@@ -124,11 +154,11 @@ export async function buildMatchSheetData(
     groupName: match.groupName,
     round: match.round,
     matchNumber: match.matchNumber,
-    teamA: teamAData,
-    teamB: teamBData,
+    teamA: buildTeamInfo(match, teamARoster, true),
+    teamB: buildTeamInfo(match, teamBRoster, false),
     sets,
-    finalScoreA,
-    finalScoreB,
+    finalScoreA: finalA,
+    finalScoreB: finalB,
     winner,
     referees: match.referees,
     timeouts: [],
@@ -138,4 +168,29 @@ export async function buildMatchSheetData(
     startTime: match.status === 'completed' ? time : undefined,
     endTime: undefined,
   };
+}
+
+/**
+ * Construtor otimizado para múltiplas partidas (relatório em lote)
+ */
+export async function buildMultipleMatchSheetData(
+  matches: MatchRecord[],
+  competition: CompetitionRecord | null,
+  getRoster: (matchId: string, teamId: string) => Promise<CompetitionAthlete[]>
+): Promise<MatchSheetData[]> {
+  const results = await Promise.all(
+    matches.map(async (match) => {
+      const teamARoster = await getRoster(match.id, match.teamAId);
+      const teamBRoster = await getRoster(match.id, match.teamBId);
+      
+      return buildMatchSheetData(
+        match,
+        competition,
+        teamARoster,
+        teamBRoster
+      );
+    })
+  );
+  
+  return results;
 }

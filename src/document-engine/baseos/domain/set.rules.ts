@@ -1,0 +1,38 @@
+// =====================================================================
+// BaseOS Domain - Regras Esportivas de Voleibol
+// =====================================================================
+
+export const VOLLEYBALL_RULES = {
+  REGULAR_SET_POINTS: 25,
+  DECIDING_SET_POINTS: 15,
+  MIN_POINT_DIFFERENCE: 2,
+  MAX_SUBSTITUTIONS_PER_SET: 6,
+  MAX_TIMEOUTS_PER_SET: 2,
+  TIMEOUT_DURATION_SECONDS: 30,
+  TIE_BREAK_SIDE_CHANGE_POINT: 8,
+  POINTS_RULER_MAX_REGULAR: 36,
+  POINTS_RULER_MAX_DECIDING: 30,
+} as const;
+
+export interface SetRuleConfig {
+  setNumber: number;
+  targetPoints: number;
+  isDecidingSet: boolean;
+  hasSideChange: boolean;
+  sideChangeTriggerPoint: number;
+  maxPointsRuler: number;
+}
+
+/** Determina as regras esportivas de um set com base no formato da partida. */
+export function getSetRuleConfig(setNumber: number, totalSetsFormat: '3-sets' | '5-sets'): SetRuleConfig {
+  const isDecidingSet = (totalSetsFormat === '3-sets' && setNumber === 3) || (totalSetsFormat === '5-sets' && setNumber === 5);
+  
+  return {
+    setNumber,
+    targetPoints: isDecidingSet ? VOLLEYBALL_RULES.DECIDING_SET_POINTS : VOLLEYBALL_RULES.REGULAR_SET_POINTS,
+    isDecidingSet,
+    hasSideChange: isDecidingSet,
+    sideChangeTriggerPoint: VOLLEYBALL_RULES.TIE_BREAK_SIDE_CHANGE_POINT,
+    maxPointsRuler: isDecidingSet ? VOLLEYBALL_RULES.POINTS_RULER_MAX_DECIDING : VOLLEYBALL_RULES.POINTS_RULER_MAX_REGULAR,
+  };
+}

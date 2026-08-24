@@ -19,8 +19,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { downloadMatchSheetPdf } from '@/lib/pdf/matchSheetPdf';
-import { buildMatchSheetData } from '@/lib/pdf/matchSheetDataBuilder';
+import { loadMatchContext, buildMatchDocument } from '@/services/documentEditorService';
+import { generateThreeSetScoresheet, generateFiveSetScoresheet, buildSumulaData } from '@/document-engine/generators';
 import { toast } from 'sonner';
 import type { MatchRecord } from '@/types/entities';
 import type { CompetitionRecord } from '@/types/entities';
@@ -227,12 +227,26 @@ export function MatchSheetInterface({
       return;
     }
     try {
-      const pdfData = await buildMatchSheetData(liveMatch, competition, teamARoster, teamBRoster);
-      downloadMatchSheetPdf(pdfData);
-      toast.success('PDF da súmula gerado!');
+      const ctx = await loadMatchContext(liveMatch.id);
+      if (!ctx) throw new Error('Não foi possível carregar a partida.');
+      const doc = buildMatchDocument(ctx);
+      const is5Sets = doc.format === '5-sets';
+      const bytes = is5Sets
+        ? await generateFiveSetScoresheet(buildSumulaData(doc))
+        : await generateThreeSetScoresheet(buildSumulaData(doc));
+      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sumula_oficial_${liveMatch.matchNumber || 1}_${is5Sets ? '5sets' : '3sets'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Download da Súmula Oficial iniciado!');
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao gerar o PDF.');
+      toast.error('Erro ao gerar a Súmula Oficial.');
     }
   };
 

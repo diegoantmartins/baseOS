@@ -1,15 +1,10 @@
 // =====================================================================
-// Renderização compartilhada dos documentos oficiais (FPV/CBV)
+// Renderização geométrica determinística dos documentos oficiais (FPV/CBV)
 //
-// Regra: O template fixo é a base regulamentar oficial; o cabeçalho
-// superior é desenhado em vetor de alta definição VolleyPro e todos
-// os dados de atletas, líberos e comissão técnica são encaixados
-// cirurgicamente em suas respectivas células.
-//
-// CONDIÇÕES OFICIAIS:
-// 1. As designações A e B e campos de abreviação NÃO são pré-fixados.
-// 2. Os campos de assinatura permanecem 100% EM BRANCO para assinatura física.
-// 3. Apenas a comissão técnica (T e AT1) é pré-preenchida do cadastro.
+// Regras Fundamentais:
+// 1. O layout do template é 100% IMUTÁVEL e preservado (sem caixas de fundo).
+// 2. Os dados são aplicados diretamente sobre as linhas e caixas do formulário.
+// 3. fitText garante que nenhum texto sobreponha ou ultrapasse suas células.
 // =====================================================================
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
@@ -20,13 +15,6 @@ import type { MatchDocument, Officials } from '../schemas/match.schema';
 import type { FieldLayoutOverride } from '../../types/documentEdit';
 
 export type LoadedFonts = { font: PDFFont; boldFont: PDFFont };
-
-const NAVY = rgb(0.06, 0.16, 0.28);
-const LIGHT_BG = rgb(0.97, 0.98, 1);
-const BORDER_GRAY = rgb(0.72, 0.78, 0.86);
-const TEXT_DARK = rgb(0.1, 0.15, 0.2);
-const TEXT_MUTED = rgb(0.4, 0.5, 0.6);
-const WHITE = rgb(1, 1, 1);
 
 /** Cria uma estrutura MatchDocument limpa para emissão de súmula oficial em branco. */
 export function createEmptyMatchDocument(format: '3-sets' | '5-sets' = '3-sets'): MatchDocument {
@@ -97,7 +85,7 @@ export async function loadFonts(doc: PDFDocument): Promise<LoadedFonts> {
   return { font, boldFont };
 }
 
-/** Branqueia as zonas de limpeza do template. */
+/** Branqueia as zonas de limpeza do template se houver alguma definida. */
 export function cleanTemplate(
   page: PDFPage,
   geometry: { cleanZones: CleanZone[] },
@@ -107,7 +95,7 @@ export function cleanTemplate(
   }
 }
 
-/** Desenha o logo do sistema (settings.documentLogo) na zona definida. */
+/** Desenha o logo do sistema na zona definida se configurado. */
 export async function drawSystemLogo(
   doc: PDFDocument,
   page: PDFPage,
@@ -136,41 +124,43 @@ export async function drawSystemLogo(
   });
 }
 
-/** Desenha a abreviação oficial de 3 letras de cada equipe dentro das caixas dedicadas no quadro EQUIPES. */
+/** Desenha a abreviação de 3 letras no quadro de equipes se aplicável. */
 export function renderTeamBadges(
   page: PDFPage,
   fonts: LoadedFonts,
   match: MatchDocument,
 ): void {
+  if (!match.teamA.name && !match.teamB.name) return;
   const abbrA = (match.teamA.shortName || match.teamA.name.slice(0, 3)).toUpperCase().slice(0, 3);
   const abbrB = (match.teamB.shortName || match.teamB.name.slice(0, 3)).toUpperCase().slice(0, 3);
 
-  // Sigla Equipe 1 (centralizada na caixa da equipe A)
-  drawDynamicText(page, fonts.boldFont, fonts.boldFont, abbrA, {
-    x: 765,
-    y: 120.5,
-    width: 82,
-    height: 12,
-    fontSize: 10,
-    bold: true,
-    align: 'center',
-  });
+  // Apenas renderiza no modelo de 3 sets (no topo da tabela EQUIPES em x: 762 e 872)
+  if (page.getWidth() < 1100) {
+    drawDynamicText(page, fonts.boldFont, fonts.boldFont, abbrA, {
+      x: 762,
+      y: 70.0,
+      width: 80,
+      height: 11,
+      fontSize: 8.0,
+      bold: true,
+      align: 'center',
+    });
 
-  // Sigla Equipe 2 (centralizada na caixa da equipe B)
-  drawDynamicText(page, fonts.boldFont, fonts.boldFont, abbrB, {
-    x: 875,
-    y: 120.5,
-    width: 82,
-    height: 12,
-    fontSize: 10,
-    bold: true,
-    align: 'center',
-  });
+    drawDynamicText(page, fonts.boldFont, fonts.boldFont, abbrB, {
+      x: 872,
+      y: 70.0,
+      width: 80,
+      height: 11,
+      fontSize: 8.0,
+      bold: true,
+      align: 'center',
+    });
+  }
 }
 
 /**
- * Desenha o cabeçalho superior completo de alta resolução vetorial VolleyPro.
- * Adapta dinamicamente para A4 paisagem (3 sets) e A3 paisagem (5 sets).
+ * Renderiza os campos de texto do cabeçalho oficial diretamente sobre as linhas
+ * e caixas do template da Federação (SEM retângulos ou sobreposições visuais).
  */
 export function renderHeaderFields(
   page: PDFPage,
@@ -180,126 +170,82 @@ export function renderHeaderFields(
   orgName?: string,
   values?: Record<string, string>,
 ): void {
-  const pageHeight = page.getHeight();
-  const pageWidth = page.getWidth();
-  const toPdfY = (yTop: number) => pageHeight - yTop;
+  const f = geometry.fields;
 
-  const totalWidth = pageWidth - 36; // 18 de margem em cada lado
-  const startX = 18;
-
-  // 1. Top Bar Dark Navy (y: 10 a 36)
-  page.drawRectangle({
-    x: startX,
-    y: toPdfY(36),
-    width: totalWidth,
-    height: 26,
-    color: NAVY,
-  });
-  page.drawText('VOLLEYPRO', { x: startX + 12, y: toPdfY(29), size: 14, font: fonts.boldFont, color: WHITE });
-  page.drawText('SÚMULA OFICIAL DE VOLEIBOL DE QUADRA', { x: startX + 112, y: toPdfY(28), size: 9, font: fonts.boldFont, color: rgb(0.7, 0.85, 1) });
-  
-  const formatText = match.format === '5-sets' ? '3 DE 5 SETS' : '2 DE 3 SETS';
-  const formatWidth = fonts.boldFont.widthOfTextAtSize(formatText, 8.5);
-  page.drawText(formatText, { x: startX + totalWidth - 12 - formatWidth, y: toPdfY(28), size: 8.5, font: fonts.boldFont, color: rgb(0.7, 0.85, 1) });
-
-  // 2. Grid de Dados da Partida (y: 40 a 66)
-  // Box 1: Competição (28% da largura)
-  const box1W = Math.round(totalWidth * 0.28);
-  const box2W = Math.round(totalWidth * 0.28);
-  const box3W = totalWidth - box1W - box2W - 8; // 4px de gap entre caixas
-
-  const box1X = startX;
-  const box2X = box1X + box1W + 4;
-  const box3X = box2X + box2W + 4;
-
-  // Box 1: Competição
-  page.drawRectangle({ x: box1X, y: toPdfY(66), width: box1W, height: 26, color: LIGHT_BG, borderColor: BORDER_GRAY, borderWidth: 0.8 });
-  page.drawText('COMPETIÇÃO', { x: box1X + 6, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
-  if (match.competitionName) {
-    page.drawText(match.competitionName, { x: box1X + 6, y: toPdfY(60), size: 8.5, font: fonts.boldFont, color: TEXT_DARK });
+  // 1. Nome da Competição
+  if (f.competitionName) {
+    const text = resolveFieldValue(values, 'competitionName', match.competitionName || '');
+    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.competitionName);
   }
 
-  // Box 2: Local e Cidade
-  const venueText = match.venue ? (match.court ? `${match.venue} (${match.court})` : match.venue) : '';
-  const defaultCity = match.teamA?.city
-    ? `${match.teamA.city}${match.teamA.state ? ' / ' + match.teamA.state : ''}`
-    : '';
-  const cityText = resolveFieldValue(values, 'city', defaultCity);
-  const locationCombined = venueText && cityText ? `${venueText} - ${cityText}` : (venueText || cityText);
-
-  page.drawRectangle({ x: box2X, y: toPdfY(66), width: box2W, height: 26, color: LIGHT_BG, borderColor: BORDER_GRAY, borderWidth: 0.8 });
-  page.drawText('GINÁSIO / CIDADE', { x: box2X + 6, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
-  if (locationCombined) {
-    page.drawText(locationCombined, { x: box2X + 6, y: toPdfY(60), size: 8.5, font: fonts.boldFont, color: TEXT_DARK });
+  // 2. Cidade
+  if (f.city) {
+    const defaultCity = match.teamA?.city
+      ? `${match.teamA.city}${match.teamA.state ? ' / ' + match.teamA.state : ''}`
+      : (match.city || '');
+    const text = resolveFieldValue(values, 'city', defaultCity);
+    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.city);
   }
 
-  // Box 3: Metadados Jogo (dividido em 4 subcolunas)
-  page.drawRectangle({ x: box3X, y: toPdfY(66), width: box3W, height: 26, color: LIGHT_BG, borderColor: BORDER_GRAY, borderWidth: 0.8 });
-  
-  const sub1W = Math.round(box3W * 0.12);
-  const sub2W = Math.round(box3W * 0.24);
-  const sub3W = Math.round(box3W * 0.30);
-
-  const div1X = box3X + sub1W;
-  const div2X = div1X + sub2W;
-  const div3X = div2X + sub3W;
-
-  page.drawLine({ start: { x: div1X, y: toPdfY(66) }, end: { x: div1X, y: toPdfY(40) }, thickness: 0.5, color: rgb(0.85, 0.88, 0.92) });
-  page.drawLine({ start: { x: div2X, y: toPdfY(66) }, end: { x: div2X, y: toPdfY(40) }, thickness: 0.5, color: rgb(0.85, 0.88, 0.92) });
-  page.drawLine({ start: { x: div3X, y: toPdfY(66) }, end: { x: div3X, y: toPdfY(40) }, thickness: 0.5, color: rgb(0.85, 0.88, 0.92) });
-
-  // Sub 1: JOGO
-  page.drawText('JOGO', { x: box3X + 6, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
-  const matchNumText = match.matchNumber ? `Nº ${String(match.matchNumber).padStart(2, '0')}` : 'Nº ___';
-  page.drawText(matchNumText, { x: box3X + 6, y: toPdfY(60), size: 8.5, font: fonts.boldFont, color: NAVY });
-
-  // Sub 2: FASE
-  page.drawText('FASE', { x: div1X + 6, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
-  if (match.phase) {
-    const phaseClean = match.phase.slice(0, 16);
-    page.drawText(phaseClean, { x: div1X + 6, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
+  // 3. Fase
+  if (f.phase) {
+    const text = resolveFieldValue(values, 'phase', match.phase || '');
+    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.phase);
   }
 
-  // Sub 3: DATA / HORA
-  page.drawText('DATA / HORA', { x: div2X + 6, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
-  const dateTimeText = match.date ? `${match.date} ${match.startTime ? '- ' + match.startTime : ''}` : '___/___/______';
-  page.drawText(dateTimeText, { x: div2X + 6, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
-
-  // Sub 4: CATEGORIA / SEXO
-  const genderName = match.gender === 'female' ? 'Feminino' : match.gender === 'male' ? 'Masculino' : match.gender === 'mixed' ? 'Misto' : '';
-  const catText = match.categoryName ? `${match.categoryName}${genderName ? ' | ' + genderName : ''}`.slice(0, 26) : (genderName || '');
-  page.drawText('CATEGORIA / SEXO', { x: div3X + 6, y: toPdfY(49), size: 6, font: fonts.boldFont, color: TEXT_MUTED });
-  if (catText) {
-    page.drawText(catText, { x: div3X + 6, y: toPdfY(60), size: 7.5, font: fonts.boldFont, color: TEXT_DARK });
+  // 4. Jogo Nº
+  if (f.matchNumber) {
+    const numText = match.matchNumber ? String(match.matchNumber).padStart(2, '0') : '';
+    const text = resolveFieldValue(values, 'matchNumber', numText);
+    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.matchNumber);
   }
 
-  // 3. Linha de Confronto (y: 69 a 96)
-  page.drawRectangle({ x: startX, y: toPdfY(96), width: totalWidth, height: 27, color: rgb(0.92, 0.96, 1), borderColor: BORDER_GRAY, borderWidth: 0.8 });
-
-  // Nome Equipe 1
-  if (match.teamA.name) {
-    page.drawText(match.teamA.name, { x: startX + 17, y: toPdfY(86), size: 12, font: fonts.boldFont, color: NAVY });
-  } else {
-    page.drawText('EQUIPE 1: __________________________________', { x: startX + 17, y: toPdfY(86), size: 10, font: fonts.boldFont, color: TEXT_MUTED });
+  // 5. Ginásio / Local
+  if (f.venue) {
+    const venueText = match.venue ? (match.court ? `${match.venue} (${match.court})` : match.venue) : '';
+    const text = resolveFieldValue(values, 'venue', venueText);
+    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.venue);
   }
 
-  // VS Central
-  page.drawText('VS', { x: startX + totalWidth / 2 - 8, y: toPdfY(86), size: 10, font: fonts.boldFont, color: rgb(0.3, 0.4, 0.6) });
+  // 6. Sexo (MASC / FEM)
+  if (match.gender === 'male' && f.genderMasc) {
+    drawDynamicText(page, fonts.boldFont, fonts.boldFont, 'X', f.genderMasc);
+  } else if (match.gender === 'female' && f.genderFem) {
+    drawDynamicText(page, fonts.boldFont, fonts.boldFont, 'X', f.genderFem);
+  }
 
-  // Nome Equipe 2
-  if (match.teamB.name) {
-    const nameBWidth = fonts.boldFont.widthOfTextAtSize(match.teamB.name, 12);
-    page.drawText(match.teamB.name, { x: startX + totalWidth - 17 - nameBWidth, y: toPdfY(86), size: 12, font: fonts.boldFont, color: NAVY });
-  } else {
-    const placeholder = 'EQUIPE 2: __________________________________';
-    const placeWidth = fonts.boldFont.widthOfTextAtSize(placeholder, 10);
-    page.drawText(placeholder, { x: startX + totalWidth - 17 - placeWidth, y: toPdfY(86), size: 10, font: fonts.boldFont, color: TEXT_MUTED });
+  // 7. Categoria
+  if (f.categoryName) {
+    const text = resolveFieldValue(values, 'categoryName', match.categoryName || '');
+    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.categoryName);
+  }
+
+  // 8. Data
+  if (f.date) {
+    const text = resolveFieldValue(values, 'date', match.date || '');
+    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.date);
+  }
+
+  // 9. Horário
+  if (f.time) {
+    const text = resolveFieldValue(values, 'time', match.startTime || '');
+    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.time);
+  }
+
+  // 10. Equipe A e Equipe B (Confronto)
+  if (f.teamAName) {
+    const text = resolveFieldValue(values, 'teamAName', match.teamA.name || '');
+    if (text) drawDynamicText(page, fonts.boldFont, fonts.boldFont, text, f.teamAName);
+  }
+  if (f.teamBName) {
+    const text = resolveFieldValue(values, 'teamBName', match.teamB.name || '');
+    if (text) drawDynamicText(page, fonts.boldFont, fonts.boldFont, text, f.teamBName);
   }
 }
 
 /**
- * Desenha a relação nominal completa de atletas e comissão técnica no quadro EQUIPES (linhas 143 a 360).
- * As assinaturas permanecem 100% em branco para assinatura física dos envolvidos.
+ * Desenha a relação nominal completa de atletas e comissão técnica no quadro EQUIPES.
+ * As assinaturas permanecem 100% em branco para aposição manual de assinaturas físicas.
  */
 export function renderRostersAndStaff(
   page: PDFPage,
@@ -307,6 +253,8 @@ export function renderRostersAndStaff(
   match: MatchDocument,
   values?: Record<string, string>,
 ): void {
+  const is3Sets = page.getWidth() < 1100;
+
   const regularPlayersA = match.teamA.players.filter(p => !match.teamA.liberoPlayers?.some(l => l.id === p.id)).slice(0, 12);
   const regularPlayersB = match.teamB.players.filter(p => !match.teamB.liberoPlayers?.some(l => l.id === p.id)).slice(0, 12);
   const liberosA = (match.teamA.liberoPlayers || []).slice(0, 2);
@@ -315,91 +263,137 @@ export function renderRostersAndStaff(
   const captainAId = match.teamA.captainId || regularPlayersA.find(p => p.isCaptain)?.id || regularPlayersA[0]?.id;
   const captainBId = match.teamB.captainId || regularPlayersB.find(p => p.isCaptain)?.id || regularPlayersB[0]?.id;
 
-  // Y exato de cada uma das 12 linhas da tabela de atletas (centrado em cada célula)
-  const athleteRowYs = [
-    143.5, 154.0, 164.5, 175.5, 186.0, 196.5,
-    207.5, 218.0, 228.5, 239.5, 250.0, 260.5,
-  ];
+  if (is3Sets) {
+    // ── Modelo de 3 Sets (Tabela lateral superior direita) ─────────────
+    const athleteRowYs = [
+      92.0, 102.5, 113.0, 123.5, 134.0, 144.5,
+      155.0, 165.5, 176.0, 186.5, 197.0, 207.5
+    ];
 
-  // Atletas Regulares Equipe 1
-  regularPlayersA.forEach((p, idx) => {
-    const yTop = athleteRowYs[idx];
-    const isCaptain = p.id === captainAId;
-    const num = p.shirtNumber !== undefined ? String(p.shirtNumber).padStart(2, '0') : String(idx + 1).padStart(2, '0');
-    const name = `${p.name}${isCaptain ? ' (C)' : ''}`;
+    // Atletas Equipe A
+    regularPlayersA.forEach((p, idx) => {
+      const yTop = athleteRowYs[idx];
+      const isCaptain = p.id === captainAId;
+      const num = p.shirtNumber !== undefined ? String(p.shirtNumber).padStart(2, '0') : String(idx + 1).padStart(2, '0');
+      const name = `${p.name}${isCaptain ? ' (C)' : ''}`;
 
-    drawDynamicText(page, fonts.boldFont, fonts.boldFont, num, {
-      x: 751, y: yTop, width: 13, height: 9, fontSize: 7, bold: true, align: 'center',
+      drawDynamicText(page, fonts.boldFont, fonts.boldFont, num, {
+        x: 752, y: yTop, width: 12, height: 9.5, fontSize: 6.5, bold: true, align: 'center',
+      });
+      drawDynamicText(page, fonts.font, fonts.boldFont, name, {
+        x: 766, y: yTop, width: 98, height: 9.5, fontSize: 6.5, bold: isCaptain, align: 'left',
+      });
     });
-    drawDynamicText(page, fonts.font, fonts.boldFont, name, {
-      x: 765, y: yTop, width: 98, height: 9, fontSize: 6.8, bold: isCaptain, align: 'left',
-    });
-  });
 
-  // Atletas Regulares Equipe 2
-  regularPlayersB.forEach((p, idx) => {
-    const yTop = athleteRowYs[idx];
-    const isCaptain = p.id === captainBId;
-    const num = p.shirtNumber !== undefined ? String(p.shirtNumber).padStart(2, '0') : String(idx + 1).padStart(2, '0');
-    const name = `${p.name}${isCaptain ? ' (C)' : ''}`;
+    // Atletas Equipe B
+    regularPlayersB.forEach((p, idx) => {
+      const yTop = athleteRowYs[idx];
+      const isCaptain = p.id === captainBId;
+      const num = p.shirtNumber !== undefined ? String(p.shirtNumber).padStart(2, '0') : String(idx + 1).padStart(2, '0');
+      const name = `${p.name}${isCaptain ? ' (C)' : ''}`;
 
-    drawDynamicText(page, fonts.boldFont, fonts.boldFont, num, {
-      x: 869, y: yTop, width: 13, height: 9, fontSize: 7, bold: true, align: 'center',
+      drawDynamicText(page, fonts.boldFont, fonts.boldFont, num, {
+        x: 868, y: yTop, width: 12, height: 9.5, fontSize: 6.5, bold: true, align: 'center',
+      });
+      drawDynamicText(page, fonts.font, fonts.boldFont, name, {
+        x: 882, y: yTop, width: 98, height: 9.5, fontSize: 6.5, bold: isCaptain, align: 'left',
+      });
     });
-    drawDynamicText(page, fonts.font, fonts.boldFont, name, {
-      x: 883, y: yTop, width: 98, height: 9, fontSize: 6.8, bold: isCaptain, align: 'left',
-    });
-  });
 
-  // Líberos (L1 em 271.5, L2 em 282.5)
-  const liberoRowYs = [271.5, 282.5];
-  liberosA.forEach((l, idx) => {
-    const yTop = liberoRowYs[idx];
-    const num = l.shirtNumber !== undefined ? String(l.shirtNumber).padStart(2, '0') : '';
-    drawDynamicText(page, fonts.boldFont, fonts.boldFont, num, {
-      x: 751, y: yTop, width: 13, height: 9, fontSize: 7, bold: true, align: 'center',
+    // Líberos
+    const liberoRowYs = [218.0, 229.0];
+    liberosA.forEach((l, idx) => {
+      const yTop = liberoRowYs[idx];
+      const num = l.shirtNumber !== undefined ? String(l.shirtNumber).padStart(2, '0') : '';
+      drawDynamicText(page, fonts.boldFont, fonts.boldFont, num, {
+        x: 752, y: yTop, width: 12, height: 9.5, fontSize: 6.5, bold: true, align: 'center',
+      });
+      drawDynamicText(page, fonts.boldFont, fonts.boldFont, `${l.name} (L)`, {
+        x: 766, y: yTop, width: 98, height: 9.5, fontSize: 6.5, bold: true, align: 'left',
+      });
     });
-    drawDynamicText(page, fonts.boldFont, fonts.boldFont, `${l.name} (L)`, {
-      x: 765, y: yTop, width: 98, height: 9, fontSize: 6.8, bold: true, align: 'left',
-    });
-  });
 
-  liberosB.forEach((l, idx) => {
-    const yTop = liberoRowYs[idx];
-    const num = l.shirtNumber !== undefined ? String(l.shirtNumber).padStart(2, '0') : '';
-    drawDynamicText(page, fonts.boldFont, fonts.boldFont, num, {
-      x: 869, y: yTop, width: 13, height: 9, fontSize: 7, bold: true, align: 'center',
+    liberosB.forEach((l, idx) => {
+      const yTop = liberoRowYs[idx];
+      const num = l.shirtNumber !== undefined ? String(l.shirtNumber).padStart(2, '0') : '';
+      drawDynamicText(page, fonts.boldFont, fonts.boldFont, num, {
+        x: 868, y: yTop, width: 12, height: 9.5, fontSize: 6.5, bold: true, align: 'center',
+      });
+      drawDynamicText(page, fonts.boldFont, fonts.boldFont, `${l.name} (L)`, {
+        x: 882, y: yTop, width: 98, height: 9.5, fontSize: 6.5, bold: true, align: 'left',
+      });
     });
-    drawDynamicText(page, fonts.boldFont, fonts.boldFont, `${l.name} (L)`, {
-      x: 883, y: yTop, width: 98, height: 9, fontSize: 6.8, bold: true, align: 'left',
-    });
-  });
 
-  // Comissão Técnica (T: 299.0, AT1: 309.0) — preenchida diretamente do cadastro da equipe
-  if (match.teamA.coach) {
-    drawDynamicText(page, fonts.font, fonts.boldFont, match.teamA.coach, {
-      x: 750, y: 299.0, width: 114, height: 9, fontSize: 6.5, align: 'left',
+    // Comissão Técnica
+    if (match.teamA.coach) {
+      drawDynamicText(page, fonts.font, fonts.boldFont, match.teamA.coach, {
+        x: 748, y: 245.0, width: 114, height: 9.5, fontSize: 6.0, align: 'left',
+      });
+    }
+    if (match.teamB.coach) {
+      drawDynamicText(page, fonts.font, fonts.boldFont, match.teamB.coach, {
+        x: 866, y: 245.0, width: 114, height: 9.5, fontSize: 6.0, align: 'left',
+      });
+    }
+    if (match.teamA.assistantCoach) {
+      drawDynamicText(page, fonts.font, fonts.boldFont, match.teamA.assistantCoach, {
+        x: 748, y: 255.0, width: 114, height: 9.5, fontSize: 6.0, align: 'left',
+      });
+    }
+    if (match.teamB.assistantCoach) {
+      drawDynamicText(page, fonts.font, fonts.boldFont, match.teamB.assistantCoach, {
+        x: 866, y: 255.0, width: 114, height: 9.5, fontSize: 6.0, align: 'left',
+      });
+    }
+  } else {
+    // ── Modelo de 5 Sets (Tabela EQUIPES na Linha 3 x: 740-1160, y: 470-600) ───
+    const athleteRowYs5 = [
+      480.0, 490.5, 501.0, 511.5, 522.0, 532.5,
+      543.0, 553.5, 564.0, 574.5, 585.0, 595.5
+    ];
+
+    // Atletas Equipe A
+    regularPlayersA.forEach((p, idx) => {
+      const yTop = athleteRowYs5[idx];
+      const isCaptain = p.id === captainAId;
+      const num = p.shirtNumber !== undefined ? String(p.shirtNumber).padStart(2, '0') : String(idx + 1).padStart(2, '0');
+      const name = `${p.name}${isCaptain ? ' (C)' : ''}`;
+
+      drawDynamicText(page, fonts.boldFont, fonts.boldFont, num, {
+        x: 745, y: yTop, width: 16, height: 9.5, fontSize: 7.0, bold: true, align: 'center',
+      });
+      drawDynamicText(page, fonts.font, fonts.boldFont, name, {
+        x: 763, y: yTop, width: 175, height: 9.5, fontSize: 7.0, bold: isCaptain, align: 'left',
+      });
     });
+
+    // Atletas Equipe B
+    regularPlayersB.forEach((p, idx) => {
+      const yTop = athleteRowYs5[idx];
+      const isCaptain = p.id === captainBId;
+      const num = p.shirtNumber !== undefined ? String(p.shirtNumber).padStart(2, '0') : String(idx + 1).padStart(2, '0');
+      const name = `${p.name}${isCaptain ? ' (C)' : ''}`;
+
+      drawDynamicText(page, fonts.boldFont, fonts.boldFont, num, {
+        x: 953, y: yTop, width: 16, height: 9.5, fontSize: 7.0, bold: true, align: 'center',
+      });
+      drawDynamicText(page, fonts.font, fonts.boldFont, name, {
+        x: 971, y: yTop, width: 175, height: 9.5, fontSize: 7.0, bold: isCaptain, align: 'left',
+      });
+    });
+
+    // Comissão Técnica 5 Sets (Faixa inferior direita y: 645-740)
+    if (match.teamA.coach) {
+      drawDynamicText(page, fonts.font, fonts.boldFont, match.teamA.coach, {
+        x: 875, y: 646.0, width: 130, height: 10, fontSize: 7.5, align: 'left',
+      });
+    }
+    if (match.teamB.coach) {
+      drawDynamicText(page, fonts.font, fonts.boldFont, match.teamB.coach, {
+        x: 1025, y: 646.0, width: 130, height: 10, fontSize: 7.5, align: 'left',
+      });
+    }
   }
-  if (match.teamB.coach) {
-    drawDynamicText(page, fonts.font, fonts.boldFont, match.teamB.coach, {
-      x: 868, y: 299.0, width: 114, height: 9, fontSize: 6.5, align: 'left',
-    });
-  }
-
-  if (match.teamA.assistantCoach) {
-    drawDynamicText(page, fonts.font, fonts.boldFont, match.teamA.assistantCoach, {
-      x: 750, y: 309.0, width: 114, height: 9, fontSize: 6.5, align: 'left',
-    });
-  }
-  if (match.teamB.assistantCoach) {
-    drawDynamicText(page, fonts.font, fonts.boldFont, match.teamB.assistantCoach, {
-      x: 868, y: 309.0, width: 114, height: 9, fontSize: 6.5, align: 'left',
-    });
-  }
-
-  // NOTA: Os campos de assinatura (Capitão e Técnico) são intencionalmente
-  // mantidos em branco para a assinatura física dos envolvidos no jogo.
 }
 
 /** Desenha observações, funções dos oficiais e vencedor. */
