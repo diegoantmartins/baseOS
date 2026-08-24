@@ -121,8 +121,8 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-6">
-        <DialogHeader className="space-y-1">
+      <DialogContent className="max-w-7xl w-[95vw] h-[92vh] flex flex-col p-5 bg-background">
+        <DialogHeader className="space-y-1 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <DialogTitle className="text-xl font-bold font-display">
@@ -139,21 +139,21 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 flex-1 flex flex-col min-h-0">
-          <Tabs value={tab} onValueChange={v => setTab(v as Tab)} className="w-full">
+        <div className="flex-1 flex flex-col min-h-0 gap-3">
+          <Tabs value={tab} onValueChange={v => setTab(v as Tab)} className="w-full shrink-0">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="prefilled" className="text-xs gap-1.5">
+              <TabsTrigger value="prefilled" className="text-xs gap-1.5 font-medium">
                 <Sparkles className="w-3.5 h-3.5" />
                 Súmula da Partida (Pré-Preenchida)
               </TabsTrigger>
-              <TabsTrigger value="blank" className="text-xs gap-1.5">
+              <TabsTrigger value="blank" className="text-xs gap-1.5 font-medium">
                 <FileText className="w-3.5 h-3.5" />
                 Súmula em Branco (Impressão Limpa)
               </TabsTrigger>
             </TabsList>
           </Tabs>
 
-          <div className="flex-1 min-h-[460px] rounded-xl border border-border overflow-hidden bg-slate-900 shadow-inner flex items-center justify-center">
+          <div className="flex-1 w-full h-full min-h-0 rounded-lg border border-border overflow-hidden bg-slate-900/60 shadow-inner flex items-center justify-center">
             {loading ? (
               <div className="flex flex-col items-center gap-3 text-white">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -161,7 +161,7 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
               </div>
             ) : pdfBlobUrl ? (
               <iframe
-                src={`${pdfBlobUrl}#toolbar=0&navpanes=0`}
+                src={`${pdfBlobUrl}#view=FitH&toolbar=0&navpanes=0`}
                 className="w-full h-full border-0"
                 title="Pré-visualização da Súmula"
               />
@@ -170,7 +170,7 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border shrink-0">
             <p className="text-[11px] text-muted-foreground">
               Documento vetorial de alta definição com troca de lado no tie-break.
             </p>

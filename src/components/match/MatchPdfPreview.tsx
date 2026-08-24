@@ -150,9 +150,9 @@ export function MatchPdfPreview({ matchId }: MatchPdfPreviewProps) {
 
         {/* Visualizador do PDF */}
         {pdfBlobUrl && !isGenerating ? (
-          <div className="w-full h-[520px] rounded-xl border border-border overflow-hidden bg-slate-900 shadow-inner">
+          <div className="w-full h-[680px] rounded-xl border border-border overflow-hidden bg-slate-900 shadow-inner">
             <iframe
-              src={`${pdfBlobUrl}#toolbar=0&navpanes=0`}
+              src={`${pdfBlobUrl}#view=FitH&toolbar=0&navpanes=0`}
               title="Pré-visualização da Súmula BaseOS"
               className="w-full h-full border-0"
             />

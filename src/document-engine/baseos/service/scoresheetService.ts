@@ -12,6 +12,8 @@ import { BaseosThreeSetScoresheet } from '../templates/BaseosThreeSetScoresheet'
 import { BaseosFiveSetScoresheet } from '../templates/BaseosFiveSetScoresheet';
 import type { CompetitionAthlete } from '@/types/registration';
 
+import { getMatchRosters } from '@/services/registrationService';
+
 /** Carrega os dados da partida e monta a estrutura oficial BaseosScoresheetData */
 export async function loadBaseosScoresheetData(
   matchId: string,
@@ -20,36 +22,25 @@ export async function loadBaseosScoresheetData(
   const match = await dataAccess.getMatch(matchId);
   if (!match) return null;
 
-  const [competition, teams, competitionTeams, athletes] = await Promise.all([
+  const [competition, teams, rosters] = await Promise.all([
     dataAccess.getCompetition(match.competitionId),
     dataAccess.listTeams(),
-    dataAccess.listCompetitionTeams(),
-    dataAccess.listCompetitionAthletes(),
+    getMatchRosters(match.id),
   ]);
 
   const teamA = teams.find(t => t.id === match.teamAId);
   const teamB = teams.find(t => t.id === match.teamBId);
 
-  // Busca elencos da competição
-  const ctA = competitionTeams.find(
-    ct => ct.competitionId === match.competitionId && ct.teamId === match.teamAId,
-  );
-  const ctB = competitionTeams.find(
-    ct => ct.competitionId === match.competitionId && ct.teamId === match.teamBId,
-  );
-
-  let rosterA = ctA ? athletes.filter(a => a.competitionTeamId === ctA.id) : [];
-  let rosterB = ctB ? athletes.filter(a => a.competitionTeamId === ctB.id) : [];
+  let rosterA = rosters.teamA;
+  let rosterB = rosters.teamB;
 
   // Fallback inteligente: se não houver atletas inscritos nesta competição específica, busca em qualquer cadastro existente da equipe
   if (rosterA.length === 0 || rosterB.length === 0) {
+    const persons = await dataAccess.listPersons();
+
     if (rosterA.length === 0 && match.teamAId) {
-      const anyCtA = competitionTeams.find(ct => ct.teamId === match.teamAId);
-      if (anyCtA) {
-        rosterA = athletes.filter(a => a.competitionTeamId === anyCtA.id);
-      } else {
-        const persons = await dataAccess.listPersons();
-        const teamPersons = persons.filter(p => p.teamIds?.includes(match.teamAId));
+      const teamPersons = persons.filter(p => p.teamIds?.includes(match.teamAId));
+      if (teamPersons.length > 0) {
         rosterA = teamPersons.map((p, i) => ({
           id: p.id,
           competitionTeamId: 'fallback-ct-a',
@@ -66,12 +57,8 @@ export async function loadBaseosScoresheetData(
     }
 
     if (rosterB.length === 0 && match.teamBId) {
-      const anyCtB = competitionTeams.find(ct => ct.teamId === match.teamBId);
-      if (anyCtB) {
-        rosterB = athletes.filter(a => a.competitionTeamId === anyCtB.id);
-      } else {
-        const persons = await dataAccess.listPersons();
-        const teamPersons = persons.filter(p => p.teamIds?.includes(match.teamBId));
+      const teamPersons = persons.filter(p => p.teamIds?.includes(match.teamBId));
+      if (teamPersons.length > 0) {
         rosterB = teamPersons.map((p, i) => ({
           id: p.id,
           competitionTeamId: 'fallback-ct-b',
