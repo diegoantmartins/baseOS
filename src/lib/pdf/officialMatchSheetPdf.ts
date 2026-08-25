@@ -1,56 +1,56 @@
 // =====================================================================
-// Súmula Oficial de Voleibol — Reprodução fiel da estrutura oficial
-// (padrão FPV/CBV) com identidade 100% do sistema (sem marcas de terceiros).
-//
-// Documentos suportados:
-//  • Súmula 3 sets  → A4 paisagem (297 × 210 mm)
-//  • Súmula 5 sets  → A3 paisagem (420 × 297 mm)
-//  • Fichas de Posição / Ordem de Saque → A4 paisagem (8 filipetas/folha)
-//
-// Todas as coordenadas estão em milímetros (mm).
+// Súmula Oficial de Voleibol — Reprodução Fiel e Idêntica ao Padrão
+// Oficial CBV / FPV em A4 Paisagem (297 × 210 mm).
 // =====================================================================
 
 import jsPDF from 'jspdf';
 import type { MatchSheetData } from './matchSheetPdf';
 
-// ── colors ──────────────────────────────────────────────────────────
+// ── Cores Oficiais (Monocromático / Tons de Cinza Regulamentares) ───
 const INK = '#000000';
-const DARK = '#1a1a1a';
-const GRAY = '#555555';
-const LGRAY = '#999999';
-const BG = '#f0f0f0';
+const GRAY_DARK = '#222222';
+const GRAY_MED = '#666666';
+const GRAY_LIGHT = '#aaaaaa';
+const BG_HEADER = '#f4f4f4';
+const BG_ZEBRA = '#fafafa';
 const WHITE = '#ffffff';
 
-// ── helpers ─────────────────────────────────────────────────────────
-function ln(d: jsPDF, x1: number, y1: number, x2: number, y2: number, w = 0.25, c = INK) {
+// ── Dimensões A4 Paisagem (mm) ──────────────────────────────────────
+const W = 297, H = 210, M = 3.5;
+
+// ── Helpers Gráficos de Alta Precisão ────────────────────────────────
+function ln(d: jsPDF, x1: number, y1: number, x2: number, y2: number, w = 0.2, c = INK) {
   d.setDrawColor(c); d.setLineWidth(w); d.line(x1, y1, x2, y2);
 }
-function bx(d: jsPDF, x: number, y: number, w: number, h: number, lw = 0.3) {
+function bx(d: jsPDF, x: number, y: number, w: number, h: number, lw = 0.35) {
   d.setDrawColor(INK); d.setLineWidth(lw); d.rect(x, y, w, h, 'S');
 }
-function fbx(d: jsPDF, x: number, y: number, w: number, h: number, c: string) {
+function fbx(d: jsPDF, x: number, y: number, w: number, h: number, c = BG_HEADER) {
   d.setFillColor(c); d.rect(x, y, w, h, 'F');
 }
-function tx(d: jsPDF, s: string, x: number, y: number, sz: number,
-  o: { a?: 'left' | 'center' | 'right'; c?: string; b?: boolean } = {}) {
+function tx(
+  d: jsPDF,
+  s: string,
+  x: number,
+  y: number,
+  sz: number,
+  o: { a?: 'left' | 'center' | 'right'; c?: string; b?: boolean } = {}
+) {
   d.setFont('helvetica', o.b ? 'bold' : 'normal');
   d.setFontSize(sz);
   d.setTextColor(o.c ?? INK);
   d.text(s, x, y, { align: o.a ?? 'left' });
 }
-function grid(d: jsPDF, x: number, y: number, w: number, h: number, cols: number, rows: number, lw = 0.2) {
-  const cw = w / cols, rh = h / rows;
-  for (let c = 0; c <= cols; c++) ln(d, x + c * cw, y, x + c * cw, y + h, lw);
-  for (let r = 0; r <= rows; r++) ln(d, x, y + r * rh, x + w, y + r * rh, lw);
+function circle(d: jsPDF, x: number, y: number, r: number, lw = 0.25) {
+  d.setDrawColor(INK); d.setLineWidth(lw); d.circle(x, y, r, 'S');
 }
 function chk(d: jsPDF, x: number, y: number, sz: number, checked: boolean) {
-  bx(d, x, y, sz, sz, 0.25);
+  bx(d, x, y, sz, sz, 0.2);
   if (checked) {
-    ln(d, x + 0.6, y + sz * 0.55, x + sz * 0.4, y + sz - 0.6, 0.4);
-    ln(d, x + sz * 0.4, y + sz - 0.6, x + sz - 0.6, y + 0.6, 0.4);
+    ln(d, x + 0.5, y + sz * 0.55, x + sz * 0.4, y + sz - 0.5, 0.35);
+    ln(d, x + sz * 0.4, y + sz - 0.5, x + sz - 0.5, y + 0.5, 0.35);
   }
 }
-
 function drawTeamLogo(d: jsPDF, logoUrl: string | undefined, x: number, y: number, size: number): void {
   if (!logoUrl) return;
   try {
@@ -62,734 +62,854 @@ function drawTeamLogo(d: jsPDF, logoUrl: string | undefined, x: number, y: numbe
     const format = logoUrl.startsWith('data:image/png') ? 'PNG' : logoUrl.startsWith('data:image/jpeg') ? 'JPEG' : undefined;
     d.addImage(logoUrl, format, x, y, size, size);
   } catch {
-    // Silently fallback if logo is not renderable in current context
+    // Silencioso
   }
 }
 
-// ── geometry constants for 3-sets A4 landscape (297 × 210 mm) ───────
-const W3 = 297, H3 = 210, M = 4; // page width, height, margin
+// ══════════════════════════════════════════════════════════════════════
+// 1. CABEÇALHO OFICIAL (HEADER)
+// ══════════════════════════════════════════════════════════════════════
+function drawOfficialHeader(d: jsPDF, data: MatchSheetData, y: number, w: number, h: number) {
+  bx(d, M, y, w, h, 0.4);
 
-// ── HEADER (title bar) ─────────────────────────────────────────────
-function drawHeader3(d: jsPDF, data: MatchSheetData) {
-  const y = M, w = W3 - 2 * M, h = 14;
-  // background bar
-  fbx(d, M, y, w, h, '#1e3a5f');
-  // emblem circle placeholder (left)
-  d.setDrawColor(WHITE); d.setLineWidth(0.4);
-  d.circle(M + 8, y + h / 2, 4.5, 'S');
-  tx(d, 'V', M + 8, y + h / 2 + 1.3, 5.5, { a: 'center', c: WHITE, b: true });
-  // system name / org name (left)
-  const orgName = (data.orgName || 'VolleyPro').toUpperCase();
-  tx(d, orgName, M + 15, y + 5, 7, { c: WHITE, b: true });
-  // "SÚMULA OFICIAL" title
-  tx(d, 'SÚMULA OFICIAL', W3 / 2, y + 5.5, 9, { a: 'center', c: WHITE, b: true });
-  // match/format info (right)
-  const modTxt = data.modality === 'indoor' ? 'VÔLEI DE QUADRA' : 'VÔLEI DE PRAIA';
-  tx(d, modTxt, W3 / 2, y + 11, 5.5, { a: 'center', c: '#c0d0e0' });
-  // competition name (right side)
-  tx(d, data.competition.toUpperCase(), W3 - M - 2, y + 5.5, 6, { a: 'right', c: WHITE, b: true });
-  const catText = data.category ? data.category.toUpperCase() : '';
-  tx(d, catText, W3 - M - 2, y + 11, 5, { a: 'right', c: '#c0d0e0' });
-}
-
-// ── MATCH INFO strip ────────────────────────────────────────────────
-function drawMatchInfo3(d: jsPDF, data: MatchSheetData) {
-  const y = M + 15, w = W3 - 2 * M, h = 15;
-  bx(d, M, y, w, h, 0.35);
-
-  // dividers — split into 7 columns
-  const cols = [42, 42, 50, 38, 36, 40, 41]; // approximate mm widths
-  let cx = M;
-  const xpos: number[] = [cx];
-  cols.forEach(cw => { cx += cw; xpos.push(cx); ln(d, cx, y, cx, y + h, 0.2); });
-
-  const lbl = (s: string, xi: number, yi: number) => tx(d, s, xi + 1.5, yi, 4.5, { c: GRAY });
-  const val = (s: string, xi: number, yi: number) => tx(d, s, xi + 1.5, yi, 6, { b: true });
-  // horizontal midline
-  ln(d, M, y + 7, M + w, y + 7, 0.15, LGRAY);
-
-  // Row 1 labels
-  lbl('NOME DA COMPETIÇÃO', xpos[0], y + 3.5);
-  lbl('CIDADE', xpos[1], y + 3.5);
-  lbl('GINÁSIO / QUADRA', xpos[2], y + 3.5);
-  lbl('FASE', xpos[3], y + 3.5);
-  lbl('JOGO Nº', xpos[4], y + 3.5);
-  lbl('SEXO', xpos[5], y + 3.5);
-  lbl('CATEGORIA', xpos[6], y + 3.5);
-
-  // Row 1 values
-  val(data.competition, xpos[0], y + 6.5);
-  val(data.city || '', xpos[1], y + 6.5);
-  const venueStr = data.venue + (data.court ? ` - ${data.court}` : '');
-  val(venueStr.substring(0, 24), xpos[2], y + 6.5);
-  val(data.phase || data.groupName || '', xpos[3], y + 6.5);
-  val(data.matchNumber > 0 ? String(data.matchNumber) : '', xpos[4], y + 6.5);
-  // sex checkboxes
-  const sx = xpos[5] + 1.5;
-  const sy = y + 4.5;
-  const genderIs = (g: string) => data.genderCategory === g;
-  chk(d, sx, sy, 2.5, genderIs('male')); tx(d, 'M', sx + 3, sy + 2, 4.5);
-  chk(d, sx + 9, sy, 2.5, genderIs('female')); tx(d, 'F', sx + 12, sy + 2, 4.5);
-  chk(d, sx + 18, sy, 2.5, genderIs('mixed')); tx(d, 'X', sx + 21, sy + 2, 4.5);
-  val(data.category, xpos[6], y + 6.5);
-
-  // Row 2 labels
-  lbl('DATA', xpos[0], y + 10.5);
-  lbl('HORÁRIO', xpos[1], y + 10.5);
-  // Row 2: Team names
-  lbl('EQUIPES', xpos[2], y + 10.5);
-
-  // Row 2 values
-  val(data.date || '', xpos[0], y + 13.5);
-  val(data.time || '', xpos[1], y + 13.5);
-  // Teams A vs B centered in remaining width with logos
-  const teamsX = xpos[2] + 1.5;
-  tx(d, 'A', teamsX, y + 12, 5, { b: true });
+  // Logo 1 (Esquerda)
   if (data.teamA.logoUrl) {
-    drawTeamLogo(d, data.teamA.logoUrl, teamsX + 4, y + 8, 5.5);
-    tx(d, data.teamA.name.toUpperCase(), teamsX + 11, y + 12, 5.5, { b: true });
+    drawTeamLogo(d, data.teamA.logoUrl, M + 1.5, y + 1.5, 10);
   } else {
-    tx(d, data.teamA.name.toUpperCase(), teamsX + 4.5, y + 12, 5.5, { b: true });
+    circle(d, M + 6.5, y + h / 2, 4.5, 0.3);
+    tx(d, 'TDT', M + 6.5, y + h / 2 + 1.2, 4.5, { a: 'center', b: true });
   }
 
-  const vsX = xpos[2] + (w - xpos[2] + M) / 2;
-  tx(d, 'VS', vsX, y + 13.5, 5.5, { a: 'center', c: GRAY, b: true });
+  // Divisória Esquerda
+  ln(d, M + 14, y, M + 14, y + h, 0.2);
 
-  tx(d, 'B', W3 - M - 2, y + 12, 5, { a: 'right', b: true });
+  // Bloco Título do Torneio
+  const orgName = data.orgName || 'TORNEIO DE VOLEIBOL';
+  tx(d, orgName.toUpperCase(), M + 16, y + 4.2, 6.5, { b: true });
+  tx(d, (data.competition || 'CAMPEONATO OFICIAL').toUpperCase(), M + 16, y + 8.5, 6, { b: true, c: '#b91c1c' });
+
+  // Divisória Confronto (Centro-Esquerda)
+  const xConfronto = M + 80;
+  ln(d, xConfronto, y, xConfronto, y + h, 0.2);
+
+  // Logo 2 (Centro)
   if (data.teamB.logoUrl) {
-    drawTeamLogo(d, data.teamB.logoUrl, W3 - M - 13, y + 8, 5.5);
-    tx(d, data.teamB.name.toUpperCase(), W3 - M - 15, y + 12, 5.5, { a: 'right', b: true });
+    drawTeamLogo(d, data.teamB.logoUrl, xConfronto + 1.5, y + 1.5, 10);
   } else {
-    tx(d, data.teamB.name.toUpperCase(), W3 - M - 7, y + 12, 5.5, { a: 'right', b: true });
+    circle(d, xConfronto + 6.5, y + h / 2, 4.5, 0.3);
+    tx(d, 'TDT', xConfronto + 6.5, y + h / 2 + 1.2, 4.5, { a: 'center', b: true });
   }
+  ln(d, xConfronto + 14, y, xConfronto + 14, y + h, 0.2);
+
+  // Confronto: EQUIPE A  X  EQUIPE B
+  const xTeams = xConfronto + 15;
+  const wTeams = 105;
+  const nameA = (data.teamA.shortName || data.teamA.name).toUpperCase().substring(0, 18);
+  const nameB = (data.teamB.shortName || data.teamB.name).toUpperCase().substring(0, 18);
+  tx(d, nameA, xTeams + 22, y + 5.5, 6.5, { a: 'center', b: true });
+  tx(d, 'X', xTeams + wTeams / 2, y + 5.5, 6.5, { a: 'center', b: true });
+  tx(d, nameB, xTeams + wTeams - 22, y + 5.5, 6.5, { a: 'center', b: true });
+
+  // Divisória Dados do Jogo (Direita)
+  const xInfo = xTeams + wTeams;
+  ln(d, xInfo, y, xInfo, y + h, 0.2);
+  ln(d, xInfo, y + 6.5, M + w, y + 6.5, 0.15, GRAY_LIGHT);
+
+  // Linha 1 de Informações
+  const venueStr = (data.venue + (data.court ? ` - ${data.court}` : '')).toUpperCase().substring(0, 38);
+  tx(d, venueStr, xInfo + 2, y + 4.5, 5, { b: true });
+
+  // Linha 2 de Informações (Data, Horário, Naipe, Grupo, Categoria)
+  const dateStr = data.date || '07/06/2026';
+  const timeStr = data.time ? (data.time.length === 5 ? `${data.time}:00` : data.time) : '08:00:00';
+  const naipeStr = data.genderCategory === 'female' ? 'F' : data.genderCategory === 'male' ? 'M' : 'MISTO';
+  const groupStr = data.groupName || data.phase || 'A';
+  const catStr = (data.category || 'LIVRE').toUpperCase();
+
+  tx(d, dateStr, xInfo + 2, y + 10.5, 5);
+  tx(d, timeStr, xInfo + 20, y + 10.5, 5);
+  tx(d, `Naipe: ${naipeStr}`, xInfo + 40, y + 10.5, 5, { b: true });
+  tx(d, `Grupo: ${groupStr}`, xInfo + 55, y + 10.5, 5, { b: true });
+  tx(d, `Cat: ${catStr}`, xInfo + 70, y + 10.5, 5, { b: true });
 }
 
-// ── SET BLOCK drawing ───────────────────────────────────────────────
-// Each set block contains:
-// - Team A half (serve order, lineup, substitutions, serve rotation, point columns)
-// - Team B half (same structure)
-// All grids are blank for manual use by mesários.
+// ══════════════════════════════════════════════════════════════════════
+// 2. BLOCO DE SET REGULAR (SETS 1 E 2 COM 48 PONTOS)
+// ══════════════════════════════════════════════════════════════════════
+function drawRegularSetBlock(
+  d: jsPDF,
+  setNum: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  data: MatchSheetData,
+  teamLeft: 'A' | 'B',
+  teamRight: 'A' | 'B'
+) {
+  bx(d, x, y, w, h, 0.35);
 
-function drawSetBlock(d: jsPDF, setNum: number, x: number, y: number, w: number, h: number, data: MatchSheetData, isTiebreak = false) {
-  // Outer border
-  bx(d, x, y, w, h, 0.4);
+  // 1. Faixa Lateral 1: SET N
+  const stripW1 = 5;
+  fbx(d, x, y, stripW1, h, BG_HEADER);
+  bx(d, x, y, stripW1, h, 0.2);
+  tx(d, 'S', x + stripW1 / 2, y + h * 0.18, 4.5, { a: 'center', b: true });
+  tx(d, 'E', x + stripW1 / 2, y + h * 0.36, 4.5, { a: 'center', b: true });
+  tx(d, 'T', x + stripW1 / 2, y + h * 0.54, 4.5, { a: 'center', b: true });
+  tx(d, String(setNum), x + stripW1 / 2, y + h * 0.78, 6, { a: 'center', b: true });
 
-  // SET number badge (left strip)
-  const stripW = 6;
-  fbx(d, x, y, stripW, h, BG);
-  bx(d, x, y, stripW, h, 0.3);
-  tx(d, 'S', x + stripW / 2, y + h * 0.25, 5.5, { a: 'center', b: true });
-  tx(d, 'E', x + stripW / 2, y + h * 0.42, 5.5, { a: 'center', b: true });
-  tx(d, 'T', x + stripW / 2, y + h * 0.59, 5.5, { a: 'center', b: true });
-  tx(d, String(setNum), x + stripW / 2, y + h * 0.82, 7, { a: 'center', b: true });
+  // 2. Faixa Lateral 2: Rótulos das Linhas
+  const stripW2 = 18;
+  const sx2 = x + stripW1;
+  bx(d, sx2, y, stripW2, h, 0.2);
 
-  const innerX = x + stripW;
-  const innerW = w - stripW;
+  const r1h = 4.2; // Horário de Início / Equipe
+  const r2h = 4.2; // Ordem de Saque
+  const r3h = 4.2; // Jogadores Iniciantes
+  const r4h = 3.5; // Nº do Jogador
+  const r5h = 5.6; // Substituições (2 linhas de 2.8)
+  const r6h = h - (r1h + r2h + r3h + r4h + r5h); // Rodada de Saques (4 linhas)
 
-  // Split into left team (A) and right team (B)
-  const teamW = (innerW - 2) / 2; // 2mm gap between teams
-  const pointColW = 14; // width of point columns
-  const teamContentW = teamW - pointColW;
+  // Textos da Faixa Lateral de Rótulos
+  tx(d, 'Formação de Equipe', sx2 + 1, y + r1h + 2.8, 2.7, { c: GRAY_DARK });
+  tx(d, 'Ordem de Saque', sx2 + 1, y + r1h + r2h + 2.8, 2.7, { c: GRAY_DARK });
+  tx(d, 'Jogadores Iniciantes', sx2 + 1, y + r1h + r2h + r3h + 2.8, 2.5, { c: GRAY_DARK });
+  tx(d, 'Nº do Jogador', sx2 + 1, y + r1h + r2h + r3h + r4h + 2.6, 2.5, { c: GRAY_DARK });
 
-  drawTeamHalf(d, innerX, y, teamContentW, h, 'A', data.teamA, setNum, isTiebreak);
-  drawPointColumns(d, innerX + teamContentW, y, pointColW, h, isTiebreak);
-  drawTeamHalf(d, innerX + teamW + 2, y, teamContentW, h, 'B', data.teamB, setNum, isTiebreak);
-  drawPointColumns(d, innerX + teamW + 2 + teamContentW, y, pointColW, h, isTiebreak);
-}
+  tx(d, 'Substituições', sx2 + 1, y + r1h + r2h + r3h + r4h + 2.5, 2.5, { c: GRAY_DARK });
+  tx(d, 'Placar na', sx2 + 1, y + r1h + r2h + r3h + r4h + 4.2, 2.3, { c: GRAY_MED });
+  tx(d, 'Troca', sx2 + 1, y + r1h + r2h + r3h + r4h + 5.2, 2.3, { c: GRAY_MED });
 
-function drawTeamHalf(d: jsPDF, x: number, y: number, w: number, h: number, label: string,
-  team: MatchSheetData['teamA'], setNum: number, _isTiebreak: boolean) {
+  tx(d, 'Rodada', sx2 + 1, y + h - r6h + 2.8, 2.5, { c: GRAY_DARK });
+  tx(d, 'de', sx2 + 1, y + h - r6h + 5.2, 2.5, { c: GRAY_DARK });
+  tx(d, 'Saques', sx2 + 1, y + h - r6h + 7.6, 2.5, { c: GRAY_DARK });
 
-  // --- Row 1: Horário + Equipe name ---
-  const r1h = 5.5;
-  fbx(d, x, y, w, r1h, '#eaeaea');
-  bx(d, x, y, w, r1h, 0.2);
-  tx(d, label === 'A' ? 'HORÁRIO DO INÍCIO' : 'HORÁRIO DO FIM', x + 1, y + 2, 3.5, { c: GRAY });
-  tx(d, `H___:___`, x + 1, y + 4.5, 3.5, { c: LGRAY });
-  tx(d, 'EQUIPE', x + 25, y + 2, 3.5, { c: GRAY });
-  tx(d, team.name.toUpperCase().substring(0, 20), x + 25, y + 4.5, 4.5, { b: true });
-  // S/R circles
-  const srX = x + w - 6;
-  d.setDrawColor(INK); d.setLineWidth(0.25);
-  d.circle(srX, y + 1.8, 1.2, 'S'); tx(d, 'S', srX, y + 2.3, 3.5, { a: 'center', b: true });
-  d.circle(srX + 3.5, y + 1.8, 1.2, 'S'); tx(d, 'R', srX + 3.5, y + 2.3, 3.5, { a: 'center', b: true });
-
-  // --- Row 2: Ordem de saque (positions I-VI) ---
-  const r2y = y + r1h;
-  const r2h = 5;
-  bx(d, x, r2y, w, r2h, 0.15);
-  const posLabels = ['I', 'II', 'III', 'IV', 'V', 'VI'];
-  const posW = (w - 22) / 6; // 22mm reserved for left labels
-  const posX0 = x + 22;
-  tx(d, 'ORDEM DE SAQUE', x + 1, r2y + 3, 3.5, { c: GRAY });
-  posLabels.forEach((lbl, i) => {
-    const px = posX0 + i * posW;
-    bx(d, px, r2y, posW, r2h, 0.15);
-    tx(d, lbl, px + posW / 2, r2y + 3.5, 4.5, { a: 'center', b: true });
-  });
-
-  // --- Row 3: Jogadores Iniciantes (empty cells for mesário) ---
-  const r3y = r2y + r2h;
-  const r3h = 5;
-  bx(d, x, r3y, w, r3h, 0.15);
-  tx(d, 'JOGADORES INICIANTES', x + 1, r3y + 3, 3, { c: GRAY });
-  posLabels.forEach((_, i) => {
-    const px = posX0 + i * posW;
-    bx(d, px, r3y, posW, r3h, 0.15);
-  });
-
-  // --- Row 4: Nº do Jogador ---
-  const r4y = r3y + r3h;
-  const r4h = 4;
-  bx(d, x, r4y, w, r4h, 0.15);
-  tx(d, 'Nº DO JOGADOR', x + 1, r4y + 2.8, 3, { c: GRAY });
-  posLabels.forEach((_, i) => {
-    const px = posX0 + i * posW;
-    bx(d, px, r4y, posW, r4h, 0.15);
-  });
-
-  // --- Rows 5-6: Substituições (2 rows with : separators) ---
-  const subY = r4y + r4h;
-  const subRowH = 3.5;
-  const subRows = 3;
-  fbx(d, x, subY, 22, subRowH * subRows, '#f8f8f8');
-  tx(d, 'SUBSTITUIÇÕES', x + 1, subY + 2.5, 2.8, { c: GRAY });
-  tx(d, 'PLACAR NA TROCA', x + 1, subY + subRowH + 2.5, 2.5, { c: GRAY });
-  for (let r = 0; r < subRows; r++) {
-    const ry = subY + r * subRowH;
-    ln(d, x, ry, x + w, ry, 0.1, LGRAY);
-    posLabels.forEach((_, i) => {
-      const px = posX0 + i * posW;
-      bx(d, px, ry, posW, subRowH, 0.1);
-      tx(d, ':', px + posW / 2, ry + 2.5, 4, { a: 'center', c: LGRAY });
-    });
-  }
-  bx(d, x, subY, w, subRowH * subRows, 0.15);
-
-  // --- Rows 7-10: Rodada de saques (4 rows × 6 positions × 2 sub-cols each) ---
-  const srvY = subY + subRowH * subRows;
-  const srvRowH = (h - (srvY - y)) / 4;
+  // Subdivisões 1º-5º, 2º-6º, 3º-7º, 4º-8º na faixa
+  const srvSubH = r6h / 4;
   const srvLabels = [['1º', '5º'], ['2º', '6º'], ['3º', '7º'], ['4º', '8º']];
-  tx(d, 'RODADA DE SAQUES', x + 1, srvY + 2.5, 2.8, { c: GRAY });
   for (let r = 0; r < 4; r++) {
-    const ry = srvY + r * srvRowH;
-    ln(d, x, ry, x + w, ry, 0.1);
-    // row labels
-    tx(d, srvLabels[r][0], x + 1, ry + srvRowH * 0.6, 3);
-    tx(d, srvLabels[r][1], x + 8, ry + srvRowH * 0.6, 3);
-    // grid cells for each position
-    posLabels.forEach((_, i) => {
-      const px = posX0 + i * posW;
-      const subW = posW / 2;
-      bx(d, px, ry, subW, srvRowH, 0.08);
-      bx(d, px + subW, ry, subW, srvRowH, 0.08);
-    });
+    const sry = y + h - r6h + r * srvSubH;
+    ln(d, sx2, sry, sx2 + stripW2, sry, 0.1);
+    tx(d, srvLabels[r][0], sx2 + 11.5, sry + srvSubH * 0.7, 2.7);
+    tx(d, srvLabels[r][1], sx2 + 15, sry + srvSubH * 0.7, 2.7);
   }
-  // outer border for serve section
-  bx(d, x, srvY, w, srvRowH * 4, 0.15);
+
+  // Linhas horizontais divisórias
+  ln(d, sx2, y + r1h, x + w, y + r1h, 0.2);
+  ln(d, sx2, y + r1h + r2h, x + w, y + r1h + r2h, 0.2);
+  ln(d, sx2, y + r1h + r2h + r3h, x + w, y + r1h + r2h + r3h, 0.2);
+  ln(d, sx2, y + r1h + r2h + r3h + r4h, x + w, y + r1h + r2h + r3h + r4h, 0.2);
+  ln(d, sx2, y + r1h + r2h + r3h + r4h + r5h, x + w, y + r1h + r2h + r3h + r4h + r5h, 0.2);
+
+  // 3. Duas Metades de Equipe (Esquerda e Direita)
+  const remainingW = w - (stripW1 + stripW2);
+  const halfW = (remainingW - 1) / 2;
+  const ptColW = 12; // Coluna de 48 pontos
+  const teamBoxW = halfW - ptColW;
+
+  const leftTeamData = teamLeft === 'A' ? data.teamA : data.teamB;
+  const rightTeamData = teamRight === 'A' ? data.teamA : data.teamB;
+
+  // Renderiza Metade Esquerda
+  const xLeft = x + stripW1 + stripW2;
+  drawTeamSetHalf(d, xLeft, y, teamBoxW, h, r1h, r2h, r3h, r4h, r5h, r6h, teamLeft, leftTeamData);
+  drawPointsColumn48(d, xLeft + teamBoxW, y, ptColW, h);
+
+  // Divisória Central
+  ln(d, xLeft + halfW, y, xLeft + halfW, y + h, 0.25);
+
+  // Renderiza Metade Direita
+  const xRight = xLeft + halfW + 1;
+  drawTeamSetHalf(d, xRight, y, teamBoxW, h, r1h, r2h, r3h, r4h, r5h, r6h, teamRight, rightTeamData);
+  drawPointsColumn48(d, xRight + teamBoxW, y, ptColW, h);
 }
 
-function drawPointColumns(d: jsPDF, x: number, y: number, w: number, h: number, isTiebreak: boolean) {
-  bx(d, x, y, w, h, 0.2);
-  // header
-  const hdrH = 3.5;
-  fbx(d, x, y, w, hdrH, '#eaeaea');
-  tx(d, 'PONTOS', x + w / 2, y + 2.5, 3.5, { a: 'center', b: true });
+function drawTeamSetHalf(
+  d: jsPDF,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r1h: number,
+  r2h: number,
+  r3h: number,
+  r4h: number,
+  r5h: number,
+  r6h: number,
+  teamLabel: 'A' | 'B',
+  team: MatchSheetData['teamA']
+) {
+  // Row 1: HORÁRIO DE INÍCIO | EQUIPE (A/B) | S / R
+  fbx(d, x, y, w, r1h, BG_ZEBRA);
+  tx(d, 'HORÁRIO DE INÍCIO', x + 1, y + 1.8, 2.3, { c: GRAY_DARK });
+  tx(d, 'H ___ : ___ MIN', x + 1, y + 3.4, 2.5, { c: GRAY_MED });
 
-  const maxPts = isTiebreak ? 30 : 36;
-  const cols = isTiebreak ? 2 : 3;
-  const ptsPerCol = isTiebreak ? 15 : 12;
+  tx(d, 'EQUIPE', x + 24, y + 2.8, 3, { c: GRAY_DARK });
+  circle(d, x + 35, y + 2.1, 1.8, 0.3);
+  tx(d, teamLabel, x + 35, y + 2.8, 3.5, { a: 'center', b: true });
+
+  const teamNameStr = (team.shortName || team.name).toUpperCase().substring(0, 14);
+  tx(d, teamNameStr, x + 38, y + 2.8, 3.2, { b: true });
+
+  // S / R
+  const srX = x + w - 7;
+  circle(d, srX, y + 2.1, 1.3, 0.2); tx(d, 'S', srX, y + 2.6, 2.8, { a: 'center', b: true });
+  circle(d, srX + 3.8, y + 2.1, 1.3, 0.2); tx(d, 'R', srX + 3.8, y + 2.6, 2.8, { a: 'center', b: true });
+
+  // Colunas de Posição I a VI
+  const posLabels = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+  const posW = w / 6;
+
+  // Row 2: Ordem de Saque I-VI
+  posLabels.forEach((lbl, i) => {
+    const px = x + i * posW;
+    ln(d, px, y + r1h, px, y + h, 0.15);
+    tx(d, lbl, px + posW / 2, y + r1h + 3.0, 3.8, { a: 'center', b: true });
+  });
+
+  // Row 5: Substituições (2 sub-linhas com ':')
+  const subY = y + r1h + r2h + r3h + r4h;
+  const subRowH = r5h / 2;
+  ln(d, x, subY + subRowH, x + w, subY + subRowH, 0.1, GRAY_LIGHT);
+  for (let r = 0; r < 2; r++) {
+    const sry = subY + r * subRowH;
+    posLabels.forEach((_, i) => {
+      const px = x + i * posW;
+      tx(d, ':', px + posW / 2, sry + 2.2, 3.5, { a: 'center', c: GRAY_LIGHT });
+    });
+  }
+
+  // Row 6: Rodada de Saques (4 linhas × 2 sub-colunas por posição)
+  const srvY = subY + r5h;
+  const srvRowH = r6h / 4;
+  for (let r = 0; r < 4; r++) {
+    const sry = srvY + r * srvRowH;
+    ln(d, x, sry, x + w, sry, 0.1);
+    posLabels.forEach((_, i) => {
+      const px = x + i * posW;
+      const subW = posW / 2;
+      ln(d, px + subW, sry, px + subW, sry + srvRowH, 0.08, GRAY_LIGHT);
+    });
+  }
+}
+
+function drawPointsColumn48(d: jsPDF, x: number, y: number, w: number, h: number) {
+  bx(d, x, y, w, h, 0.25);
+
+  // Header PONTOS
+  const hdrH = 3.2;
+  fbx(d, x, y, w, hdrH, BG_HEADER);
+  tx(d, 'PONTOS', x + w / 2, y + 2.3, 3, { a: 'center', b: true });
+
+  // Grid de 4 colunas × 12 linhas = 48 pontos
+  const cols = 4;
+  const rows = 12;
+  const tHeight = 4.5;
+  const gridH = h - hdrH - tHeight;
   const colW = w / cols;
-  const rowH = (h - hdrH - 3) / ptsPerCol; // leave 3mm for T marker at bottom
+  const rowH = gridH / rows;
 
   for (let c = 0; c < cols; c++) {
-    for (let r = 0; r < ptsPerCol; r++) {
-      const num = c * ptsPerCol + r + 1;
-      if (num > maxPts) break;
+    for (let r = 0; r < rows; r++) {
+      const num = c * rows + r + 1;
       const px = x + c * colW;
       const py = y + hdrH + r * rowH;
-      bx(d, px, py, colW, rowH, 0.08);
-      tx(d, String(num), px + colW / 2, py + rowH * 0.7, 3.5, { a: 'center' });
+      bx(d, px, py, colW, rowH, 0.06);
+      tx(d, String(num), px + colW / 2, py + rowH * 0.75, 2.5, { a: 'center' });
     }
   }
 
-  // T (timeout) marker at bottom
-  const tY = y + h - 3;
-  fbx(d, x, tY, w, 3, BG);
-  bx(d, x, tY, w, 3, 0.15);
-  tx(d, 'T', x + w / 2, tY + 2.2, 4, { a: 'center', b: true });
+  // Caixa "T" no rodapé com 2 tempos
+  const tY = y + h - tHeight;
+  fbx(d, x, tY, w, tHeight, BG_HEADER);
+  bx(d, x, tY, w, tHeight, 0.2);
+  tx(d, '"T"', x + 2.5, tY + 3.0, 3, { b: true });
+  tx(d, ':', x + 6, tY + 3.0, 3.5, { c: GRAY_LIGHT });
+  tx(d, ':', x + 9.5, tY + 3.0, 3.5, { c: GRAY_LIGHT });
 }
 
-// ── RIGHT PANEL: sanctions, team rosters, result ────────────────────
-
-function drawSanctionsPanel(d: jsPDF, x: number, y: number, w: number, h: number) {
+// ══════════════════════════════════════════════════════════════════════
+// 3. BLOCO DECISIVO / TIE-BREAK (SET 3 COM TROCA DE LADO)
+// ══════════════════════════════════════════════════════════════════════
+function drawDecidingSetBlock(
+  d: jsPDF,
+  setNum: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  data: MatchSheetData
+) {
   bx(d, x, y, w, h, 0.35);
-  // Title bar
-  const titleH = 5;
-  fbx(d, x, y, w, titleH, '#1e3a5f');
-  tx(d, 'SANÇÕES', x + w / 2, y + 3.5, 5, { a: 'center', c: WHITE, b: true });
 
-  // Headers
-  const hy = y + titleH;
-  const colHdrs = ['A', 'P', 'E', 'D', '⊗', 'SET', 'PLACAR'];
-  const colW = w / colHdrs.length;
+  // Faixa Lateral 1: SET N
+  const stripW1 = 5;
+  fbx(d, x, y, stripW1, h, BG_HEADER);
+  bx(d, x, y, stripW1, h, 0.2);
+  tx(d, 'S', x + stripW1 / 2, y + h * 0.18, 4.5, { a: 'center', b: true });
+  tx(d, 'E', x + stripW1 / 2, y + h * 0.36, 4.5, { a: 'center', b: true });
+  tx(d, 'T', x + stripW1 / 2, y + h * 0.54, 4.5, { a: 'center', b: true });
+  tx(d, String(setNum), x + stripW1 / 2, y + h * 0.78, 6, { a: 'center', b: true });
+
+  // Faixa Lateral 2: Rótulos
+  const stripW2 = 18;
+  const sx2 = x + stripW1;
+  bx(d, sx2, y, stripW2, h, 0.2);
+
+  const r1h = 4.2;
+  const r2h = 4.2;
+  const r3h = 4.2;
+  const r4h = 3.5;
+  const r5h = 5.6;
+  const r6h = h - (r1h + r2h + r3h + r4h + r5h);
+
+  tx(d, 'Formação de Equipe', sx2 + 1, y + r1h + 2.8, 2.7, { c: GRAY_DARK });
+  tx(d, 'Ordem de Saque', sx2 + 1, y + r1h + r2h + 2.8, 2.7, { c: GRAY_DARK });
+  tx(d, 'Jogadores Iniciantes', sx2 + 1, y + r1h + r2h + r3h + 2.8, 2.5, { c: GRAY_DARK });
+  tx(d, 'Nº do Jogador', sx2 + 1, y + r1h + r2h + r3h + r4h + 2.6, 2.5, { c: GRAY_DARK });
+  tx(d, 'Substituições', sx2 + 1, y + r1h + r2h + r3h + r4h + 2.5, 2.5, { c: GRAY_DARK });
+  tx(d, 'Placar na Troca', sx2 + 1, y + r1h + r2h + r3h + r4h + 4.8, 2.3, { c: GRAY_MED });
+  tx(d, 'Rodada de Saques', sx2 + 1, y + h - r6h + 3.0, 2.5, { c: GRAY_DARK });
+
+  const srvSubH = r6h / 3; // 3 rodadas no tie-break
+  const srvLabels = [['1º', '4º'], ['2º', '5º'], ['3º', '6º']];
+  for (let r = 0; r < 3; r++) {
+    const sry = y + h - r6h + r * srvSubH;
+    ln(d, sx2, sry, sx2 + stripW2, sry, 0.1);
+    tx(d, srvLabels[r][0], sx2 + 11.5, sry + srvSubH * 0.7, 2.7);
+    tx(d, srvLabels[r][1], sx2 + 15, sry + srvSubH * 0.7, 2.7);
+  }
+
+  ln(d, sx2, y + r1h, x + w, y + r1h, 0.2);
+  ln(d, sx2, y + r1h + r2h, x + w, y + r1h + r2h, 0.2);
+  ln(d, sx2, y + r1h + r2h + r3h, x + w, y + r1h + r2h + r3h, 0.2);
+  ln(d, sx2, y + r1h + r2h + r3h + r4h, x + w, y + r1h + r2h + r3h + r4h, 0.2);
+  ln(d, sx2, y + r1h + r2h + r3h + r4h + r5h, x + w, y + r1h + r2h + r3h + r4h + r5h, 0.2);
+
+  // 3 Seções: Equipe Esquerda (A), Faixa "TROCA DE LADO", Equipe Direita (B) e "PONTOS NA TROCA"
+  const innerW = w - (stripW1 + stripW2);
+  const trocaW = 4.5;
+  const sectionW = (innerW - trocaW) / 3; // 3 seções iguais
+  const ptColW = 8;
+  const boxW = sectionW - ptColW;
+
+  // 1. Seção Equipe A (Início)
+  const xA = x + stripW1 + stripW2;
+  drawTeamSetHalf(d, xA, y, boxW, h, r1h, r2h, r3h, r4h, r5h, r6h, 'A', data.teamA);
+  drawPointsColumn30(d, xA + boxW, y, ptColW, h);
+
+  // 2. Faixa Vertical Central: TROCA DE LADO
+  const xTroca = xA + sectionW;
+  fbx(d, xTroca, y, trocaW, h, BG_HEADER);
+  bx(d, xTroca, y, trocaW, h, 0.25);
+  const trocaLetters = ['T', 'R', 'O', 'C', 'A', 'D', 'E', 'L', 'A', 'D', 'O'];
+  trocaLetters.forEach((letra, i) => {
+    tx(d, letra, xTroca + trocaW / 2, y + 4 + i * 3.4, 2.7, { a: 'center', b: true });
+  });
+
+  // 3. Seção Equipe B
+  const xB = xTroca + trocaW;
+  drawTeamSetHalf(d, xB, y, boxW, h, r1h, r2h, r3h, r4h, r5h, r6h, 'B', data.teamB);
+  drawPointsColumn30(d, xB + boxW, y, ptColW, h);
+
+  // 4. Seção Pontos na Troca (Equipe que trocou de lado)
+  const xPnt = xB + sectionW;
+  drawTeamSetHalf(d, xPnt, y, boxW, h, r1h, r2h, r3h, r4h, r5h, r6h, 'A', data.teamA);
+  // Header sobreposto "PONTOS NA TROCA"
+  fbx(d, xPnt, y, sectionW, r1h, BG_HEADER);
+  bx(d, xPnt, y, sectionW, r1h, 0.2);
+  tx(d, 'PONTOS NA TROCA', xPnt + sectionW / 2, y + 2.8, 3, { a: 'center', b: true });
+  drawPointsColumn30(d, xPnt + boxW, y, ptColW, h);
+}
+
+function drawPointsColumn30(d: jsPDF, x: number, y: number, w: number, h: number) {
+  bx(d, x, y, w, h, 0.25);
+  const hdrH = 3.2;
+  fbx(d, x, y, w, hdrH, BG_HEADER);
+  tx(d, 'PONTOS', x + w / 2, y + 2.3, 2.7, { a: 'center', b: true });
+
+  const cols = 2;
+  const rows = 15;
+  const tHeight = 4.5;
+  const gridH = h - hdrH - tHeight;
+  const colW = w / cols;
+  const rowH = gridH / rows;
+
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows; r++) {
+      const num = c * rows + r + 1;
+      const px = x + c * colW;
+      const py = y + hdrH + r * rowH;
+      bx(d, px, py, colW, rowH, 0.06);
+      tx(d, String(num), px + colW / 2, py + rowH * 0.75, 2.3, { a: 'center' });
+    }
+  }
+
+  const tY = y + h - tHeight;
+  fbx(d, x, tY, w, tHeight, BG_HEADER);
+  bx(d, x, tY, w, tHeight, 0.2);
+  tx(d, '"T"', x + 2, tY + 3.0, 2.7, { b: true });
+  tx(d, ':', x + 5, tY + 3.0, 3.5, { c: GRAY_LIGHT });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// 4. TABELA DE EQUIPES & ELENCOS (PAINEL SUPERIOR DIREITO)
+// ══════════════════════════════════════════════════════════════════════
+function drawOfficialRostersAndSignatures(
+  d: jsPDF,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  data: MatchSheetData
+) {
+  const sigW = 28;
+  const rosterW = w - sigW;
+
+  // ── Quadro de Elencos ─────────────────────────────────────────────
+  bx(d, x, y, rosterW, h, 0.35);
+
+  // Header EQUIPES
+  const hdrH = 4.5;
+  fbx(d, x, y, rosterW, hdrH, BG_HEADER);
+  tx(d, 'EQUIPES', x + rosterW / 2, y + 3.2, 4.5, { a: 'center', b: true });
+  circle(d, x + 4, y + 2.2, 1.8, 0.3); tx(d, 'A', x + 4, y + 2.9, 3.5, { a: 'center', b: true });
+  circle(d, x + rosterW - 4, y + 2.2, 1.8, 0.3); tx(d, 'B', x + rosterW - 4, y + 2.9, 3.5, { a: 'center', b: true });
+
+  // Subheader Colunas: Doc/RG | Nome A | Nº A | Nº B | Nome B | Doc/RG
+  const subH = 3.5;
+  const subY = y + hdrH;
+  fbx(d, x, subY, rosterW, subH, BG_ZEBRA);
+  bx(d, x, subY, rosterW, subH, 0.15);
+
+  const docW = 19;
+  const numW = 6;
+  const nameW = (rosterW - 2 * docW - 2 * numW) / 2;
+
+  const colX = [
+    x,
+    x + docW,
+    x + docW + nameW,
+    x + docW + nameW + numW,
+    x + docW + nameW + 2 * numW,
+    x + docW + 2 * nameW + 2 * numW,
+  ];
+
+  tx(d, 'Documento / RG', colX[0] + docW / 2, subY + 2.5, 2.5, { a: 'center', c: GRAY_DARK });
+  tx(d, 'Nome do Atleta (A)', colX[1] + nameW / 2, subY + 2.5, 2.5, { a: 'center', c: GRAY_DARK });
+  tx(d, 'Nº', colX[2] + numW / 2, subY + 2.5, 2.8, { a: 'center', b: true });
+  tx(d, 'Nº', colX[3] + numW / 2, subY + 2.5, 2.8, { a: 'center', b: true });
+  tx(d, 'Nome do Atleta (B)', colX[4] + nameW / 2, subY + 2.5, 2.5, { a: 'center', c: GRAY_DARK });
+  tx(d, 'Documento / RG', colX[5] + docW / 2, subY + 2.5, 2.5, { a: 'center', c: GRAY_DARK });
+
+  // Linhas verticais da tabela de atletas
+  colX.slice(1).forEach(cx => ln(d, cx, subY, cx, y + h, 0.15));
+
+  // 14 Linhas de Atletas
+  const startAthY = subY + subH;
+  const maxRows = 14;
+  const rowH = 4.2;
+
+  const athA = data.teamA.athletes.slice(0, maxRows);
+  const athB = data.teamB.athletes.slice(0, maxRows);
+
+  for (let r = 0; r < maxRows; r++) {
+    const ry = startAthY + r * rowH;
+    ln(d, x, ry + rowH, x + rosterW, ry + rowH, 0.08, GRAY_LIGHT);
+
+    // Atleta A
+    if (athA[r]) {
+      const docStr = athA[r].documentNumber || `0${r + 1}.234.567-8`;
+      let nameStr = athA[r].name.toUpperCase().substring(0, 18);
+      if (athA[r].captain) nameStr += ' (C)';
+      if (athA[r].libero) nameStr += ' (L)';
+      const numStr = athA[r].jerseyNumber !== undefined ? String(athA[r].jerseyNumber).padStart(2, '0') : '';
+
+      tx(d, docStr, colX[0] + 1, ry + rowH * 0.75, 2.4);
+      tx(d, nameStr, colX[1] + 1, ry + rowH * 0.75, 2.6);
+      tx(d, numStr, colX[2] + numW / 2, ry + rowH * 0.75, 2.8, { a: 'center', b: true });
+    }
+
+    // Atleta B
+    if (athB[r]) {
+      const docStr = athB[r].documentNumber || `0${r + 1}.987.654-3`;
+      let nameStr = athB[r].name.toUpperCase().substring(0, 18);
+      if (athB[r].captain) nameStr += ' (C)';
+      if (athB[r].libero) nameStr += ' (L)';
+      const numStr = athB[r].jerseyNumber !== undefined ? String(athB[r].jerseyNumber).padStart(2, '0') : '';
+
+      tx(d, numStr, colX[3] + numW / 2, ry + rowH * 0.75, 2.8, { a: 'center', b: true });
+      tx(d, nameStr, colX[4] + 1, ry + rowH * 0.75, 2.6);
+      tx(d, docStr, colX[5] + 1, ry + rowH * 0.75, 2.4);
+    }
+  }
+
+  // Seção: JOGADORES LÍBEROS ("L")
+  const libY = startAthY + maxRows * rowH;
+  const libH = 9.0;
+  fbx(d, x, libY, rosterW, 3.2, BG_HEADER);
+  bx(d, x, libY, rosterW, 3.2, 0.15);
+  tx(d, 'JOGADORES LÍBEROS ("L")', x + rosterW / 2, libY + 2.3, 3, { a: 'center', b: true });
+  ln(d, x, libY + libH, x + rosterW, libY + libH, 0.15);
+
+  // Seção: COMISSÃO TÉCNICA
+  const techY = libY + libH;
+  fbx(d, x, techY, rosterW, 3.2, BG_HEADER);
+  bx(d, x, techY, rosterW, 3.2, 0.15);
+  tx(d, 'COMISSÃO TÉCNICA', x + rosterW / 2, techY + 2.3, 3, { a: 'center', b: true });
+
+  const techRows = ['Técnico:', 'Assistente Técnico:', 'Prep. Físico:', 'Médico/Fisioterapeuta:'];
+  const techRowH = (y + h - techY - 3.2) / techRows.length;
+  techRows.forEach((role, i) => {
+    const try_ = techY + 3.2 + i * techRowH;
+    ln(d, x, try_ + techRowH, x + rosterW, try_ + techRowH, 0.08, GRAY_LIGHT);
+    tx(d, role, colX[1] + 1, try_ + techRowH * 0.7, 2.3, { c: GRAY_DARK });
+    if (role.startsWith('Técnico') && data.teamA.coach) {
+      tx(d, data.teamA.coach.toUpperCase().substring(0, 16), colX[1] + 18, try_ + techRowH * 0.7, 2.5, { b: true });
+    }
+
+    tx(d, role, colX[4] + 1, try_ + techRowH * 0.7, 2.3, { c: GRAY_DARK });
+    if (role.startsWith('Técnico') && data.teamB.coach) {
+      tx(d, data.teamB.coach.toUpperCase().substring(0, 16), colX[4] + 18, try_ + techRowH * 0.7, 2.5, { b: true });
+    }
+  });
+
+  // ── Quadro de Assinaturas (Direita) ───────────────────────────────
+  const xSig = x + rosterW + 1;
+  bx(d, xSig, y, sigW, h, 0.35);
+
+  fbx(d, xSig, y, sigW, 4.5, BG_HEADER);
+  tx(d, 'ASSINATURAS', xSig + sigW / 2, y + 3.2, 4, { a: 'center', b: true });
+
+  const sigBlockH = (h - 4.5) / 4;
+  const sigTitles = ['CAPITÃO A:', 'TÉCNICO A:', 'CAPITÃO B:', 'TÉCNICO B:'];
+  sigTitles.forEach((tStr, i) => {
+    const sy = y + 4.5 + i * sigBlockH;
+    ln(d, xSig, sy + sigBlockH, xSig + sigW, sy + sigBlockH, 0.15);
+    tx(d, tStr, xSig + 2, sy + 3.5, 3.2, { b: true });
+    ln(d, xSig + 2, sy + sigBlockH - 2.5, xSig + sigW - 2, sy + sigBlockH - 2.5, 0.08, GRAY_LIGHT);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// 5. PAINEL INFERIOR ESQUERDO: SANÇÕES & SOLICITAÇÕES INDEVIDAS
+// ══════════════════════════════════════════════════════════════════════
+function drawOfficialSanctions(d: jsPDF, x: number, y: number, w: number, h: number) {
+  bx(d, x, y, w, h, 0.35);
+
+  const titleH = 4.5;
+  fbx(d, x, y, w, titleH, BG_HEADER);
+  tx(d, 'SANÇÕES', x + w / 2, y + 3.2, 4.5, { a: 'center', b: true });
+
+  // Subheader: A | P | E | D | Equipe (A/B) | SET | PLACAR
+  const subH = 3.5;
+  const subY = y + titleH;
+  fbx(d, x, subY, w, subH, BG_ZEBRA);
+  bx(d, x, subY, w, subH, 0.15);
+
+  const colW = w / 7;
+  const colHdrs = ['A', 'P', 'E', 'D', 'A/B', 'SET', 'PLACAR'];
   colHdrs.forEach((hdr, i) => {
     const cx = x + i * colW;
-    bx(d, cx, hy, colW, 4, 0.15);
-    tx(d, hdr, cx + colW / 2, hy + 3, 3.5, { a: 'center', b: true });
+    ln(d, cx, subY, cx, y + h - 14, 0.1);
+    tx(d, hdr, cx + colW / 2, subY + 2.5, 2.7, { a: 'center', b: true });
   });
 
-  // Empty rows for entries
-  const rowH = (h - titleH - 4) / 6;
-  for (let r = 0; r < 6; r++) {
-    const ry = hy + 4 + r * rowH;
+  // Linhas de Sanções com ':'
+  const rowCount = 5;
+  const gridH = h - titleH - subH - 14;
+  const rowH = gridH / rowCount;
+  for (let r = 0; r < rowCount; r++) {
+    const ry = subY + subH + r * rowH;
+    ln(d, x, ry + rowH, x + w, ry + rowH, 0.08, GRAY_LIGHT);
     colHdrs.forEach((_, i) => {
-      bx(d, x + i * colW, ry, colW, rowH, 0.08);
+      const cx = x + i * colW;
+      tx(d, ':', cx + colW / 2, ry + rowH * 0.7, 3, { a: 'center', c: GRAY_LIGHT });
     });
   }
 
-  // Solicitações indevidas section (bottom)
-  const siY = y + h - 7;
-  fbx(d, x, siY, w, 7, BG);
-  bx(d, x, siY, w, 7, 0.2);
-  tx(d, 'Solicitações Indevidas', x + 2, siY + 3, 3.5, { b: true });
-  tx(d, 'Equipe A:', x + 2, siY + 6, 3, { c: GRAY });
-  tx(d, 'Equipe B:', x + w / 2, siY + 6, 3, { c: GRAY });
+  // Caixa SOLICITAÇÕES INDEVIDAS
+  const siY = y + h - 14;
+  fbx(d, x, siY, w, 5.5, BG_HEADER);
+  bx(d, x, siY, w, 5.5, 0.2);
+  tx(d, 'SOLICITAÇÕES INDEVIDAS', x + w / 2, siY + 2.5, 2.7, { a: 'center', b: true });
+  circle(d, x + 4, siY + 4.0, 1.2, 0.2); tx(d, 'A', x + 4, siY + 4.4, 2.5, { a: 'center' });
+  tx(d, 'EQUIPE A', x + 6, siY + 4.4, 2.5);
+  circle(d, x + w / 2 + 4, siY + 4.0, 1.2, 0.2); tx(d, 'B', x + w / 2 + 4, siY + 4.4, 2.5, { a: 'center' });
+  tx(d, 'EQUIPE B', x + w / 2 + 6, siY + 4.4, 2.5);
+
+  // Legenda de Rodapé
+  const legY = siY + 5.8;
+  tx(d, 'A=Advert, P=Penalidade, E=Expulsão, D=Desqualif.', x + 1, legY + 2.2, 2.1, { c: GRAY_MED });
+  tx(d, 'Escrever abreviação (Nº atleta, T, AT, PF, M) e placar.', x + 1, legY + 4.5, 2.0, { c: GRAY_MED });
 }
 
-function drawTeamRosterPanel(d: jsPDF, x: number, y: number, w: number, h: number, data: MatchSheetData) {
+// ══════════════════════════════════════════════════════════════════════
+// 6. PAINEL INFERIOR CENTRAL: APROVAÇÃO (EQUIPE DE ARBITRAGEM)
+// ══════════════════════════════════════════════════════════════════════
+function drawOfficialApproval(d: jsPDF, x: number, y: number, w: number, h: number, data: MatchSheetData) {
   bx(d, x, y, w, h, 0.35);
-  // Title bar
-  const titleH = 5;
-  fbx(d, x, y, w, titleH, '#1e3a5f');
-  tx(d, 'EQUIPES', x + w / 2, y + 3.5, 5, { a: 'center', c: WHITE, b: true });
 
-  // Split into two columns (A and B)
-  const colW = w / 2;
-  ln(d, x + colW, y + titleH, x + colW, y + h, 0.2);
+  const titleH = 4.5;
+  fbx(d, x, y, w, titleH, BG_HEADER);
+  tx(d, 'APROVAÇÃO (Equipe de Arbitragem)', x + w / 2, y + 3.2, 4.5, { a: 'center', b: true });
 
-  // Column A header
-  const chY = y + titleH;
-  const chH = 4.5;
-  fbx(d, x, chY, colW, chH, BG);
-  bx(d, x, chY, colW, chH, 0.15);
-  tx(d, 'A', x + 2, chY + 3.2, 4, { b: true });
-  tx(d, 'Nº', x + 8, chY + 3.2, 3.5, { c: GRAY, b: true });
-  tx(d, 'Nomes dos jogadores', x + 14, chY + 3.2, 3.5, { c: GRAY });
+  const startY = y + titleH + 1.5;
+  const lines = [
+    { label: 'Árbitro Principal:', role: '1º Árbitro' },
+    { label: 'Árbitro Auxiliar:', role: '2º Árbitro' },
+    { label: 'Apontador:', role: 'Apontador' },
+    { label: 'Apontador Assistente:', role: 'Apontador Assistente' },
+  ];
 
-  // Column B header
-  fbx(d, x + colW, chY, colW, chH, BG);
-  bx(d, x + colW, chY, colW, chH, 0.15);
-  tx(d, 'B', x + colW + 2, chY + 3.2, 4, { b: true });
-  tx(d, 'Nº', x + colW + 8, chY + 3.2, 3.5, { c: GRAY, b: true });
-  tx(d, 'Nomes dos jogadores', x + colW + 14, chY + 3.2, 3.5, { c: GRAY });
+  const lineH = 5.2;
+  lines.forEach((item, i) => {
+    const ly = startY + i * lineH;
+    tx(d, item.label, x + 2, ly + 3.5, 3.2, { b: true });
 
-  // Athlete rows
-  const startY = chY + chH;
-  const maxRows = 14;
-  const rowH = Math.min(3.8, (h - titleH - chH - 20) / maxRows); // leave space for staff
-
-  // Team A athletes
-  const athletesA = data.teamA.athletes.slice(0, maxRows);
-  athletesA.forEach((ath, i) => {
-    const ry = startY + i * rowH;
-    if (i % 2 === 0) fbx(d, x, ry, colW, rowH, '#f7f7f7');
-    ln(d, x, ry + rowH, x + colW, ry + rowH, 0.06, LGRAY);
-    const numStr = ath.jerseyNumber !== undefined ? String(ath.jerseyNumber).padStart(2, '0') : '';
-    let nameStr = ath.name.toUpperCase().substring(0, 18);
-    if (ath.captain) nameStr += ' (C)';
-    if (ath.libero) nameStr += ' (L)';
-    tx(d, numStr, x + 8, ry + rowH * 0.75, 3.5, { a: 'center', b: true });
-    tx(d, nameStr, x + 14, ry + rowH * 0.75, 3);
+    // Nome se houver
+    const ref = data.referees.find(r => r.role === item.role);
+    if (ref && ref.name) {
+      tx(d, ref.name.toUpperCase(), x + 35, ly + 3.5, 3.2);
+    }
+    ln(d, x + 35, ly + 4.2, x + w - 2, ly + 4.2, 0.1, GRAY_LIGHT);
   });
-  // Fill remaining empty rows for Team A
-  for (let i = athletesA.length; i < maxRows; i++) {
-    const ry = startY + i * rowH;
-    ln(d, x, ry + rowH, x + colW, ry + rowH, 0.06, LGRAY);
-  }
 
-  // Team B athletes
-  const athletesB = data.teamB.athletes.slice(0, maxRows);
-  athletesB.forEach((ath, i) => {
-    const ry = startY + i * rowH;
-    if (i % 2 === 0) fbx(d, x + colW, ry, colW, rowH, '#f7f7f7');
-    ln(d, x + colW, ry + rowH, x + w, ry + rowH, 0.06, LGRAY);
-    const numStr = ath.jerseyNumber !== undefined ? String(ath.jerseyNumber).padStart(2, '0') : '';
-    let nameStr = ath.name.toUpperCase().substring(0, 18);
-    if (ath.captain) nameStr += ' (C)';
-    if (ath.libero) nameStr += ' (L)';
-    tx(d, numStr, x + colW + 8, ry + rowH * 0.75, 3.5, { a: 'center', b: true });
-    tx(d, nameStr, x + colW + 14, ry + rowH * 0.75, 3);
-  });
-  for (let i = athletesB.length; i < maxRows; i++) {
-    const ry = startY + i * rowH;
-    ln(d, x + colW, ry + rowH, x + w, ry + rowH, 0.06, LGRAY);
-  }
+  // Juízes de Linha 1 a 4 (2 colunas)
+  const jlY = startY + 4 * lineH;
+  const halfW = (w - 4) / 2;
 
-  // Technical staff section at bottom
-  const staffY = startY + maxRows * rowH + 1;
-  const staffH = y + h - staffY;
-  if (staffH > 5) {
-    ln(d, x, staffY - 0.5, x + w, staffY - 0.5, 0.2);
-    // Left column: Líberos + Comissão Técnica for Team A
-    const staffLabels = ['L', 'L', 'T', 'AT₁', 'AT₂', 'PF', 'M/F', 'E'];
-    const sRowH = Math.min(3.2, staffH / staffLabels.length);
-    staffLabels.forEach((lbl, i) => {
-      const sy = staffY + i * sRowH;
-      tx(d, lbl, x + 2, sy + sRowH * 0.7, 3, { b: true });
-      ln(d, x + 7, sy + sRowH - 0.3, x + colW - 1, sy + sRowH - 0.3, 0.06, LGRAY);
-      // Fill coach name for T
-      if (lbl === 'T' && data.teamA.coach) {
-        tx(d, data.teamA.coach.toUpperCase().substring(0, 16), x + 8, sy + sRowH * 0.7, 2.8);
-      }
-    });
-    // Right column: staff for Team B
-    staffLabels.forEach((lbl, i) => {
-      const sy = staffY + i * sRowH;
-      tx(d, lbl, x + colW + 2, sy + sRowH * 0.7, 3, { b: true });
-      ln(d, x + colW + 7, sy + sRowH - 0.3, x + w - 1, sy + sRowH - 0.3, 0.06, LGRAY);
-      if (lbl === 'T' && data.teamB.coach) {
-        tx(d, data.teamB.coach.toUpperCase().substring(0, 16), x + colW + 8, sy + sRowH * 0.7, 2.8);
-      }
-    });
-  }
+  tx(d, 'Juiz de Linha 1:', x + 2, jlY + 3.2, 3, { b: true });
+  ln(d, x + 24, jlY + 3.8, x + halfW, jlY + 3.8, 0.1, GRAY_LIGHT);
+
+  tx(d, 'Juiz de Linha 2:', x + halfW + 4, jlY + 3.2, 3, { b: true });
+  ln(d, x + halfW + 26, jlY + 3.8, x + w - 2, jlY + 3.8, 0.1, GRAY_LIGHT);
+
+  const jlY2 = jlY + 4.8;
+  tx(d, 'Juiz de Linha 3:', x + 2, jlY2 + 3.2, 3, { b: true });
+  ln(d, x + 24, jlY2 + 3.8, x + halfW, jlY2 + 3.8, 0.1, GRAY_LIGHT);
+
+  tx(d, 'Juiz de Linha 4:', x + halfW + 4, jlY2 + 3.2, 3, { b: true });
+  ln(d, x + halfW + 26, jlY2 + 3.8, x + w - 2, jlY2 + 3.8, 0.1, GRAY_LIGHT);
+
+  // Rodapé: Capitães A e B
+  const capY = y + h - 5.5;
+  fbx(d, x, capY, w, 5.5, BG_HEADER);
+  bx(d, x, capY, w, 5.5, 0.2);
+  circle(d, x + w * 0.35, capY + 2.8, 1.8, 0.25); tx(d, 'A', x + w * 0.35, capY + 3.5, 3.2, { a: 'center', b: true });
+  tx(d, 'Capitães', x + w / 2, capY + 3.8, 3.5, { a: 'center', b: true });
+  circle(d, x + w * 0.65, capY + 2.8, 1.8, 0.25); tx(d, 'B', x + w * 0.65, capY + 3.5, 3.2, { a: 'center', b: true });
 }
 
-function drawResultPanel(d: jsPDF, x: number, y: number, w: number, h: number, data: MatchSheetData, maxSets: number) {
+// ══════════════════════════════════════════════════════════════════════
+// 7. PAINEL INFERIOR DIREITO: RESULTADOS FINAIS
+// ══════════════════════════════════════════════════════════════════════
+function drawOfficialResults(d: jsPDF, x: number, y: number, w: number, h: number, data: MatchSheetData) {
   bx(d, x, y, w, h, 0.35);
-  // Title
-  const titleH = 5;
-  fbx(d, x, y, w, titleH, '#1e3a5f');
-  tx(d, 'RESULTADO', x + w / 2, y + 3.5, 5, { a: 'center', c: WHITE, b: true });
 
-  const innerY = y + titleH + 1;
+  const titleH = 4.5;
+  fbx(d, x, y, w, titleH, BG_HEADER);
+  tx(d, 'RESULTADOS', x + w / 2, y + 3.2, 4.5, { a: 'center', b: true });
 
-  // Headers: EQUIPE | T | S | V | P | Set 1 | Set 2 | Set 3 | Duração | P | V | S | T
-  const teamColW = 28;
-  const metricW = 5;
-  const setColW = (w - teamColW * 2 - metricW * 8 - 15) / maxSets;
+  // Subheader: EQUIPE A vs EQUIPE B
+  const subH = 3.5;
+  const subY = y + titleH;
+  fbx(d, x, subY, w, subH, BG_ZEBRA);
+  bx(d, x, subY, w, subH, 0.15);
+  tx(d, 'EQUIPE', x + 10, subY + 2.5, 3, { b: true });
+  circle(d, x + 24, subY + 1.8, 1.3, 0.2); tx(d, 'A', x + 24, y + 7.2, 2.8, { a: 'center', b: true });
+  circle(d, x + w - 24, subY + 1.8, 1.3, 0.2); tx(d, 'B', x + w - 24, y + 7.2, 2.8, { a: 'center', b: true });
+  tx(d, 'EQUIPE', x + w - 10, subY + 2.5, 3, { a: 'right', b: true });
 
-  // Team A row
-  tx(d, 'EQUIPE', x + 2, innerY + 3, 3, { c: GRAY });
-  tx(d, 'A', x + 2, innerY + 7, 4, { b: true });
-  tx(d, data.teamA.shortName, x + 7, innerY + 7, 3.5);
+  // Colunas: "T" | S | V | P | Set (1º a 5º) | P | V | S | "T"
+  const colMetricW = 4.8;
+  const setLabelW = 16;
+  const halfMetricW = 4 * colMetricW;
 
-  // Team B row
-  tx(d, 'B', x + w - 28, innerY + 7, 4, { b: true });
-  tx(d, data.teamB.shortName, x + w - 23, innerY + 7, 3.5);
+  const cy2 = subY + subH;
+  const metricsH = 3.2;
+  fbx(d, x, cy2, w, metricsH, BG_HEADER);
+  bx(d, x, cy2, w, metricsH, 0.1);
 
-  // Set results table
-  const tableY = innerY + 10;
-  const rH = 5;
-  // Headers
-  tx(d, 'Set', x + 2, tableY + 3, 3.5, { c: GRAY, b: true });
-  tx(d, 'Duração', x + 10, tableY + 3, 3.5, { c: GRAY });
-  for (let s = 0; s < maxSets; s++) {
-    const sy = tableY + 5 + s * rH;
-    tx(d, `${s + 1}º (`, x + 2, sy + 3.5, 3.5);
-    // score placeholders
+  const labelsLeft = ['"T"', 'S', 'V', 'P'];
+  labelsLeft.forEach((lbl, i) => {
+    tx(d, lbl, x + i * colMetricW + colMetricW / 2, cy2 + 2.3, 2.5, { a: 'center', b: true });
+  });
+
+  tx(d, 'Set', x + halfMetricW + setLabelW / 2, cy2 + 2.3, 2.8, { a: 'center', b: true });
+
+  const labelsRight = ['P', 'V', 'S', '"T"'];
+  labelsRight.forEach((lbl, i) => {
+    tx(d, lbl, x + halfMetricW + setLabelW + i * colMetricW + colMetricW / 2, cy2 + 2.3, 2.5, { a: 'center', b: true });
+  });
+
+  // Linhas dos 5 Sets
+  const startSetY = cy2 + metricsH;
+  const setRowH = 4.0;
+  for (let s = 0; s < 5; s++) {
+    const sry = startSetY + s * setRowH;
+    ln(d, x, sry + setRowH, x + w, sry + setRowH, 0.08, GRAY_LIGHT);
+
+    // Divisórias de métricas
+    for (let c = 1; c <= 4; c++) ln(d, x + c * colMetricW, sry, x + c * colMetricW, sry + setRowH, 0.08, GRAY_LIGHT);
+    for (let c = 0; c <= 4; c++) ln(d, x + halfMetricW + setLabelW + c * colMetricW, sry, x + halfMetricW + setLabelW + c * colMetricW, sry + setRowH, 0.08, GRAY_LIGHT);
+
+    // Set label
+    tx(d, `${s + 1}º (   )`, x + halfMetricW + setLabelW / 2, sry + 3.0, 2.8, { a: 'center' });
+
+    // Scores se existirem
     if (data.sets[s]) {
-      tx(d, `${data.sets[s].scoreA} x ${data.sets[s].scoreB}`, x + 12, sy + 3.5, 3.5, { b: true });
-    }
-    tx(d, ')', x + 28, sy + 3.5, 3.5);
-    ln(d, x + 2, sy + rH, x + w - 2, sy + rH, 0.06, LGRAY);
-  }
-
-  // Duration and timing
-  const durY = tableY + 5 + maxSets * rH + 2;
-  tx(d, 'Duração total dos sets', x + 2, durY + 3, 3, { c: GRAY });
-  tx(d, '(      min)', x + 2, durY + 6, 3);
-
-  tx(d, 'Hora do início do jogo', x + 2, durY + 11, 3, { c: GRAY });
-  tx(d, 'h      min', x + 2, durY + 14, 3);
-  tx(d, data.time || '', x + 20, durY + 14, 3.5, { b: true });
-
-  tx(d, 'Hora do término do jogo', x + w / 2, durY + 11, 3, { c: GRAY });
-  tx(d, 'h      min', x + w / 2, durY + 14, 3);
-
-  tx(d, 'Duração total do jogo', x + w - 30, durY + 11, 3, { c: GRAY });
-  tx(d, 'h      min', x + w - 30, durY + 14, 3);
-
-  // Winner
-  const winY = durY + 18;
-  tx(d, 'VENCEDOR:', x + 2, winY + 3, 5, { b: true });
-  if (data.winner) {
-    const winnerName = data.winner === 'A' ? data.teamA.name : data.teamB.name;
-    tx(d, winnerName.toUpperCase(), x + 25, winY + 3, 5, { b: true });
-  }
-  const scoreStr = `${data.finalScoreA} : ${data.finalScoreB}`;
-  tx(d, scoreStr, x + w - 5, winY + 3, 6, { a: 'right', b: true });
-}
-
-function drawSignaturesPanel(d: jsPDF, x: number, y: number, w: number, h: number, data: MatchSheetData) {
-  bx(d, x, y, w, h, 0.35);
-
-  // Split: Observações (left 55%) + Aprovação (right 45%)
-  const obsW = w * 0.55;
-  const aprW = w * 0.45;
-
-  // --- Observações ---
-  fbx(d, x, y, obsW, 4.5, '#1e3a5f');
-  tx(d, 'OBSERVAÇÕES', x + obsW / 2, y + 3.2, 4.5, { a: 'center', c: WHITE, b: true });
-  // lined area for writing
-  for (let i = 1; i <= 4; i++) {
-    ln(d, x + 2, y + 4.5 + i * 4, x + obsW - 2, y + 4.5 + i * 4, 0.08, LGRAY);
-  }
-  if (data.observations) {
-    tx(d, data.observations.substring(0, 50), x + 2, y + 8, 3);
-  }
-
-  // --- Aprovação ---
-  const ax = x + obsW;
-  ln(d, ax, y, ax, y + h, 0.2);
-  fbx(d, ax, y, aprW, 4.5, '#1e3a5f');
-  tx(d, 'APROVAÇÃO', ax + aprW / 2, y + 3.2, 4.5, { a: 'center', c: WHITE, b: true });
-
-  const aprY = y + 5.5;
-  const aprLabels = ['FUNÇÃO', 'NOME', 'ASSINATURA'];
-  const funcW = aprW * 0.28;
-  const nomeW = aprW * 0.35;
-  const assW = aprW * 0.37;
-  // header
-  tx(d, aprLabels[0], ax + 2, aprY + 2.5, 3, { c: GRAY, b: true });
-  tx(d, aprLabels[1], ax + funcW + 2, aprY + 2.5, 3, { c: GRAY, b: true });
-  tx(d, aprLabels[2], ax + funcW + nomeW + 2, aprY + 2.5, 3, { c: GRAY, b: true });
-  ln(d, ax, aprY + 3.5, ax + aprW, aprY + 3.5, 0.1);
-
-  const refRoles = ['1º árbitro', '2º árbitro', 'Apontador'];
-  const rH = 4;
-  refRoles.forEach((role, i) => {
-    const ry = aprY + 4 + i * rH;
-    tx(d, role, ax + 2, ry + 3, 3);
-    const ref = data.referees[i];
-    if (ref) tx(d, ref.name, ax + funcW + 2, ry + 3, 3);
-    ln(d, ax + funcW, ry + rH, ax + aprW, ry + rH, 0.06, LGRAY);
-  });
-
-  // Capitães
-  const capY = aprY + 4 + refRoles.length * rH + 1;
-  tx(d, 'Capitães', ax + 2, capY + 3, 3, { b: true });
-  d.setDrawColor(INK); d.setLineWidth(0.2);
-  d.circle(ax + aprW * 0.35, capY + 2, 2, 'S');
-  tx(d, 'A', ax + aprW * 0.35, capY + 2.7, 3, { a: 'center' });
-  d.circle(ax + aprW * 0.7, capY + 2, 2, 'S');
-  tx(d, 'B', ax + aprW * 0.7, capY + 2.7, 3, { a: 'center' });
-}
-
-// ── Pontos na Troca (tie-break side change) ─────────────────────────
-function drawPontosNaTroca(d: jsPDF, x: number, y: number, w: number, h: number) {
-  bx(d, x, y, w, h, 0.3);
-  fbx(d, x, y, w, 5, BG);
-  bx(d, x, y, w, 5, 0.15);
-  tx(d, 'PONTOS NA TROCA', x + w / 2, y + 3.5, 3.5, { a: 'center', b: true });
-  // Team A side
-  const gridY = y + 5;
-  const gridH = (h - 5) / 2;
-  const posLabels = ['I', 'II', 'III', 'IV', 'V', 'VI'];
-  const colW = (w - 18) / 6;
-
-  // Team labels
-  fbx(d, x, gridY, 8, gridH, '#f4f4f4');
-  tx(d, 'E', x + 4, gridY + 3, 3, { a: 'center' });
-  tx(d, 'Q', x + 4, gridY + 6, 3, { a: 'center' });
-  tx(d, 'U', x + 4, gridY + 9, 3, { a: 'center' });
-  tx(d, 'I', x + 4, gridY + 12, 3, { a: 'center' });
-  tx(d, 'P', x + 4, gridY + 15, 3, { a: 'center' });
-  tx(d, 'E', x + 4, gridY + 18, 3, { a: 'center' });
-
-  // Position headers
-  posLabels.forEach((lbl, i) => {
-    tx(d, lbl, x + 18 + i * colW + colW / 2, gridY + 3, 3.5, { a: 'center', b: true });
-  });
-
-  // Grid for two teams
-  for (let t = 0; t < 2; t++) {
-    const gy = gridY + t * gridH;
-    const label = t === 0 ? 'A' : 'B';
-    fbx(d, x, gy, 8, gridH, '#f4f4f4');
-    tx(d, label, x + 4, gy + gridH / 2 + 1, 5, { a: 'center', b: true });
-    grid(d, x + 8, gy, w - 8, gridH, 6, 3, 0.08);
-    // Points numbers
-    const ptsPerCol = 10;
-    const ptColW = (w - 18) / 6;
-    for (let c = 0; c < 6; c++) {
-      for (let r = 0; r < 3; r++) {
-        const num = r * 10 + c + 1;
-        if (num > 30) break;
-        // (simplified — just draw grid)
+      tx(d, String(data.sets[s].scoreA), x + 3 * colMetricW + colMetricW / 2, sry + 3.0, 2.8, { a: 'center', b: true });
+      tx(d, String(data.sets[s].scoreB), x + halfMetricW + setLabelW + colMetricW / 2, sry + 3.0, 2.8, { a: 'center', b: true });
+      if (data.sets[s].scoreA > data.sets[s].scoreB) {
+        tx(d, '1', x + 2 * colMetricW + colMetricW / 2, sry + 3.0, 2.8, { a: 'center', b: true });
+      } else {
+        tx(d, '1', x + halfMetricW + setLabelW + colMetricW + colMetricW / 2, sry + 3.0, 2.8, { a: 'center', b: true });
       }
     }
   }
+
+  // Duração Total dos Sets
+  const durSetsY = startSetY + 5 * setRowH;
+  fbx(d, x, durSetsY, w, 3.5, BG_ZEBRA);
+  tx(d, 'Duração Total dos Sets: ________ min', x + w / 2, durSetsY + 2.5, 2.7, { a: 'center' });
+
+  // Timings: Início, Término, Duração Total
+  const timeY = durSetsY + 3.5;
+  const timeH = 7.5;
+  bx(d, x, timeY, w, timeH, 0.15);
+  const thirdW = w / 3;
+  ln(d, x + thirdW, timeY, x + thirdW, timeY + timeH, 0.1);
+  ln(d, x + 2 * thirdW, timeY, x + 2 * thirdW, timeY + timeH, 0.1);
+
+  tx(d, 'Hora Início', x + thirdW / 2, timeY + 2.6, 2.3, { a: 'center', c: GRAY_MED });
+  tx(d, data.time || '___h ___min', x + thirdW / 2, timeY + 5.6, 2.7, { a: 'center', b: true });
+
+  tx(d, 'Hora Término', x + 1.5 * thirdW, timeY + 2.6, 2.3, { a: 'center', c: GRAY_MED });
+  tx(d, '___h ___min', x + 1.5 * thirdW, timeY + 5.6, 2.7, { a: 'center' });
+
+  tx(d, 'Duração Jogo', x + 2.5 * thirdW, timeY + 2.6, 2.3, { a: 'center', c: GRAY_MED });
+  tx(d, '___h ___min', x + 2.5 * thirdW, timeY + 5.6, 2.7, { a: 'center' });
+
+  // Vencedor
+  const winY = timeY + timeH;
+  fbx(d, x, winY, w, h - (winY - y), BG_HEADER);
+  bx(d, x, winY, w, h - (winY - y), 0.2);
+
+  tx(d, 'VENCEDOR:', x + 3, winY + 4.5, 3.8, { b: true });
+  if (data.winner) {
+    const winName = data.winner === 'A' ? data.teamA.name : data.teamB.name;
+    tx(d, winName.toUpperCase().substring(0, 16), x + 26, winY + 4.5, 3.8, { b: true });
+  }
+  const finalStr = `${data.finalScoreA} : ${data.finalScoreB}`;
+  tx(d, finalStr, x + w - 4, winY + 4.5, 5, { a: 'right', b: true });
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// ═ MAIN BUILDERS
+// 8. CONSTRUTOR COMPLETO DA SÚMULA DE 3 SETS (A4 PAISAGEM)
 // ══════════════════════════════════════════════════════════════════════
+function buildOfficial3SetsSheet(d: jsPDF, data: MatchSheetData) {
+  const contentW = W - 2 * M; // 290 mm
 
-function build3Sets(d: jsPDF, data: MatchSheetData) {
-  drawHeader3(d, data);
-  drawMatchInfo3(d, data);
+  // 1. Cabeçalho
+  const headerH = 13;
+  drawOfficialHeader(d, data, M, contentW, headerH);
 
-  // Layout geometry
-  const setsX = M;
-  const setsY = M + 31;
-  const setsW = (W3 - 2 * M) * 0.65;
-  const rightX = setsX + setsW + 2;
-  const rightW = W3 - 2 * M - setsW - 2;
+  // 2. Seção Central (y = 17 a y = 145 = 128mm)
+  const mainY = M + headerH + 0.5;
+  const setsW = 158;
+  const rightW = contentW - setsW - 1; // 131 mm
+  const rightX = M + setsW + 1;
 
-  // 3 set blocks stacked vertically
-  const setH = 37;
-  const setGap = 1.5;
-  for (let i = 0; i < 3; i++) {
-    const sy = setsY + i * (setH + setGap);
-    const isTiebreak = i === 2;
-    drawSetBlock(d, i + 1, setsX, sy, setsW, setH, data, isTiebreak);
-  }
+  // 3 Sets empilhados na esquerda (Sets 1 e 2 regulares, Set 3 tie-break)
+  const setH = 42;
+  const setGap = 0.8;
 
-  // Right panel sections
-  const rpY = setsY;
-  const sanctionsH = 32;
-  drawSanctionsPanel(d, rightX, rpY, rightW, sanctionsH);
+  // Set 1 (Equipe A na esquerda, B na direita)
+  drawRegularSetBlock(d, 1, M, mainY, setsW, setH, data, 'A', 'B');
 
-  const rosterY = rpY + sanctionsH + 1.5;
-  const rosterH = 78;
-  drawTeamRosterPanel(d, rightX, rosterY, rightW, rosterH, data);
+  // Set 2 (Equipe B na esquerda, A na direita - inversão regulamentar de lado)
+  drawRegularSetBlock(d, 2, M, mainY + setH + setGap, setsW, setH, data, 'B', 'A');
 
-  // Bottom area spanning full width
-  const bottomY = setsY + 3 * (setH + setGap) + 1;
+  // Set 3 (Tie-break decisivo com Troca de Lado e Pontos na Troca)
+  drawDecidingSetBlock(d, 3, M, mainY + 2 * (setH + setGap), setsW, setH, data);
 
-  // Result panel (left portion)
-  const resultW = setsW * 0.5;
-  const resultH = H3 - bottomY - M - 1;
-  drawResultPanel(d, M, bottomY, resultW, resultH, data, 3);
+  // Painel Superior Direito: Tabela de Elencos e Assinaturas
+  const rosterH = 3 * setH + 2 * setGap; // 127.6 mm
+  drawOfficialRostersAndSignatures(d, rightX, mainY, rightW, rosterH, data);
 
-  // Pontos na troca (center)
-  const pntW = setsW * 0.5;
-  drawPontosNaTroca(d, M + resultW + 1, bottomY, pntW, resultH);
+  // 3. Seção Inferior (y = 146.5 a y = 205 = 58.5mm)
+  const bottomY = mainY + rosterH + 1.2;
+  const bottomH = H - bottomY - M;
 
-  // Result continuation on right: Assinaturas label
-  const sigY = rosterY + rosterH + 1.5;
-  const sigH = H3 - sigY - M;
-  if (sigH > 10) {
-    // Capitão + Técnico signatures
-    const csW = rightW;
-    bx(d, rightX, sigY, csW, sigH, 0.3);
-    fbx(d, rightX, sigY, csW, 4.5, '#1e3a5f');
-    tx(d, 'ASSINATURAS', rightX + csW / 2, sigY + 3.2, 4, { a: 'center', c: WHITE, b: true });
-    const halfW = csW / 2;
-    ln(d, rightX + halfW, sigY + 4.5, rightX + halfW, sigY + sigH, 0.15);
-    tx(d, 'CAPITÃO', rightX + halfW / 2, sigY + 7, 3, { a: 'center', c: GRAY });
-    tx(d, 'TÉCNICO', rightX + halfW / 2, sigY + 11, 3, { a: 'center', c: GRAY });
-    tx(d, 'CAPITÃO', rightX + halfW + halfW / 2, sigY + 7, 3, { a: 'center', c: GRAY });
-    tx(d, 'TÉCNICO', rightX + halfW + halfW / 2, sigY + 11, 3, { a: 'center', c: GRAY });
-    // signature lines
-    ln(d, rightX + 2, sigY + 13, rightX + halfW - 2, sigY + 13, 0.1, LGRAY);
-    ln(d, rightX + halfW + 2, sigY + 13, rightX + csW - 2, sigY + 13, 0.1, LGRAY);
-  }
+  const sancW = 54;
+  const resultsW = 86;
+  const apprW = contentW - sancW - resultsW - 2;
 
-  // Observations + Approval below result
-  const sigBottomY = bottomY + resultH + 1;
-  const sigBottomH = H3 - sigBottomY - M;
-  if (sigBottomH > 8) {
-    drawSignaturesPanel(d, M, sigBottomY, W3 - 2 * M, sigBottomH, data);
-  } else {
-    // Fit signatures inside bottom area
-    drawSignaturesPanel(d, rightX, bottomY, rightW, resultH, data);
-  }
+  const xSanc = M;
+  const xAppr = M + sancW + 1;
+  const xResults = xAppr + apprW + 1;
 
-  // Footer
-  tx(d, 'VolleyPro · Súmula Oficial', M, H3 - 2, 4, { c: LGRAY });
-  tx(d, `Gerado: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`, W3 - M, H3 - 2, 3.5, { a: 'right', c: LGRAY });
+  // Painel de Sanções
+  drawOfficialSanctions(d, xSanc, bottomY, sancW, bottomH);
+
+  // Painel de Aprovação (Arbitragem)
+  drawOfficialApproval(d, xAppr, bottomY, apprW, bottomH, data);
+
+  // Painel de Resultados Finais
+  drawOfficialResults(d, xResults, bottomY, resultsW, bottomH, data);
 }
 
-function build5Sets(d: jsPDF, data: MatchSheetData) {
-  // A3 landscape: 420 × 297 mm
-  const W = 420, H = 297;
+// ══════════════════════════════════════════════════════════════════════
+// 9. CONSTRUTOR COMPLETO DA SÚMULA DE 5 SETS (A4 PAISAGEM)
+// ══════════════════════════════════════════════════════════════════════
+function buildOfficial5SetsSheet(d: jsPDF, data: MatchSheetData) {
+  const contentW = W - 2 * M;
 
-  // Header
-  const y0 = M, hw = W - 2 * M, hh = 14;
-  fbx(d, M, y0, hw, hh, '#1e3a5f');
-  d.setDrawColor(WHITE); d.setLineWidth(0.4);
-  d.circle(M + 8, y0 + hh / 2, 4.5, 'S');
-  tx(d, 'V', M + 8, y0 + hh / 2 + 1.3, 5.5, { a: 'center', c: WHITE, b: true });
-  tx(d, (data.orgName || 'VolleyPro').toUpperCase(), M + 15, y0 + 5, 7, { c: WHITE, b: true });
-  tx(d, 'SÚMULA OFICIAL', W / 2, y0 + 5.5, 9, { a: 'center', c: WHITE, b: true });
-  tx(d, data.modality === 'indoor' ? 'VÔLEI DE QUADRA' : 'VÔLEI DE PRAIA', W / 2, y0 + 11, 5.5, { a: 'center', c: '#c0d0e0' });
-  tx(d, data.competition.toUpperCase(), W - M - 2, y0 + 5.5, 6, { a: 'right', c: WHITE, b: true });
-  tx(d, (data.category || '').toUpperCase(), W - M - 2, y0 + 11, 5, { a: 'right', c: '#c0d0e0' });
+  // 1. Cabeçalho
+  const headerH = 13;
+  drawOfficialHeader(d, data, M, contentW, headerH);
 
-  // Match info strip (similar to 3-sets but wider)
-  const miY = y0 + hh + 1, miH = 14;
-  bx(d, M, miY, hw, miH, 0.35);
-  const cols5 = [55, 55, 65, 50, 45, 55, 87];
-  let cx = M;
-  const xp: number[] = [cx];
-  cols5.forEach(cw => { cx += cw; xp.push(cx); ln(d, cx, miY, cx, miY + miH, 0.2); });
-  ln(d, M, miY + 7, M + hw, miY + 7, 0.15, LGRAY);
-  const lbl5 = (s: string, xi: number, yi: number) => tx(d, s, xi + 2, yi, 4.5, { c: GRAY });
-  const val5 = (s: string, xi: number, yi: number) => tx(d, s, xi + 2, yi, 6, { b: true });
-  lbl5('NOME DA COMPETIÇÃO', xp[0], miY + 3.5);
-  val5(data.competition, xp[0], miY + 6.5);
-  lbl5('CIDADE', xp[1], miY + 3.5);
-  val5(data.city || '', xp[1], miY + 6.5);
-  lbl5('GINÁSIO / QUADRA', xp[2], miY + 3.5);
-  val5((data.venue + (data.court ? ` - ${data.court}` : '')).substring(0, 30), xp[2], miY + 6.5);
-  lbl5('FASE', xp[3], miY + 3.5);
-  val5(data.phase || data.groupName || '', xp[3], miY + 6.5);
-  lbl5('JOGO Nº', xp[4], miY + 3.5);
-  val5(data.matchNumber > 0 ? String(data.matchNumber) : '', xp[4], miY + 6.5);
-  lbl5('DATA', xp[0], miY + 10.5);
-  val5(data.date || '', xp[0], miY + 13);
-  lbl5('HORÁRIO', xp[1], miY + 10.5);
-  val5(data.time || '', xp[1], miY + 13);
-  lbl5('EQUIPES', xp[2], miY + 10.5);
-  tx(d, `${data.teamA.name.toUpperCase()}  VS  ${data.teamB.name.toUpperCase()}`, xp[2] + 2, miY + 13, 5, { b: true });
+  // 2. Seção Central dos 5 Sets
+  const mainY = M + headerH + 0.5;
+  const setsW = 158;
+  const rightW = contentW - setsW - 1;
+  const rightX = M + setsW + 1;
 
-  // Set blocks — 5 sets in 2 rows (3 top + 2 bottom) on left panel
-  const setsY = miY + miH + 1;
-  const setsW = (W - 2 * M) * 0.65;
-  const setH = 37;
-  const setGap = 1;
-  // Row 1: Sets 1-2 side by side
-  for (let i = 0; i < 2; i++) {
-    const sw = (setsW - 1) / 2;
-    const sx = M + i * (sw + 1);
-    drawSetBlock(d, i + 1, sx, setsY, sw, setH, data);
-  }
-  // Row 2: Sets 3-4 side by side
-  for (let i = 0; i < 2; i++) {
-    const sw = (setsW - 1) / 2;
-    const sx = M + i * (sw + 1);
-    drawSetBlock(d, i + 3, sx, setsY + setH + setGap, sw, setH, data);
-  }
-  // Row 3: Set 5 (tiebreak) — full width
-  drawSetBlock(d, 5, M, setsY + 2 * (setH + setGap), setsW, setH, data, true);
+  // 5 Sets distribuídos harmoniosamente na área esquerda:
+  // Sets 1 a 4 com tamanho padronizado (24.5mm cada) + Set 5 Tie-break (26mm)
+  const setH = 25;
+  const setGap = 0.6;
 
-  // Right panel
-  const rightX = M + setsW + 2;
-  const rightW = W - 2 * M - setsW - 2;
-  drawSanctionsPanel(d, rightX, setsY, rightW, 35);
-  drawTeamRosterPanel(d, rightX, setsY + 36.5, rightW, 90, data);
+  drawRegularSetBlock(d, 1, M, mainY, setsW, setH, data, 'A', 'B');
+  drawRegularSetBlock(d, 2, M, mainY + setH + setGap, setsW, setH, data, 'B', 'A');
+  drawRegularSetBlock(d, 3, M, mainY + 2 * (setH + setGap), setsW, setH, data, 'A', 'B');
+  drawRegularSetBlock(d, 4, M, mainY + 3 * (setH + setGap), setsW, setH, data, 'B', 'A');
+  drawDecidingSetBlock(d, 5, M, mainY + 4 * (setH + setGap), setsW, setH + 1.8, data);
 
-  // Bottom: Result + Signatures
-  const bottomY = setsY + 3 * (setH + setGap) + 1;
-  const bottomH = H - bottomY - M - 1;
-  const resultW = setsW * 0.5;
-  drawResultPanel(d, M, bottomY, resultW, bottomH, data, 5);
-  drawPontosNaTroca(d, M + resultW + 1, bottomY, setsW - resultW - 1, bottomH);
+  const rosterH = 5 * setH + 4 * setGap + 1.8;
+  drawOfficialRostersAndSignatures(d, rightX, mainY, rightW, rosterH, data);
 
-  // Signatures
-  const sigY = setsY + 36.5 + 90 + 1.5;
-  const sigH = H - sigY - M;
-  if (sigH > 10) {
-    drawSignaturesPanel(d, rightX, sigY, rightW, sigH, data);
-  }
+  // 3. Seção Inferior
+  const bottomY = mainY + rosterH + 1.2;
+  const bottomH = H - bottomY - M;
 
-  // Footer
-  tx(d, 'VolleyPro · Súmula Oficial (5 sets)', M, H - 2, 4, { c: LGRAY });
-  tx(d, `Gerado: ${new Date().toLocaleDateString('pt-BR')}`, W - M, H - 2, 3.5, { a: 'right', c: LGRAY });
+  const sancW = 54;
+  const resultsW = 86;
+  const apprW = contentW - sancW - resultsW - 2;
+
+  const xSanc = M;
+  const xAppr = M + sancW + 1;
+  const xResults = xAppr + apprW + 1;
+
+  drawOfficialSanctions(d, xSanc, bottomY, sancW, bottomH);
+  drawOfficialApproval(d, xAppr, bottomY, apprW, bottomH, data);
+  drawOfficialResults(d, xResults, bottomY, resultsW, bottomH, data);
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// 10. FICHAS DE POSIÇÃO (8 FILIPETAS / FOLHA EM A4)
+// ══════════════════════════════════════════════════════════════════════
 function drawPositionCard(
   d: jsPDF,
   x: number,
@@ -800,55 +920,46 @@ function drawPositionCard(
   team: MatchSheetData['teamA'],
   opponent: MatchSheetData['teamB'],
   setLabel: string,
-  orgName: string,
+  orgName: string
 ) {
-  // Card border
   bx(d, x, y, cw, ch, 0.4);
 
-  // Header bar
-  const hdrH = 7;
-  fbx(d, x, y, cw, hdrH, '#1e3a5f');
+  const hdrH = 6.5;
+  fbx(d, x, y, cw, hdrH, BG_HEADER);
+  bx(d, x, y, cw, hdrH, 0.2);
 
-  // Team logo (if available) or emblem circle
   if (team.logoUrl) {
-    drawTeamLogo(d, team.logoUrl, x + 1.5, y + 1, 5);
+    drawTeamLogo(d, team.logoUrl, x + 1.5, y + 1, 4.5);
   } else {
-    d.setDrawColor(WHITE); d.setLineWidth(0.3);
-    d.circle(x + 4, y + hdrH / 2, 2.5, 'S');
-    tx(d, 'V', x + 4, y + hdrH / 2 + 0.8, 3, { a: 'center', c: WHITE, b: true });
+    circle(d, x + 4, y + hdrH / 2, 2.2, 0.25);
+    tx(d, 'V', x + 4, y + hdrH / 2 + 0.8, 3, { a: 'center', b: true });
   }
 
-  // Title
-  tx(d, 'FICHA DE POSIÇÃO', x + cw / 2, y + 4.5, 5.5, { a: 'center', c: WHITE, b: true });
-  // Org name (right)
-  tx(d, orgName.substring(0, 12).toUpperCase(), x + cw - 2, y + 4.5, 3.5, { a: 'right', c: '#c0d0e0' });
+  tx(d, 'FICHA DE POSIÇÃO', x + cw / 2, y + 4.2, 5, { a: 'center', b: true });
+  tx(d, orgName.substring(0, 12).toUpperCase(), x + cw - 2, y + 4.2, 3.2, { a: 'right', c: GRAY_MED });
 
-  // Match details sub-strip (Jogo, Quadra, Adversário)
-  const subH = 5.5;
-  fbx(d, x, y + hdrH, cw, subH, '#f4f6f8');
-  ln(d, x, y + hdrH + subH, x + cw, y + hdrH + subH, 0.2, LGRAY);
+  const subH = 5.0;
+  fbx(d, x, y + hdrH, cw, subH, BG_ZEBRA);
+  ln(d, x, y + hdrH + subH, x + cw, y + hdrH + subH, 0.15, GRAY_LIGHT);
 
   const matchInfoLine = `J#${data.matchNumber || '-'} · ${data.court || data.venue || ''} · Adv: ${(opponent.shortName || opponent.name).substring(0, 10)}`;
-  tx(d, matchInfoLine, x + 2, y + hdrH + 3.8, 3, { c: GRAY });
+  tx(d, matchInfoLine, x + 2, y + hdrH + 3.5, 2.8, { c: GRAY_DARK });
 
-  // Equipe & Set header
   const teamY = y + hdrH + subH + 1;
-  tx(d, team.name.toUpperCase().substring(0, 14), x + 2, teamY + 3.5, 4.5, { b: true });
-  tx(d, setLabel, x + cw - 2, teamY + 3.5, 6, { a: 'right', b: true });
+  tx(d, team.name.toUpperCase().substring(0, 14), x + 2, teamY + 3.2, 4.2, { b: true });
+  tx(d, setLabel, x + cw - 2, teamY + 3.2, 5.5, { a: 'right', b: true });
 
-  // Líbero & Capitão line
-  const libY = teamY + 5;
-  tx(d, 'Líbero:', x + 2, libY + 2.5, 3.5, { c: GRAY });
-  ln(d, x + 12, libY + 3, x + 28, libY + 3, 0.15, LGRAY);
-  tx(d, 'Capitão:', x + 32, libY + 2.5, 3.5, { c: GRAY });
-  ln(d, x + 43, libY + 3, x + cw - 2, libY + 3, 0.15, LGRAY);
+  const libY = teamY + 4.5;
+  tx(d, 'Líbero:', x + 2, libY + 2.5, 3.2, { c: GRAY_DARK });
+  ln(d, x + 12, libY + 3, x + 28, libY + 3, 0.15, GRAY_LIGHT);
+  tx(d, 'Capitão:', x + 32, libY + 2.5, 3.2, { c: GRAY_DARK });
+  ln(d, x + 43, libY + 3, x + cw - 2, libY + 3, 0.15, GRAY_LIGHT);
 
-  // 6-position grid: 3 cols × 2 rows
   const posMap = [['IV', 'III', 'II'], ['V', 'VI', 'I']];
   const gridX = x + 3;
-  const gridY = libY + 5;
+  const gridY = libY + 4.5;
   const cellW = (cw - 6) / 3;
-  const cellH = (ch - (gridY - y) - 8) / 2;
+  const cellH = (ch - (gridY - y) - 7.5) / 2;
 
   for (let r = 0; r < 2; r++) {
     for (let c = 0; c < 3; c++) {
@@ -856,94 +967,87 @@ function drawPositionCard(
       const py = gridY + r * cellH;
       const pos = posMap[r][c];
       const isSaque = pos === 'I';
-      bx(d, px, py, cellW, cellH, isSaque ? 0.5 : 0.2);
-      tx(d, pos, px + 1.5, py + 3, 4, { b: true });
+      bx(d, px, py, cellW, cellH, isSaque ? 0.45 : 0.2);
+      tx(d, pos, px + 1.5, py + 3, 3.8, { b: true });
       if (isSaque) {
-        tx(d, 'Saque', px + cellW / 2, py + cellH - 1.5, 3, { a: 'center', c: GRAY });
+        tx(d, 'Saque', px + cellW / 2, py + cellH - 1.2, 2.8, { a: 'center', c: GRAY_DARK });
       }
     }
   }
 
-  // Assinatura do Técnico
-  const sigY2 = y + ch - 5;
-  tx(d, 'Assinatura do Técnico:', x + 3, sigY2 + 3.5, 3, { c: GRAY });
-  ln(d, x + 32, sigY2 + 3.5, x + cw - 3, sigY2 + 3.5, 0.15, LGRAY);
+  const sigY2 = y + ch - 4.5;
+  tx(d, 'Assinatura do Técnico:', x + 3, sigY2 + 3.0, 2.8, { c: GRAY_DARK });
+  ln(d, x + 32, sigY2 + 3.0, x + cw - 3, sigY2 + 3.0, 0.15, GRAY_LIGHT);
 }
 
 function buildPositionSheet(d: jsPDF, data: MatchSheetData) {
   const orgName = data.orgName || 'VolleyPro';
   const isFiveSets = data.format === '5-sets';
 
-  // 3-sets: 4 fichas por equipe (Sets 1, 2, 3 + Extra) -> 8 fichas (1 página)
-  // 5-sets: 6 fichas por equipe (Sets 1, 2, 3, 4, 5 + Extra) -> 12 fichas (2 páginas)
-  const cardsPerTeam = isFiveSets ? 6 : 4;
-
   const cardCols = 4;
   const cardRows = 2;
   const gapX = 3, gapY = 4;
-  const cw = (W3 - 2 * M - (cardCols - 1) * gapX) / cardCols;
-  const ch = (H3 - 2 * M - 8 - (cardRows - 1) * gapY) / cardRows;
+  const cw = (W - 2 * M - (cardCols - 1) * gapX) / cardCols;
+  const ch = (H - 2 * M - 8 - (cardRows - 1) * gapY) / cardRows;
 
-  // Página 1 (Sets 1 a 4 para cada equipe)
-  tx(d, `${orgName.toUpperCase()} · FICHAS DE POSIÇÃO`, W3 / 2, M + 3, 6, { a: 'center', b: true, c: DARK });
-  tx(d, `${data.competition.toUpperCase()} · ${data.teamA.name.toUpperCase()} x ${data.teamB.name.toUpperCase()} · ${data.date || ''}`, W3 / 2, M + 7, 4, { a: 'center', c: GRAY });
+  tx(d, `${orgName.toUpperCase()} · FICHAS DE POSIÇÃO`, W / 2, M + 3, 6, { a: 'center', b: true });
+  tx(d, `${data.competition.toUpperCase()} · ${data.teamA.name.toUpperCase()} x ${data.teamB.name.toUpperCase()} · ${data.date || ''}`, W / 2, M + 7, 4, { a: 'center', c: GRAY_DARK });
 
   for (let c = 0; c < 4; c++) {
     const setNum = c + 1;
     const setLabel = setNum <= (isFiveSets ? 5 : 3) ? `SET ${setNum}` : `SET EXTRA`;
 
-    // Team A
     const cxA = M + c * (cw + gapX);
     const cyA = M + 8;
     drawPositionCard(d, cxA, cyA, cw, ch, data, data.teamA, data.teamB, `${setLabel} (A)`, orgName);
 
-    // Team B
     const cxB = M + c * (cw + gapX);
     const cyB = M + 8 + (ch + gapY);
     drawPositionCard(d, cxB, cyB, cw, ch, data, data.teamB, data.teamA, `${setLabel} (B)`, orgName);
   }
 
-  tx(d, `VolleyPro · Fichas de Posição / Ordem de Saque ${isFiveSets ? '(Página 1/2)' : ''}`, M, H3 - 2, 3.5, { c: LGRAY });
+  tx(d, `VolleyPro · Fichas de Posição / Ordem de Saque ${isFiveSets ? '(Página 1/2)' : ''}`, M, H - 2, 3.5, { c: GRAY_LIGHT });
 
-  // Página 2 para 5 sets (Sets 5 e Extra)
   if (isFiveSets) {
     d.addPage('a4', 'landscape');
-    tx(d, `${orgName.toUpperCase()} · FICHAS DE POSIÇÃO (SETS DECISIVOS)`, W3 / 2, M + 3, 6, { a: 'center', b: true, c: DARK });
-    tx(d, `${data.competition.toUpperCase()} · ${data.teamA.name.toUpperCase()} x ${data.teamB.name.toUpperCase()} · ${data.date || ''}`, W3 / 2, M + 7, 4, { a: 'center', c: GRAY });
+    tx(d, `${orgName.toUpperCase()} · FICHAS DE POSIÇÃO (SETS DECISIVOS)`, W / 2, M + 3, 6, { a: 'center', b: true });
+    tx(d, `${data.competition.toUpperCase()} · ${data.teamA.name.toUpperCase()} x ${data.teamB.name.toUpperCase()} · ${data.date || ''}`, W / 2, M + 7, 4, { a: 'center', c: GRAY_DARK });
 
     for (let c = 0; c < 2; c++) {
       const setNum = c + 5;
       const setLabel = setNum === 5 ? `SET 5 (TB)` : `SET EXTRA`;
 
-      // Team A
       const cxA = M + c * (cw + gapX);
       const cyA = M + 8;
       drawPositionCard(d, cxA, cyA, cw, ch, data, data.teamA, data.teamB, `${setLabel} (A)`, orgName);
 
-      // Team B
       const cxB = M + c * (cw + gapX);
       const cyB = M + 8 + (ch + gapY);
       drawPositionCard(d, cxB, cyB, cw, ch, data, data.teamB, data.teamA, `${setLabel} (B)`, orgName);
     }
 
-    tx(d, 'VolleyPro · Fichas de Posição / Ordem de Saque (Página 2/2)', M, H3 - 2, 3.5, { c: LGRAY });
+    tx(d, 'VolleyPro · Fichas de Posição / Ordem de Saque (Página 2/2)', M, H - 2, 3.5, { c: GRAY_LIGHT });
   }
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// ═ PUBLIC API
+// 11. EXPORTAÇÕES PÚBLICAS
 // ══════════════════════════════════════════════════════════════════════
-
 export function generateOfficialMatchSheetPdf(data: MatchSheetData): jsPDF {
   const isFiveSets = data.format === '5-sets';
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
-    format: isFiveSets ? 'a3' : 'a4',
+    format: 'a4',
     compress: true,
   });
-  if (isFiveSets) build5Sets(doc, data);
-  else build3Sets(doc, data);
+
+  if (isFiveSets) {
+    buildOfficial5SetsSheet(doc, data);
+  } else {
+    buildOfficial3SetsSheet(doc, data);
+  }
+
   return doc;
 }
 
@@ -960,27 +1064,62 @@ export function generatePositionOrderSheetPdf(data: MatchSheetData): jsPDF {
 
 export function generateBlankOfficialMatchSheetPdf(
   format: '3-sets' | '5-sets' = '3-sets',
-  orgName = 'VolleyPro',
+  orgName = 'TORNEIO FEMININO TDT VOLEIBOL',
 ): jsPDF {
   const blankData: MatchSheetData = {
     orgName,
-    competition: '___________________________',
-    category: 'Geral',
-    genderCategory: 'mixed',
+    competition: 'TURMA DA TERÇA VOLEIBOL',
+    category: 'LIVRE',
+    genderCategory: 'female',
     modality: 'indoor',
     format,
     playerFormat: '6x6',
-    date: '____/____/________',
-    time: '____:____',
-    venue: '___________________________',
-    court: '___',
-    city: '___________________________',
-    phase: '_______________',
-    groupName: '_____',
-    round: 0,
-    matchNumber: 0,
-    teamA: { name: 'EQUIPE A', shortName: 'EQ. A', athletes: [] },
-    teamB: { name: 'EQUIPE B', shortName: 'EQ. B', athletes: [] },
+    date: '07/06/2026',
+    time: '07:50:00',
+    venue: 'UNIPAR FRANCISCO BELTRÃO',
+    court: 'Quadra 1',
+    city: 'Francisco Beltrão - PR',
+    phase: 'Classificatória',
+    groupName: 'A',
+    round: 1,
+    matchNumber: 1,
+    teamA: {
+      name: 'FB VOLEI',
+      shortName: 'FB VOLEI',
+      athletes: [
+        { documentNumber: '069.612.169-78', name: 'ANA CARLA MENDES CZENKOWSKI', jerseyNumber: 1 },
+        { documentNumber: '8.761.530-8', name: 'ANDRÉA NESI WESSLER', jerseyNumber: 2 },
+        { documentNumber: '10.476.466-5', name: 'ELIEGE ANDRADE MENIN', jerseyNumber: 3 },
+        { documentNumber: '092.899.469-46', name: 'FERNANDA DA COSTA VENTURIN', jerseyNumber: 4 },
+        { documentNumber: '104.119.959-79', name: 'JULIA DE ARAÚJO PASTRE', jerseyNumber: 5 },
+        { documentNumber: '068.347.619-00', name: 'JÉSSICA DE ANDRADE LEMOS', jerseyNumber: 6 },
+        { documentNumber: '148.883.029-01', name: 'LAURA MENDES DA ROZA', jerseyNumber: 7 },
+        { documentNumber: '049.225.569-58', name: 'LEYLANI VIANNA GIACOMELLI', jerseyNumber: 8 },
+        { documentNumber: '053.657.529-02', name: 'PRISCILA KRÜHS WEINFORTNER', jerseyNumber: 9 },
+        { documentNumber: '6.261.389', name: 'SABRINA FERLA DE ALENCAR', jerseyNumber: 10 },
+        { documentNumber: '7.946.797-9', name: 'SANDRA CRISTINA TAKADA FLORES', jerseyNumber: 11 },
+        { documentNumber: '033.133.839-47', name: 'SILVANE MENDES', jerseyNumber: 12 },
+        { documentNumber: '10.327.290-4', name: 'SUÉLEN BASSO MENDES', jerseyNumber: 13 },
+        { documentNumber: '960.476.400-44', name: 'TISCIANA LETÍCIA WEIMER DA SILVA', jerseyNumber: 14 },
+      ],
+    },
+    teamB: {
+      name: 'AURA VOLEIBOL',
+      shortName: 'AURA VOLEIBOL',
+      athletes: [
+        { documentNumber: '109.212.179-00', name: 'ANA CRISTINA WALENDORF', jerseyNumber: 1 },
+        { documentNumber: '052.911.599-95', name: 'ANDRESSA DEMETREO NAZARIO', jerseyNumber: 2 },
+        { documentNumber: '072.751.649-30', name: 'BEATRIZ CAVAZINI', jerseyNumber: 3 },
+        { documentNumber: '043.100.549-43', name: 'FERNANDA DOS SANTOS THOMAZ', jerseyNumber: 4 },
+        { documentNumber: '097.800.492-97', name: 'HELEN CRISTINA LONGO', jerseyNumber: 5 },
+        { documentNumber: '119.091.809-98', name: 'HELEN WAGNER', jerseyNumber: 6 },
+        { documentNumber: '091.698.219-09', name: 'JULIA GABRIELA CZIEWIAKON', jerseyNumber: 7 },
+        { documentNumber: '091.376.499-06', name: 'KETLYN TAINNARA SPELIER LOPES', jerseyNumber: 8 },
+        { documentNumber: '071.969.219-92', name: 'TAISNARA CASANOVA', jerseyNumber: 9 },
+        { documentNumber: '084.500.029-23', name: 'TAMARA THAIS GIUSTTI BASSANI', jerseyNumber: 10 },
+        { documentNumber: '050.494.959-46', name: 'WALESKA REGINA SANCZKOSKI', jerseyNumber: 11 },
+      ],
+    },
     sets: [],
     finalScoreA: 0,
     finalScoreB: 0,

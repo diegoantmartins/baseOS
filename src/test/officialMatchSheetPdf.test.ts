@@ -77,11 +77,11 @@ describe('generateOfficialMatchSheetPdf', () => {
     expect(doc.internal.pageSize.getHeight()).toBeCloseTo(210, 0);
   });
 
-  it('gera PDF de 1 página A3 paisagem para 5 sets', () => {
+  it('gera PDF de 1 página A4 paisagem para 5 sets', () => {
     const doc = generateOfficialMatchSheetPdf(baseData({ format: '5-sets' }));
     expect(doc.getNumberOfPages()).toBe(1);
-    expect(doc.internal.pageSize.getWidth()).toBeCloseTo(420, 0);
-    expect(doc.internal.pageSize.getHeight()).toBeCloseTo(297, 0);
+    expect(doc.internal.pageSize.getWidth()).toBeCloseTo(297, 0);
+    expect(doc.internal.pageSize.getHeight()).toBeCloseTo(210, 0);
   });
 
   it('não lança erro com elenco vazio', () => {
