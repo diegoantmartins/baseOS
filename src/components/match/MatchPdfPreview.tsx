@@ -108,7 +108,7 @@ export function MatchPdfPreview({ matchId }: MatchPdfPreviewProps) {
     }
   };
 
-  const formatLabel = scoresheetData?.document.format === '5-sets' ? '5 Sets (A3)' : '3 Sets (A4)';
+  const formatLabel = scoresheetData?.document.format === '5-sets' ? '5 Sets (A4)' : '3 Sets (A4)';
 
   return (
     <Card className="card-elevated">

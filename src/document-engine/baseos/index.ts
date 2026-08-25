@@ -15,6 +15,9 @@ export * from './domain/roster.rules';
 export * from './geometry/page';
 export * from './geometry/dimensions';
 export * from './geometry/grids';
+export * from './geometry/rect';
+export * from './geometry/layouts';
+export * from './geometry/layoutValidator';
 
 export * from './theme/tokens';
 export * from './theme/colors';

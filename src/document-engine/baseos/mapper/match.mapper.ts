@@ -4,17 +4,21 @@
 
 import type { MatchRecord, TeamRecord, CompetitionRecord } from '@/types/entities';
 import type { CompetitionAthlete } from '@/types/registration';
-import type { BaseosScoresheetData, ScoresheetFormat, DocumentState } from '../types/scoresheet';
+import type { BaseosScoresheetData, ScoresheetFormat, DocumentState, ScoresheetOutput } from '../types/scoresheet';
 import { mapTeam, createBlankTeam } from './team.mapper';
 import { createBlankSetData, mapLiveSetData } from './set.mapper';
 
-export function createBlankBaseosScoresheetData(format: ScoresheetFormat = '3-sets'): BaseosScoresheetData {
+export function createBlankBaseosScoresheetData(
+  format: ScoresheetFormat = '3-sets',
+  output: ScoresheetOutput = 'print-a4',
+): BaseosScoresheetData {
   return {
     document: {
       type: 'BASEOS_VOLLEYBALL_SCORESHEET',
       version: '1.0',
       state: 'blank',
       format,
+      output,
       generatedAt: new Date().toISOString(),
     },
     competition: {
@@ -64,6 +68,7 @@ export function mapMatchRecordToBaseosScoresheet(
   rosterA: CompetitionAthlete[],
   rosterB: CompetitionAthlete[],
   forcedState?: DocumentState,
+  output: ScoresheetOutput = 'print-a4',
 ): BaseosScoresheetData {
   const is5Sets =
     competition?.setFormat === '5-sets' || (match.sets?.length || 0) > 3;
@@ -145,6 +150,7 @@ export function mapMatchRecordToBaseosScoresheet(
       version: '1.0',
       state,
       format,
+      output,
       generatedAt: new Date().toISOString(),
     },
     competition: {
