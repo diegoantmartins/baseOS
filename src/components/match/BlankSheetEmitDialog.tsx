@@ -164,14 +164,14 @@ export function BlankSheetEmitDialog({ open, onOpenChange, defaultFormat = '3-se
                 <div className="flex-1 space-y-0.5">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-xs text-foreground">
-                      Súmula Oficial 5 Sets (A3 Paisagem)
+                      Súmula Oficial 5 Sets (A4 Paisagem)
                     </span>
                     <span className="text-[10px] uppercase font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                       Completa
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Estrutura integral para partidas longas de até 5 sets com tie-break oficial.
+                    Documento oficial compacto em A4 para partidas longas de até 5 sets com tie-break.
                   </p>
                 </div>
               </Label>

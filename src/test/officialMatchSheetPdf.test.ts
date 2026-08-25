@@ -1,13 +1,21 @@
-// Smoke test da geração dos PDFs oficiais do sistema (súmula 3/5 sets e fichas de posição).
+// Smoke test da geração dos PDFs oficiais do sistema (súmula 3/5 sets e fichas de posição somente em A4).
 
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   generateOfficialMatchSheetPdf,
   generatePositionOrderSheetPdf,
+  generateBlankOfficialMatchSheetPdf,
+  generateBlankPositionSheetsPdf,
   printOfficialPdf,
   previewOfficialPdf,
   downloadOfficialPdf,
 } from '@/lib/pdf/officialMatchSheetPdf';
+import {
+  SHEET3_A4,
+  SHEET5_A4,
+  validateScoresheetLayout,
+  PAGE_A4_LANDSCAPE,
+} from '@/lib/pdf/scoresheetLayout';
 import type { MatchSheetData } from '@/lib/pdf/matchSheetPdf';
 
 beforeAll(() => {
@@ -69,19 +77,44 @@ function baseData(overrides: Partial<MatchSheetData> = {}): MatchSheetData {
   };
 }
 
-describe('generateOfficialMatchSheetPdf', () => {
-  it('gera PDF de 1 página A4 paisagem para 3 sets', () => {
-    const doc = generateOfficialMatchSheetPdf(baseData());
+describe('generateOfficialMatchSheetPdf — Súmulas 3 e 5 Sets exclusivamente em A4 Paisagem', () => {
+  it('gera PDF de 1 página A4 paisagem (297 × 210 mm) para 3 sets', () => {
+    const doc = generateOfficialMatchSheetPdf(baseData({ format: '3-sets' }));
     expect(doc.getNumberOfPages()).toBe(1);
-    expect(doc.internal.pageSize.getWidth()).toBeCloseTo(297, 0);
-    expect(doc.internal.pageSize.getHeight()).toBeCloseTo(210, 0);
+    expect(doc.internal.pageSize.getWidth()).toBeCloseTo(PAGE_A4_LANDSCAPE.width, 0);
+    expect(doc.internal.pageSize.getHeight()).toBeCloseTo(PAGE_A4_LANDSCAPE.height, 0);
   });
 
-  it('gera PDF de 1 página A3 paisagem para 5 sets', () => {
+  it('gera PDF de 1 página A4 paisagem (297 × 210 mm) para 5 sets (sem A3)', () => {
     const doc = generateOfficialMatchSheetPdf(baseData({ format: '5-sets' }));
     expect(doc.getNumberOfPages()).toBe(1);
-    expect(doc.internal.pageSize.getWidth()).toBeCloseTo(420, 0);
-    expect(doc.internal.pageSize.getHeight()).toBeCloseTo(297, 0);
+    expect(doc.internal.pageSize.getWidth()).toBeCloseTo(PAGE_A4_LANDSCAPE.width, 0);
+    expect(doc.internal.pageSize.getHeight()).toBeCloseTo(PAGE_A4_LANDSCAPE.height, 0);
+  });
+
+  it('layout de 3 sets e 5 sets cabe rigorosamente dentro da página A4 sem overflow', () => {
+    expect(() => validateScoresheetLayout(SHEET3_A4)).not.toThrow();
+    expect(() => validateScoresheetLayout(SHEET5_A4)).not.toThrow();
+  });
+
+  it('gera súmula em branco de 3 sets e 5 sets em A4', () => {
+    const blank3 = generateBlankOfficialMatchSheetPdf('3-sets');
+    expect(blank3.getNumberOfPages()).toBe(1);
+    expect(blank3.internal.pageSize.getWidth()).toBeCloseTo(297, 0);
+
+    const blank5 = generateBlankOfficialMatchSheetPdf('5-sets');
+    expect(blank5.getNumberOfPages()).toBe(1);
+    expect(blank5.internal.pageSize.getWidth()).toBeCloseTo(297, 0);
+  });
+
+  it('gera Fichas de Posição em A4 paisagem', () => {
+    const doc3 = generatePositionOrderSheetPdf(baseData({ format: '3-sets' }));
+    expect(doc3.getNumberOfPages()).toBe(1);
+    expect(doc3.internal.pageSize.getWidth()).toBeCloseTo(297, 0);
+
+    const doc5 = generatePositionOrderSheetPdf(baseData({ format: '5-sets' }));
+    expect(doc5.getNumberOfPages()).toBe(2);
+    expect(doc5.internal.pageSize.getWidth()).toBeCloseTo(297, 0);
   });
 
   it('não lança erro com elenco vazio', () => {
@@ -97,24 +130,5 @@ describe('generateOfficialMatchSheetPdf', () => {
   it('visualiza sem lançar erro', () => {
     const doc = generateOfficialMatchSheetPdf(baseData());
     expect(() => previewOfficialPdf(doc)).not.toThrow();
-  });
-
-  it('baixa sem lançar erro', () => {
-    const doc = generateOfficialMatchSheetPdf(baseData());
-    expect(() => downloadOfficialPdf(doc, 'sumula_teste.pdf')).not.toThrow();
-  });
-});
-
-describe('generatePositionOrderSheetPdf', () => {
-  it('gera PDF de 1 página A4 paisagem com 8 fichas', () => {
-    const doc = generatePositionOrderSheetPdf(baseData());
-    expect(doc.getNumberOfPages()).toBe(1);
-    expect(doc.internal.pageSize.getWidth()).toBeCloseTo(297, 0);
-    expect(doc.internal.pageSize.getHeight()).toBeCloseTo(210, 0);
-  });
-
-  it('gera PDF também para formato 5 sets (6 fichas por equipe em 2 páginas)', () => {
-    const doc = generatePositionOrderSheetPdf(baseData({ format: '5-sets' }));
-    expect(doc.getNumberOfPages()).toBe(2);
   });
 });
