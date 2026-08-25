@@ -1,5 +1,5 @@
 // =====================================================================
-// BaseOS Component - Bloco Individual do Set (138pt Exatos com Tipografia Alinhada)
+// BaseOS Component - Bloco Individual do Set (Flexível e Determinístico)
 // =====================================================================
 
 import React from 'react';
@@ -12,23 +12,21 @@ import { BaseosPointGrid } from './BaseosPointGrid';
 
 const styles = StyleSheet.create({
   setContainer: {
-    height: 138,
     borderWidth: BASEOS_TOKENS.borders.REGULAR,
     borderColor: BASEOS_TOKENS.colors.BLACK,
-    marginBottom: 3,
+    marginBottom: 2,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
     flexDirection: 'row',
   },
   leftSetMetaStrip: {
     width: 14,
-    height: 138,
     borderRightWidth: BASEOS_TOKENS.borders.REGULAR,
     borderRightColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 4,
+    paddingVertical: 3,
   },
   setBadge: {
     flexDirection: 'column',
@@ -36,34 +34,33 @@ const styles = StyleSheet.create({
   },
   setLetter: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 5.5,
+    fontSize: 5.0,
     color: BASEOS_TOKENS.colors.BLACK,
     lineHeight: 1.05,
   },
   setNum: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 7.5,
+    fontSize: 7.0,
     color: BASEOS_TOKENS.colors.BLACK,
     marginTop: 1,
   },
   formacaoLettersBox: {
     flexDirection: 'column',
     alignItems: 'center',
-    marginTop: 3,
+    marginTop: 2,
   },
   formacaoChar: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 3.5,
+    fontSize: 3.2,
     color: BASEOS_TOKENS.colors.GRAY_DARK,
-    lineHeight: 1.0,
+    lineHeight: 0.95,
   },
   mainSetArea: {
     flex: 1,
-    height: 138,
     flexDirection: 'column',
   },
   setTopBar: {
-    height: 12,
+    height: 11,
     flexDirection: 'row',
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHTEST,
     borderBottomWidth: BASEOS_TOKENS.borders.THIN,
@@ -74,27 +71,25 @@ const styles = StyleSheet.create({
   },
   setTimeText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 4.5,
+    fontSize: 4.2,
     color: BASEOS_TOKENS.colors.BLACK,
   },
   setBody: {
-    height: 126,
+    flex: 1,
     flexDirection: 'row',
   },
   teamQuadrant: {
     flex: 1,
-    height: 126,
     flexDirection: 'row',
     borderRightWidth: BASEOS_TOKENS.borders.THIN,
     borderRightColor: BASEOS_TOKENS.colors.BLACK,
   },
   teamFormArea: {
     flex: 1,
-    height: 126,
     flexDirection: 'column',
   },
   teamHeader: {
-    height: 12,
+    height: 11,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -105,28 +100,27 @@ const styles = StyleSheet.create({
   },
   teamNameText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 5.2,
+    fontSize: 4.8,
     color: BASEOS_TOKENS.colors.BLACK,
   },
   srBadgeText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 4.2,
+    fontSize: 3.8,
     color: BASEOS_TOKENS.colors.GRAY_DARK,
   },
   gridContentRow: {
-    height: 114,
+    flex: 1,
     flexDirection: 'row',
   },
   leftLegendColumn: {
-    width: 44,
-    height: 114,
+    width: 42,
     flexDirection: 'column',
     borderRightWidth: BASEOS_TOKENS.borders.THIN,
     borderRightColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHTEST,
   },
   legendCellOrdem: {
-    height: 10,
+    height: 9,
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
@@ -134,14 +128,14 @@ const styles = StyleSheet.create({
     paddingLeft: 2,
   },
   legendCellIniciantes: {
-    height: 12,
+    height: 11,
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
     justifyContent: 'center',
     paddingLeft: 2,
   },
   legendCellSubHeader: {
-    height: 28,
+    height: 24,
     borderBottomWidth: BASEOS_TOKENS.borders.THIN,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
     flexDirection: 'column',
@@ -149,35 +143,33 @@ const styles = StyleSheet.create({
     paddingLeft: 2,
   },
   legendCellSaques: {
-    height: 64,
+    flex: 1,
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
     justifyContent: 'center',
     paddingLeft: 2,
   },
   legendText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 3.8,
+    fontSize: 3.6,
     color: BASEOS_TOKENS.colors.BLACK,
   },
   legendSubText: {
     fontFamily: BASEOS_TOKENS.fonts.REGULAR,
-    fontSize: 3.2,
+    fontSize: 3.0,
     color: BASEOS_TOKENS.colors.GRAY_DARK,
   },
   positionsContainer: {
     flex: 1,
-    height: 114,
     flexDirection: 'row',
   },
   posCol: {
     flex: 1,
-    height: 114,
     flexDirection: 'column',
     borderRightWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderRightColor: BASEOS_TOKENS.colors.BORDER_MUTED,
   },
   posHeaderCell: {
-    height: 10,
+    height: 9,
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
@@ -186,10 +178,10 @@ const styles = StyleSheet.create({
   },
   posHeaderText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 5.2,
+    fontSize: 4.8,
   },
   starterBox: {
-    height: 12,
+    height: 11,
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
     alignItems: 'center',
@@ -198,23 +190,23 @@ const styles = StyleSheet.create({
   },
   starterJerseyText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 7.2,
+    fontSize: 6.8,
   },
   subBlock: {
-    height: 28,
+    height: 24,
     flexDirection: 'column',
     borderBottomWidth: BASEOS_TOKENS.borders.THIN,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
   },
   subSlotRow: {
-    height: 7,
+    flex: 1,
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
     alignItems: 'center',
     justifyContent: 'center',
   },
   subPlacarSlotRow: {
-    height: 7,
+    flex: 1,
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
     alignItems: 'center',
@@ -222,15 +214,15 @@ const styles = StyleSheet.create({
   },
   subColonText: {
     fontFamily: BASEOS_TOKENS.fonts.REGULAR,
-    fontSize: 4.0,
+    fontSize: 3.8,
     color: BASEOS_TOKENS.colors.GRAY_DARK,
   },
   serviceRoundGrid: {
-    height: 64,
+    flex: 1,
     flexDirection: 'column',
   },
   serviceRoundRow: {
-    height: 16,
+    flex: 1,
     flexDirection: 'row',
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
@@ -244,23 +236,22 @@ const styles = StyleSheet.create({
   },
   serviceBoxNum: {
     fontFamily: BASEOS_TOKENS.fonts.REGULAR,
-    fontSize: 4.0,
+    fontSize: 3.8,
     color: BASEOS_TOKENS.colors.GRAY_DARK,
   },
   sideChangeCol: {
-    width: 12,
-    height: 126,
+    width: 11,
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
     borderRightWidth: BASEOS_TOKENS.borders.THIN,
     borderRightColor: BASEOS_TOKENS.colors.BLACK,
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingVertical: 4,
+    paddingVertical: 3,
   },
   sideChangeChar: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 4.5,
+    fontSize: 4.0,
     color: BASEOS_TOKENS.colors.BLACK,
   },
 });
@@ -270,6 +261,7 @@ interface BaseosSetBlockProps {
   teamA: BaseosTeamData;
   teamB: BaseosTeamData;
   isDecidingSet?: boolean;
+  height?: number;
 }
 
 export const BaseosSetBlock: React.FC<BaseosSetBlockProps> = ({
@@ -277,14 +269,17 @@ export const BaseosSetBlock: React.FC<BaseosSetBlockProps> = ({
   teamA,
   teamB,
   isDecidingSet = false,
+  height = 138,
 }) => {
-  const isSet2 = setData.setNumber === 2;
+  const isSet2 = setData.setNumber === 2 || setData.setNumber === 4;
   const leftTeam = isSet2 ? teamB : teamA;
   const rightTeam = isSet2 ? teamA : teamB;
   const leftRot = isSet2 ? setData.rotation.teamB : setData.rotation.teamA;
   const rightRot = isSet2 ? setData.rotation.teamA : setData.rotation.teamB;
   const leftPoints = isSet2 ? setData.points.teamB : setData.points.teamA;
   const rightPoints = isSet2 ? setData.points.teamA : setData.points.teamB;
+
+  const pointGridHeight = height - 24;
 
   const renderTeamQuadrant = (
     team: BaseosTeamData,
@@ -382,14 +377,13 @@ export const BaseosSetBlock: React.FC<BaseosSetBlockProps> = ({
           </View>
         </View>
 
-        <BaseosPointGrid pointGrid={points} maxPoints={maxPts} />
+        <BaseosPointGrid pointGrid={points} maxPoints={maxPts} height={pointGridHeight} />
       </View>
     );
   };
 
   return (
-    <View style={styles.setContainer}>
-      {/* Barra Lateral do Set com Letras Empilhadas (Sem distorção de rotação) */}
+    <View style={[styles.setContainer, { height }]}>
       <View style={styles.leftSetMetaStrip}>
         <View style={styles.setBadge}>
           <Text style={styles.setLetter}>S</Text>
@@ -423,7 +417,6 @@ export const BaseosSetBlock: React.FC<BaseosSetBlockProps> = ({
               {renderTeamQuadrant(leftTeam, leftRot, leftPoints, undefined, true, false, 8)}
               {renderTeamQuadrant(rightTeam, rightRot, rightPoints, undefined, false, false, 30)}
 
-              {/* Coluna Central com Letras Empilhadas */}
               <View style={styles.sideChangeCol}>
                 {['T', 'R', 'O', 'C', 'A', ' ', 'D', 'E', ' ', 'L', 'A', 'D', 'O'].map((ch, i) => (
                   <Text key={`sc-${i}`} style={styles.sideChangeChar}>

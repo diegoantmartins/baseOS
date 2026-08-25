@@ -1,5 +1,5 @@
 // =====================================================================
-// BaseOS Component - Régua Ponto a Ponto (114pt Exatos)
+// BaseOS Component - Régua Ponto a Ponto (Adaptável e Rígida)
 // =====================================================================
 
 import React from 'react';
@@ -14,7 +14,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: BASEOS_TOKENS.borders.REGULAR,
     borderLeftColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
-    height: 114,
   },
   header: {
     height: 10,
@@ -30,7 +29,7 @@ const styles = StyleSheet.create({
     color: BASEOS_TOKENS.colors.BLACK,
   },
   body: {
-    height: 94,
+    flex: 1,
     flexDirection: 'row',
   },
   column: {
@@ -42,23 +41,15 @@ const styles = StyleSheet.create({
     borderRightColor: BASEOS_TOKENS.colors.BORDER_MUTED,
   },
   cell: {
+    flex: 1,
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cellSingle8: {
-    height: 11.75, // 8 linhas * 11.75 = 94pt
-  },
-  cellTieBreak10: {
-    height: 9.4, // 10 linhas * 9.4 = 94pt
-  },
-  cellRegular12: {
-    height: 7.83, // 12 linhas * 7.83 = ~94pt
-  },
   cellText: {
     fontFamily: BASEOS_TOKENS.fonts.REGULAR,
-    fontSize: 4.0,
+    fontSize: 3.8,
     color: BASEOS_TOKENS.colors.BLACK,
   },
   markedCell: {
@@ -86,12 +77,14 @@ interface BaseosPointGridProps {
   pointGrid: PointGridData;
   maxPoints?: number;
   width?: number;
+  height?: number;
 }
 
 export const BaseosPointGrid: React.FC<BaseosPointGridProps> = ({
   pointGrid,
   maxPoints = 36,
   width,
+  height = 114,
 }) => {
   const grid = generatePointRulerColumns(maxPoints);
   const markedMap = new Set(
@@ -99,11 +92,6 @@ export const BaseosPointGrid: React.FC<BaseosPointGridProps> = ({
   );
 
   const calculatedWidth = width || (grid.isSingleCol ? 14 : maxPoints <= 30 ? 24 : 28);
-  const cellStyle = grid.isSingleCol
-    ? styles.cellSingle8
-    : maxPoints <= 30
-      ? styles.cellTieBreak10
-      : styles.cellRegular12;
 
   const renderColumn = (pts: number[], hasDivider = true) => (
     <View style={[styles.column, hasDivider ? styles.colDivider : {}]}>
@@ -112,7 +100,7 @@ export const BaseosPointGrid: React.FC<BaseosPointGridProps> = ({
         return (
           <View
             key={`pt-${pt}`}
-            style={[styles.cell, cellStyle, isMarked ? styles.markedCell : {}]}
+            style={[styles.cell, isMarked ? styles.markedCell : {}]}
           >
             <Text
               style={[styles.cellText, isMarked ? styles.markedCellText : {}]}
@@ -126,7 +114,7 @@ export const BaseosPointGrid: React.FC<BaseosPointGridProps> = ({
   );
 
   return (
-    <View style={[styles.container, { width: calculatedWidth }]}>
+    <View style={[styles.container, { width: calculatedWidth, height }]}>
       <View style={styles.header}>
         <Text style={styles.headerText}>PONTOS</Text>
       </View>

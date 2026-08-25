@@ -1,5 +1,5 @@
 // =====================================================================
-// BaseOS Component - Tabela de Elencos e Oficiais (420pt Exatos)
+// BaseOS Component - Tabela de Elencos e Oficiais (Modular e Dinâmica)
 // =====================================================================
 
 import React from 'react';
@@ -10,7 +10,6 @@ import { ROSTER_CAPACITY } from '../domain/roster.rules';
 
 const styles = StyleSheet.create({
   container: {
-    height: 420,
     borderWidth: BASEOS_TOKENS.borders.REGULAR,
     borderColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
@@ -33,11 +32,10 @@ const styles = StyleSheet.create({
   },
   columnsWrapper: {
     flexDirection: 'row',
-    height: 408,
+    flex: 1,
   },
   teamColumn: {
     flex: 1,
-    height: 408,
     flexDirection: 'column',
   },
   dividerRight: {
@@ -68,11 +66,10 @@ const styles = StyleSheet.create({
     fontSize: 4.2,
   },
   athletesBlock: {
-    height: 224,
+    flex: 1,
     flexDirection: 'column',
   },
   row: {
-    height: 16,
     flexDirection: 'row',
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
@@ -92,10 +89,9 @@ const styles = StyleSheet.create({
   },
   cellText: {
     fontFamily: BASEOS_TOKENS.fonts.REGULAR,
-    fontSize: 5.5,
+    fontSize: 5.2,
   },
   sectionDivider: {
-    height: 12,
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
     borderTopWidth: BASEOS_TOKENS.borders.THIN,
     borderTopColor: BASEOS_TOKENS.colors.BLACK,
@@ -106,37 +102,32 @@ const styles = StyleSheet.create({
   },
   sectionDividerText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 4.5,
+    fontSize: 4.0,
   },
   liberosBlock: {
-    height: 30,
     flexDirection: 'column',
   },
   liberoRow: {
-    height: 15,
     flexDirection: 'row',
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
     alignItems: 'center',
   },
   staffBlock: {
-    height: 60,
     flexDirection: 'column',
   },
   staffRow: {
-    height: 15,
     flexDirection: 'row',
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
     alignItems: 'center',
   },
   signaturesBlock: {
-    height: 60,
     flexDirection: 'column',
     borderTopWidth: BASEOS_TOKENS.borders.THIN,
     borderTopColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHTEST,
-    padding: 3,
+    padding: 2,
     justifyContent: 'space-around',
   },
   signatureLine: {
@@ -144,23 +135,33 @@ const styles = StyleSheet.create({
   },
   signatureLabel: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 4.5,
-    marginBottom: 2,
+    fontSize: 4.2,
   },
 });
 
 interface BaseosRostersProps {
   teamA: BaseosTeamData;
   teamB: BaseosTeamData;
+  height?: number;
+  isCompact?: boolean;
 }
 
-export const BaseosRosters: React.FC<BaseosRostersProps> = ({ teamA, teamB }) => {
+export const BaseosRosters: React.FC<BaseosRostersProps> = ({
+  teamA,
+  teamB,
+  height = 420,
+  isCompact = false,
+}) => {
   const staffRolesList: Array<{ code: 'T' | 'AT1' | 'AT2' | 'PF' | 'M/F'; label: string }> = [
     { code: 'T', label: 'Técnico' },
     { code: 'AT1', label: 'Assistente Técnico' },
     { code: 'PF', label: 'Preparador Físico' },
     { code: 'M/F', label: 'Médico' },
   ];
+
+  const rowHeight = isCompact ? 5.2 : 16;
+  const dividerHeight = isCompact ? 7 : 12;
+  const sigHeight = isCompact ? 16 : 60;
 
   const renderTeamRoster = (team: BaseosTeamData, isFirst: boolean, sideLetter: 'A' | 'B') => {
     const regularRows = Array.from(
@@ -177,7 +178,7 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({ teamA, teamB }) =>
 
     return (
       <View style={[styles.teamColumn, isFirst ? styles.dividerRight : {}]}>
-        {/* Sub-header (Nº / NOME DOS JOGADORES) */}
+        {/* Sub-header */}
         <View style={styles.tableSubHeader}>
           <View style={styles.colNumberHeader}>
             <Text style={styles.headerLabel}>Nº</Text>
@@ -192,7 +193,7 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({ teamA, teamB }) =>
         {/* 14 Linhas de Atletas Regulares */}
         <View style={styles.athletesBlock}>
           {regularRows.map((ath, idx) => (
-            <View key={`reg-${idx}`} style={styles.row}>
+            <View key={`reg-${idx}`} style={[styles.row, { height: rowHeight }]}>
               <View style={styles.cellNumber}>
                 <Text style={styles.cellText}>
                   {ath?.jerseyNumber !== undefined ? String(ath.jerseyNumber) : ''}
@@ -208,13 +209,13 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({ teamA, teamB }) =>
         </View>
 
         {/* Seção de Líberos */}
-        <View style={styles.sectionDivider}>
+        <View style={[styles.sectionDivider, { height: dividerHeight }]}>
           <Text style={styles.sectionDividerText}>JOGADORES LÍBEROS ("L")</Text>
         </View>
 
         <View style={styles.liberosBlock}>
           {liberoRows.map((lib, idx) => (
-            <View key={`lib-${idx}`} style={styles.liberoRow}>
+            <View key={`lib-${idx}`} style={[styles.liberoRow, { height: rowHeight }]}>
               <View style={styles.cellNumber}>
                 <Text style={styles.cellText}>
                   {lib?.jerseyNumber !== undefined ? String(lib.jerseyNumber) : `L${idx + 1}`}
@@ -230,13 +231,13 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({ teamA, teamB }) =>
         </View>
 
         {/* Seção de Comissão Técnica */}
-        <View style={styles.sectionDivider}>
+        <View style={[styles.sectionDivider, { height: dividerHeight }]}>
           <Text style={styles.sectionDividerText}>COMISSÃO TÉCNICA</Text>
         </View>
 
         <View style={styles.staffBlock}>
           {staffRolesList.map(role => (
-            <View key={`stf-${role.code}`} style={styles.staffRow}>
+            <View key={`stf-${role.code}`} style={[styles.staffRow, { height: rowHeight }]}>
               <View style={styles.cellNumber}>
                 <Text style={styles.cellText}>{role.code}</Text>
               </View>
@@ -250,7 +251,7 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({ teamA, teamB }) =>
         </View>
 
         {/* Assinaturas */}
-        <View style={styles.signaturesBlock}>
+        <View style={[styles.signaturesBlock, { height: sigHeight }]}>
           <View style={styles.signatureLine}>
             <Text style={styles.signatureLabel}>CAPITÃO {sideLetter}: ____________________________</Text>
           </View>
@@ -263,7 +264,7 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({ teamA, teamB }) =>
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { height }]}>
       <View style={styles.mainHeader}>
         <Text style={styles.mainHeaderText}>EQUIPES</Text>
         <Text style={styles.mainHeaderText}>( A )   VS   ( B )</Text>
