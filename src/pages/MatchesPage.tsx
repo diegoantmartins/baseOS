@@ -52,6 +52,9 @@ import type { CompetitionRecord, MatchRecord, TeamRecord, VenueRecord } from '@/
 import { useAuth } from '@/components/auth/AuthContext';
 import { useCapability } from '@/hooks/useCapability';
 import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
+import { LiveScorerDeskModal } from '@/components/match/LiveScorerDeskModal';
+import { LiveScoreboardModal } from '@/components/match/LiveScoreboardModal';
+import { Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type MatchesSubTab = 'todos' | 'grupos' | 'mata-mata' | 'agenda' | 'sumulas' | 'resultados';
@@ -142,6 +145,8 @@ export default function MatchesPage() {
   const [resultMatch, setResultMatch] = useState<MatchRecord | null>(null);
   const [pendingHomologateMatch, setPendingHomologateMatch] = useState<MatchRecord | null>(null);
   const [pendingSyncPlayoffs, setPendingSyncPlayoffs] = useState(false);
+  const [liveScorerMatch, setLiveScorerMatch] = useState<MatchRecord | null>(null);
+  const [liveScoreboardMatch, setLiveScoreboardMatch] = useState<MatchRecord | null>(null);
 
   const refresh = useCallback(async () => {
     const [rawMatches, rawComps, rawTeams, rawVenues] = await Promise.all([
@@ -620,6 +625,31 @@ export default function MatchesPage() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1.5 self-end sm:self-center">
+                        {/* Telão / Placar ao Vivo */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
+                          onClick={() => setLiveScoreboardMatch(m.record)}
+                          title="Abrir Telão / Placar do Jogo"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                          Telão
+                        </Button>
+
+                        {/* Mesa do Apontador (Ao Vivo) */}
+                        {canSubmitMatchScore(m.record) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2 text-xs font-semibold gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                            onClick={() => setLiveScorerMatch(m.record)}
+                          >
+                            <Volleyball className="w-3.5 h-3.5" />
+                            Mesa
+                          </Button>
+                        )}
+
                         {can('scoresheet:view') && (
                           <Button
                             variant="ghost"
@@ -762,6 +792,31 @@ export default function MatchesPage() {
           await handleSyncPlayoffsFromGroups();
           setPendingSyncPlayoffs(false);
         }}
+      />
+
+      {/* Modal da Mesa do Apontador (Ao Vivo) */}
+      <LiveScorerDeskModal
+        open={liveScorerMatch !== null}
+        onOpenChange={(open) => !open && setLiveScorerMatch(null)}
+        match={liveScorerMatch}
+        competition={
+          liveScorerMatch
+            ? competitions.find((c) => c.id === liveScorerMatch.competitionId) || null
+            : null
+        }
+        onMatchUpdated={refresh}
+      />
+
+      {/* Modal de Telão / Placar do Jogo */}
+      <LiveScoreboardModal
+        open={liveScoreboardMatch !== null}
+        onOpenChange={(open) => !open && setLiveScoreboardMatch(null)}
+        match={liveScoreboardMatch}
+        competition={
+          liveScoreboardMatch
+            ? competitions.find((c) => c.id === liveScoreboardMatch.competitionId) || null
+            : null
+        }
       />
     </MainLayout>
   );
