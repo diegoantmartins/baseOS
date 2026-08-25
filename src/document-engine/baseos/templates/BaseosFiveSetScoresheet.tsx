@@ -1,5 +1,5 @@
 // =====================================================================
-// BaseOS Template - Súmula Oficial de 5 Sets (A4 Paisagem - 1 Página Exata)
+// BaseOS Template - Súmula Oficial de 5 Sets (A4 Paisagem - 1 Página Única)
 // =====================================================================
 
 import React from 'react';
@@ -17,44 +17,44 @@ const styles = StyleSheet.create({
   page: {
     width: A4_LANDSCAPE.WIDTH,
     height: A4_LANDSCAPE.HEIGHT,
-    padding: 6,
+    padding: 5,
     backgroundColor: '#FFFFFF',
     flexDirection: 'column',
   },
   gridRow: {
     flexDirection: 'row',
-    marginBottom: 2.5,
-    height: 124,
+    marginBottom: 2,
+    height: 130,
   },
   halfColLeft: {
     flex: 1,
-    paddingRight: 2.5,
-    height: 124,
+    paddingRight: 2,
+    height: 130,
   },
   halfColRight: {
     flex: 1,
-    paddingLeft: 2.5,
-    height: 124,
+    paddingLeft: 2,
+    height: 130,
   },
   footerRow: {
-    height: 148,
+    height: 138,
     flexDirection: 'row',
     marginTop: 1,
   },
   footerColSanctions: {
-    width: 175,
+    width: 170,
     paddingRight: 2,
-    height: 148,
+    height: 138,
   },
   footerColSignatures: {
     flex: 1,
     paddingHorizontal: 2,
-    height: 148,
+    height: 138,
   },
   footerColResult: {
     width: 320,
     paddingLeft: 2,
-    height: 148,
+    height: 138,
   },
 });
 
@@ -66,7 +66,7 @@ export const BaseosFiveSetScoresheet: React.FC<BaseosFiveSetScoresheetProps> = (
   return (
     <Document title={`Sumula_Oficial_5Sets_Jogo_${data.match.number || '1'}`}>
       <Page size="A4" orientation="landscape" style={styles.page}>
-        {/* Cabeçalho Oficial BaseOS / CBV */}
+        {/* Cabeçalho do Jogo */}
         <BaseosHeader
           competition={data.competition}
           match={data.match}
@@ -74,14 +74,14 @@ export const BaseosFiveSetScoresheet: React.FC<BaseosFiveSetScoresheetProps> = (
           teamBName={data.teams.B.name}
         />
 
-        {/* Linha 1: Set 1 e Set 2 (Regulares) */}
+        {/* Linha 1: Set 1 e Set 2 (Cards Uniformes de 130pt) */}
         <View style={styles.gridRow}>
           <View style={styles.halfColLeft}>
             <BaseosSetBlock
               setData={data.sets.set1}
               teamA={data.teams.A}
               teamB={data.teams.B}
-              height={124}
+              height={130}
             />
           </View>
           <View style={styles.halfColRight}>
@@ -89,19 +89,19 @@ export const BaseosFiveSetScoresheet: React.FC<BaseosFiveSetScoresheetProps> = (
               setData={data.sets.set2}
               teamA={data.teams.A}
               teamB={data.teams.B}
-              height={124}
+              height={130}
             />
           </View>
         </View>
 
-        {/* Linha 2: Set 3 e Set 4 (Regulares) */}
+        {/* Linha 2: Set 3 e Set 4 (Cards Uniformes de 130pt) */}
         <View style={styles.gridRow}>
           <View style={styles.halfColLeft}>
             <BaseosSetBlock
               setData={data.sets.set3}
               teamA={data.teams.A}
               teamB={data.teams.B}
-              height={124}
+              height={130}
             />
           </View>
           <View style={styles.halfColRight}>
@@ -110,13 +110,13 @@ export const BaseosFiveSetScoresheet: React.FC<BaseosFiveSetScoresheetProps> = (
                 setData={data.sets.set4}
                 teamA={data.teams.A}
                 teamB={data.teams.B}
-                height={124}
+                height={130}
               />
             ) : null}
           </View>
         </View>
 
-        {/* Linha 3: Set 5 (Tie-Break com 1 a 8 pts no 1º bloco) e Tabela EQUIPES */}
+        {/* Linha 3: Set 5 (Tie-Break) e Tabela EQUIPES com Amplo Espaço Horizontal */}
         <View style={styles.gridRow}>
           <View style={styles.halfColLeft}>
             {data.sets.set5 ? (
@@ -125,16 +125,16 @@ export const BaseosFiveSetScoresheet: React.FC<BaseosFiveSetScoresheetProps> = (
                 teamA={data.teams.A}
                 teamB={data.teams.B}
                 isDecidingSet={true}
-                height={124}
+                height={130}
               />
             ) : null}
           </View>
           <View style={styles.halfColRight}>
-            <BaseosRosters teamA={data.teams.A} teamB={data.teams.B} height={124} isCompact={true} />
+            <BaseosRosters teamA={data.teams.A} teamB={data.teams.B} height={130} isCompact={true} />
           </View>
         </View>
 
-        {/* Linha 4 (Rodapé Oficial CBV): Sanções | Aprovação | Resultados */}
+        {/* Linha 4 (Rodapé Oficial): Sanções | Aprovação | Resultados (Sets 1 a 5) */}
         <View style={styles.footerRow}>
           <View style={styles.footerColSanctions}>
             <BaseosSanctions
