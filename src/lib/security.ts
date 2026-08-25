@@ -1,8 +1,9 @@
 /**
  * Módulo de Segurança do BaseOS
  *
- * Provê sanitização de entradas (XSS prevention), validação de força de senha
- * e controle de bloqueio de tentativas de autenticação (Rate Limiting).
+ * Provê sanitização de entradas (XSS prevention), validação e análise de força de senha,
+ * controle de bloqueio de tentativas de autenticação (Rate Limiting),
+ * auditoria persistente de ações críticas e configurações de inatividade.
  */
 
 /**
@@ -32,7 +33,7 @@ export function stripUnsafeHtml(input: string): string {
 }
 
 /**
- * Validação de requisitos de segurança para senhas.
+ * Validação básica de requisitos de segurança para senhas.
  */
 export function validatePasswordStrength(password: string): { valid: boolean; message?: string } {
   if (!password || password.length < 8) {
@@ -42,6 +43,80 @@ export function validatePasswordStrength(password: string): { valid: boolean; me
     return { valid: false, message: 'A senha deve conter pelo menos uma letra e um número.' };
   }
   return { valid: true };
+}
+
+export type PasswordCriteria = {
+  hasMinLength: boolean;
+  hasUpper: boolean;
+  hasLower: boolean;
+  hasNumber: boolean;
+  hasSpecial: boolean;
+};
+
+export type PasswordStrengthAnalysis = {
+  score: number; // 0 a 100
+  level: 'very-weak' | 'weak' | 'fair' | 'strong' | 'very-strong';
+  label: string;
+  color: string;
+  criteria: PasswordCriteria;
+  isValid: boolean;
+};
+
+/**
+ * Análise detalhada da força da senha com checklist e pontuação percentual.
+ */
+export function analyzePasswordStrength(password: string): PasswordStrengthAnalysis {
+  const pwd = password || '';
+  const criteria: PasswordCriteria = {
+    hasMinLength: pwd.length >= 8,
+    hasUpper: /[A-Z]/.test(pwd),
+    hasLower: /[a-z]/.test(pwd),
+    hasNumber: /[0-9]/.test(pwd),
+    hasSpecial: /[^A-Za-z0-9]/.test(pwd),
+  };
+
+  let points = 0;
+  if (criteria.hasMinLength) points += 25;
+  if (pwd.length >= 12) points += 15;
+  if (criteria.hasUpper && criteria.hasLower) points += 20;
+  else if (criteria.hasUpper || criteria.hasLower) points += 10;
+  if (criteria.hasNumber) points += 20;
+  if (criteria.hasSpecial) points += 20;
+
+  const score = Math.min(100, points);
+
+  let level: PasswordStrengthAnalysis['level'] = 'very-weak';
+  let label = 'Muito Fraca';
+  let color = 'bg-destructive text-destructive';
+
+  if (score >= 90) {
+    level = 'very-strong';
+    label = 'Excelente';
+    color = 'bg-emerald-500 text-emerald-500';
+  } else if (score >= 70) {
+    level = 'strong';
+    label = 'Forte';
+    color = 'bg-green-500 text-green-500';
+  } else if (score >= 50) {
+    level = 'fair';
+    label = 'Razoável';
+    color = 'bg-amber-500 text-amber-500';
+  } else if (score >= 25) {
+    level = 'weak';
+    label = 'Fraca';
+    color = 'bg-orange-500 text-orange-500';
+  }
+
+  const isValid = criteria.hasMinLength && (criteria.hasUpper || criteria.hasLower) && criteria.hasNumber;
+
+  return {
+    score,
+    level,
+    label,
+    color,
+    criteria,
+    isValid,
+  };
 }
 
 // Memory tracker for login failures (Lockout protection)
@@ -116,5 +191,122 @@ export class LoginRateLimiter {
       delete records[key];
       this.saveRecords(records);
     }
+  }
+}
+
+// ─── AUDIT LOG SERVICE ──────────────────────────────────────────────────────────
+
+export type AuditEventType = 'info' | 'success' | 'warning' | 'error';
+
+export type AuditLogEntry = {
+  id: string;
+  event: string;
+  user: string;
+  ip: string;
+  time: string;
+  type: AuditEventType;
+  details?: string;
+};
+
+const AUDIT_LOGS_KEY = 'baseos.security.audit_logs.v1';
+
+export class AuditService {
+  public static getLogs(): AuditLogEntry[] {
+    try {
+      const raw = localStorage.getItem(AUDIT_LOGS_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+    // Dados iniciais de seed se vazio
+    const initial: AuditLogEntry[] = [
+      {
+        id: 'log-1',
+        event: 'Inicialização do Sistema de Segurança',
+        user: 'Sistema BaseOS',
+        ip: '127.0.0.1',
+        time: new Date(Date.now() - 3600000 * 24).toLocaleString('pt-BR'),
+        type: 'info',
+        details: 'Proteção contra força bruta e auditoria ativados.',
+      },
+    ];
+    this.saveLogs(initial);
+    return initial;
+  }
+
+  private static saveLogs(logs: AuditLogEntry[]): void {
+    try {
+      // Manter até os 100 últimos logs
+      const trimmed = logs.slice(0, 100);
+      localStorage.setItem(AUDIT_LOGS_KEY, JSON.stringify(trimmed));
+    } catch {
+      // storage unavailable
+    }
+  }
+
+  public static logEvent(
+    event: string,
+    user: string,
+    type: AuditEventType = 'info',
+    details?: string
+  ): AuditLogEntry {
+    const logs = this.getLogs();
+    const newLog: AuditLogEntry = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      event: sanitizeInput(event),
+      user: sanitizeInput(user) || 'Anônimo / Sistema',
+      ip: '127.0.0.1 (Local)',
+      time: new Date().toLocaleString('pt-BR'),
+      type,
+      details: details ? sanitizeInput(details) : undefined,
+    };
+    logs.unshift(newLog);
+    this.saveLogs(logs);
+    return newLog;
+  }
+
+  public static clearLogs(): void {
+    localStorage.removeItem(AUDIT_LOGS_KEY);
+  }
+}
+
+// ─── CONFIGURAÇÕES DE SEGURANÇA E INATIVIDADE ────────────────────────────────
+
+export type SecurityPreferences = {
+  inactivityTimeoutEnabled: boolean;
+  inactivityTimeoutMinutes: number;
+  requireStrongPassword: boolean;
+  twoFactorEnabled: boolean;
+};
+
+const SECURITY_PREFS_KEY = 'baseos.security.preferences.v1';
+
+export const DEFAULT_SECURITY_PREFS: SecurityPreferences = {
+  inactivityTimeoutEnabled: true,
+  inactivityTimeoutMinutes: 30,
+  requireStrongPassword: true,
+  twoFactorEnabled: false,
+};
+
+export class SecurityConfigService {
+  public static getPreferences(): SecurityPreferences {
+    try {
+      const raw = localStorage.getItem(SECURITY_PREFS_KEY);
+      if (raw) return { ...DEFAULT_SECURITY_PREFS, ...JSON.parse(raw) };
+    } catch {
+      // fallback
+    }
+    return DEFAULT_SECURITY_PREFS;
+  }
+
+  public static savePreferences(prefs: Partial<SecurityPreferences>): SecurityPreferences {
+    const current = this.getPreferences();
+    const updated = { ...current, ...prefs };
+    try {
+      localStorage.setItem(SECURITY_PREFS_KEY, JSON.stringify(updated));
+    } catch {
+      // fallback
+    }
+    return updated;
   }
 }

@@ -5,14 +5,9 @@ import {
   Building,
   Bell,
   Palette,
-  FileText,
-  Upload,
-  Save,
-  Globe,
   Database,
   Trash2,
   RotateCcw,
-  Sparkles,
   Shield,
   ShieldCheck,
   KeyRound,
@@ -24,10 +19,13 @@ import {
   History,
   MoreVertical,
   Edit2,
-  Check,
-  X,
   Search,
   Laptop,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Info,
+  ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -57,11 +55,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { dataAccess, clearAllCompetitionData, clearEntireDatabase, resetLocalData } from '@/services/dataAccess';
+import { dataAccess, clearAllCompetitionData, resetLocalData } from '@/services/dataAccess';
 import { authService } from '@/services/authService';
-import type { NotificationPrefs, ScoringRules, SettingsRecord } from '@/types/entities';
+import type { NotificationPrefs, SettingsRecord } from '@/types/entities';
 import { useAuth } from '@/components/auth/AuthContext';
 import { ROLE_LABELS, type SystemUser, type UserRole } from '@/types/auth';
+import {
+  AuditService,
+  SecurityConfigService,
+  type AuditLogEntry,
+  type SecurityPreferences,
+} from '@/lib/security';
+import { PasswordStrengthIndicator } from '@/components/auth/PasswordStrengthIndicator';
+import { ResetPasswordModal } from '@/components/auth/ResetPasswordModal';
 
 const container = {
   hidden: { opacity: 0 },
@@ -79,14 +85,6 @@ const NOTIFICATION_ITEMS: { key: keyof NotificationPrefs; title: string; descrip
   { key: 'matchResult', title: 'Resultados finais', description: 'Receber resultado ao final de cada jogo' },
   { key: 'pendingSheets', title: 'Súmulas pendentes', description: 'Alertar sobre súmulas não finalizadas' },
   { key: 'dailyDigest', title: 'Email diário', description: 'Resumo diário por email' },
-];
-
-const AUDIT_LOGS = [
-  { id: '1', event: 'Login efetuado com sucesso', user: 'Ana Organizadora', ip: '189.28.45.12', time: 'Hoje às 18:32', type: 'success' },
-  { id: '2', event: 'Súmula do Jogo #01 homologada', user: 'Carlos Silva (Árbitro)', ip: '177.102.19.88', time: 'Hoje às 17:15', type: 'info' },
-  { id: '3', event: 'Elenco da equipe atualizado', user: 'Minas Tênis Clube', ip: '201.86.32.14', time: 'Ontem às 21:04', type: 'info' },
-  { id: '4', event: 'Tentativa de login com senha incorreta', user: 'desconhecido@exemplo.com', ip: '45.160.22.9', time: '20/08/2026 14:10', type: 'warning' },
-  { id: '5', event: 'Configurações de pontuação salvas', user: 'Ana Organizadora', ip: '189.28.45.12', time: '19/08/2026 11:45', type: 'info' },
 ];
 
 function applyTheme(theme: SettingsRecord['theme']): void {
@@ -127,8 +125,15 @@ const SettingsPage = () => {
 
   const currentUser = session?.user;
 
-  /* Perfil */
+  /* Perfil & Troca de Senha Própria */
   const [name, setName] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [isChangingPass, setIsChangingPass] = useState(false);
+
   useEffect(() => {
     if (currentUser?.name) setName(currentUser.name);
   }, [currentUser?.name]);
@@ -165,6 +170,7 @@ const SettingsPage = () => {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState<SystemUser | null>(null);
   const [userForm, setUserForm] = useState<{
     name: string;
     email: string;
@@ -179,14 +185,13 @@ const SettingsPage = () => {
     password: '',
   });
 
-  /* Configurações de Segurança */
-  const [securityRules, setSecurityRules] = useState({
-    strongPasswords: true,
-    lockoutAfterAttempts: true,
-    twoFactorEnabled: false,
-    sessionTimeoutHours: '24',
-    requirePasswordChangeDays: false,
-  });
+  /* Configurações de Segurança e Auditoria */
+  const [securityPrefs, setSecurityPrefs] = useState<SecurityPreferences>(SecurityConfigService.getPreferences());
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+
+  const loadAuditLogs = useCallback(() => {
+    setAuditLogs(AuditService.getLogs());
+  }, []);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -199,7 +204,8 @@ const SettingsPage = () => {
 
   useEffect(() => {
     loadUsers();
-  }, [loadUsers]);
+    loadAuditLogs();
+  }, [loadUsers, loadAuditLogs]);
 
   useEffect(() => {
     if (!settings) return;
@@ -223,8 +229,68 @@ const SettingsPage = () => {
       return;
     }
     const result = await updateProfile({ name: name.trim() });
-    if (result.ok) toast.success('Perfil atualizado com sucesso.');
-    else toast.error(result.error ?? 'Erro ao atualizar o perfil.');
+    if (result.ok) {
+      toast.success('Perfil atualizado com sucesso.');
+      loadUsers();
+    } else {
+      toast.error(result.error ?? 'Erro ao atualizar o perfil.');
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword) {
+      toast.error('Informe sua senha atual.');
+      return;
+    }
+    if (!newPassword) {
+      toast.error('Informe a nova senha desejada.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('A confirmação da senha não confere com a nova senha.');
+      return;
+    }
+
+    setIsChangingPass(true);
+    try {
+      const res = await authService.changePassword(currentPassword, newPassword);
+      if (!res.ok) {
+        toast.error(res.error ?? 'Falha ao alterar senha.');
+        return;
+      }
+      toast.success('Senha alterada com sucesso!', {
+        description: 'Sua credencial de acesso foi atualizada com proteção de ponta a ponta.',
+      });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      loadAuditLogs();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao processar alteração.');
+    } finally {
+      setIsChangingPass(false);
+    }
+  };
+
+  const handleSaveSecurityPreferences = () => {
+    SecurityConfigService.savePreferences(securityPrefs);
+    AuditService.logEvent(
+      'Atualização de Políticas de Segurança',
+      currentUser?.email ?? 'Administrador',
+      'info',
+      `Auto-logout: ${securityPrefs.inactivityTimeoutEnabled ? `${securityPrefs.inactivityTimeoutMinutes}m` : 'desativado'}.`
+    );
+    loadAuditLogs();
+    toast.success('Políticas de segurança salvas com sucesso!');
+  };
+
+  const handleClearAuditLogs = () => {
+    if (confirm('Tem certeza que deseja limpar o histórico de logs de auditoria?')) {
+      AuditService.clearLogs();
+      loadAuditLogs();
+      toast.success('Logs de auditoria reiniciados.');
+    }
   };
 
   const handleSaveOrganization = () =>
@@ -297,11 +363,13 @@ const SettingsPage = () => {
           email: userForm.email.trim().toLowerCase(),
           role: userForm.role,
           status: userForm.status,
+          initialPassword: userForm.password.trim() || undefined,
         });
         toast.success(`Usuário ${userForm.name} cadastrado com sucesso!`);
       }
       setUserModalOpen(false);
       loadUsers();
+      loadAuditLogs();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erro ao salvar usuário.');
     }
@@ -313,6 +381,7 @@ const SettingsPage = () => {
       await authService.updateUser(u.id, { status: nextStatus });
       toast.success(`Usuário ${u.name} ${nextStatus === 'active' ? 'ativado' : 'desativado'}.`);
       loadUsers();
+      loadAuditLogs();
     } catch {
       toast.error('Erro ao alterar status do usuário.');
     }
@@ -324,6 +393,7 @@ const SettingsPage = () => {
         await authService.deleteUser(u.id);
         toast.success(`Usuário ${u.name} removido com sucesso.`);
         loadUsers();
+        loadAuditLogs();
       } catch {
         toast.error('Erro ao excluir usuário.');
       }
@@ -376,7 +446,7 @@ const SettingsPage = () => {
               </TabsTrigger>
               <TabsTrigger value="profile" className="gap-2 text-xs">
                 <User className="w-4 h-4" />
-                Meu Perfil
+                Meu Perfil & Senha
               </TabsTrigger>
               <TabsTrigger value="notifications" className="gap-2 text-xs">
                 <Bell className="w-4 h-4" />
@@ -402,7 +472,7 @@ const SettingsPage = () => {
                       Gestão de Usuários do Sistema
                     </CardTitle>
                     <CardDescription>
-                      Cadastre administradores, organizadores, árbitros e mesários com controle granular de acesso.
+                      Cadastre administradores, organizadores, árbitros e mesários com controle granular de acesso e senhas.
                     </CardDescription>
                   </div>
                   <Button variant="accent" className="gap-2 text-xs font-semibold shrink-0" onClick={openCreateUserModal}>
@@ -433,6 +503,7 @@ const SettingsPage = () => {
                         <SelectItem value="referee">Árbitro</SelectItem>
                         <SelectItem value="scorer">Apontador / Mesário</SelectItem>
                         <SelectItem value="team">Representante Equipe</SelectItem>
+                        <SelectItem value="viewer">Visualizador</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -445,7 +516,7 @@ const SettingsPage = () => {
                           <TableHead className="text-xs font-bold">Usuário</TableHead>
                           <TableHead className="text-xs font-bold">Perfil de Acesso</TableHead>
                           <TableHead className="text-xs font-bold">Status</TableHead>
-                          <TableHead className="text-xs font-bold">Cadastrado em</TableHead>
+                          <TableHead className="text-xs font-bold">Último Acesso</TableHead>
                           <TableHead className="text-xs font-bold text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -507,7 +578,9 @@ const SettingsPage = () => {
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="text-xs text-muted-foreground">
-                                  {new Date(u.createdAt).toLocaleDateString('pt-BR')}
+                                  {u.lastLoginAt
+                                    ? new Date(u.lastLoginAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+                                    : 'Ainda não acessou'}
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <DropdownMenu>
@@ -517,9 +590,13 @@ const SettingsPage = () => {
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => setResetPasswordUser(u)}>
+                                        <KeyRound className="w-3.5 h-3.5 mr-2 text-primary" />
+                                        Redefinir Senha
+                                      </DropdownMenuItem>
                                       <DropdownMenuItem onClick={() => openEditUserModal(u)}>
                                         <Edit2 className="w-3.5 h-3.5 mr-2" />
-                                        Editar Usuário
+                                        Editar Dados
                                       </DropdownMenuItem>
                                       <DropdownMenuItem onClick={() => handleToggleUserStatus(u)}>
                                         <Shield className="w-3.5 h-3.5 mr-2" />
@@ -558,30 +635,52 @@ const SettingsPage = () => {
                       <Lock className="w-4 h-4 text-primary" />
                       Políticas de Autenticação & Senhas
                     </CardTitle>
-                    <CardDescription>Defina os padrões de segurança para contas e senhas do sistema.</CardDescription>
+                    <CardDescription>Defina os padrões de segurança para contas e controle de inatividade.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-5">
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="text-xs font-semibold text-foreground">Exigir Senhas Fortes</p>
-                        <p className="text-[11px] text-muted-foreground">Mínimo de 8 caracteres, números e símbolos especiais.</p>
+                        <p className="text-[11px] text-muted-foreground">Mínimo de 8 caracteres, letras maiúsculas/minúsculas e números.</p>
                       </div>
                       <Switch
-                        checked={securityRules.strongPasswords}
-                        onCheckedChange={v => setSecurityRules(prev => ({ ...prev, strongPasswords: v }))}
+                        checked={securityPrefs.requireStrongPassword}
+                        onCheckedChange={v => setSecurityPrefs(prev => ({ ...prev, requireStrongPassword: v }))}
                       />
                     </div>
                     <Separator />
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <p className="text-xs font-semibold text-foreground">Bloqueio após Tentativas Inválidas</p>
-                        <p className="text-[11px] text-muted-foreground">Bloquear temporariamente após 5 tentativas incorretas.</p>
+                        <p className="text-xs font-semibold text-foreground">Auto-Logout por Inatividade</p>
+                        <p className="text-[11px] text-muted-foreground">Desconectar automaticamente após período sem interação.</p>
                       </div>
                       <Switch
-                        checked={securityRules.lockoutAfterAttempts}
-                        onCheckedChange={v => setSecurityRules(prev => ({ ...prev, lockoutAfterAttempts: v }))}
+                        checked={securityPrefs.inactivityTimeoutEnabled}
+                        onCheckedChange={v => setSecurityPrefs(prev => ({ ...prev, inactivityTimeoutEnabled: v }))}
                       />
                     </div>
+                    {securityPrefs.inactivityTimeoutEnabled && (
+                      <div className="flex items-center justify-between gap-4 pl-3 border-l-2 border-primary/40">
+                        <div>
+                          <p className="text-xs font-medium text-foreground">Tempo Limite de Inatividade</p>
+                          <p className="text-[11px] text-muted-foreground">Aviso com contagem regressiva de 60 segundos antes de deslogar.</p>
+                        </div>
+                        <Select
+                          value={String(securityPrefs.inactivityTimeoutMinutes)}
+                          onValueChange={v => setSecurityPrefs(prev => ({ ...prev, inactivityTimeoutMinutes: Number(v) }))}
+                        >
+                          <SelectTrigger className="w-32 text-xs h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="15">15 Minutos</SelectItem>
+                            <SelectItem value="30">30 Minutos</SelectItem>
+                            <SelectItem value="60">1 Hora</SelectItem>
+                            <SelectItem value="120">2 Horas</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <Separator />
                     <div className="flex items-center justify-between gap-4">
                       <div>
@@ -589,36 +688,15 @@ const SettingsPage = () => {
                         <p className="text-[11px] text-muted-foreground">Exigir código OTP por aplicativo autenticador.</p>
                       </div>
                       <Switch
-                        checked={securityRules.twoFactorEnabled}
-                        onCheckedChange={v => setSecurityRules(prev => ({ ...prev, twoFactorEnabled: v }))}
+                        checked={securityPrefs.twoFactorEnabled}
+                        onCheckedChange={v => setSecurityPrefs(prev => ({ ...prev, twoFactorEnabled: v }))}
                       />
-                    </div>
-                    <Separator />
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-xs font-semibold text-foreground">Expiração de Sessão Ativa</p>
-                        <p className="text-[11px] text-muted-foreground">Tempo máximo de inatividade antes de deslogar.</p>
-                      </div>
-                      <Select
-                        value={securityRules.sessionTimeoutHours}
-                        onValueChange={v => setSecurityRules(prev => ({ ...prev, sessionTimeoutHours: v }))}
-                      >
-                        <SelectTrigger className="w-32 text-xs h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="8">8 Horas</SelectItem>
-                          <SelectItem value="24">24 Horas</SelectItem>
-                          <SelectItem value="72">3 Dias</SelectItem>
-                          <SelectItem value="168">7 Dias</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
                   </CardContent>
                   <CardFooter className="border-t bg-muted/20 py-3">
-                    <Button variant="accent" size="sm" className="gap-2 text-xs" onClick={() => toast.success('Políticas de segurança atualizadas!')}>
-                      <Save className="w-3.5 h-3.5" />
-                      Salvar Políticas
+                    <Button variant="accent" size="sm" className="gap-2 text-xs" onClick={handleSaveSecurityPreferences}>
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      Salvar Políticas de Segurança
                     </Button>
                   </CardFooter>
                 </Card>
@@ -638,7 +716,7 @@ const SettingsPage = () => {
                       <div>
                         <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Conexão Segura & Criptografada</p>
                         <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 mt-0.5">
-                          Sua sessão está ativa com token local verificado e controle de integridade de dados.
+                          Sua sessão está ativa com token verificado, proteção contra injeções e rate limit de 5 tentativas.
                         </p>
                       </div>
                     </div>
@@ -674,12 +752,24 @@ const SettingsPage = () => {
 
               {/* Registro de Auditoria (Audit Logs) */}
               <Card className="card-elevated">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <History className="w-4 h-4 text-primary" />
-                    Registro de Auditoria do Sistema (Audit Logs)
-                  </CardTitle>
-                  <CardDescription>Rastreabilidade de eventos críticos, acessos e alterações administrativas.</CardDescription>
+                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <History className="w-4 h-4 text-primary" />
+                      Registro de Auditoria do Sistema (Audit Logs)
+                    </CardTitle>
+                    <CardDescription>Rastreabilidade em tempo real de acessos, trocas de senha e alterações críticas.</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={loadAuditLogs}>
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Atualizar
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 text-xs text-destructive hover:bg-destructive/10" onClick={handleClearAuditLogs}>
+                      <Trash2 className="w-3.5 h-3.5 mr-1" />
+                      Limpar
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="border rounded-xl overflow-hidden">
@@ -688,28 +778,40 @@ const SettingsPage = () => {
                         <TableRow>
                           <TableHead className="text-xs font-bold">Evento</TableHead>
                           <TableHead className="text-xs font-bold">Usuário Responsável</TableHead>
-                          <TableHead className="text-xs font-bold">Endereço IP</TableHead>
+                          <TableHead className="text-xs font-bold">Detalhes</TableHead>
                           <TableHead className="text-xs font-bold text-right">Data & Hora</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {AUDIT_LOGS.map(log => (
-                          <TableRow key={log.id} className="text-xs">
-                            <TableCell className="font-medium flex items-center gap-2">
-                              {log.type === 'success' ? (
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                              ) : log.type === 'warning' ? (
-                                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                              ) : (
-                                <Shield className="w-3.5 h-3.5 text-primary shrink-0" />
-                              )}
-                              {log.event}
+                        {auditLogs.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-6 text-xs text-muted-foreground">
+                              Nenhum registro de auditoria registrado até o momento.
                             </TableCell>
-                            <TableCell>{log.user}</TableCell>
-                            <TableCell className="font-mono text-[11px] text-muted-foreground">{log.ip}</TableCell>
-                            <TableCell className="text-right text-muted-foreground">{log.time}</TableCell>
                           </TableRow>
-                        ))}
+                        ) : (
+                          auditLogs.map(log => (
+                            <TableRow key={log.id} className="text-xs">
+                              <TableCell className="font-medium flex items-center gap-2">
+                                {log.type === 'success' ? (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                ) : log.type === 'warning' ? (
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                ) : log.type === 'error' ? (
+                                  <ShieldAlert className="w-3.5 h-3.5 text-destructive shrink-0" />
+                                ) : (
+                                  <Info className="w-3.5 h-3.5 text-primary shrink-0" />
+                                )}
+                                {log.event}
+                              </TableCell>
+                              <TableCell className="font-medium">{log.user}</TableCell>
+                              <TableCell className="text-muted-foreground text-[11px] max-w-xs truncate">
+                                {log.details || '—'}
+                              </TableCell>
+                              <TableCell className="text-right text-muted-foreground text-[11px]">{log.time}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </div>
@@ -760,17 +862,17 @@ const SettingsPage = () => {
                         id="website"
                         value={website}
                         onChange={e => setWebsite(e.target.value)}
-                        placeholder="https://federacao.org.br"
+                        placeholder="https://..."
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="contactEmail">Email de Contato</Label>
+                      <Label htmlFor="contactEmail">E-mail de Contato</Label>
                       <Input
                         id="contactEmail"
                         type="email"
                         value={contactEmail}
                         onChange={e => setContactEmail(e.target.value)}
-                        placeholder="contato@federacao.org.br"
+                        placeholder="contato@federacao.org"
                       />
                     </div>
                     <div className="space-y-2">
@@ -779,16 +881,16 @@ const SettingsPage = () => {
                         id="phone"
                         value={phone}
                         onChange={e => setPhone(e.target.value)}
-                        placeholder="(41) 3000-0000"
+                        placeholder="(00) 00000-0000"
                       />
                     </div>
                   </div>
 
                   <Separator />
 
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-foreground">Regras Padrão de Pontuação (CBV/FIVB)</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3">Regras Gerais de Jogo</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="setPoints">Pontos por Set Regular</Label>
                         <Input
@@ -796,8 +898,7 @@ const SettingsPage = () => {
                           type="number"
                           value={setPoints}
                           onChange={e => setSetPoints(e.target.value)}
-                          min={15}
-                          max={30}
+                          min={1}
                         />
                       </div>
                       <div className="space-y-2">
@@ -807,19 +908,17 @@ const SettingsPage = () => {
                           type="number"
                           value={tiebreakPoints}
                           onChange={e => setTiebreakPoints(e.target.value)}
-                          min={7}
-                          max={25}
+                          min={1}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="timeoutsPerSet">Tempos por Set</Label>
+                        <Label htmlFor="timeoutsPerSet">Tempos por Equipe / Set</Label>
                         <Input
                           id="timeoutsPerSet"
                           type="number"
                           value={timeoutsPerSet}
                           onChange={e => setTimeoutsPerSet(e.target.value)}
-                          min={1}
-                          max={3}
+                          min={0}
                         />
                       </div>
                     </div>
@@ -827,7 +926,7 @@ const SettingsPage = () => {
 
                   <div className="flex justify-end">
                     <Button variant="accent" className="gap-2" onClick={handleSaveOrganization}>
-                      <Save className="w-4 h-4" />
+                      <ShieldCheck className="w-4 h-4" />
                       Salvar Organização
                     </Button>
                   </div>
@@ -835,12 +934,13 @@ const SettingsPage = () => {
               </Card>
             </TabsContent>
 
-            {/* 4. ABA: PERFIL */}
-            <TabsContent value="profile">
+            {/* 4. ABA: PERFIL & SENHA */}
+            <TabsContent value="profile" className="space-y-6">
+              {/* Dados Pessoais */}
               <Card className="card-elevated">
                 <CardHeader>
                   <CardTitle>Informações do Meu Perfil</CardTitle>
-                  <CardDescription>Atualize seu nome de exibição e credenciais</CardDescription>
+                  <CardDescription>Atualize seu nome de exibição no sistema.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="flex items-center gap-6">
@@ -882,11 +982,105 @@ const SettingsPage = () => {
                   </div>
 
                   <div className="flex justify-end">
-                    <Button variant="accent" className="gap-2" onClick={handleSaveProfile}>
-                      <Save className="w-4 h-4" />
-                      Salvar Perfil
+                    <Button variant="accent" className="gap-2 text-xs" onClick={handleSaveProfile}>
+                      <User className="w-4 h-4" />
+                      Salvar Nome de Perfil
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Troca de Senha */}
+              <Card className="card-elevated">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <KeyRound className="w-4 h-4 text-primary" />
+                    Alteração de Senha de Acesso
+                  </CardTitle>
+                  <CardDescription>
+                    Mantenha sua conta protegida definindo uma senha segura com letras, números e símbolos.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleChangePassword} className="space-y-4 max-w-xl">
+                    <div className="space-y-2">
+                      <Label htmlFor="currPass" className="text-xs font-semibold">Senha Atual *</Label>
+                      <div className="relative">
+                        <Input
+                          id="currPass"
+                          type={showCurrentPass ? 'text' : 'password'}
+                          value={currentPassword}
+                          onChange={e => setCurrentPassword(e.target.value)}
+                          placeholder="Digite sua senha atual"
+                          className="pr-10 text-xs"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setShowCurrentPass(!showCurrentPass)}
+                          tabIndex={-1}
+                        >
+                          {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="newPass" className="text-xs font-semibold">Nova Senha *</Label>
+                      <div className="relative">
+                        <Input
+                          id="newPass"
+                          type={showNewPass ? 'text' : 'password'}
+                          value={newPassword}
+                          onChange={e => setNewPassword(e.target.value)}
+                          placeholder="Mínimo 8 caracteres (letras, números, símbolos)"
+                          className="pr-10 text-xs font-mono"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setShowNewPass(!showNewPass)}
+                          tabIndex={-1}
+                        >
+                          {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <PasswordStrengthIndicator password={newPassword} />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="confPass" className="text-xs font-semibold">Confirmar Nova Senha *</Label>
+                      <Input
+                        id="confPass"
+                        type="password"
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                        placeholder="Repita exatamente a nova senha"
+                        className="text-xs font-mono"
+                        required
+                      />
+                      {confirmPassword && newPassword !== confirmPassword && (
+                        <p className="text-[11px] text-destructive flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          As senhas não coincidem.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="pt-2">
+                      <Button
+                        type="submit"
+                        variant="accent"
+                        className="gap-2 text-xs font-semibold"
+                        disabled={isChangingPass || !currentPassword || !newPassword || newPassword !== confirmPassword}
+                      >
+                        <KeyRound className="w-3.5 h-3.5" />
+                        {isChangingPass ? 'Atualizando...' : 'Atualizar Minha Senha'}
+                      </Button>
+                    </div>
+                  </form>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -918,7 +1112,7 @@ const SettingsPage = () => {
 
                   <div className="flex justify-end">
                     <Button variant="accent" className="gap-2" onClick={handleSaveNotifications}>
-                      <Save className="w-4 h-4" />
+                      <Bell className="w-4 h-4" />
                       Salvar Preferências
                     </Button>
                   </div>
@@ -975,7 +1169,7 @@ const SettingsPage = () => {
 
                   <div className="flex justify-end">
                     <Button variant="accent" className="gap-2" onClick={handleSaveAppearance}>
-                      <Save className="w-4 h-4" />
+                      <Palette className="w-4 h-4" />
                       Salvar Aparência
                     </Button>
                   </div>
@@ -1129,15 +1323,16 @@ const SettingsPage = () => {
 
               {!editingUser && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="uPass" className="text-xs font-semibold">Senha Provisória (Opcional)</Label>
+                  <Label htmlFor="uPass" className="text-xs font-semibold">Senha Inicial (Opcional)</Label>
                   <Input
                     id="uPass"
                     type="password"
-                    placeholder="Deixe em branco para 'demo123'"
+                    placeholder="Deixe em branco para 'volei123'"
                     value={userForm.password}
                     onChange={e => setUserForm(prev => ({ ...prev, password: e.target.value }))}
-                    className="text-xs"
+                    className="text-xs font-mono"
                   />
+                  <p className="text-[10px] text-muted-foreground">Se não informada, a senha inicial padrão será <code>volei123</code>.</p>
                 </div>
               )}
             </div>
@@ -1147,13 +1342,24 @@ const SettingsPage = () => {
                 Cancelar
               </Button>
               <Button type="submit" variant="accent" size="sm" className="gap-1.5 font-semibold">
-                <Save className="w-3.5 h-3.5" />
+                <ShieldCheck className="w-3.5 h-3.5" />
                 {editingUser ? 'Salvar Alterações' : 'Criar Usuário'}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Modal para Administrador Redefinir Senha de Usuário */}
+      <ResetPasswordModal
+        user={resetPasswordUser}
+        open={!!resetPasswordUser}
+        onOpenChange={open => !open && setResetPasswordUser(null)}
+        onSuccess={() => {
+          loadUsers();
+          loadAuditLogs();
+        }}
+      />
     </MainLayout>
   );
 };

@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { Header } from './Header';
+import { InactivityTimeoutModal } from '@/components/auth/InactivityTimeoutModal';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -16,6 +17,7 @@ export function MainLayout({ children, containerClassName = 'max-w-7xl mx-auto p
       <footer className="border-t border-zinc-800/80 py-3 text-center text-xs text-zinc-500 bg-zinc-950/80 w-full max-w-full">
         BaseOS · Sistema Operacional de Gestão de Competições Esportivas
       </footer>
+      <InactivityTimeoutModal />
     </div>
   );
 }
