@@ -5,7 +5,7 @@
 import React from 'react';
 import { pdf } from '@react-pdf/renderer';
 import { dataAccess } from '@/services/dataAccess';
-import type { BaseosScoresheetData, DocumentState, ScoresheetFormat } from '../types/scoresheet';
+import type { BaseosScoresheetData, DocumentState, ScoresheetFormat, ScoresheetOutput } from '../types/scoresheet';
 import { mapMatchRecordToBaseosScoresheet, createBlankBaseosScoresheetData } from '../mapper/match.mapper';
 export const generateBlankBaseosScoresheetData = createBlankBaseosScoresheetData;
 import { validateBaseosScoresheetData } from '../validation/validator';
@@ -19,6 +19,7 @@ import { getMatchRosters } from '@/services/registrationService';
 export async function loadBaseosScoresheetData(
   matchId: string,
   forcedState?: DocumentState,
+  output: ScoresheetOutput = 'print-a4',
 ): Promise<BaseosScoresheetData | null> {
   const match = await dataAccess.getMatch(matchId);
   if (!match) return null;
@@ -84,6 +85,7 @@ export async function loadBaseosScoresheetData(
     rosterA,
     rosterB,
     forcedState,
+    output,
   );
 
   // Validação estrita
@@ -111,8 +113,11 @@ export async function generateBaseosPdfBlob(data: BaseosScoresheetData): Promise
 }
 
 /** Gera a Súmula em Branco (modelo limpo para impressão) */
-export async function generateBlankBaseosPdfBlob(format: ScoresheetFormat = '3-sets'): Promise<Blob> {
-  const blankData = createBlankBaseosScoresheetData(format);
+export async function generateBlankBaseosPdfBlob(
+  format: ScoresheetFormat = '3-sets',
+  output: ScoresheetOutput = 'print-a4',
+): Promise<Blob> {
+  const blankData = createBlankBaseosScoresheetData(format, output);
   return generateBaseosPdfBlob(blankData);
 }
 

@@ -9,6 +9,7 @@ import type { BaseosOfficialsData, BaseosSignaturesData, SanctionEntry } from '.
 
 export type DocumentState = 'blank' | 'prefilled' | 'completed';
 export type ScoresheetFormat = '3-sets' | '5-sets';
+export type ScoresheetOutput = 'print-a4' | 'master';
 
 export interface SetResultEntry {
   setNumber: number;
@@ -38,6 +39,7 @@ export interface BaseosScoresheetData {
     version: '1.0';
     state: DocumentState;
     format: ScoresheetFormat;
+    output: ScoresheetOutput;
     generatedAt: string;
     documentHash?: string;
   };
