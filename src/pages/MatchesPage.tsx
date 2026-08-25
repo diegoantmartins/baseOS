@@ -49,6 +49,9 @@ import {
 } from '@/services/playoffsService';
 import { computeStandingsByGroup } from '@/services/standingsService';
 import type { CompetitionRecord, MatchRecord, TeamRecord, VenueRecord } from '@/types/entities';
+import { useAuth } from '@/components/auth/AuthContext';
+import { useCapability } from '@/hooks/useCapability';
+import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
 import { cn } from '@/lib/utils';
 
 export type MatchesSubTab = 'todos' | 'grupos' | 'mata-mata' | 'agenda' | 'sumulas' | 'resultados';
@@ -129,11 +132,16 @@ export default function MatchesPage() {
   const [competitionFilter, setCompetitionFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
+  const { session } = useAuth();
+  const { can, canSubmitMatchScore, canReopenMatch } = useCapability();
+
   // Dialogs
   const [sheetMatch, setSheetMatch] = useState<MatchView | null>(null);
   const [blankSheetOpen, setBlankSheetOpen] = useState(false);
   const [editMatch, setEditMatch] = useState<MatchRecord | null>(null);
   const [resultMatch, setResultMatch] = useState<MatchRecord | null>(null);
+  const [pendingHomologateMatch, setPendingHomologateMatch] = useState<MatchRecord | null>(null);
+  const [pendingSyncPlayoffs, setPendingSyncPlayoffs] = useState(false);
 
   const refresh = useCallback(async () => {
     const [rawMatches, rawComps, rawTeams, rawVenues] = await Promise.all([
@@ -185,12 +193,20 @@ export default function MatchesPage() {
 
   // Homologar resultado
   const handleHomologate = async (matchId: string) => {
+    if (!can('match:finalize')) {
+      toast.error('Você não possui permissão para homologar resultados de partidas.');
+      return;
+    }
+
     const targetMatch = matches.find(m => m.id === matchId);
     if (!targetMatch) return;
+
+    const operatorName = session?.user?.name || 'Organizador Responsável';
 
     await dataAccess.updateMatch(matchId, {
       status: 'homologated',
       homologatedAt: new Date().toISOString(),
+      homologatedBy: operatorName,
     });
 
     // Auto-advance playoff brackets if it's an elimination match
@@ -216,9 +232,9 @@ export default function MatchesPage() {
 
     // Register audit log
     await dataAccess.addAuditLog({
-      user: 'Gestor',
+      user: operatorName,
       action: 'Homologação de Resultado',
-      note: `Jogo #${targetMatch.matchNumber} homologado com sucesso`,
+      note: `Jogo #${targetMatch.matchNumber} (${targetMatch.teamAName} vs ${targetMatch.teamBName}) homologado por ${operatorName}`,
     });
 
     await refresh();
@@ -604,42 +620,48 @@ export default function MatchesPage() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1.5 self-end sm:self-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 text-xs"
-                          onClick={() => setSheetMatch(m)}
-                        >
-                          <FileText className="w-3.5 h-3.5 mr-1" />
-                          Súmula
-                        </Button>
+                        {can('scoresheet:view') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-xs"
+                            onClick={() => setSheetMatch(m)}
+                          >
+                            <FileText className="w-3.5 h-3.5 mr-1" />
+                            Súmula
+                          </Button>
+                        )}
 
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 text-xs font-medium"
-                          onClick={() => setEditMatch(m.record)}
-                        >
-                          <Pencil className="w-3.5 h-3.5 mr-1 text-primary" />
-                          Editar / Agendar
-                        </Button>
+                        {(can('match:edit') || can('match:schedule')) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-xs font-medium"
+                            onClick={() => setEditMatch(m.record)}
+                          >
+                            <Pencil className="w-3.5 h-3.5 mr-1 text-primary" />
+                            Editar / Agendar
+                          </Button>
+                        )}
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 px-2.5 text-xs font-semibold"
-                          onClick={() => setResultMatch(m.record)}
-                        >
-                          <PenLine className="w-3.5 h-3.5 mr-1 text-primary" />
-                          Placar
-                        </Button>
+                        {canSubmitMatchScore(m.record) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2.5 text-xs font-semibold"
+                            onClick={() => setResultMatch(m.record)}
+                          >
+                            <PenLine className="w-3.5 h-3.5 mr-1 text-primary" />
+                            Placar
+                          </Button>
+                        )}
 
-                        {isFinished && !isHomologated && (
+                        {isFinished && !isHomologated && can('match:finalize') && (
                           <Button
                             variant="accent"
                             size="sm"
                             className="h-8 px-2.5 text-xs font-semibold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                            onClick={() => handleHomologate(m.id)}
+                            onClick={() => setPendingHomologateMatch(m.record)}
                           >
                             <CheckCircle className="w-3.5 h-3.5" />
                             Homologar
@@ -706,6 +728,40 @@ export default function MatchesPage() {
       <BlankSheetEmitDialog
         open={blankSheetOpen}
         onOpenChange={setBlankSheetOpen}
+      />
+
+      {/* Modal de Confirmação de Homologação de Resultado */}
+      <ConfirmActionDialog
+        open={pendingHomologateMatch !== null}
+        onOpenChange={(open) => !open && setPendingHomologateMatch(null)}
+        title="Homologar Resultado da Partida"
+        variant="accent"
+        description={
+          pendingHomologateMatch
+            ? `Deseja homologar oficialmente o resultado do Jogo #${pendingHomologateMatch.matchNumber} (${pendingHomologateMatch.teamAName} vs ${pendingHomologateMatch.teamBName})? Esta ação oficializa a classificação e avança os chaveamentos eliminatórios.`
+            : ''
+        }
+        confirmText="Confirmar Homologação"
+        onConfirm={async () => {
+          if (pendingHomologateMatch) {
+            await handleHomologate(pendingHomologateMatch.id);
+            setPendingHomologateMatch(null);
+          }
+        }}
+      />
+
+      {/* Modal de Confirmação de Geração de Mata-Mata */}
+      <ConfirmActionDialog
+        open={pendingSyncPlayoffs}
+        onOpenChange={setPendingSyncPlayoffs}
+        title="Gerar / Sincronizar Chaveamento Eliminatório"
+        variant="accent"
+        description="Esta ação processará a classificação da fase de grupos e preencherá automaticamente os confrontos de mata-mata com os classificados. Deseja prosseguir?"
+        confirmText="Gerar Confrontos"
+        onConfirm={async () => {
+          await handleSyncPlayoffsFromGroups();
+          setPendingSyncPlayoffs(false);
+        }}
       />
     </MainLayout>
   );

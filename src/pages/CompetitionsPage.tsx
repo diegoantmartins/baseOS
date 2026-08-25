@@ -43,11 +43,17 @@ import { GENDER_CATEGORY_LABELS } from '@/types/registration';
 import { generateStandingsReportPdf, downloadReportsPdf } from '@/lib/pdf/reportsPdf';
 import type { CompetitionRecord, MatchRecord, TeamRecord, ModalityRecord, VenueRecord, CompetitionLifecycleStatus } from '@/types/entities';
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
+import { useAuth } from '@/components/auth/AuthContext';
+import { useCapability } from '@/hooks/useCapability';
+import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
+import { AuditService } from '@/lib/security';
 import { cn } from '@/lib/utils';
 
 export default function CompetitionsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { session } = useAuth();
+  const { can } = useCapability();
   const [competitions, setCompetitions] = useState<CompetitionRecord[]>([]);
   const [modalities, setModalities] = useState<ModalityRecord[]>([]);
   const [venues, setVenues] = useState<VenueRecord[]>([]);
@@ -59,6 +65,7 @@ export default function CompetitionsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<CompetitionTab>('overview');
   const [createOpen, setCreateOpen] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<CompetitionLifecycleStatus | null>(null);
 
   const refresh = useCallback(async () => {
     const [comps, mods, vns, tms, cts, aths, ms] = await Promise.all([
@@ -179,14 +186,37 @@ export default function CompetitionsPage() {
   };
 
   const handleUpdateStatus = async (newStatus: CompetitionLifecycleStatus) => {
+    if (!can('competition:edit')) {
+      toast.error('Você não possui permissão para alterar o status da competição.');
+      return;
+    }
     if (!selected) return;
+
+    const operatorName = session?.user?.name || 'Organizador';
+
     await dataAccess.updateCompetition(selected.id, { status: newStatus });
+    AuditService.logEvent(
+      'Alteração de Ciclo de Competição',
+      session?.user?.email || 'organizador',
+      'info',
+      `Competição "${selected.name}" avançou para status "${newStatus}" por ${operatorName}.`
+    );
     toast.success(`Status da competição alterado para "${newStatus}".`);
     await refresh();
   };
 
   const handleCreate = async (input: Omit<CompetitionRecord, 'id'>) => {
+    if (!can('competition:create')) {
+      toast.error('Você não possui permissão para cadastrar competições.');
+      return;
+    }
     const created = await dataAccess.createCompetition(input);
+    AuditService.logEvent(
+      'Criação de Competição',
+      session?.user?.email || 'organizador',
+      'success',
+      `Nova competição "${created.name}" criada por ${session?.user?.name || 'Organizador'}.`
+    );
     toast.success(`Competição "${created.name}" criada com sucesso!`);
     setCreateOpen(false);
     await refresh();
@@ -218,10 +248,12 @@ export default function CompetitionsPage() {
               Ciclo completo: planejamento, inscrições, sorteio, confrontos, classificação e relatórios.
             </p>
           </div>
-          <Button variant="accent" className="gap-2 self-start sm:self-auto" onClick={() => setCreateOpen(true)}>
-            <Plus className="w-4 h-4" />
-            Nova Competição
-          </Button>
+          {can('competition:create') && (
+            <Button variant="accent" className="gap-2 self-start sm:self-auto" onClick={() => setCreateOpen(true)}>
+              <Plus className="w-4 h-4" />
+              Nova Competição
+            </Button>
+          )}
         </div>
 
         {/* Layout: Sidebar de Competições + Contexto Detalhado */}
@@ -291,6 +323,7 @@ export default function CompetitionsPage() {
                       <Button
                         size="sm"
                         variant={selected.status === 'registration-open' ? 'default' : 'outline'}
+                        disabled={!can('competition:edit')}
                         onClick={() => handleUpdateStatus('registration-open')}
                       >
                         1. Abrir Inscrições
@@ -298,13 +331,15 @@ export default function CompetitionsPage() {
                       <Button
                         size="sm"
                         variant={selected.status === 'registration-closed' ? 'default' : 'outline'}
-                        onClick={() => handleUpdateStatus('registration-closed')}
+                        disabled={!can('competition:edit')}
+                        onClick={() => setPendingStatus('registration-closed')}
                       >
                         2. Encerrar Inscrições
                       </Button>
                       <Button
                         size="sm"
                         variant={selected.status === 'draw-pending' ? 'default' : 'outline'}
+                        disabled={!can('competition:edit')}
                         onClick={() => handleUpdateStatus('draw-pending')}
                       >
                         3. Sorteio de Grupos
@@ -312,21 +347,24 @@ export default function CompetitionsPage() {
                       <Button
                         size="sm"
                         variant={selected.status === 'in-progress' ? 'default' : 'outline'}
-                        onClick={() => handleUpdateStatus('in-progress')}
+                        disabled={!can('competition:edit')}
+                        onClick={() => setPendingStatus('in-progress')}
                       >
                         4. Iniciar Jogos
                       </Button>
                       <Button
                         size="sm"
                         variant={selected.status === 'playoffs' ? 'default' : 'outline'}
-                        onClick={() => handleUpdateStatus('playoffs')}
+                        disabled={!can('competition:edit')}
+                        onClick={() => setPendingStatus('playoffs')}
                       >
                         5. Fase Eliminatória (Playoffs)
                       </Button>
                       <Button
                         size="sm"
                         variant={selected.status === 'completed' ? 'success' : 'outline'}
-                        onClick={() => handleUpdateStatus('completed')}
+                        disabled={!can('competition:edit')}
+                        onClick={() => setPendingStatus('completed')}
                       >
                         6. Finalizar Torneio
                       </Button>
@@ -680,6 +718,32 @@ export default function CompetitionsPage() {
         onSubmit={handleCreate}
         modalities={modalities}
         venues={venues}
+      />
+
+      {/* Modal de Confirmação para Transições Críticas do Ciclo de Vida */}
+      <ConfirmActionDialog
+        open={pendingStatus !== null}
+        onOpenChange={(open) => !open && setPendingStatus(null)}
+        title="Avançar Fase da Competição"
+        variant={pendingStatus === 'completed' ? 'destructive' : 'accent'}
+        description={
+          pendingStatus === 'completed'
+            ? 'Deseja finalizar oficialmente a competição? Esta ação consolidará o quadro de honra e pódio final.'
+            : pendingStatus === 'in-progress'
+            ? 'Deseja iniciar oficialmente a fase de jogos? Certifique-se de que a tabela e as quadras estejam definidas.'
+            : pendingStatus === 'playoffs'
+            ? 'Deseja iniciar a fase eliminatória (Mata-mata)? Os confrontos da fase de grupos serão congelados.'
+            : pendingStatus === 'registration-closed'
+            ? 'Deseja encerrar o período de inscrições de novas equipes e atletas?'
+            : `Deseja avançar o status da competição para "${pendingStatus}"?`
+        }
+        confirmText="Confirmar Alteração"
+        onConfirm={async () => {
+          if (pendingStatus) {
+            await handleUpdateStatus(pendingStatus);
+            setPendingStatus(null);
+          }
+        }}
       />
     </MainLayout>
   );

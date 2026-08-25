@@ -1,12 +1,12 @@
 /**
- * BaseOS - Multi-Tenancy, RBAC and Authorization Enforcement Engine (Fases 8, 9, 10)
+ * BaseOS - Multi-Tenancy, RBAC and Authorization Enforcement Engine (Fases 8, 9, 10, Fase 1 Hardening)
  *
  * Implements strict object-level access control (BOLA/IDOR protection),
  * tenant boundaries (Organization scoping), and role capability verification.
  */
 
 import type { UserProfile, UserRole } from '@/types/auth';
-import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
+import type { MatchRecord } from '@/types/entities';
 import type { CompetitionTeam } from '@/types/registration';
 
 export type TenantContext = {
@@ -23,19 +23,27 @@ export type SystemCapability =
   | 'team:create'
   | 'team:edit'
   | 'team:delete'
+  | 'athlete:view'
+  | 'athlete:create'
+  | 'athlete:edit'
+  | 'athlete:delete'
   | 'match:view'
   | 'match:create'
+  | 'match:edit'
+  | 'match:delete'
   | 'match:schedule'
   | 'match:score'
   | 'match:finalize'
+  | 'match:reopen'
   | 'scoresheet:view'
   | 'scoresheet:generate'
   | 'scoresheet:edit'
   | 'users:manage'
-  | 'settings:manage';
+  | 'settings:manage'
+  | 'audit:view';
 
 /**
- * Matriz Oficial de Permissões RBAC (Fase 9)
+ * Matriz Oficial de Permissões RBAC
  */
 export const ROLE_CAPABILITY_MATRIX: Record<UserRole, SystemCapability[]> = {
   admin: [
@@ -47,16 +55,24 @@ export const ROLE_CAPABILITY_MATRIX: Record<UserRole, SystemCapability[]> = {
     'team:create',
     'team:edit',
     'team:delete',
+    'athlete:view',
+    'athlete:create',
+    'athlete:edit',
+    'athlete:delete',
     'match:view',
     'match:create',
+    'match:edit',
+    'match:delete',
     'match:schedule',
     'match:score',
     'match:finalize',
+    'match:reopen',
     'scoresheet:view',
     'scoresheet:generate',
     'scoresheet:edit',
     'users:manage',
     'settings:manage',
+    'audit:view',
   ],
   organizer: [
     'competition:view',
@@ -65,8 +81,12 @@ export const ROLE_CAPABILITY_MATRIX: Record<UserRole, SystemCapability[]> = {
     'team:view',
     'team:create',
     'team:edit',
+    'athlete:view',
+    'athlete:create',
+    'athlete:edit',
     'match:view',
     'match:create',
+    'match:edit',
     'match:schedule',
     'match:score',
     'match:finalize',
@@ -74,10 +94,12 @@ export const ROLE_CAPABILITY_MATRIX: Record<UserRole, SystemCapability[]> = {
     'scoresheet:generate',
     'scoresheet:edit',
     'settings:manage',
+    'audit:view',
   ],
   referee: [
     'competition:view',
     'team:view',
+    'athlete:view',
     'match:view',
     'match:score',
     'match:finalize',
@@ -87,6 +109,7 @@ export const ROLE_CAPABILITY_MATRIX: Record<UserRole, SystemCapability[]> = {
   scorer: [
     'competition:view',
     'team:view',
+    'athlete:view',
     'match:view',
     'match:score',
     'scoresheet:view',
@@ -96,12 +119,14 @@ export const ROLE_CAPABILITY_MATRIX: Record<UserRole, SystemCapability[]> = {
     'competition:view',
     'team:view',
     'team:edit', // Somente seu próprio elenco
+    'athlete:view',
     'match:view',
     'scoresheet:view',
   ],
   viewer: [
     'competition:view',
     'team:view',
+    'athlete:view',
     'match:view',
     'scoresheet:view',
   ],
@@ -118,15 +143,29 @@ export class TenantSecurityService {
   }
 
   /**
+   * Verifica se o usuário possui TODAS as capacidades informadas.
+   */
+  public static hasAllCapabilities(user: UserProfile | null | undefined, capabilities: SystemCapability[]): boolean {
+    if (!user) return false;
+    return capabilities.every(cap => this.hasCapability(user, cap));
+  }
+
+  /**
+   * Verifica se o usuário possui AO MENOS UMA das capacidades informadas.
+   */
+  public static hasAnyCapability(user: UserProfile | null | undefined, capabilities: SystemCapability[]): boolean {
+    if (!user) return false;
+    return capabilities.some(cap => this.hasCapability(user, cap));
+  }
+
+  /**
    * Proteção Multi-Tenancy: Garante que um recurso pertença ao Tenant (Organização) ativo.
-   * Previne vazamento de dados entre federações/ligas distintas.
    */
   public static validateTenantAccess<T extends { organizationId?: string }>(
     tenant: TenantContext,
     resource: T,
   ): boolean {
     if (!resource.organizationId) {
-      // Recursos legados sem organização são permitidos no tenant padrão
       return true;
     }
     return resource.organizationId === tenant.organizationId;
@@ -154,7 +193,9 @@ export class TenantSecurityService {
   }
 
   /**
-   * Proteção de Finalização e Lançamento de Súmula (Apenas Árbitros, Apontadores, Organizadores e Admins)
+   * Proteção de Finalização e Lançamento de Súmula:
+   * Administradores e Organizadores têm permissão global.
+   * Árbitros e Apontadores precisam estar escalados na partida caso haja escalação registrada.
    */
   public static canSubmitMatchScore(
     user: UserProfile | null | undefined,
@@ -162,10 +203,36 @@ export class TenantSecurityService {
   ): boolean {
     if (!user) return false;
     if (user.role === 'admin' || user.role === 'organizer') return true;
-    if (user.role === 'referee' || user.role === 'scorer') {
-      // Se a partida tiver árbitros atribuídos, valida atribuição ou permite se o perfil for arbitragem
+
+    // Perfis que não operam jogo nunca podem pontuar
+    if (user.role !== 'referee' && user.role !== 'scorer') {
+      return false;
+    }
+
+    const matchReferees = match.referees || [];
+
+    // Se nenhuma equipe de arbitragem foi designada nominalmente na súmula/partida,
+    // qualquer árbitro ou apontador credenciado pode operar
+    if (matchReferees.length === 0) {
       return true;
     }
-    return false;
+
+    // Se há árbitros escalados na partida, verifica se o usuário logado está na lista
+    const userNameNorm = user.name.trim().toLowerCase();
+    const userEmailNorm = user.email.trim().toLowerCase();
+
+    return matchReferees.some(r => {
+      const rNameNorm = (r.name || '').trim().toLowerCase();
+      return rNameNorm === userNameNorm || rNameNorm === userEmailNorm;
+    });
+  }
+
+  /**
+   * Proteção para reabertura de jogo homologado: apenas Admin ou Organizador autorizado.
+   */
+  public static canReopenMatch(user: UserProfile | null | undefined, match: MatchRecord): boolean {
+    if (!user) return false;
+    if (match.status !== 'completed') return true;
+    return user.role === 'admin' || user.role === 'organizer';
   }
 }

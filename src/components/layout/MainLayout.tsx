@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { Header } from './Header';
+import { DemoModeBanner } from './DemoModeBanner';
 import { InactivityTimeoutModal } from '@/components/auth/InactivityTimeoutModal';
 
 interface MainLayoutProps {
@@ -10,6 +11,7 @@ interface MainLayoutProps {
 export function MainLayout({ children, containerClassName = 'max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6' }: MainLayoutProps) {
   return (
     <div className="min-h-screen bg-background flex flex-col antialiased text-foreground selection:bg-primary/20 w-full max-w-full overflow-x-hidden">
+      <DemoModeBanner />
       <Header />
       <main className={`flex-1 w-full max-w-full min-w-0 ${containerClassName}`}>
         {children}

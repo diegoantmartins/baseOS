@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { TenantSecurityService } from '@/services/tenantSecurityService';
 import type { UserProfile } from '@/types/auth';
 import type { CompetitionTeam } from '@/types/registration';
+import type { MatchRecord } from '@/types/entities';
 
-describe('Fase 8 & 9 — Multi-Tenancy, Proteção IDOR/BOLA e RBAC', () => {
+describe('Fase 8 & 9 & Fase 1 — Multi-Tenancy, Proteção IDOR/BOLA e RBAC', () => {
   const adminUser: UserProfile = {
     id: 'user-admin',
     name: 'Admin Master',
@@ -36,8 +37,15 @@ describe('Fase 8 & 9 — Multi-Tenancy, Proteção IDOR/BOLA e RBAC', () => {
 
   const refereeUser: UserProfile = {
     id: 'user-referee',
-    name: 'Árbitro Principal',
-    email: 'referee@baseos.com',
+    name: 'Carlos Silva',
+    email: 'arbitro@voleipro.app',
+    role: 'referee',
+  };
+
+  const otherRefereeUser: UserProfile = {
+    id: 'user-other-referee',
+    name: 'Marcos Juiz',
+    email: 'marcos@voleipro.app',
     role: 'referee',
   };
 
@@ -76,6 +84,26 @@ describe('Fase 8 & 9 — Multi-Tenancy, Proteção IDOR/BOLA e RBAC', () => {
     updatedAt: new Date().toISOString(),
   };
 
+  const baseMatch: MatchRecord = {
+    id: 'match-1',
+    competitionId: 'comp-1',
+    round: 1,
+    matchNumber: 1,
+    teamAId: 'team-1',
+    teamBId: 'team-2',
+    teamAName: 'Time A',
+    teamBName: 'Time B',
+    teamAShortName: 'TMA',
+    teamBShortName: 'TMB',
+    venue: 'Ginásio Principal',
+    scheduledTime: new Date().toISOString(),
+    status: 'scheduled',
+    sets: [],
+    referees: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
   describe('RBAC - Matriz de Capacidades', () => {
     it('admin e organizador possuem permissão para criar competições e partidas', () => {
       expect(TenantSecurityService.hasCapability(adminUser, 'competition:create')).toBe(true);
@@ -90,6 +118,42 @@ describe('Fase 8 & 9 — Multi-Tenancy, Proteção IDOR/BOLA e RBAC', () => {
       expect(TenantSecurityService.hasCapability(refereeUser, 'match:score')).toBe(true);
       expect(TenantSecurityService.hasCapability(teamAUser, 'match:score')).toBe(false);
       expect(TenantSecurityService.hasCapability(viewerUser, 'match:score')).toBe(false);
+    });
+
+    it('deve validar combinacao com hasAllCapabilities e hasAnyCapability', () => {
+      expect(TenantSecurityService.hasAllCapabilities(adminUser, ['competition:create', 'users:manage'])).toBe(true);
+      expect(TenantSecurityService.hasAllCapabilities(organizerUser, ['competition:create', 'users:manage'])).toBe(false);
+      expect(TenantSecurityService.hasAnyCapability(organizerUser, ['competition:create', 'users:manage'])).toBe(true);
+    });
+  });
+
+  describe('Validação de Escalação de Arbitragem em canSubmitMatchScore', () => {
+    it('permite que qualquer árbitro pontue se não houver arbitragem nominalmente escalada', () => {
+      const matchWithoutReferees = { ...baseMatch, referees: [] };
+      expect(TenantSecurityService.canSubmitMatchScore(refereeUser, matchWithoutReferees)).toBe(true);
+      expect(TenantSecurityService.canSubmitMatchScore(otherRefereeUser, matchWithoutReferees)).toBe(true);
+    });
+
+    it('permite apenas o árbitro escalado na partida quando há escalação definida', () => {
+      const matchWithCarlos = {
+        ...baseMatch,
+        referees: [{ role: '1º Árbitro', name: 'Carlos Silva' }],
+      };
+
+      // Carlos Silva está escalado -> Permitido
+      expect(TenantSecurityService.canSubmitMatchScore(refereeUser, matchWithCarlos)).toBe(true);
+
+      // Marcos Juiz NÃO está escalado -> Negado
+      expect(TenantSecurityService.canSubmitMatchScore(otherRefereeUser, matchWithCarlos)).toBe(false);
+
+      // Admin e Organizador sempre podem operar
+      expect(TenantSecurityService.canSubmitMatchScore(adminUser, matchWithCarlos)).toBe(true);
+      expect(TenantSecurityService.canSubmitMatchScore(organizerUser, matchWithCarlos)).toBe(true);
+    });
+
+    it('espectadores e times nunca podem pontuar', () => {
+      expect(TenantSecurityService.canSubmitMatchScore(teamAUser, baseMatch)).toBe(false);
+      expect(TenantSecurityService.canSubmitMatchScore(viewerUser, baseMatch)).toBe(false);
     });
   });
 
