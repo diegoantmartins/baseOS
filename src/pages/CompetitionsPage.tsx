@@ -47,6 +47,7 @@ import { useAuth } from '@/components/auth/AuthContext';
 import { useCapability } from '@/hooks/useCapability';
 import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
 import { AuditService } from '@/lib/security';
+import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
 import { cn } from '@/lib/utils';
 
 export default function CompetitionsPage() {
@@ -205,6 +206,36 @@ export default function CompetitionsPage() {
     await refresh();
   };
 
+  const requestStatusTransition = (targetStatus: CompetitionLifecycleStatus) => {
+    if (!can('competition:edit')) {
+      toast.error('Você não possui permissão para alterar o status da competição.');
+      return;
+    }
+    if (!selected) return;
+
+    const validation = CompetitionLifecycleService.validateTransition(selected, targetStatus, {
+      teams: selectedTeams,
+      matches: selectedMatches,
+      championTeamId: selected.championTeamId,
+      runnerUpTeamId: selected.runnerUpTeamId,
+    });
+
+    if (!validation.valid) {
+      toast.error('Transição de fase não permitida:', {
+        description: validation.errors.join(' • '),
+      });
+      return;
+    }
+
+    if (validation.warnings.length > 0) {
+      toast.warning('Aviso sobre a fase:', {
+        description: validation.warnings.join(' • '),
+      });
+    }
+
+    setPendingStatus(targetStatus);
+  };
+
   const handleCreate = async (input: Omit<CompetitionRecord, 'id'>) => {
     if (!can('competition:create')) {
       toast.error('Você não possui permissão para cadastrar competições.');
@@ -324,7 +355,7 @@ export default function CompetitionsPage() {
                         size="sm"
                         variant={selected.status === 'registration-open' ? 'default' : 'outline'}
                         disabled={!can('competition:edit')}
-                        onClick={() => handleUpdateStatus('registration-open')}
+                        onClick={() => requestStatusTransition('registration-open')}
                       >
                         1. Abrir Inscrições
                       </Button>
@@ -332,7 +363,7 @@ export default function CompetitionsPage() {
                         size="sm"
                         variant={selected.status === 'registration-closed' ? 'default' : 'outline'}
                         disabled={!can('competition:edit')}
-                        onClick={() => setPendingStatus('registration-closed')}
+                        onClick={() => requestStatusTransition('registration-closed')}
                       >
                         2. Encerrar Inscrições
                       </Button>
@@ -340,7 +371,7 @@ export default function CompetitionsPage() {
                         size="sm"
                         variant={selected.status === 'draw-pending' ? 'default' : 'outline'}
                         disabled={!can('competition:edit')}
-                        onClick={() => handleUpdateStatus('draw-pending')}
+                        onClick={() => requestStatusTransition('draw-pending')}
                       >
                         3. Sorteio de Grupos
                       </Button>
@@ -348,7 +379,7 @@ export default function CompetitionsPage() {
                         size="sm"
                         variant={selected.status === 'in-progress' ? 'default' : 'outline'}
                         disabled={!can('competition:edit')}
-                        onClick={() => setPendingStatus('in-progress')}
+                        onClick={() => requestStatusTransition('in-progress')}
                       >
                         4. Iniciar Jogos
                       </Button>
@@ -356,7 +387,7 @@ export default function CompetitionsPage() {
                         size="sm"
                         variant={selected.status === 'playoffs' ? 'default' : 'outline'}
                         disabled={!can('competition:edit')}
-                        onClick={() => setPendingStatus('playoffs')}
+                        onClick={() => requestStatusTransition('playoffs')}
                       >
                         5. Fase Eliminatória (Playoffs)
                       </Button>
@@ -364,7 +395,7 @@ export default function CompetitionsPage() {
                         size="sm"
                         variant={selected.status === 'completed' ? 'success' : 'outline'}
                         disabled={!can('competition:edit')}
-                        onClick={() => setPendingStatus('completed')}
+                        onClick={() => requestStatusTransition('completed')}
                       >
                         6. Finalizar Torneio
                       </Button>
