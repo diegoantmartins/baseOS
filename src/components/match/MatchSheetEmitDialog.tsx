@@ -117,7 +117,7 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
     }
   };
 
-  const formatBadge = scoresheetData?.document.format === '5-sets' ? '5 Sets (A4)' : '3 Sets (A4)';
+  const formatBadge = scoresheetData?.document.format === '5-sets' ? '5 Sets (A3)' : '3 Sets (A4)';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
