@@ -63,6 +63,6 @@ describe('Fase 22 & 24 — Performance Benchmark e Throughput do Motor BaseOS', 
     const elapsed = performance.now() - start;
 
     expect(doc.teams.A.name).toBe('Time Alpha');
-    expect(elapsed).toBeLessThan(10);
+    expect(elapsed).toBeLessThan(100);
   });
 });

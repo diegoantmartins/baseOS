@@ -31,6 +31,7 @@ const styles = StyleSheet.create({
     height: 420,
     flexDirection: 'column',
     paddingRight: 3,
+    justifyContent: 'space-between',
   },
   rostersColumn: {
     width: 345,
@@ -78,17 +79,20 @@ export const BaseosThreeSetScoresheet: React.FC<BaseosThreeSetScoresheetProps> =
               setData={data.sets.set1}
               teamA={data.teams.A}
               teamB={data.teams.B}
+              height={138}
             />
             <BaseosSetBlock
               setData={data.sets.set2}
               teamA={data.teams.A}
               teamB={data.teams.B}
+              height={138}
             />
             <BaseosSetBlock
               setData={data.sets.set3}
               teamA={data.teams.A}
               teamB={data.teams.B}
               isDecidingSet={true}
+              height={138}
             />
           </View>
 

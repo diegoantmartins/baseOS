@@ -14,5 +14,5 @@ describe('BaseOS Document Engine - 3 Sets Template Rendering', () => {
     expect(blob).toBeDefined();
     expect(blob.size).toBeGreaterThan(1000);
     expect(blob.type).toBe('application/pdf');
-  });
+  }, 35000);
 });

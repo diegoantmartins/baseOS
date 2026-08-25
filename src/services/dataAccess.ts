@@ -87,6 +87,23 @@ function writeCollection<T>(collection: CollectionName, items: T[]): void {
 
 function ensureSeeded(): void {
   if (localStorage.getItem(SEED_VERSION)) return;
+
+  const isCleanBase = import.meta.env.VITE_EMPTY_DATABASE === 'true';
+  if (isCleanBase) {
+    writeCollection('competitions', []);
+    writeCollection('teams', []);
+    writeCollection('referees', []);
+    writeCollection('matches', []);
+    writeCollection('competition_teams', []);
+    writeCollection('competition_athletes', []);
+    writeCollection('venues', seedVenues);
+    writeCollection('draws', []);
+    writeCollection('modalities', seedModalities);
+    writeCollection('persons', seedPersons);
+    localStorage.setItem(SEED_VERSION, 'clean');
+    return;
+  }
+
   writeCollection('competitions', seedCompetitions);
   writeCollection('teams', seedTeams);
   writeCollection('referees', seedReferees);

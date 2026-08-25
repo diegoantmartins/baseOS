@@ -31,31 +31,31 @@ const styles = StyleSheet.create({
   officialsGrid: {
     height: 82,
     flexDirection: 'column',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    justifyContent: 'space-between',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    justifyContent: 'space-around',
   },
   officialRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 9.5,
+    height: 12,
   },
   officialLabel: {
-    width: 85,
+    width: 95,
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 4.2,
+    fontSize: 4.6,
   },
   officialLine: {
     flex: 1,
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
-    height: 8,
+    height: 10,
     justifyContent: 'center',
     paddingLeft: 4,
   },
   officialNameText: {
     fontFamily: BASEOS_TOKENS.fonts.REGULAR,
-    fontSize: 4.5,
+    fontSize: 4.8,
   },
   captainsFooter: {
     height: 18,
@@ -100,8 +100,6 @@ export const BaseosSignatures: React.FC<BaseosSignaturesProps> = ({
     { label: 'Apontador Assistente:', name: officials?.assistantScorer },
     { label: 'Juiz de Linha 1:', name: officials?.lineJudge1 },
     { label: 'Juiz de Linha 2:', name: officials?.lineJudge2 },
-    { label: 'Juiz de Linha 3:', name: officials?.lineJudge3 },
-    { label: 'Juiz de Linha 4:', name: officials?.lineJudge4 },
   ];
 
   return (

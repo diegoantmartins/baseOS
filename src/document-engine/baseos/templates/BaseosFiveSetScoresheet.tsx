@@ -1,5 +1,5 @@
 // =====================================================================
-// BaseOS Template - Súmula Oficial de 5 Sets (A4 Paisagem - 1 Página Única)
+// BaseOS Template - Súmula Oficial de 5 Sets (A4 Paisagem - Layout Homologado)
 // =====================================================================
 
 import React from 'react';
@@ -12,49 +12,48 @@ import { BaseosRosters } from '../components/BaseosRosters';
 import { BaseosSanctions } from '../components/BaseosSanctions';
 import { BaseosResult } from '../components/BaseosResult';
 import { BaseosSignatures } from '../components/BaseosSignatures';
+import { createBlankSetData } from '../mapper/set.mapper';
 
 const styles = StyleSheet.create({
   page: {
     width: A4_LANDSCAPE.WIDTH,
     height: A4_LANDSCAPE.HEIGHT,
-    padding: 5,
+    padding: 6,
     backgroundColor: '#FFFFFF',
     flexDirection: 'column',
   },
-  gridRow: {
+  upperBody: {
+    height: 420,
     flexDirection: 'row',
-    marginBottom: 2,
-    height: 130,
+    marginBottom: 3,
   },
-  halfColLeft: {
-    flex: 1,
-    paddingRight: 2,
-    height: 130,
+  setsColumn: {
+    width: 480,
+    height: 420,
+    flexDirection: 'column',
+    paddingRight: 3,
+    justifyContent: 'space-between',
   },
-  halfColRight: {
-    flex: 1,
-    paddingLeft: 2,
-    height: 130,
+  rostersColumn: {
+    width: 345,
+    height: 420,
+    flexDirection: 'column',
   },
   footerRow: {
-    height: 138,
+    height: 110,
     flexDirection: 'row',
-    marginTop: 1,
   },
   footerColSanctions: {
-    width: 170,
-    paddingRight: 2,
-    height: 138,
+    width: 165,
+    paddingRight: 2.5,
   },
   footerColSignatures: {
-    flex: 1,
-    paddingHorizontal: 2,
-    height: 138,
+    width: 355,
+    paddingHorizontal: 2.5,
   },
   footerColResult: {
-    width: 320,
-    paddingLeft: 2,
-    height: 138,
+    width: 305,
+    paddingLeft: 2.5,
   },
 });
 
@@ -63,6 +62,12 @@ interface BaseosFiveSetScoresheetProps {
 }
 
 export const BaseosFiveSetScoresheet: React.FC<BaseosFiveSetScoresheetProps> = ({ data }) => {
+  const set1 = data.sets.set1 || createBlankSetData(1, '5-sets');
+  const set2 = data.sets.set2 || createBlankSetData(2, '5-sets');
+  const set3 = data.sets.set3 || createBlankSetData(3, '5-sets');
+  const set4 = data.sets.set4 || createBlankSetData(4, '5-sets');
+  const set5 = data.sets.set5 || createBlankSetData(5, '5-sets');
+
   return (
     <Document title={`Sumula_Oficial_5Sets_Jogo_${data.match.number || '1'}`}>
       <Page size="A4" orientation="landscape" style={styles.page}>
@@ -74,67 +79,48 @@ export const BaseosFiveSetScoresheet: React.FC<BaseosFiveSetScoresheetProps> = (
           teamBName={data.teams.B.name}
         />
 
-        {/* Linha 1: Set 1 e Set 2 (Cards Uniformes de 130pt) */}
-        <View style={styles.gridRow}>
-          <View style={styles.halfColLeft}>
+        {/* Corpo Superior: 5 Sets na Esquerda e Tabela de EQUIPES na Direita */}
+        <View style={styles.upperBody}>
+          <View style={styles.setsColumn}>
             <BaseosSetBlock
-              setData={data.sets.set1}
+              setData={set1}
               teamA={data.teams.A}
               teamB={data.teams.B}
-              height={130}
+              height={82}
+            />
+            <BaseosSetBlock
+              setData={set2}
+              teamA={data.teams.A}
+              teamB={data.teams.B}
+              height={82}
+            />
+            <BaseosSetBlock
+              setData={set3}
+              teamA={data.teams.A}
+              teamB={data.teams.B}
+              height={82}
+            />
+            <BaseosSetBlock
+              setData={set4}
+              teamA={data.teams.A}
+              teamB={data.teams.B}
+              height={82}
+            />
+            <BaseosSetBlock
+              setData={set5}
+              teamA={data.teams.A}
+              teamB={data.teams.B}
+              isDecidingSet={true}
+              height={82}
             />
           </View>
-          <View style={styles.halfColRight}>
-            <BaseosSetBlock
-              setData={data.sets.set2}
-              teamA={data.teams.A}
-              teamB={data.teams.B}
-              height={130}
-            />
+
+          <View style={styles.rostersColumn}>
+            <BaseosRosters teamA={data.teams.A} teamB={data.teams.B} />
           </View>
         </View>
 
-        {/* Linha 2: Set 3 e Set 4 (Cards Uniformes de 130pt) */}
-        <View style={styles.gridRow}>
-          <View style={styles.halfColLeft}>
-            <BaseosSetBlock
-              setData={data.sets.set3}
-              teamA={data.teams.A}
-              teamB={data.teams.B}
-              height={130}
-            />
-          </View>
-          <View style={styles.halfColRight}>
-            {data.sets.set4 ? (
-              <BaseosSetBlock
-                setData={data.sets.set4}
-                teamA={data.teams.A}
-                teamB={data.teams.B}
-                height={130}
-              />
-            ) : null}
-          </View>
-        </View>
-
-        {/* Linha 3: Set 5 (Tie-Break) e Tabela EQUIPES com Amplo Espaço Horizontal */}
-        <View style={styles.gridRow}>
-          <View style={styles.halfColLeft}>
-            {data.sets.set5 ? (
-              <BaseosSetBlock
-                setData={data.sets.set5}
-                teamA={data.teams.A}
-                teamB={data.teams.B}
-                isDecidingSet={true}
-                height={130}
-              />
-            ) : null}
-          </View>
-          <View style={styles.halfColRight}>
-            <BaseosRosters teamA={data.teams.A} teamB={data.teams.B} height={130} isCompact={true} />
-          </View>
-        </View>
-
-        {/* Linha 4 (Rodapé Oficial): Sanções | Aprovação | Resultados (Sets 1 a 5) */}
+        {/* Rodapé Integrado: Sanções | Aprovação (2 Juízes de Linha) | Resultados (5 Sets) */}
         <View style={styles.footerRow}>
           <View style={styles.footerColSanctions}>
             <BaseosSanctions

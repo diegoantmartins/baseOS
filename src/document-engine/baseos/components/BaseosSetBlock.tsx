@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   setTopBar: {
-    height: 11,
+    height: 10,
     flexDirection: 'row',
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHTEST,
     borderBottomWidth: BASEOS_TOKENS.borders.THIN,
@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
   },
   setTimeText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 4.2,
+    fontSize: 4.0,
     color: BASEOS_TOKENS.colors.BLACK,
   },
   setBody: {
@@ -89,23 +89,23 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   teamHeader: {
-    height: 11,
+    height: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHTEST,
     borderBottomWidth: BASEOS_TOKENS.borders.THIN,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
-    paddingHorizontal: 3,
+    paddingHorizontal: 2,
   },
   teamNameText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 4.8,
+    fontSize: 4.2,
     color: BASEOS_TOKENS.colors.BLACK,
   },
   srBadgeText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 3.8,
+    fontSize: 3.4,
     color: BASEOS_TOKENS.colors.GRAY_DARK,
   },
   gridContentRow: {
@@ -279,7 +279,8 @@ export const BaseosSetBlock: React.FC<BaseosSetBlockProps> = ({
   const leftPoints = isSet2 ? setData.points.teamB : setData.points.teamA;
   const rightPoints = isSet2 ? setData.points.teamA : setData.points.teamB;
 
-  const pointGridHeight = height - 24;
+  const isCompact = height <= 95;
+  const pointGridHeight = height - 10;
 
   const renderTeamQuadrant = (
     team: BaseosTeamData,
@@ -303,13 +304,13 @@ export const BaseosSetBlock: React.FC<BaseosSetBlockProps> = ({
           <View style={styles.gridContentRow}>
             {showLeftLegend ? (
               <View style={styles.leftLegendColumn}>
-                <View style={styles.legendCellOrdem}>
+                <View style={[styles.legendCellOrdem, isCompact ? { height: 7.5 } : {}]}>
                   <Text style={styles.legendText}>Ordem de Saque</Text>
                 </View>
-                <View style={styles.legendCellIniciantes}>
+                <View style={[styles.legendCellIniciantes, isCompact ? { height: 8.5 } : {}]}>
                   <Text style={styles.legendSubText}>Jogadores Iniciantes</Text>
                 </View>
-                <View style={styles.legendCellSubHeader}>
+                <View style={[styles.legendCellSubHeader, isCompact ? { height: 16 } : {}]}>
                   <Text style={styles.legendSubText}>Nº do Jogador</Text>
                   <Text style={styles.legendSubText}>Placar na Troca</Text>
                 </View>
@@ -334,15 +335,15 @@ export const BaseosSetBlock: React.FC<BaseosSetBlockProps> = ({
                       pIdx === ROTATION_POSITIONS.length - 1 ? { borderRightWidth: 0 } : {},
                     ]}
                   >
-                    <View style={styles.posHeaderCell}>
+                    <View style={[styles.posHeaderCell, isCompact ? { height: 7.5 } : {}]}>
                       <Text style={styles.posHeaderText}>{pos}</Text>
                     </View>
 
-                    <View style={styles.starterBox}>
-                      <Text style={styles.starterJerseyText}>{starterJersey}</Text>
+                    <View style={[styles.starterBox, isCompact ? { height: 8.5 } : {}]}>
+                      <Text style={[styles.starterJerseyText, isCompact ? { fontSize: 5.5 } : {}]}>{starterJersey}</Text>
                     </View>
 
-                    <View style={styles.subBlock}>
+                    <View style={[styles.subBlock, isCompact ? { height: 16 } : {}]}>
                       <View style={styles.subSlotRow} />
                       <View style={styles.subSlotRow} />
                       <View style={styles.subPlacarSlotRow}>
