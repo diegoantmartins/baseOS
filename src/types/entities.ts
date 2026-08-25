@@ -224,6 +224,7 @@ export type MatchRecord = {
   sets: SetScoreRecord[];
   referees: MatchRefereeRecord[];
   lineups?: { teamA: MatchLineup; teamB: MatchLineup };
+  checkedInAthleteIds?: string[];
   observations?: string;
   winnerId?: string;
   isWo?: boolean;

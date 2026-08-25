@@ -54,7 +54,9 @@ import { useCapability } from '@/hooks/useCapability';
 import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
 import { LiveScorerDeskModal } from '@/components/match/LiveScorerDeskModal';
 import { LiveScoreboardModal } from '@/components/match/LiveScoreboardModal';
-import { Maximize2 } from 'lucide-react';
+import { MatchCheckinModal } from '@/components/match/MatchCheckinModal';
+import { RefereeAssignmentModal } from '@/components/match/RefereeAssignmentModal';
+import { Maximize2, UserCheck, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type MatchesSubTab = 'todos' | 'grupos' | 'mata-mata' | 'agenda' | 'sumulas' | 'resultados';
@@ -147,6 +149,8 @@ export default function MatchesPage() {
   const [pendingSyncPlayoffs, setPendingSyncPlayoffs] = useState(false);
   const [liveScorerMatch, setLiveScorerMatch] = useState<MatchRecord | null>(null);
   const [liveScoreboardMatch, setLiveScoreboardMatch] = useState<MatchRecord | null>(null);
+  const [checkinMatch, setCheckinMatch] = useState<MatchRecord | null>(null);
+  const [refereeMatch, setRefereeMatch] = useState<MatchRecord | null>(null);
 
   const refresh = useCallback(async () => {
     const [rawMatches, rawComps, rawTeams, rawVenues] = await Promise.all([
@@ -637,6 +641,32 @@ export default function MatchesPage() {
                           Telão
                         </Button>
 
+                        {/* Check-in Presencial */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs font-medium gap-1 text-muted-foreground hover:text-foreground"
+                          onClick={() => setCheckinMatch(m.record)}
+                          title="Check-in Presencial de Atletas"
+                        >
+                          <UserCheck className="w-3.5 h-3.5 text-primary" />
+                          Check-in
+                        </Button>
+
+                        {/* Escalação de Arbitragem */}
+                        {can('match:edit') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-xs font-medium gap-1 text-muted-foreground hover:text-foreground"
+                            onClick={() => setRefereeMatch(m.record)}
+                            title="Escalação de Arbitragem"
+                          >
+                            <Shield className="w-3.5 h-3.5 text-primary" />
+                            Árbitros
+                          </Button>
+                        )}
+
                         {/* Mesa do Apontador (Ao Vivo) */}
                         {canSubmitMatchScore(m.record) && (
                           <Button
@@ -817,6 +847,28 @@ export default function MatchesPage() {
             ? competitions.find((c) => c.id === liveScoreboardMatch.competitionId) || null
             : null
         }
+      />
+
+      {/* Modal de Check-in Presencial de Atletas */}
+      <MatchCheckinModal
+        open={checkinMatch !== null}
+        onOpenChange={(open) => !open && setCheckinMatch(null)}
+        match={checkinMatch}
+        competition={
+          checkinMatch
+            ? competitions.find((c) => c.id === checkinMatch.competitionId) || null
+            : null
+        }
+        onCheckinSaved={refresh}
+      />
+
+      {/* Modal de Escalação de Arbitragem */}
+      <RefereeAssignmentModal
+        open={refereeMatch !== null}
+        onOpenChange={(open) => !open && setRefereeMatch(null)}
+        match={refereeMatch}
+        allMatches={matches}
+        onAssignmentSaved={refresh}
       />
     </MainLayout>
   );
