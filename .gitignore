@@ -7,13 +7,24 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
 dist
 dist-ssr
-*.local
+build
+
+# Environment variables & secrets
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.cert
+*.crt
+*.secret
+credentials
+tokens
+backups
 
 # Editor directories and files
 .vscode/*
@@ -26,6 +37,8 @@ dist-ssr
 *.sln
 *.sw?
 
-# Amostras e arquivos temporários locais
+# Temporary and local test files
 sumulas exemplo - /
 modelos de sumulas/
+*.pdf
+!public/**/*.pdf

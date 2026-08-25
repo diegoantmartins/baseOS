@@ -63,7 +63,7 @@ export function mapLiveSetData(
   athleteNumberMap: Map<string, number>,
 ): BaseosSetData {
   const base = createBlankSetData(setNumber, format);
-  const setRecord = match.sets.find(s => s.setNumber === setNumber);
+  const setRecord = match.sets?.find(s => s.setNumber === setNumber);
   if (!setRecord) return base;
 
   const scoreA = setRecord.scoreA || 0;

@@ -8,7 +8,7 @@ describe('BaseOS Document Engine - 5 Sets Template Rendering', () => {
   it('renderiza o template de 5 sets em branco gerando um Blob PDF válido', async () => {
     const data = createBlankBaseosScoresheetData('5-sets');
     const docElement = React.createElement(BaseosFiveSetScoresheet, { data });
-    const instance = pdf(docElement as any);
+    const instance = pdf(docElement as React.ReactElement);
     const blob = await instance.toBlob();
 
     expect(blob).toBeDefined();

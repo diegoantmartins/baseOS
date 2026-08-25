@@ -22,7 +22,7 @@ export function mapRoster(rawAthletes: CompetitionAthlete[]): {
       isCaptain: a.isCaptain,
       isLibero: a.isLibero,
       position: a.position,
-      documentNumber: a.documentNumber || (a as any).rg || (a as any).cpf,
+      documentNumber: a.documentNumber || '',
     };
 
     if (a.isLibero) {

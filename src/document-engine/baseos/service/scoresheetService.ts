@@ -7,6 +7,7 @@ import { pdf } from '@react-pdf/renderer';
 import { dataAccess } from '@/services/dataAccess';
 import type { BaseosScoresheetData, DocumentState, ScoresheetFormat } from '../types/scoresheet';
 import { mapMatchRecordToBaseosScoresheet, createBlankBaseosScoresheetData } from '../mapper/match.mapper';
+export const generateBlankBaseosScoresheetData = createBlankBaseosScoresheetData;
 import { validateBaseosScoresheetData } from '../validation/validator';
 import { BaseosThreeSetScoresheet } from '../templates/BaseosThreeSetScoresheet';
 import { BaseosFiveSetScoresheet } from '../templates/BaseosFiveSetScoresheet';

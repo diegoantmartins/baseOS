@@ -65,7 +65,8 @@ export function mapMatchRecordToBaseosScoresheet(
   rosterB: CompetitionAthlete[],
   forcedState?: DocumentState,
 ): BaseosScoresheetData {
-  const is5Sets = competition?.setFormat === '5-sets' || match.sets.length > 3;
+  const is5Sets =
+    competition?.setFormat === '5-sets' || (match.sets?.length || 0) > 3;
   const format: ScoresheetFormat = is5Sets ? '5-sets' : '3-sets';
 
   const state: DocumentState =
@@ -83,12 +84,10 @@ export function mapMatchRecordToBaseosScoresheet(
   const teamBData = mapTeam(teamB, match.teamBName, match.teamBShortName, rosterB);
 
   const phaseLabel = match.phase
-    ? match.groupName && !match.phase.includes(match.groupName)
-      ? `${match.phase} (${match.groupName})`
-      : match.phase
+    ? match.phase.toUpperCase()
     : match.groupName
-      ? `Fase de Grupos (${match.groupName})`
-      : 'Fase de Grupos';
+      ? match.groupName.toUpperCase()
+      : 'FASE REGULAR';
 
   const formattedDate = match.scheduledTime ? match.scheduledTime.slice(0, 10) : '';
   const formattedTime =
@@ -108,11 +107,11 @@ export function mapMatchRecordToBaseosScoresheet(
       : {}),
   };
 
-  const setsA = match.sets.filter(s => s.scoreA > s.scoreB).length;
-  const setsB = match.sets.filter(s => s.scoreB > s.scoreA).length;
+  const setsA = match.sets?.filter(s => s.scoreA > s.scoreB).length ?? 0;
+  const setsB = match.sets?.filter(s => s.scoreB > s.scoreA).length ?? 0;
 
   const resultData =
-    state === 'completed' && match.sets.length > 0
+    state === 'completed' && (match.sets?.length || 0) > 0
       ? {
           winnerTeamName:
             match.winnerId === match.teamAId
@@ -123,10 +122,12 @@ export function mapMatchRecordToBaseosScoresheet(
                   ? match.teamAName
                   : match.teamBName,
           winnerSide:
-            match.winnerId === match.teamAId || setsA > setsB ? ('A' as const) : ('B' as const),
+            match.winnerId === match.teamAId || setsA > setsB
+              ? ('A' as const)
+              : ('B' as const),
           finalScoreSetsA: setsA,
           finalScoreSetsB: setsB,
-          setResults: match.sets.map(s => ({
+          setResults: (match.sets || []).map(s => ({
             setNumber: s.setNumber,
             scoreA: s.scoreA,
             scoreB: s.scoreB,
@@ -153,7 +154,7 @@ export function mapMatchRecordToBaseosScoresheet(
       date: formattedDate,
       location: match.venue || '',
       court: match.court || '',
-      city: (competition as any)?.city || match.venue || '',
+      city: match.venue || '',
     },
     match: {
       id: match.id,
@@ -170,9 +171,9 @@ export function mapMatchRecordToBaseosScoresheet(
     sanctions: [],
     improperRequests: { teamA: false, teamB: false },
     officials: {
-      referee1: match.referees.find(r => r.role.includes('1'))?.name,
-      referee2: match.referees.find(r => r.role.includes('2'))?.name,
-      scorer: match.referees.find(r => r.role.toLowerCase().includes('pont') || r.role.toLowerCase().includes('anot'))?.name,
+      referee1: match.referees?.find(r => r.role.includes('1'))?.name,
+      referee2: match.referees?.find(r => r.role.includes('2'))?.name,
+      scorer: match.referees?.find(r => r.role.toLowerCase().includes('pont') || r.role.toLowerCase().includes('anot'))?.name,
     },
     signatures: {},
     result: resultData,
