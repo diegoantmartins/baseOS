@@ -5,7 +5,7 @@ import type { CompetitionRecord, MatchRecord, ModalityRecord, PersonRecord, Refe
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
 import type { DrawRecord } from '@/types/draw';
 
-export const SEED_VERSION = 'voleipro.v6_championship_2groups4teams';
+export const SEED_VERSION = 'voleipro.v8_full_scoresheet_simulation';
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
@@ -108,6 +108,9 @@ export const seedTeams: TeamRecord[] = [
     shortName: 'OSA',
     modality: 'indoor',
     coachName: 'Luizomar de Moura',
+    assistantCoach: 'Jefferson Arosti',
+    physicalTrainer: 'Marcelo Zangalo',
+    doctor: 'Dr. Fernando Moretti',
     managerName: 'Diego Martins',
     managerPhone: '(45) 99999-1111',
     managerEmail: 'diego@voleipro.com',
@@ -121,6 +124,9 @@ export const seedTeams: TeamRecord[] = [
     shortName: 'MIN',
     modality: 'indoor',
     coachName: 'Nicola Negro',
+    assistantCoach: 'Rodrigo Fuentealba',
+    physicalTrainer: 'Alexandre Marinho',
+    doctor: 'Dra. Camila Santos',
     managerName: 'Roberto Silva',
     managerPhone: '(31) 98888-2222',
     managerEmail: 'minas@volei.com',
@@ -128,12 +134,72 @@ export const seedTeams: TeamRecord[] = [
     registrationToken: 'token-min-2026',
     logoUrl: teamLogo('MIN', '#7a1f2b'),
   },
-  { id: 'team-3', name: 'Praia Clube', shortName: 'PRA', modality: 'indoor', coachName: 'Paulo Coco', logoUrl: teamLogo('PRA', '#c8102e') },
-  { id: 'team-4', name: 'Flamengo', shortName: 'FLA', modality: 'indoor', coachName: 'Bernardinho', logoUrl: teamLogo('FLA', '#8b1f2c') },
-  { id: 'team-5', name: 'Sesi-SP', shortName: 'SES', modality: 'indoor', coachName: 'Rubinho Guimarães', logoUrl: teamLogo('SES', '#e5383b') },
-  { id: 'team-6', name: 'Sada Cruzeiro', shortName: 'SAD', modality: 'indoor', coachName: 'Filipe Ferraz', logoUrl: teamLogo('SAD', '#0066b3') },
-  { id: 'team-7', name: 'Curitiba Vôlei', shortName: 'CUR', modality: 'indoor', coachName: 'Paulo Barreto', logoUrl: teamLogo('CUR', '#2d7d46') },
-  { id: 'team-8', name: 'Barueri', shortName: 'BAR', modality: 'indoor', coachName: 'Wagão', logoUrl: teamLogo('BAR', '#f7a600', '#333333') },
+  {
+    id: 'team-3',
+    name: 'Praia Clube',
+    shortName: 'PRA',
+    modality: 'indoor',
+    coachName: 'Paulo Coco',
+    assistantCoach: 'Gabriel Leite',
+    physicalTrainer: 'Fabio Silva',
+    doctor: 'Dr. Gustavo Rocha',
+    logoUrl: teamLogo('PRA', '#c8102e'),
+  },
+  {
+    id: 'team-4',
+    name: 'Flamengo',
+    shortName: 'FLA',
+    modality: 'indoor',
+    coachName: 'Bernardinho',
+    assistantCoach: 'Kadu Ribas',
+    physicalTrainer: 'Guilherme Tenius',
+    doctor: 'Dr. Claudio Cardone',
+    logoUrl: teamLogo('FLA', '#8b1f2c'),
+  },
+  {
+    id: 'team-5',
+    name: 'Sesi-SP',
+    shortName: 'SES',
+    modality: 'indoor',
+    coachName: 'Rubinho Guimarães',
+    assistantCoach: 'Rodolfo Lino',
+    physicalTrainer: 'Carlos Caires',
+    doctor: 'Dr. Sergio Xavier',
+    logoUrl: teamLogo('SES', '#e5383b'),
+  },
+  {
+    id: 'team-6',
+    name: 'Sada Cruzeiro',
+    shortName: 'SAD',
+    modality: 'indoor',
+    coachName: 'Filipe Ferraz',
+    assistantCoach: 'Beto Martelete',
+    physicalTrainer: 'Fabio Correia',
+    doctor: 'Dr. Daniel Carvalho',
+    logoUrl: teamLogo('SAD', '#0066b3'),
+  },
+  {
+    id: 'team-7',
+    name: 'Curitiba Vôlei',
+    shortName: 'CUR',
+    modality: 'indoor',
+    coachName: 'Paulo Barreto',
+    assistantCoach: 'Luiz Henrique',
+    physicalTrainer: 'Roberto Nery',
+    doctor: 'Dra. Beatriz Mendes',
+    logoUrl: teamLogo('CUR', '#2d7d46'),
+  },
+  {
+    id: 'team-8',
+    name: 'Barueri',
+    shortName: 'BAR',
+    modality: 'indoor',
+    coachName: 'Wagão',
+    assistantCoach: 'Junior Alexandre',
+    physicalTrainer: 'Eduardo Fernandes',
+    doctor: 'Dr. Alexandre Lins',
+    logoUrl: teamLogo('BAR', '#f7a600', '#333333'),
+  },
 ];
 
 export const seedReferees: RefereeRecord[] = [
@@ -178,16 +244,42 @@ export const seedCompetitionTeams: CompetitionTeam[] = [
   makeCompetitionTeam('ct-8', 'comp-toledo-2026', 'team-8', 6 * DAY, 'submitted'),
 ];
 
-const MALE_NAMES = ['Lucas Silva', 'Gabriel Santos', 'Rafael Oliveira', 'Matheus Costa', 'João Pedro Alves', 'Thiago Almeida', 'Bruno Rodrigues', 'Felipe Cardoso', 'André Pereira', 'Diego Martins', 'Vitor Hugo', 'Caio Rocha', 'Rodrigo Nunes', 'Paulo Henrique', 'Marcos Vinícius', 'Eduardo Lima', 'Gustavo Moraes', 'Igor Freitas', 'Leonardo Barbosa', 'Renan Ribeiro', 'Fábio Teixeira', 'Daniel Souza', 'Hugo Carvalho', 'Alex Barreto'];
+const MALE_NAMES = [
+  'Lucas Silva', 'Gabriel Santos', 'Rafael Oliveira', 'Matheus Costa', 'João Pedro Alves',
+  'Thiago Almeida', 'Bruno Rodrigues', 'Felipe Cardoso', 'André Pereira', 'Diego Martins',
+  'Vitor Hugo', 'Caio Rocha', 'Rodrigo Nunes', 'Paulo Henrique', 'Marcos Vinícius',
+  'Eduardo Lima', 'Gustavo Moraes', 'Igor Freitas', 'Leonardo Barbosa', 'Renan Ribeiro',
+  'Fábio Teixeira', 'Daniel Souza', 'Hugo Carvalho', 'Alex Barreto', 'Murilo Endres',
+  'Wallace Souza', 'Lucão Santos', 'Ricardo Lucarelli', 'Alan Souza', 'Douglas Souza',
+  'Yoandy Leal', 'Thales Hoss', 'Maique Nascimento', 'Fernando Cachopa', 'Bruninho Rezende',
+  'Isac Santos', 'Flávio Gualberto', 'Otávio Pinto', 'Honorato', 'Adriano Cavalcante',
+  'Felipe Roque', 'Darlan Souza', 'Abouba Dramé', 'Judson Amabel', 'Matheus Brasília',
+  'Alexandre Elias', 'Lucas Saatkamp', 'Maurício Souza', 'Evandro Guerra', 'Éder Carbonera',
+  'Leandro Vissotto', 'Giba Godoy', 'Dante Amaral', 'Gustavo Endres', 'Rodrigão Santana',
+  'Serginho Escadinha', 'Nalbert Betancourt', 'Giovane Gávio', 'Marcelo Negrão', 'Tande Britto'
+];
 
-const ROSTER_POSITIONS = ['Levantador', 'Ponteira', 'Central', 'Oposta', 'Ponteira', 'Líbero', 'Ponteira', 'Central', 'Oposta', 'Levantador', 'Central', 'Ponteira'];
+const ROSTER_POSITIONS = [
+  'Levantador',
+  'Ponteiro',
+  'Central',
+  'Oposto',
+  'Ponteiro',
+  'Líbero',
+  'Levantador',
+  'Central',
+  'Ponteiro',
+  'Oposto',
+  'Central',
+  'Líbero',
+];
 
 function docNumber(seedValue: number): string {
   const digits = String(10000000000 + seedValue * 137).padStart(11, '0');
   return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
 }
 
-/** Gera um elenco completo (12 atletas, 1 capitão e 1 líbero) com camisas 1-12 únicas na equipe. */
+/** Gera um elenco completo (12 atletas: 10 regulares + 2 líberos, 1 capitão) com camisas 1-12 únicas na equipe. */
 function makeRoster(
   idPrefix: string,
   competitionTeamId: string,
@@ -204,7 +296,7 @@ function makeRoster(
       jerseyNumber: i + 1,
       position,
       isCaptain: i === 0,
-      isLibero: i === 5,
+      isLibero: i === 5 || i === 11,
       gender,
       documentNumber: docNumber(offset * 12 + i + 100),
       createdAt: iso(-2 * DAY),
@@ -215,13 +307,13 @@ function makeRoster(
 
 export const seedCompetitionAthletes: CompetitionAthlete[] = [
   ...makeRoster('ath-1', 'ct-1', MALE_NAMES, 0, 'male'),
-  ...makeRoster('ath-2', 'ct-2', MALE_NAMES, 4, 'male'),
-  ...makeRoster('ath-3', 'ct-3', MALE_NAMES, 8, 'male'),
-  ...makeRoster('ath-4', 'ct-4', MALE_NAMES, 12, 'male'),
-  ...makeRoster('ath-5', 'ct-5', MALE_NAMES, 16, 'male'),
-  ...makeRoster('ath-6', 'ct-6', MALE_NAMES, 20, 'male'),
-  ...makeRoster('ath-7', 'ct-7', MALE_NAMES, 2, 'male'),
-  ...makeRoster('ath-8', 'ct-8', MALE_NAMES, 6, 'male'),
+  ...makeRoster('ath-2', 'ct-2', MALE_NAMES, 6, 'male'),
+  ...makeRoster('ath-3', 'ct-3', MALE_NAMES, 12, 'male'),
+  ...makeRoster('ath-4', 'ct-4', MALE_NAMES, 18, 'male'),
+  ...makeRoster('ath-5', 'ct-5', MALE_NAMES, 24, 'male'),
+  ...makeRoster('ath-6', 'ct-6', MALE_NAMES, 30, 'male'),
+  ...makeRoster('ath-7', 'ct-7', MALE_NAMES, 36, 'male'),
+  ...makeRoster('ath-8', 'ct-8', MALE_NAMES, 42, 'male'),
 ];
 
 function makeMatch(

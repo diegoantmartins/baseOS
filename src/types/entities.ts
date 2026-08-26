@@ -105,6 +105,9 @@ export type TeamRecord = {
   managerPassword?: string;
   registrationToken?: string;
   coachName?: string;
+  assistantCoach?: string;
+  physicalTrainer?: string;
+  doctor?: string;
   /** Logo/escudo da equipe (data URI base64 ou URL Supabase Storage). */
   logoUrl?: string;
   status?: 'registered' | 'invited' | 'confirmed' | 'blocked';

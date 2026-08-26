@@ -24,6 +24,27 @@ export function mapTeam(
       name: teamRecord.coachName.trim(),
     });
   }
+  if (teamRecord?.assistantCoach?.trim()) {
+    staff.push({
+      roleCode: 'AT1',
+      roleLabel: 'Assistente Técnico',
+      name: teamRecord.assistantCoach.trim(),
+    });
+  }
+  if (teamRecord?.physicalTrainer?.trim()) {
+    staff.push({
+      roleCode: 'PF',
+      roleLabel: 'Preparador Físico',
+      name: teamRecord.physicalTrainer.trim(),
+    });
+  }
+  if (teamRecord?.doctor?.trim()) {
+    staff.push({
+      roleCode: 'M/F',
+      roleLabel: 'Médico',
+      name: teamRecord.doctor.trim(),
+    });
+  }
 
   // Preenche as outras posições da comissão técnica vazias para anotação
   for (const role of STAFF_ROLES) {

@@ -12,6 +12,9 @@ export interface TeamInfo {
   logoUrl?: string;
   athletes: PdfAthlete[];
   coach?: string;
+  assistantCoach?: string;
+  physicalTrainer?: string;
+  doctor?: string;
 }
 
 /** Atleta no formato PDF - padronizado */

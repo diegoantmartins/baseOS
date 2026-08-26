@@ -1,9 +1,10 @@
 // Builder unificado para conversão de dados de partida
 // Converte registros da base de dados para formato padronizado do PDF
 
-import type { MatchRecord, CompetitionRecord } from '@/types/entities';
+import type { MatchRecord, CompetitionRecord, TeamRecord } from '@/types/entities';
 import type { CompetitionAthlete } from '@/types/registration';
 import type { MatchSheetData, PdfAthlete, TeamInfo, SetResult } from './types';
+import { dataAccess } from '@/services/dataAccess';
 
 export type { MatchSheetData };
 
@@ -89,13 +90,18 @@ function determineWinner(match: MatchRecord, sets: SetResult[], finalA: number, 
 function buildTeamInfo(
   match: MatchRecord,
   roster: CompetitionAthlete[],
-  isTeamA: boolean
+  isTeamA: boolean,
+  teamRecord?: TeamRecord
 ): TeamInfo {
   return {
     name: isTeamA ? match.teamAName : match.teamBName,
     shortName: isTeamA ? match.teamAShortName : match.teamBShortName,
+    logoUrl: teamRecord?.logoUrl,
     athletes: roster.map(athleteToPdf),
-    coach: undefined,
+    coach: teamRecord?.coachName,
+    assistantCoach: teamRecord?.assistantCoach,
+    physicalTrainer: teamRecord?.physicalTrainer,
+    doctor: teamRecord?.doctor,
   };
 }
 
@@ -135,6 +141,10 @@ export async function buildMatchSheetData(
   const city = match.venue.includes(',') 
     ? match.venue.split(',').pop()?.trim() 
     : undefined;
+
+  const teams = await dataAccess.listTeams();
+  const teamARecord = teams.find(t => t.id === match.teamAId);
+  const teamBRecord = teams.find(t => t.id === match.teamBId);
   
   return {
     orgName: 'VolleyPro',
@@ -154,8 +164,8 @@ export async function buildMatchSheetData(
     groupName: match.groupName,
     round: match.round,
     matchNumber: match.matchNumber,
-    teamA: buildTeamInfo(match, teamARoster, true),
-    teamB: buildTeamInfo(match, teamBRoster, false),
+    teamA: buildTeamInfo(match, teamARoster, true, teamARecord),
+    teamB: buildTeamInfo(match, teamBRoster, false, teamBRecord),
     sets,
     finalScoreA: finalA,
     finalScoreB: finalB,
