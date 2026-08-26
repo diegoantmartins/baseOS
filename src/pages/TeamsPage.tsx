@@ -306,7 +306,7 @@ function TeamCard({
   const winRate = team.matchesPlayed > 0 ? Math.round((team.wins / team.matchesPlayed) * 100) : 0;
 
   return (
-    <Card className="card-elevated hover:shadow-lg transition-all group">
+    <Card className="card-elevated hover-raise group">
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -344,7 +344,7 @@ function TeamCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem className="gap-2 text-emerald-600 font-medium" onClick={onShare}>
+              <DropdownMenuItem className="gap-2" onClick={onShare}>
                 <MessageCircle className="w-4 h-4" /> Compartilhar Acesso (WhatsApp)
               </DropdownMenuItem>
               <DropdownMenuItem className="gap-2" onClick={onView}>
@@ -374,31 +374,18 @@ function TeamCard({
             <span className="font-medium text-success">{team.wins}/{team.matchesPlayed}</span>
           </div>
 
-          {/* Win Rate Bar */}
+          {/* Win Rate — indicador linear fino (2px), neutro */}
           <div className="pt-2">
-            <div className="flex items-center justify-between text-xs mb-1">
+            <div className="flex items-center justify-between text-xs mb-1.5">
               <span className="text-muted-foreground">Taxa de Vitória</span>
-              <span className="font-bold text-accent">{winRate}%</span>
+              <span className="font-medium text-foreground">{winRate}%</span>
             </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div className="h-0.5 bg-zinc-800 overflow-hidden">
               <div
-                className="h-full bg-accent rounded-full transition-all"
+                className="h-full bg-zinc-500 transition-all duration-150"
                 style={{ width: `${winRate}%` }}
               />
             </div>
-          </div>
-
-          {/* Compartilhar Button */}
-          <div className="pt-2 border-t flex items-center justify-between gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full text-xs gap-1.5 text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30"
-              onClick={onShare}
-            >
-              <MessageCircle className="w-3.5 h-3.5" />
-              Enviar Acesso WhatsApp
-            </Button>
           </div>
         </div>
       </CardContent>

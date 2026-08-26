@@ -64,9 +64,9 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full bg-zinc-950/85 backdrop-blur-md border-b border-zinc-800 shadow-sm">
+      <header className="sticky top-0 z-40 w-full bg-zinc-950/90 backdrop-blur-md border-b border-border">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 gap-2">
+          <div className="flex items-center justify-between h-14 gap-2">
             {/* Logo & Brand BaseOS */}
             <div className="flex items-center gap-2.5 shrink-0">
               <Link to="/competicoes-ativas" className="flex items-center gap-2 group">
@@ -82,7 +82,7 @@ export function Header() {
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150',
                   isActive('/competicoes-ativas')
-                    ? 'bg-primary/10 text-primary font-bold shadow-xs'
+                    ? 'bg-zinc-800 text-foreground font-semibold'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
                 )}
               >
@@ -99,7 +99,7 @@ export function Header() {
                     className={cn(
                       'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 h-auto',
                       isCadastrosActive
-                        ? 'bg-primary/10 text-primary font-bold shadow-xs'
+                        ? 'bg-zinc-800 text-foreground font-semibold'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
                     )}
                   >
@@ -121,10 +121,10 @@ export function Header() {
                         onClick={() => navigate(sub.path)}
                         className={cn(
                           'flex items-start gap-2.5 p-2 rounded-lg cursor-pointer transition-colors',
-                          isSubActive ? 'bg-primary/10 text-primary font-semibold' : '',
+                          isSubActive ? 'bg-zinc-800 text-foreground font-semibold' : '',
                         )}
                       >
-                        <div className={cn('p-1.5 rounded-md bg-muted text-muted-foreground mt-0.5', isSubActive && 'bg-primary text-primary-foreground')}>
+                        <div className={cn('p-1.5 rounded-md bg-muted text-muted-foreground mt-0.5', isSubActive && 'bg-zinc-700 text-foreground')}>
                           <SubIcon className="w-3.5 h-3.5" />
                         </div>
                         <div>
@@ -143,7 +143,7 @@ export function Header() {
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150',
                   isActive('/jogos')
-                    ? 'bg-primary/10 text-primary font-bold shadow-xs'
+                    ? 'bg-zinc-800 text-foreground font-semibold'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
                 )}
               >
@@ -157,7 +157,7 @@ export function Header() {
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150',
                   isActive('/relatorios')
-                    ? 'bg-primary/10 text-primary font-bold shadow-xs'
+                    ? 'bg-zinc-800 text-foreground font-semibold'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
                 )}
               >
@@ -171,7 +171,7 @@ export function Header() {
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150',
                   isActive('/configuracoes')
-                    ? 'bg-primary/10 text-primary font-bold shadow-xs'
+                    ? 'bg-zinc-800 text-foreground font-semibold'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
                 )}
               >
@@ -194,8 +194,8 @@ export function Header() {
               {session ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="gap-2 pl-1.5 pr-2.5 py-1 h-9 rounded-full border border-border/60 hover:bg-muted">
-                      <div className="w-6 h-6 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold text-xs">
+                    <Button variant="ghost" size="sm" className="gap-2 pl-1.5 pr-2.5 py-1 h-9 rounded-md border border-border hover:bg-muted">
+                      <div className="w-6 h-6 rounded-full bg-zinc-800 text-zinc-300 flex items-center justify-center font-semibold text-xs">
                         {session.user.name ? session.user.name.charAt(0).toUpperCase() : 'U'}
                       </div>
                       <div className="text-left hidden md:block">
@@ -215,7 +215,7 @@ export function Header() {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => setBlankSheetOpen(true)}>
-                      <FileText className="w-4 h-4 mr-2 text-primary" />
+                      <FileText className="w-4 h-4 mr-2" />
                       Emitir Súmula em Branco
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/configuracoes')}>
@@ -261,10 +261,10 @@ export function Header() {
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
                   'flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium',
-                  isActive('/competicoes-ativas') ? 'bg-primary/10 text-primary font-bold' : 'text-muted-foreground hover:bg-muted',
+                  isActive('/competicoes-ativas') ? 'bg-zinc-800 text-foreground font-semibold' : 'text-muted-foreground hover:bg-muted',
                 )}
               >
-                <Flame className="w-4 h-4 text-primary" />
+                <Flame className="w-4 h-4" />
                 Competições Ativas
               </Link>
               <Link
@@ -272,7 +272,7 @@ export function Header() {
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
                   'flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium',
-                  isActive('/jogos') ? 'bg-primary/10 text-primary font-bold' : 'text-muted-foreground hover:bg-muted',
+                  isActive('/jogos') ? 'bg-zinc-800 text-foreground font-semibold' : 'text-muted-foreground hover:bg-muted',
                 )}
               >
                 <Volleyball className="w-4 h-4" />
@@ -292,7 +292,7 @@ export function Header() {
                     onClick={() => setMobileMenuOpen(false)}
                     className={cn(
                       'flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium',
-                      location.pathname.startsWith(sub.path) ? 'bg-primary/10 text-primary font-bold' : 'text-muted-foreground hover:bg-muted',
+                      location.pathname.startsWith(sub.path) ? 'bg-zinc-800 text-foreground font-semibold' : 'text-muted-foreground hover:bg-muted',
                     )}
                   >
                     <SubIcon className="w-4 h-4" />
@@ -310,7 +310,7 @@ export function Header() {
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
                   'flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium',
-                  isActive('/relatorios') ? 'bg-primary/10 text-primary font-bold' : 'text-muted-foreground hover:bg-muted',
+                  isActive('/relatorios') ? 'bg-zinc-800 text-foreground font-semibold' : 'text-muted-foreground hover:bg-muted',
                 )}
               >
                 <FileSpreadsheet className="w-4 h-4" />
@@ -321,7 +321,7 @@ export function Header() {
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
                   'flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium',
-                  isActive('/configuracoes') ? 'bg-primary/10 text-primary font-bold' : 'text-muted-foreground hover:bg-muted',
+                  isActive('/configuracoes') ? 'bg-zinc-800 text-foreground font-semibold' : 'text-muted-foreground hover:bg-muted',
                 )}
               >
                 <Settings className="w-4 h-4" />

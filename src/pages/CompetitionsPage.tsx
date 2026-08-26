@@ -430,33 +430,33 @@ export default function CompetitionsPage() {
 
                   {/* Pódio Final (se apurado) */}
                   {podium && (podium.championTeamId || podium.runnerUpTeamId) && (
-                    <Card className="card-elevated border-amber-500/30 bg-gradient-to-r from-amber-500/5 via-card to-amber-500/5">
+                    <Card className="card-elevated">
                       <CardHeader className="pb-3">
-                        <CardTitle className="text-base font-display flex items-center gap-2 text-amber-600">
+                        <CardTitle className="text-base font-display flex items-center gap-2">
                           <Award className="w-5 h-5" />
                           Pódio Oficial da Competição
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-0 text-center">
-                        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                          <span className="text-[11px] font-bold text-amber-600 uppercase block">1º Lugar (Campeão)</span>
+                        <div className="p-3 rounded-md border border-border bg-card">
+                          <span className="text-[11px] font-bold text-muted-foreground uppercase block">1º Lugar (Campeão)</span>
                           <span className="font-display font-bold text-sm text-foreground mt-1 block">
                             {teams.find(t => t.id === podium.championTeamId)?.name || 'A definir'}
                           </span>
                         </div>
-                        <div className="p-3 rounded-xl bg-slate-400/10 border border-slate-400/20">
-                          <span className="text-[11px] font-bold text-slate-500 uppercase block">2º Lugar (Vice)</span>
+                        <div className="p-3 rounded-md border border-border bg-card">
+                          <span className="text-[11px] font-bold text-muted-foreground uppercase block">2º Lugar (Vice)</span>
                           <span className="font-display font-bold text-sm text-foreground mt-1 block">
                             {teams.find(t => t.id === podium.runnerUpTeamId)?.name || 'A definir'}
                           </span>
                         </div>
-                        <div className="p-3 rounded-xl bg-amber-700/10 border border-amber-700/20">
-                          <span className="text-[11px] font-bold text-amber-700 uppercase block">3º Lugar</span>
+                        <div className="p-3 rounded-md border border-border bg-card">
+                          <span className="text-[11px] font-bold text-muted-foreground uppercase block">3º Lugar</span>
                           <span className="font-display font-bold text-sm text-foreground mt-1 block">
                             {teams.find(t => t.id === podium.thirdPlaceTeamId)?.name || 'A definir'}
                           </span>
                         </div>
-                        <div className="p-3 rounded-xl bg-muted/40 border border-border/40">
+                        <div className="p-3 rounded-md border border-border bg-card">
                           <span className="text-[11px] font-bold text-muted-foreground uppercase block">4º Lugar</span>
                           <span className="font-display font-bold text-sm text-foreground mt-1 block">
                             {teams.find(t => t.id === podium.fourthPlaceTeamId)?.name || 'A definir'}

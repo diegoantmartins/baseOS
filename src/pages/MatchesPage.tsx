@@ -56,7 +56,13 @@ import { LiveScorerDeskModal } from '@/components/match/LiveScorerDeskModal';
 import { LiveScoreboardModal } from '@/components/match/LiveScoreboardModal';
 import { MatchCheckinModal } from '@/components/match/MatchCheckinModal';
 import { RefereeAssignmentModal } from '@/components/match/RefereeAssignmentModal';
-import { Maximize2, UserCheck, Shield } from 'lucide-react';
+import { Maximize2, UserCheck, Shield, MoreHorizontal } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 export type MatchesSubTab = 'todos' | 'grupos' | 'mata-mata' | 'agenda' | 'sumulas' | 'resultados';
@@ -380,15 +386,14 @@ export default function MatchesPage() {
         {/* Header Title & Actions */}
         <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground flex items-center gap-2.5">
-              <Calendar className="w-8 h-8 text-primary" />
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
               Central de Jogos
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
               Escalação de confrontos, prevenção de conflitos de quadra, lançamento de parciais e homologação oficial.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2.5 self-start sm:self-auto">
+          <div className="flex flex-wrap gap-2 self-start sm:self-auto">
             <Button variant="outline" size="sm" onClick={() => setBlankSheetOpen(true)} className="gap-1.5 text-xs">
               <FileSpreadsheet className="w-4 h-4" />
               Súmula em Branco
@@ -397,7 +402,7 @@ export default function MatchesPage() {
               <FileText className="w-4 h-4" />
               Gerar Boletim
             </Button>
-            <Button variant="accent" size="sm" onClick={() => navigate('/jogos/novo')} className="gap-1.5 text-xs">
+            <Button size="sm" onClick={() => navigate('/jogos/novo')} className="gap-1.5 text-xs">
               <Plus className="w-4 h-4" />
               Novo Confronto
             </Button>
@@ -421,10 +426,10 @@ export default function MatchesPage() {
                 key={tab.id}
                 onClick={() => setActiveSubTab(tab.id as MatchesSubTab)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all whitespace-nowrap',
+                  'flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-colors duration-150 whitespace-nowrap',
                   active
-                    ? 'border-primary text-primary font-semibold bg-primary/5'
-                    : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50',
+                    ? 'border-foreground text-foreground font-semibold'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
                 )}
               >
                 <Icon className={cn('w-4 h-4', active ? 'text-primary' : 'text-muted-foreground')} />
@@ -477,20 +482,20 @@ export default function MatchesPage() {
 
         {/* Banner específico da aba Mata-mata */}
         {activeSubTab === 'mata-mata' && (
-          <motion.div variants={item} className="p-4 rounded-2xl bg-primary/10 border border-primary/25 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <motion.div variants={item} className="p-4 rounded-xl bg-card border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 font-display font-bold text-foreground text-sm sm:text-base">
-                <GitBranch className="w-5 h-5 text-primary" />
+              <div className="flex items-center gap-2 font-semibold text-foreground text-sm">
+                <GitBranch className="w-4 h-4 text-muted-foreground" />
                 Chaveamento Eliminatório & Mata-mata
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Após o término da fase de grupos, sincronize os classificados ou clique em <strong>Editar Confronto & Horários</strong> em qualquer partida para ajustar equipes, locais e horários.
+                Após o término da fase de grupos, sincronize os classificados ou use <strong className="text-foreground font-medium">Editar Confronto & Horários</strong> em qualquer partida para ajustar equipes, locais e horários.
               </p>
             </div>
             <Button
-              variant="accent"
+              variant="secondary"
               size="sm"
-              className="gap-2 text-xs font-semibold shrink-0"
+              className="gap-2 text-xs shrink-0"
               onClick={handleSyncPlayoffsFromGroups}
             >
               <Sparkles className="w-4 h-4" />
@@ -501,10 +506,10 @@ export default function MatchesPage() {
 
         {/* Banner específico da aba Agenda */}
         {activeSubTab === 'agenda' && (
-          <motion.div variants={item} className="p-4 rounded-2xl bg-muted/40 border border-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <motion.div variants={item} className="p-4 rounded-xl bg-card border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 font-display font-bold text-foreground text-sm sm:text-base">
-                <Clock className="w-5 h-5 text-primary" />
+              <div className="flex items-center gap-2 font-semibold text-foreground text-sm">
+                <Clock className="w-4 h-4 text-muted-foreground" />
                 Agenda & Programação de Horários
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
@@ -526,7 +531,7 @@ export default function MatchesPage() {
         {/* Matches List Grid */}
         {loading ? (
           <div className="space-y-3">
-            {[1, 2, 3].map(i => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)}
+            {[1, 2, 3].map(i => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
           </div>
         ) : filteredMatches.length === 0 ? (
           <Card className="p-12 text-center text-muted-foreground">
@@ -540,63 +545,66 @@ export default function MatchesPage() {
 
               return (
                 <motion.div key={m.id} variants={item}>
-                  <Card className="card-elevated hover:border-primary/40 transition-all flex flex-col justify-between h-full">
+                  <Card className="card-elevated hover-raise flex flex-col justify-between h-full">
                     <CardHeader className="pb-3 pt-4 px-4 sm:px-5">
                       <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-foreground">Jogo #{m.record.matchNumber}</span>
+                          <span className="font-semibold text-foreground">Jogo #{m.record.matchNumber}</span>
                           <span>·</span>
                           <span className="truncate max-w-[120px]">{m.competition}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          {m.phase && <Badge variant="outline" className="text-[10px] capitalize">{m.phase}</Badge>}
+                          {m.phase && <Badge variant="muted" className="capitalize">{m.phase}</Badge>}
                           {isHomologated ? (
-                            <Badge variant="success" className="text-[10px] gap-1">
+                            <Badge variant="homologated" className="gap-1">
                               <ShieldCheck className="w-3 h-3" />
                               Homologado
                             </Badge>
                           ) : isFinished ? (
-                            <Badge variant="secondary" className="text-[10px]">Realizado</Badge>
+                            <Badge variant="completed">Realizado</Badge>
                           ) : m.status === 'in-progress' ? (
-                            <Badge variant="default" className="text-[10px] bg-amber-500">Em Jogo</Badge>
+                            <Badge variant="live" className="gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse-subtle" />
+                              Em Jogo
+                            </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-[10px]">Agendado</Badge>
+                            <Badge variant="scheduled">Agendado</Badge>
                           )}
                         </div>
                       </div>
 
                       {/* Teams and Result Bar */}
-                      <div className="p-3 rounded-xl bg-muted/40 border border-border/50 flex items-center justify-between gap-2">
+                      <div className="p-3 rounded-lg bg-zinc-900/60 border border-border/60 flex items-center justify-between gap-2">
                         {/* Team A */}
                         <div className="flex-1 flex items-center gap-2 min-w-0">
                           {m.teamA.logoUrl ? (
                             <img src={m.teamA.logoUrl} alt="" className="w-7 h-7 rounded-full object-contain shrink-0" />
                           ) : (
-                            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-zinc-800 text-zinc-300 flex items-center justify-center font-semibold text-xs shrink-0">
                               {m.teamA.shortName.charAt(0)}
                             </div>
                           )}
-                          <span className="font-bold text-sm text-foreground truncate">{m.teamA.name}</span>
+                          <span className="font-medium text-sm text-foreground truncate">{m.teamA.name}</span>
                         </div>
 
                         {/* Score Display */}
-                        <div className="px-3 py-1 rounded-lg bg-card border border-border/70 text-center shrink-0">
+                        <div className="px-3 py-1 rounded-md bg-card border border-border text-center shrink-0">
                           {isFinished ? (
-                            <div className="text-base font-display font-extrabold text-foreground tracking-tight">
-                              {m.teamA.score} <span className="text-muted-foreground text-xs">x</span> {m.teamB.score}
+                            <div className="text-base font-semibold tabular-nums text-foreground tracking-tight">
+                              {m.teamA.score} <span className="text-muted-foreground text-xs font-normal">–</span> {m.teamB.score}
                             </div>
                           ) : (
-                            <span className="text-xs font-bold text-muted-foreground">VS</span>
+                            <span className="text-xs font-medium text-muted-foreground">VS</span>
                           )}
                         </div>
 
                         {/* Team B */}
                         <div className="flex-1 flex items-center justify-end gap-2 min-w-0 text-right">
-                          <span className="font-bold text-sm text-foreground truncate">{m.teamB.name}</span>
+                          <span className="font-medium text-sm text-foreground truncate">{m.teamB.name}</span>
                           {m.teamB.logoUrl ? (
                             <img src={m.teamB.logoUrl} alt="" className="w-7 h-7 rounded-full object-contain shrink-0" />
                           ) : (
-                            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-zinc-800 text-zinc-300 flex items-center justify-center font-semibold text-xs shrink-0">
                               {m.teamB.shortName.charAt(0)}
                             </div>
                           )}
@@ -605,9 +613,9 @@ export default function MatchesPage() {
 
                       {/* Sets Parciais */}
                       {isFinished && m.sets && m.sets.length > 0 && (
-                        <div className="flex items-center justify-center gap-2 mt-2 text-[11px] text-muted-foreground">
+                        <div className="flex items-center justify-center gap-1.5 mt-2 text-[11px] text-muted-foreground">
                           {m.sets.map((s, idx) => (
-                            <span key={idx} className="px-1.5 py-0.5 rounded bg-muted/60 font-mono font-medium">
+                            <span key={idx} className="px-1.5 py-0.5 rounded bg-zinc-800/70 tabular-nums">
                               {s.a}-{s.b}
                             </span>
                           ))}
@@ -615,68 +623,51 @@ export default function MatchesPage() {
                       )}
                     </CardHeader>
 
-                    {/* Footer Info & Actions */}
-                    <CardContent className="px-4 sm:px-5 pb-4 pt-0 border-t border-border/50 mt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-muted-foreground">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5">
+                    {/* Footer: info + hierarquia de ações (1 primária contextual + ghost + menu ···) */}
+                    <CardContent className="px-4 sm:px-5 pb-3.5 pt-2.5 border-t border-border/60 mt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <span className="flex items-center gap-1.5 min-w-0">
                           <MapPin className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate">{m.venue} {m.court ? `· ${m.court}` : ''}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 shrink-0" />
-                          <span>{new Date(m.date).toLocaleDateString('pt-BR')} às {m.time}</span>
-                        </div>
+                        </span>
+                        <span className="flex items-center gap-1.5 shrink-0">
+                          <Clock className="w-3.5 h-3.5" />
+                          {new Date(m.date).toLocaleDateString('pt-BR')} às {m.time}
+                        </span>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-1.5 self-end sm:self-center">
-                        {/* Telão / Placar ao Vivo */}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
-                          onClick={() => setLiveScoreboardMatch(m.record)}
-                          title="Abrir Telão / Placar do Jogo"
-                        >
-                          <Maximize2 className="w-3.5 h-3.5" />
-                          Telão
-                        </Button>
-
-                        {/* Check-in Presencial */}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 text-xs font-medium gap-1 text-muted-foreground hover:text-foreground"
-                          onClick={() => setCheckinMatch(m.record)}
-                          title="Check-in Presencial de Atletas"
-                        >
-                          <UserCheck className="w-3.5 h-3.5 text-primary" />
-                          Check-in
-                        </Button>
-
-                        {/* Escalação de Arbitragem */}
-                        {can('match:edit') && (
+                      <div className="flex items-center gap-1 self-end sm:self-center">
+                        {/* Ação primária contextual: Homologar (pendente) ou Mesa (ao vivo) */}
+                        {isFinished && !isHomologated && can('match:finalize') ? (
                           <Button
-                            variant="ghost"
+                            variant="success"
                             size="sm"
-                            className="h-8 px-2 text-xs font-medium gap-1 text-muted-foreground hover:text-foreground"
-                            onClick={() => setRefereeMatch(m.record)}
-                            title="Escalação de Arbitragem"
+                            className="h-8 px-3 text-xs gap-1.5"
+                            onClick={() => setPendingHomologateMatch(m.record)}
                           >
-                            <Shield className="w-3.5 h-3.5 text-primary" />
-                            Árbitros
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Homologar
                           </Button>
-                        )}
-
-                        {/* Mesa do Apontador (Ao Vivo) */}
-                        {canSubmitMatchScore(m.record) && (
+                        ) : canSubmitMatchScore(m.record) ? (
                           <Button
-                            variant="outline"
                             size="sm"
-                            className="h-8 px-2 text-xs font-semibold gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                            className="h-8 px-3 text-xs gap-1.5"
                             onClick={() => setLiveScorerMatch(m.record)}
                           >
                             <Volleyball className="w-3.5 h-3.5" />
                             Mesa
+                          </Button>
+                        ) : null}
+
+                        {canSubmitMatchScore(m.record) && !isFinished && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-8 px-2.5 text-xs gap-1"
+                            onClick={() => setResultMatch(m.record)}
+                          >
+                            <PenLine className="w-3.5 h-3.5" />
+                            Placar
                           </Button>
                         )}
 
@@ -692,41 +683,36 @@ export default function MatchesPage() {
                           </Button>
                         )}
 
-                        {(can('match:edit') || can('match:schedule')) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-xs font-medium"
-                            onClick={() => setEditMatch(m.record)}
-                          >
-                            <Pencil className="w-3.5 h-3.5 mr-1 text-primary" />
-                            Editar / Agendar
-                          </Button>
-                        )}
-
-                        {canSubmitMatchScore(m.record) && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-2.5 text-xs font-semibold"
-                            onClick={() => setResultMatch(m.record)}
-                          >
-                            <PenLine className="w-3.5 h-3.5 mr-1 text-primary" />
-                            Placar
-                          </Button>
-                        )}
-
-                        {isFinished && !isHomologated && can('match:finalize') && (
-                          <Button
-                            variant="accent"
-                            size="sm"
-                            className="h-8 px-2.5 text-xs font-semibold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                            onClick={() => setPendingHomologateMatch(m.record)}
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            Homologar
-                          </Button>
-                        )}
+                        {/* Ações secundárias agrupadas */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon-sm" aria-label="Mais ações da partida">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuItem onClick={() => setLiveScoreboardMatch(m.record)}>
+                              <Maximize2 className="w-4 h-4 mr-2" />
+                              Telão / Placar do Jogo
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setCheckinMatch(m.record)}>
+                              <UserCheck className="w-4 h-4 mr-2" />
+                              Check-in de Atletas
+                            </DropdownMenuItem>
+                            {can('match:edit') && (
+                              <DropdownMenuItem onClick={() => setRefereeMatch(m.record)}>
+                                <Shield className="w-4 h-4 mr-2" />
+                                Escalação de Arbitragem
+                              </DropdownMenuItem>
+                            )}
+                            {(can('match:edit') || can('match:schedule')) && (
+                              <DropdownMenuItem onClick={() => setEditMatch(m.record)}>
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Editar / Agendar
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </CardContent>
                   </Card>
@@ -1099,7 +1085,7 @@ function ScheduleMatchDialog({ match, competition, allMatches, teams, venues, on
               {conflicts.map((c, i) => (
                 <div
                   key={i}
-                  className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${c.severity === 'error' ? 'bg-destructive/10 border-destructive/30 text-destructive' : 'bg-amber-500/10 border-amber-500/30 text-amber-700'}`}
+                  className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${c.severity === 'error' ? 'bg-destructive/10 border-destructive/25 text-red-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}
                 >
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                   <div>
@@ -1113,7 +1099,7 @@ function ScheduleMatchDialog({ match, competition, allMatches, teams, venues, on
 
         <DialogFooter className="gap-2">
           <Button variant="outline" size="sm" onClick={onClose}>Cancelar</Button>
-          <Button variant="accent" size="sm" disabled={saving || hasBlockingError || isSameTeam} onClick={handleSave} className="font-semibold">
+            <Button size="sm" disabled={saving || hasBlockingError || isSameTeam} onClick={handleSave} className="font-semibold">
             {saving ? 'Salvando...' : 'Salvar Alterações'}
           </Button>
         </DialogFooter>
@@ -1218,9 +1204,9 @@ function ResultValidationDialog({ match, competition, onClose, onSaved }: Result
 
           {/* Validation Feedback */}
           {validation.valid ? (
-            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-800 space-y-1">
+            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 space-y-1">
               <p className="font-bold flex items-center gap-1">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
                 Resultado válido: {validation.scoreA} x {validation.scoreB}
               </p>
               <p>
@@ -1244,7 +1230,7 @@ function ResultValidationDialog({ match, competition, onClose, onSaved }: Result
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button variant="accent" disabled={saving || !validation.valid} onClick={handleSave}>
+          <Button disabled={saving || !validation.valid} onClick={handleSave}>
             {saving ? 'Salvando...' : 'Finalizar Partida'}
           </Button>
         </DialogFooter>

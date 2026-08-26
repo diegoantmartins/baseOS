@@ -6,20 +6,14 @@ import {
   Users,
   Calendar,
   Volleyball,
-  Waves,
   Clock,
   CheckCircle,
   AlertTriangle,
   ArrowRight,
   Plus,
-  Dices,
-  FileSpreadsheet,
-  Building2,
-  ListOrdered,
-  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { dataAccess } from '@/services/dataAccess';
 import type { CompetitionRecord, MatchRecord, TeamRecord, VenueRecord } from '@/types/entities';
@@ -35,8 +29,8 @@ const container = {
 };
 
 const item = {
-  hidden: { opacity: 0, y: 15 },
-  show: { opacity: 1, y: 0 },
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.15 } },
 };
 
 type AlertItem = {
@@ -158,74 +152,65 @@ export function Dashboard() {
       value: activeCompsCount.toString(),
       subtext: `${competitions.length} total cadastradas`,
       icon: Trophy,
-      color: 'text-primary',
-      bg: 'bg-primary/10',
     },
     {
       label: 'Equipes Cadastradas',
       value: teams.length.toString(),
       subtext: `${competitionTeams.length} inscrições em torneios`,
       icon: Users,
-      color: 'text-blue-600',
-      bg: 'bg-blue-500/10',
     },
     {
       label: 'Atletas no Sistema',
       value: totalAthletesCount.toString(),
       subtext: 'Elencos confirmados',
       icon: Volleyball,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-500/10',
     },
     {
       label: 'Partidas Realizadas',
       value: completedMatchesCount.toString(),
       subtext: `${scheduledMatchesCount} agendadas / ${matches.length} total`,
       icon: CheckCircle,
-      color: 'text-amber-600',
-      bg: 'bg-amber-500/10',
     },
   ];
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      {/* Top Banner */}
-      <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Cabeçalho: título + 1 ação primária */}
+      <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground flex items-center gap-2.5">
-            <Trophy className="w-8 h-8 text-primary" />
-            Painel Geral VolleyPro
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
+            Painel Geral
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Visão unificada das competições, confrontos, classificação e alertas operacionais.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2.5">
-          <Button variant="outline" className="gap-2" onClick={() => navigate('/jogos')}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => navigate('/jogos')}>
             <Calendar className="w-4 h-4" />
             Central de Jogos
           </Button>
-          <Button variant="accent" className="gap-2" onClick={() => navigate('/competicoes?new=1')}>
+          <Button size="sm" className="gap-2 text-xs" onClick={() => navigate('/competicoes?new=1')}>
             <Plus className="w-4 h-4" />
             Nova Competição
           </Button>
         </div>
       </motion.div>
 
-      {/* KPI Cards */}
-      <motion.div variants={item} className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* KPIs densos e monocromáticos */}
+      <motion.div variants={item} className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
-            <Card key={i} className="card-elevated hover:border-primary/40 transition-all">
-              <CardContent className="p-4 sm:p-5 flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${stat.bg} ${stat.color}`}>
-                  <Icon className="w-6 h-6" />
+            <Card key={i} className="hover-raise">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0">
+                  <Icon className="w-[18px] h-[18px] text-zinc-400" />
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase">{stat.label}</p>
-                  <h3 className="text-2xl font-display font-bold text-foreground mt-0.5">{stat.value}</h3>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{stat.subtext}</p>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">{stat.label}</p>
+                  <h3 className="text-xl font-semibold tabular-nums text-foreground mt-0.5 leading-none">{stat.value}</h3>
+                  <p className="text-[11px] text-muted-foreground mt-1 truncate">{stat.subtext}</p>
                 </div>
               </CardContent>
             </Card>
@@ -233,60 +218,55 @@ export function Dashboard() {
         })}
       </motion.div>
 
-      {/* Operational Alerts Center (Seção 32) */}
+      {/* Central de Alertas Operacionais */}
       {alerts.length > 0 && (
         <motion.div variants={item} className="space-y-3">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-500" />
-            <h2 className="text-lg font-display font-bold text-foreground">Central de Alertas Operacionais</h2>
-            <Badge variant="secondary" className="text-xs">{alerts.length}</Badge>
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
+            <h2 className="text-sm font-semibold text-foreground">Alertas Operacionais</h2>
+            <Badge variant="secondary">{alerts.length}</Badge>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {alerts.map(alert => (
-              <Card key={alert.id} className="border-amber-500/30 bg-amber-500/5 shadow-xs">
-                <CardContent className="p-4 flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                      {alert.title}
-                    </h4>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      {alert.description}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 text-xs gap-1 border-amber-500/40 hover:bg-amber-500/10"
-                    onClick={() => navigate(alert.linkTo)}
-                  >
-                    <span>{alert.linkText}</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Button>
-                </CardContent>
-              </Card>
+              <div key={alert.id} className="rounded-xl border border-border bg-card px-4 py-3 flex items-center justify-between gap-3 hover-raise">
+                <div className="space-y-0.5 min-w-0">
+                  <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                    <span className="truncate">{alert.title}</span>
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {alert.description}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 text-xs gap-1"
+                  onClick={() => navigate(alert.linkTo)}
+                >
+                  <span>{alert.linkText}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             ))}
           </div>
         </motion.div>
       )}
 
-      {/* Main Grid: Competições Ativas & Próximas Partidas */}
+      {/* Grid principal: Competições ativas & Próximas partidas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Competições em Andamento (2 colunas) */}
-        <motion.div variants={item} className="lg:col-span-2 space-y-4">
+        {/* Competições em andamento (2 colunas) */}
+        <motion.div variants={item} className="lg:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-display font-bold text-foreground flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-primary" />
-              Competições em Andamento
-            </h2>
-            <Link to="/competicoes" className="text-xs text-primary font-medium hover:underline flex items-center gap-1">
+            <h2 className="text-sm font-semibold text-foreground">Competições em Andamento</h2>
+            <Link to="/competicoes" className="text-xs text-muted-foreground hover:text-foreground font-medium flex items-center gap-1">
               Ver todas ({competitions.length})
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {competitions.slice(0, 3).map(comp => {
               const compMatches = matches.filter(m => m.competitionId === comp.id);
               const compTeams = competitionTeams.filter(ct => ct.competitionId === comp.id);
@@ -294,74 +274,75 @@ export function Dashboard() {
               const progress = compMatches.length > 0 ? Math.round((finished / compMatches.length) * 100) : 0;
 
               return (
-                <Card key={comp.id} className="card-elevated hover:border-primary/40 transition-all cursor-pointer" onClick={() => navigate('/competicoes')}>
-                  <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1.5">
+                <div
+                  key={comp.id}
+                  className="group relative rounded-xl border border-border bg-card overflow-hidden cursor-pointer hover-raise"
+                  onClick={() => navigate('/competicoes')}
+                >
+                  <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-display font-bold text-base text-foreground">{comp.name}</span>
-                        <Badge variant="outline" className="text-[10px] capitalize">
+                        <span className="font-semibold text-sm text-foreground truncate">{comp.name}</span>
+                        <Badge variant="muted" className="capitalize">
                           {comp.modality === 'beach' ? 'Praia' : 'Quadra'}
                         </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {comp.venue || 'Local a definir'} · {compTeams.length} equipes inscritas
+                      <p className="text-[11px] text-muted-foreground">
+                        {comp.venue || 'Local a definir'} · {compTeams.length} equipes · {finished}/{compMatches.length} jogos realizados
                       </p>
-                      <div className="flex items-center gap-4 text-xs pt-1">
-                        <span><strong>{compMatches.length}</strong> jogos ({finished} realizados)</span>
-                        <span className="text-muted-foreground">Progresso: <strong>{progress}%</strong></span>
-                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2 self-end sm:self-center">
-                      <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); navigate('/jogos'); }}>
+                    <div className="flex items-center gap-1.5 self-end sm:self-center">
+                      <Button variant="ghost" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); navigate('/jogos'); }}>
                         Jogos
                       </Button>
-                      <Button variant="accent" size="sm" onClick={(e) => { e.stopPropagation(); navigate('/competicoes'); }}>
+                      <Button variant="secondary" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); navigate('/competicoes'); }}>
                         Gerenciar
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                  {/* Linha fina de progresso (2px) na base do card */}
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-800">
+                    <div className="h-full bg-primary transition-[width] duration-300" style={{ width: `${progress}%` }} />
+                  </div>
+                </div>
               );
             })}
           </div>
         </motion.div>
 
-        {/* Próximas Partidas (1 coluna) */}
-        <motion.div variants={item} className="space-y-4">
+        {/* Próximos confrontos (1 coluna) */}
+        <motion.div variants={item} className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-display font-bold text-foreground flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-primary" />
-              Próximos Confrontos
-            </h2>
-            <Link to="/jogos" className="text-xs text-primary font-medium hover:underline flex items-center gap-1">
+            <h2 className="text-sm font-semibold text-foreground">Próximos Confrontos</h2>
+            <Link to="/jogos" className="text-xs text-muted-foreground hover:text-foreground font-medium flex items-center gap-1">
               Ver agenda
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
-          <Card className="card-elevated">
-            <CardContent className="p-4 space-y-3">
+          <Card>
+            <CardContent className="p-3 space-y-1">
               {matches.slice(0, 4).length === 0 ? (
                 <p className="text-xs text-center text-muted-foreground py-6">Nenhum confronto agendado no momento.</p>
               ) : (
                 matches.slice(0, 4).map(m => (
-                  <div key={m.id} className="p-3 rounded-xl bg-muted/40 border border-border/50 hover:bg-muted/70 transition-colors">
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1.5">
-                      <span className="font-semibold text-foreground">Jogo #{m.matchNumber}</span>
-                      <span>{m.court || m.venue || 'Quadra a definir'}</span>
+                  <div key={m.id} className="px-3 py-2.5 rounded-lg hover-raise">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1">
+                      <span className="font-medium text-foreground">Jogo #{m.matchNumber}</span>
+                      <span className="truncate ml-2">{m.court || m.venue || 'Quadra a definir'}</span>
                     </div>
-                    <div className="flex items-center justify-between text-xs font-semibold text-foreground">
-                      <span className="truncate max-w-[100px]">{m.teamAName}</span>
-                      <span className="text-[10px] text-muted-foreground px-2">VS</span>
-                      <span className="truncate max-w-[100px] text-right">{m.teamBName}</span>
+                    <div className="flex items-center justify-between text-xs font-medium text-foreground">
+                      <span className="truncate max-w-[110px]">{m.teamAName}</span>
+                      <span className="text-[10px] text-muted-foreground px-2">vs</span>
+                      <span className="truncate max-w-[110px] text-right">{m.teamBName}</span>
                     </div>
-                    <div className="mt-2 pt-1.5 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
+                    <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {new Date(m.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      <Badge variant={m.status === 'completed' ? 'success' : 'outline'} className="text-[9px] py-0">
+                      <Badge variant={m.status === 'completed' ? 'completed' : 'scheduled'} className="text-[10px] py-0 px-1.5">
                         {m.status === 'completed' ? 'Finalizado' : 'Agendado'}
                       </Badge>
                     </div>

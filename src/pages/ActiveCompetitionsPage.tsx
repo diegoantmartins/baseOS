@@ -17,11 +17,10 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { dataAccess } from '@/services/dataAccess';
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
 
@@ -35,13 +34,14 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
-const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; color: string }> = {
-  'in-progress': { label: 'Em Andamento', variant: 'default', color: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400' },
-  'playoffs': { label: 'Fase Final / Playoffs', variant: 'default', color: 'bg-amber-500/15 text-amber-600 border-amber-500/30 dark:text-amber-400' },
-  'groups-defined': { label: 'Grupos Definidos', variant: 'secondary', color: 'bg-blue-500/15 text-blue-600 border-blue-500/30 dark:text-blue-400' },
-  'registration-open': { label: 'Inscrições Abertas', variant: 'outline', color: 'bg-primary/15 text-primary border-primary/30' },
-  'registration-closed': { label: 'Inscrições Encerradas', variant: 'secondary', color: 'bg-purple-500/15 text-purple-600 border-purple-500/30 dark:text-purple-400' },
-  'draw-pending': { label: 'Sorteio Pendente', variant: 'outline', color: 'bg-orange-500/15 text-orange-600 border-orange-500/30' },
+// Status: rótulo neutro + indicador pontual contido (sem bordas coloridas)
+const STATUS_LABELS: Record<string, { label: string; dot: string }> = {
+  'in-progress': { label: 'Em Andamento', dot: 'bg-amber-400' },
+  'playoffs': { label: 'Fase Final / Playoffs', dot: 'bg-amber-400' },
+  'groups-defined': { label: 'Grupos Definidos', dot: 'bg-zinc-400' },
+  'registration-open': { label: 'Inscrições Abertas', dot: 'bg-emerald-400' },
+  'registration-closed': { label: 'Inscrições Encerradas', dot: 'bg-zinc-500' },
+  'draw-pending': { label: 'Sorteio Pendente', dot: 'bg-amber-400' },
 };
 
 export default function ActiveCompetitionsPage() {
@@ -92,19 +92,18 @@ export default function ActiveCompetitionsPage() {
         {/* Header */}
         <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground flex items-center gap-2.5">
-              <Trophy className="w-8 h-8 text-primary" />
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
               Competições Ativas
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
               Acompanhe e gerencie as competições em andamento, jogos, classificações e súmulas oficiais.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <Button
-              variant="accent"
-              className="gap-2 text-xs h-9 font-semibold"
+              size="sm"
+              className="gap-2 text-xs"
               onClick={() => navigate('/competicoes?new=1')}
             >
               <Plus className="w-4 h-4" />
@@ -125,27 +124,27 @@ export default function ActiveCompetitionsPage() {
             />
           </div>
 
-          <div className="flex items-center gap-1.5 p-1 bg-muted/60 rounded-lg border border-border">
+          <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg border border-border">
             <Button
-              variant={modalityFilter === 'all' ? 'default' : 'ghost'}
+              variant={modalityFilter === 'all' ? 'secondary' : 'ghost'}
               size="sm"
-              className="text-xs h-8 px-3"
+              className="text-xs h-7 px-3"
               onClick={() => setModalityFilter('all')}
             >
               Todas
             </Button>
             <Button
-              variant={modalityFilter === 'indoor' ? 'default' : 'ghost'}
+              variant={modalityFilter === 'indoor' ? 'secondary' : 'ghost'}
               size="sm"
-              className="text-xs h-8 px-3"
+              className="text-xs h-7 px-3"
               onClick={() => setModalityFilter('indoor')}
             >
               Vôlei de Quadra
             </Button>
             <Button
-              variant={modalityFilter === 'beach' ? 'default' : 'ghost'}
+              variant={modalityFilter === 'beach' ? 'secondary' : 'ghost'}
               size="sm"
-              className="text-xs h-8 px-3"
+              className="text-xs h-7 px-3"
               onClick={() => setModalityFilter('beach')}
             >
               Vôlei de Praia
@@ -160,16 +159,16 @@ export default function ActiveCompetitionsPage() {
           </div>
         ) : activeCompetitions.length === 0 ? (
           <Card className="p-12 text-center border-dashed">
-            <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-3">
+            <div className="mx-auto w-12 h-12 rounded-xl bg-zinc-800 text-zinc-400 flex items-center justify-center mb-3">
               <Trophy className="w-6 h-6" />
             </div>
-            <h3 className="font-display font-semibold text-lg">Nenhuma competição ativa encontrada</h3>
+            <h3 className="font-semibold text-base">Nenhuma competição ativa encontrada</h3>
             <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
               Crie uma nova competição ou ajuste os filtros para gerenciar os campeonatos de voleibol.
             </p>
             <Button
-              variant="accent"
               className="mt-4 gap-2 text-xs"
+              size="sm"
               onClick={() => navigate('/competicoes?new=1')}
             >
               <Plus className="w-4 h-4" />
@@ -186,26 +185,26 @@ export default function ActiveCompetitionsPage() {
               const regTeamsCount = competitionTeams.filter(ct => ct.competitionId === c.id).length;
               const statusInfo = STATUS_LABELS[c.status || 'registration-open'] || {
                 label: 'Ativa',
-                variant: 'outline' as const,
-                color: 'bg-primary/15 text-primary border-primary/30',
+                dot: 'bg-zinc-400',
               };
 
               return (
-                <Card key={c.id} className="card-elevated hover:border-primary/40 transition-all flex flex-col justify-between overflow-hidden group">
-                  <div className="p-5">
+                <Card key={c.id} className="card-elevated hover-raise relative flex flex-col justify-between overflow-hidden">
+                  <div className="p-5 pb-4">
                     {/* Top Badges */}
                     <div className="flex items-start justify-between gap-3 mb-3">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${statusInfo.color}`}>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-800/70 text-[11px] font-medium text-zinc-300">
+                        <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot}`} />
                         {statusInfo.label}
                       </span>
 
-                      <Badge variant="outline" className="text-[11px] uppercase font-bold text-muted-foreground">
+                      <Badge variant="muted" className="uppercase">
                         {c.modality === 'beach' ? 'Praia' : 'Quadra'} · {c.format === '5-sets' ? '5 Sets' : '3 Sets'}
                       </Badge>
                     </div>
 
                     {/* Title */}
-                    <h3 className="text-xl font-display font-bold text-foreground group-hover:text-primary transition-colors">
+                    <h3 className="text-base font-semibold text-foreground">
                       {c.name}
                     </h3>
                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
@@ -214,37 +213,30 @@ export default function ActiveCompetitionsPage() {
                       {c.venue ? ` · ${c.venue}` : ''}
                     </p>
 
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-3 gap-3 my-4 p-3 bg-muted/40 rounded-xl border border-border/60">
-                      <div className="text-center">
-                        <span className="text-[10px] uppercase font-semibold text-muted-foreground">Equipes</span>
-                        <p className="text-lg font-bold font-display text-foreground">{regTeamsCount}</p>
+                    {/* Stats densos em linha */}
+                    <div className="flex items-center gap-5 mt-4 text-xs">
+                      <div>
+                        <span className="block text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Equipes</span>
+                        <span className="text-sm font-semibold tabular-nums text-foreground">{regTeamsCount}</span>
                       </div>
-                      <div className="text-center border-x border-border/60">
-                        <span className="text-[10px] uppercase font-semibold text-muted-foreground">Jogos Realizados</span>
-                        <p className="text-lg font-bold font-display text-primary">{completedMatches.length} / {totalMatches}</p>
+                      <div className="h-6 w-px bg-border" />
+                      <div>
+                        <span className="block text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Jogos realizados</span>
+                        <span className="text-sm font-semibold tabular-nums text-foreground">{completedMatches.length} <span className="text-muted-foreground font-normal">/ {totalMatches}</span></span>
                       </div>
-                      <div className="text-center">
-                        <span className="text-[10px] uppercase font-semibold text-muted-foreground">Progresso</span>
-                        <p className="text-lg font-bold font-display text-foreground">{progressPercent}%</p>
+                      <div className="h-6 w-px bg-border" />
+                      <div>
+                        <span className="block text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Progresso</span>
+                        <span className="text-sm font-semibold tabular-nums text-foreground">{progressPercent}%</span>
                       </div>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="space-y-1.5 mb-2">
-                      <div className="flex justify-between text-[11px] text-muted-foreground">
-                        <span>Andamento da Competição</span>
-                        <span>{completedMatches.length} de {totalMatches} jogos finalizados</span>
-                      </div>
-                      <Progress value={progressPercent} className="h-2" />
                     </div>
                   </div>
 
-                  {/* Actions Footer */}
-                  <CardFooter className="bg-muted/30 px-5 py-3 border-t flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2">
+                  {/* Ações: 1 secundária principal + fantasmas */}
+                  <div className="px-5 py-3 border-t border-border/60 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
                       <Button
-                        variant="default"
+                        variant="secondary"
                         size="sm"
                         className="gap-1.5 text-xs h-8"
                         onClick={() => navigate(`/jogos?competitionId=${c.id}`)}
@@ -254,12 +246,12 @@ export default function ActiveCompetitionsPage() {
                       </Button>
 
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         className="gap-1.5 text-xs h-8"
                         onClick={() => navigate(`/relatorios`)}
                       >
-                        <FileSpreadsheet className="w-3.5 h-3.5 text-primary" />
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
                         Relatórios
                       </Button>
                     </div>
@@ -267,14 +259,19 @@ export default function ActiveCompetitionsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="gap-1 text-xs h-8 text-muted-foreground hover:text-foreground"
+                      className="gap-1 text-xs h-8"
                       onClick={() => navigate(`/competicoes/${c.id}/inscricoes`)}
                     >
                       <Users className="w-3.5 h-3.5" />
                       Inscrições
                       <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
                     </Button>
-                  </CardFooter>
+                  </div>
+
+                  {/* Linha fina de progresso (2px) na base do card */}
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-800">
+                    <div className="h-full bg-primary transition-[width] duration-300" style={{ width: `${progressPercent}%` }} />
+                  </div>
                 </Card>
               );
             })}

@@ -22,6 +22,13 @@ type DemoUser = UserProfile & { password: string };
 
 export const DEMO_USERS: DemoUser[] = [
   {
+    id: 'demo-admin',
+    email: 'diegoantmartins89@gmail.com',
+    password: 'Au15022020...',
+    name: 'Diego Martins',
+    role: 'admin',
+  },
+  {
     id: 'demo-organizer',
     email: 'organizador@voleipro.app',
     password: 'demo123',

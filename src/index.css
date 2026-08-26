@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -8,54 +8,52 @@
   :root,
   .dark {
     /* =====================================================================
-       DESIGN TOKENS — BASEOS DARK TECH PALETTE (STRICT DARK MODE)
+       DESIGN TOKENS — ENTERPRISE DARK SAAS (STRICT DARK MODE)
+       Escala profunda Zinc. Único acento: âmbar (marca) na ação primária.
        ===================================================================== */
-    /* Background principal: bg-zinc-950 (#09090b) */
+    /* Background principal: zinc-950 (#09090b) */
     --background: 240 10% 3.9%;
-    /* Texto principal / Títulos: text-zinc-100 (#f4f4f5) */
+    /* Texto principal: zinc-100 (#f4f4f5) */
     --foreground: 240 4.8% 95.9%;
 
-    /* Superfícies (Cards, Modais, Dropdowns): bg-zinc-900 (#18181b) */
-    --card: 240 3.7% 15.9%;
+    /* Superfícies (Cards, Modais, Dropdowns): zinc-900 (#18181b) */
+    --card: 240 5.9% 10%;
     --card-foreground: 240 4.8% 95.9%;
 
-    --popover: 240 3.7% 15.9%;
+    --popover: 240 5.9% 10%;
     --popover-foreground: 240 4.8% 95.9%;
 
-    /* Ação Principal (Areia / Energia): amber-500 (#f59e0b) */
+    /* Ação primária (marca): amber-500 (#f59e0b) — máx. 1 por contexto */
     --primary: 38 92% 50%;
-    /* Texto escuro no botão primário para alto contraste: text-zinc-950 */
     --primary-foreground: 240 10% 3.9%;
 
-    /* Ação Secundária (Quadra / Tech): cyan-400 (#22d3ee) */
-    --secondary: 187 92% 53%;
-    --secondary-foreground: 240 10% 3.9%;
+    /* Ação secundária: superfície neutra zinc-800 + texto claro */
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 240 4.8% 95.9%;
 
-    /* Suporte e Neutros: bg-zinc-900 e text-zinc-400 (#a1a1aa) */
+    /* Neutros: zinc-800 e zinc-400 (#a1a1aa) */
     --muted: 240 3.7% 15.9%;
     --muted-foreground: 240 5% 64.9%;
 
-    /* Accent: amber-500 */
+    /* Accent segue a marca (âmbar) */
     --accent: 38 92% 50%;
     --accent-foreground: 240 10% 3.9%;
 
-    /* Success (#22c55e - Emerald) */
-    --success: 142 71% 45%;
+    /* Semânticos contidos (sem bordas coloridas em cards/KPIs) */
+    --success: 152 60% 42%;
     --success-foreground: 240 10% 3.9%;
 
-    /* Warning (#f59e0b - Amber) */
     --warning: 38 92% 50%;
     --warning-foreground: 240 10% 3.9%;
 
-    /* Destructive (#ef4444 - Red) */
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Info / Tech Highlight (cyan-400) */
-    --info: 187 92% 53%;
+    /* Info neutro dessaturado (links/anexos informativos) */
+    --info: 220 9% 65%;
     --info-foreground: 240 10% 3.9%;
 
-    --highlight: 187 92% 53%;
+    --highlight: 38 92% 50%;
     --highlight-foreground: 240 10% 3.9%;
 
     /* BRAND SPECIFIC TOKENS */
@@ -64,37 +62,38 @@
     --slate: 240 5% 64.9%;
     --warm-light: 38 92% 50%;
 
-    /* Bordas sutis: border-zinc-800 (#27272a) */
+    /* Bordas estruturais: zinc-800 (#27272a) */
     --border: 240 3.7% 20%;
     --input: 240 3.7% 20%;
+    /* Focus ring visível (2px sólido) */
     --ring: 38 92% 50%;
 
-    /* RADIUS BASE: 12px / rounded-xl */
+    /* RADIUS BASE: 12px (cards) / 8px (botões e inputs) */
     --radius: 0.75rem;
 
-    /* ESTADOS ESPORTIVOS (Status Tokens) */
-    --status-scheduled: 187 92% 53%;  /* Cyan Tech */
-    --status-live: 38 92% 50%;        /* Amber Live */
-    --status-completed: 142 71% 45%;  /* Emerald Success */
-    --status-homologated: 142 71% 45%;/* Emerald Homologado */
-    --status-pending: 240 5% 64.9%;   /* Zinc Muted */
-    --status-cancelled: 0 84% 60%;    /* Red Cancelled */
-    --status-walkover: 280 65% 60%;   /* Purple Walkover */
+    /* ESTADOS ESPORTIVOS — semânticos e contidos */
+    --status-scheduled: 240 5% 64.9%;   /* Neutro (futuro) */
+    --status-live: 38 92% 50%;          /* Âmbar (ao vivo, marca) */
+    --status-completed: 152 60% 42%;    /* Verde contido */
+    --status-homologated: 152 60% 42%;  /* Verde contido */
+    --status-pending: 240 5% 64.9%;     /* Zinc */
+    --status-cancelled: 0 72% 51%;      /* Vermelho contido */
+    --status-walkover: 270 30% 60%;     /* Violeta dessaturado */
 
     /* SIDEBAR NAVIGATION DARK */
-    --sidebar-background: 240 10% 3.9%; /* zinc-950 */
-    --sidebar-foreground: 240 4.8% 95.9%; /* zinc-100 */
-    --sidebar-primary: 38 92% 50%;       /* amber-500 */
+    --sidebar-background: 240 10% 3.9%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 38 92% 50%;
     --sidebar-primary-foreground: 240 10% 3.9%;
-    --sidebar-accent: 240 3.7% 15.9%;   /* zinc-900 */
+    --sidebar-accent: 240 5.9% 10%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 20%;      /* zinc-800 */
+    --sidebar-border: 240 3.7% 20%;
     --sidebar-ring: 38 92% 50%;
 
-    /* SOMBRAS DARK TECH */
-    --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-    --shadow-card: 0 4px 12px 0 rgba(0, 0, 0, 0.5), 0 1px 3px 0 rgba(0, 0, 0, 0.4);
-    --shadow-elevated: 0 10px 25px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+    /* SOMBRAS — elevação por variação sutil de fundo, sem peso */
+    --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+    --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+    --shadow-elevated: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -113,22 +112,48 @@
   body {
     @apply bg-background text-foreground antialiased min-h-screen;
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Inter', 'Space Grotesk', system-ui, sans-serif;
     letter-spacing: -0.015em;
   }
+
+  /* Foco visível consistente (2px sólido) para acessibilidade */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Microinterações rápidas e discretas */
+  a,
+  button,
+  [role='button'] {
+    transition-property: color, background-color, border-color;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
 }
 
 @layer components {
-  /* Utilitários de Superfície Consolidada */
+  /* Superfície padrão de card operacional (enterprise):
+     zinc-900 sólido, borda zinc-800, sem sombra pesada nem blur. */
+  .card-elevated {
+    @apply bg-card text-card-foreground border border-border rounded-xl shadow-none transition-colors duration-150;
+  }
+
   .surface-card {
-    @apply bg-card text-card-foreground border border-border rounded-md shadow-xs;
+    @apply bg-card text-card-foreground border border-border rounded-md shadow-none;
   }
 
   .surface-elevated {
-    @apply bg-card text-card-foreground border border-border rounded-md shadow-sm;
+    @apply bg-zinc-900 text-card-foreground border border-border rounded-md shadow-xs;
+  }
+
+  /* Hover discreto para linhas/cards clicáveis: eleva o fundo, sem brilho */
+  .hover-raise {
+    @apply transition-colors duration-150 hover:bg-zinc-800/60;
   }
 
   .score-display {

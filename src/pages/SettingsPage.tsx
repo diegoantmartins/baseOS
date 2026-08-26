@@ -530,52 +530,41 @@ const SettingsPage = () => {
                         ) : (
                           filteredUsers.map(u => {
                             const isMe = currentUser?.email?.toLowerCase() === u.email.toLowerCase();
-                            const roleColor =
-                              u.role === 'admin'
-                                ? 'bg-purple-500/15 text-purple-600 border-purple-500/30'
-                                : u.role === 'organizer'
-                                ? 'bg-primary/15 text-primary border-primary/30'
-                                : u.role === 'referee'
-                                ? 'bg-amber-500/15 text-amber-600 border-amber-500/30'
-                                : u.role === 'scorer'
-                                ? 'bg-blue-500/15 text-blue-600 border-blue-500/30'
-                                : 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30';
-
-                            return (
-                              <TableRow key={u.id} className="hover:bg-muted/30">
+return (
+                               <TableRow key={u.id} className="hover:bg-muted/30">
+                                 <TableCell>
+                                   <div className="flex items-center gap-3">
+                                     <Avatar className="w-8 h-8">
+                                       <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                                         {u.name.charAt(0).toUpperCase()}
+                                       </AvatarFallback>
+                                     </Avatar>
+                                     <div>
+                                       <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                         {u.name}
+                                         {isMe && <Badge variant="outline" className="text-[9px] py-0 px-1">Você</Badge>}
+                                       </div>
+                                       <div className="text-[11px] text-muted-foreground">{u.email}</div>
+                                     </div>
+                                   </div>
+                                 </TableCell>
+                                 <TableCell>
+                                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border border-muted/20 text-muted-foreground">
+                                     {ROLE_LABELS[u.role] || u.role}
+                                   </span>
+                                 </TableCell>
                                 <TableCell>
-                                  <div className="flex items-center gap-3">
-                                    <Avatar className="w-8 h-8">
-                                      <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                                        {u.name.charAt(0).toUpperCase()}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <div>
-                                      <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                                        {u.name}
-                                        {isMe && <Badge variant="outline" className="text-[9px] py-0 px-1">Você</Badge>}
-                                      </div>
-                                      <div className="text-[11px] text-muted-foreground">{u.email}</div>
-                                    </div>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${roleColor}`}>
-                                    {ROLE_LABELS[u.role] || u.role}
-                                  </span>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge
-                                    variant={u.status === 'active' ? 'default' : 'secondary'}
-                                    className={`text-[10px] cursor-pointer ${
-                                      u.status === 'active'
-                                        ? 'bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 border border-emerald-500/30'
-                                        : 'bg-muted text-muted-foreground'
-                                    }`}
-                                    onClick={() => handleToggleUserStatus(u)}
-                                  >
-                                    {u.status === 'active' ? 'Ativo' : 'Inativo'}
-                                  </Badge>
+<Badge
+          variant={u.status === 'active' ? 'default' : 'secondary'}
+          className={`text-[10px] cursor-pointer ${
+            u.status === 'active'
+              ? 'bg-muted/20 text-muted-foreground hover:bg-muted/30'
+              : 'bg-muted/10 text-muted-foreground hover:bg-muted/20'
+          }`}
+          onClick={() => handleToggleUserStatus(u)}
+        >
+          {u.status === 'active' ? 'Ativo' : 'Inativo'}
+        </Badge>
                                 </TableCell>
                                 <TableCell className="text-xs text-muted-foreground">
                                   {u.lastLoginAt

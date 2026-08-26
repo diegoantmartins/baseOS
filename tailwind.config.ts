@@ -105,9 +105,13 @@ export default {
         full: '9999px',
       },
       boxShadow: {
+        // Elevação contida: sem sombras pesadas/brilhantes (enterprise dark)
         xs: 'var(--shadow-subtle)',
         sm: 'var(--shadow-card)',
         md: 'var(--shadow-elevated)',
+        lg: '0 12px 32px -12px rgba(0, 0, 0, 0.55)',
+        xl: '0 16px 40px -16px rgba(0, 0, 0, 0.6)',
+        '2xl': '0 24px 56px -20px rgba(0, 0, 0, 0.65)',
         none: 'none',
       },
       keyframes: {
