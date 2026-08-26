@@ -13,6 +13,7 @@ export interface ScoresheetCardLayout {
   sanctions: Rect;
   signatures: Rect;
   result: Rect;
+  remarks?: Rect;
 }
 
 export interface ScoresheetLayout {
@@ -57,7 +58,8 @@ export const THREE_SET_A4_LAYOUT: ScoresheetLayout = {
     },
     rosters: { x: 529, y: 51, width: 306.89, height: 420 },
     sanctions: { x: 6, y: 478, width: 165, height: 110 },
-    signatures: { x: 173.5, y: 478, width: 355, height: 110 },
+    signatures: { x: 173.5, y: 478, width: 220, height: 110 },
+    remarks: { x: 396, y: 478, width: 132.5, height: 110 },
     result: { x: 531, y: 478, width: 304.89, height: 110 },
   },
 };
@@ -68,28 +70,31 @@ export const FIVE_SET_A4_LAYOUT: ScoresheetLayout = {
   output: 'print-a4',
   page: A4_LANDSCAPE_PAGE,
   cards: {
-    header: { x: 6, y: 6, width: 829.89, height: 42 },
+    header: { x: 6, y: 6, width: 829.89, height: 34 },
     sets: {
-      1: { x: 6, y: 51, width: 411, height: 125 },
-      2: { x: 425, y: 51, width: 411, height: 125 },
-      3: { x: 6, y: 179, width: 411, height: 125 },
-      4: { x: 425, y: 179, width: 411, height: 125 },
-      5: { x: 6, y: 307, width: 411, height: 125 },
+      1: { x: 6, y: 45, width: 411, height: 110 },
+      2: { x: 425, y: 45, width: 410.89, height: 110 },
+      3: { x: 6, y: 160, width: 411, height: 110 },
+      4: { x: 425, y: 160, width: 410.89, height: 110 },
+      5: { x: 6, y: 275, width: 520, height: 120 }, // Set 5 aumentado em largura e altura
     },
-    // RESULT (Resultado) placed next to Set 5 in Row 3
-    result: { x: 425, y: 307, width: 220, height: 125 },
-    // ROSTERS (Equipes) placed next to RESULT in Row 3, spanning down to Row 4
-    rosters: { x: 651, y: 307, width: 184.89, height: 260 },
-    // SANCTIONS (Sanções) placed below Set 5 (Row 4)
-    sanctions: { x: 6, y: 435, width: 140, height: 132 },
-    // SIGNATURES (Assinaturas) placed between Sanctions and Rosters (Row 4)
-    signatures: { x: 152, y: 435, width: 493, height: 132 },
+    // SANCTIONS e REMARKS na linha de cima (y=400)
+    sanctions: { x: 6, y: 400, width: 200, height: 95 },
+    remarks: { x: 211, y: 400, width: 315, height: 95 },
+    // RESULT e SIGNATURES na linha de baixo (y=500)
+    result: { x: 6, y: 500, width: 220, height: 89 },
+    signatures: { x: 231, y: 500, width: 295, height: 89 },
+    rosters: { x: 531, y: 275, width: 304.89, height: 314 },
   },
 };
 
 function scaleCardLayout(cards: ScoresheetCardLayout, scale: number): ScoresheetCardLayout {
-  return {
+  const scaled = {
     header: scaleRect(cards.header, scale),
+    rosters: scaleRect(cards.rosters, scale),
+    sanctions: scaleRect(cards.sanctions, scale),
+    signatures: scaleRect(cards.signatures, scale),
+    result: scaleRect(cards.result, scale),
     sets: {
       1: cards.sets[1] ? scaleRect(cards.sets[1], scale) : undefined,
       2: cards.sets[2] ? scaleRect(cards.sets[2], scale) : undefined,
@@ -97,11 +102,13 @@ function scaleCardLayout(cards: ScoresheetCardLayout, scale: number): Scoresheet
       4: cards.sets[4] ? scaleRect(cards.sets[4], scale) : undefined,
       5: cards.sets[5] ? scaleRect(cards.sets[5], scale) : undefined,
     },
-    rosters: scaleRect(cards.rosters, scale),
-    sanctions: scaleRect(cards.sanctions, scale),
-    signatures: scaleRect(cards.signatures, scale),
-    result: scaleRect(cards.result, scale),
-  };
+  } as ScoresheetCardLayout;
+  
+  if (cards.remarks) {
+    scaled.remarks = scaleRect(cards.remarks, scale);
+  }
+  
+  return scaled;
 }
 
 export const FIVE_SET_A3_MASTER_LAYOUT: ScoresheetLayout = {

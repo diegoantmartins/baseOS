@@ -3,6 +3,8 @@
 // =====================================================================
 
 export const BASEOS_COLORS = {
+  BRAND_PRIMARY: '#f59e0b',
+  BRAND_SECONDARY: '#22d3ee',
   BLACK: '#000000',
   WHITE: '#FFFFFF',
   GRAY_LIGHTEST: '#FAFAFA',

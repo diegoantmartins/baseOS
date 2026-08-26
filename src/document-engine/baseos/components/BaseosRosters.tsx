@@ -52,11 +52,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   colNumberHeader: {
-    width: 18,
+    width: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRightWidth: BASEOS_TOKENS.borders.HAIRLINE,
-    borderRightColor: BASEOS_TOKENS.colors.BORDER_MUTED,
+    borderRightWidth: BASEOS_TOKENS.borders.THIN,
+    borderRightColor: BASEOS_TOKENS.colors.BLACK,
   },
   colNameHeader: {
     flex: 1,
@@ -78,11 +78,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cellNumber: {
-    width: 18,
+    width: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRightWidth: BASEOS_TOKENS.borders.HAIRLINE,
-    borderRightColor: BASEOS_TOKENS.colors.BORDER_MUTED,
+    borderRightWidth: BASEOS_TOKENS.borders.THIN,
+    borderRightColor: BASEOS_TOKENS.colors.BLACK,
   },
   cellName: {
     flex: 1,

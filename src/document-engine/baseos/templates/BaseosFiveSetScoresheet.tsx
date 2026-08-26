@@ -13,6 +13,7 @@ import { BaseosRosters } from '../components/BaseosRosters';
 import { BaseosSanctions } from '../components/BaseosSanctions';
 import { BaseosResult } from '../components/BaseosResult';
 import { BaseosSignatures } from '../components/BaseosSignatures';
+import { BaseosRemarks } from '../components/BaseosRemarks';
 import { createBlankSetData } from '../mapper/set.mapper';
 
 const styles = StyleSheet.create({
@@ -89,6 +90,12 @@ export const BaseosFiveSetScoresheet: React.FC<BaseosFiveSetScoresheetProps> = (
         <View style={cardStyle(layout.cards.result)}>
           <BaseosResult result={data.result} teamA={data.teams.A} teamB={data.teams.B} maxSets={5} />
         </View>
+
+        {layout.cards.remarks && (
+          <View style={cardStyle(layout.cards.remarks)}>
+            <BaseosRemarks layout={layout.cards.remarks} observations={data.observations} />
+          </View>
+        )}
         
         <View style={{ position: 'absolute', bottom: 5, left: 0, right: 0, alignItems: 'center' }}>
           <Text style={{ fontFamily: 'Helvetica', fontSize: 5.0, color: '#666' }}>

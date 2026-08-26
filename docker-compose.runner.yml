@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  github-runner:
+    image: myoung34/github-runner:latest
+    container_name: github-runner-local
+    environment:
+      - REPO_URL=https://github.com/diegoantmartins/volleyscore-hub
+      - RUNNER_TOKEN=BBQIHUIYFYYZEDMUAYUYYCTKRZEGY
+      - RUNNER_NAME=vps-local-docker
+      - LABELS=self-hosted
+      - RUNNER_WORKDIR=/tmp/github-runner
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped

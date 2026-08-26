@@ -381,7 +381,7 @@ export const BaseosSetBlock: React.FC<BaseosSetBlockProps> = ({
           </View>
         </View>
 
-        <BaseosPointGrid pointGrid={points} maxPoints={maxPts} height={pointGridHeight} />
+        <BaseosPointGrid pointGrid={points} maxPoints={maxPts} isCompact={isCompact} />
       </View>
     );
   };

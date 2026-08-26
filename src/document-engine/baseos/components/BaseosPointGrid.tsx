@@ -78,14 +78,14 @@ interface BaseosPointGridProps {
   pointGrid: PointGridData;
   maxPoints?: number;
   width?: number;
-  height?: number;
+  isCompact?: boolean;
 }
 
 export const BaseosPointGrid: React.FC<BaseosPointGridProps> = ({
   pointGrid,
   maxPoints = 36,
   width,
-  height = 114,
+  isCompact = false,
 }) => {
   const grid = generatePointRulerColumns(maxPoints);
   const markedMap = new Set(
@@ -104,7 +104,7 @@ export const BaseosPointGrid: React.FC<BaseosPointGridProps> = ({
             style={[styles.cell, isMarked ? styles.markedCell : {}]}
           >
             <Text
-              style={[styles.cellText, isMarked ? styles.markedCellText : {}, { fontSize: height <= 95 ? 2.8 : 3.8 }]}
+              style={[styles.cellText, isMarked ? styles.markedCellText : {}, { fontSize: isCompact ? 2.8 : 3.8 }]}
             >
               {pt}
             </Text>
@@ -115,7 +115,7 @@ export const BaseosPointGrid: React.FC<BaseosPointGridProps> = ({
   );
 
   return (
-    <View style={[styles.container, { width: calculatedWidth, height }]}>
+    <View style={[styles.container, { width: calculatedWidth, height: '100%' }]}>
       <View style={styles.header}>
         <Text style={styles.headerText}>PONTOS</Text>
       </View>
