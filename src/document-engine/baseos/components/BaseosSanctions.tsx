@@ -10,15 +10,15 @@ import { BASEOS_TOKENS } from '../theme/tokens';
 const styles = StyleSheet.create({
   container: {
     height: 110,
-    borderWidth: BASEOS_TOKENS.borders.REGULAR,
+    borderWidth: BASEOS_TOKENS.borders.STRONG,
     borderColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
     flexDirection: 'column',
   },
   header: {
     height: 10,
-    backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
-    borderBottomWidth: BASEOS_TOKENS.borders.THIN,
+    backgroundColor: BASEOS_TOKENS.colors.BLACK,
+    borderBottomWidth: BASEOS_TOKENS.borders.STRONG,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
     alignItems: 'center',
     justifyContent: 'center',
@@ -26,6 +26,7 @@ const styles = StyleSheet.create({
   headerText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 5.0,
+    color: BASEOS_TOKENS.colors.WHITE,
     letterSpacing: 0.8,
   },
   rowHeader: {

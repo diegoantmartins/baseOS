@@ -11,15 +11,15 @@ import { BASEOS_TOKENS } from '../theme/tokens';
 const styles = StyleSheet.create({
   container: {
     height: 110,
-    borderWidth: BASEOS_TOKENS.borders.REGULAR,
+    borderWidth: BASEOS_TOKENS.borders.STRONG,
     borderColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
     flexDirection: 'column',
   },
   header: {
     height: 10,
-    backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
-    borderBottomWidth: BASEOS_TOKENS.borders.THIN,
+    backgroundColor: BASEOS_TOKENS.colors.BLACK,
+    borderBottomWidth: BASEOS_TOKENS.borders.STRONG,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
     alignItems: 'center',
     justifyContent: 'center',
@@ -27,13 +27,14 @@ const styles = StyleSheet.create({
   headerText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 5.0,
+    color: BASEOS_TOKENS.colors.WHITE,
     letterSpacing: 0.8,
   },
   teamHeadersRow: {
     height: 10,
     flexDirection: 'row',
-    backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHTEST,
-    borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
+    backgroundColor: BASEOS_TOKENS.colors.BLACK,
+    borderBottomWidth: BASEOS_TOKENS.borders.STRONG,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -42,6 +43,7 @@ const styles = StyleSheet.create({
   teamHeaderText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 4.8,
+    color: BASEOS_TOKENS.colors.WHITE,
   },
   subHeaderRow: {
     height: 10,
@@ -96,7 +98,7 @@ const styles = StyleSheet.create({
   winnerRow: {
     height: 19,
     flexDirection: 'row',
-    backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHTEST,
+    backgroundColor: BASEOS_TOKENS.colors.BLACK,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
@@ -104,6 +106,7 @@ const styles = StyleSheet.create({
   winnerText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 5.5,
+    color: BASEOS_TOKENS.colors.WHITE,
   },
 });
 

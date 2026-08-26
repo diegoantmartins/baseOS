@@ -3,7 +3,7 @@
 // =====================================================================
 
 import React from 'react';
-import { Document, Page, View, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer';
 import type { BaseosScoresheetData } from '../types/scoresheet';
 import type { Rect } from '../geometry/rect';
 import { getScoresheetLayout } from '../geometry/layouts';
@@ -88,6 +88,12 @@ export const BaseosFiveSetScoresheet: React.FC<BaseosFiveSetScoresheetProps> = (
         </View>
         <View style={cardStyle(layout.cards.result)}>
           <BaseosResult result={data.result} teamA={data.teams.A} teamB={data.teams.B} maxSets={5} />
+        </View>
+        
+        <View style={{ position: 'absolute', bottom: 5, left: 0, right: 0, alignItems: 'center' }}>
+          <Text style={{ fontFamily: 'Helvetica', fontSize: 5.0, color: '#666' }}>
+            Súmula Oficial processada e gerada pelo sistema Base OS
+          </Text>
         </View>
       </Page>
     </Document>

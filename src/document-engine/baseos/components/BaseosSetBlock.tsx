@@ -12,7 +12,7 @@ import { BaseosPointGrid } from './BaseosPointGrid';
 
 const styles = StyleSheet.create({
   setContainer: {
-    borderWidth: BASEOS_TOKENS.borders.REGULAR,
+    borderWidth: BASEOS_TOKENS.borders.STRONG,
     borderColor: BASEOS_TOKENS.colors.BLACK,
     marginBottom: 2,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
@@ -93,20 +93,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHTEST,
-    borderBottomWidth: BASEOS_TOKENS.borders.THIN,
+    backgroundColor: BASEOS_TOKENS.colors.BLACK,
+    borderBottomWidth: BASEOS_TOKENS.borders.STRONG,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
-    paddingHorizontal: 2,
+    paddingHorizontal: 4,
   },
   teamNameText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 4.2,
-    color: BASEOS_TOKENS.colors.BLACK,
+    fontSize: 4.8,
+    color: BASEOS_TOKENS.colors.WHITE,
+    textTransform: 'uppercase',
   },
   srBadgeText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 3.4,
-    color: BASEOS_TOKENS.colors.GRAY_DARK,
+    color: BASEOS_TOKENS.colors.WHITE,
   },
   gridContentRow: {
     flex: 1,
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
     height: 9,
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
-    borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
+    borderBottomColor: BASEOS_TOKENS.colors.BLACK,
     justifyContent: 'center',
     paddingLeft: 2,
   },
@@ -145,6 +146,8 @@ const styles = StyleSheet.create({
   legendCellSaques: {
     flex: 1,
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
+    borderTopWidth: BASEOS_TOKENS.borders.REGULAR,
+    borderTopColor: BASEOS_TOKENS.colors.BLACK,
     justifyContent: 'center',
     paddingLeft: 2,
   },

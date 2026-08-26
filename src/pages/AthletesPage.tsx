@@ -8,9 +8,12 @@ import {
   MoreVertical,
   Calendar,
   FileDown,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -58,7 +61,9 @@ const AthletesPage = () => {
   const [search, setSearch] = useState('');
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
-  const [infoOpen, setInfoOpen] = useState(false);
+  const [availableTeams, setAvailableTeams] = useState<(CompetitionTeam & { teamName: string, competitionName: string })[]>([]);
+  const [registrationOpen, setRegistrationOpen] = useState(false);
+  const [transferAthlete, setTransferAthlete] = useState<AthleteView | null>(null);
 
   const refresh = useCallback(async () => {
     const [rows, competitionTeams, teams, competitions] = await Promise.all([
@@ -83,6 +88,12 @@ const AthletesPage = () => {
         age: ageFromBirthDate(a.birthDate),
       };
     });
+    
+    setAvailableTeams(competitionTeams.map(ct => ({
+      ...ct,
+      teamName: teamById.get(ct.teamId)?.name ?? 'Equipe Desconhecida',
+      competitionName: compById.get(ct.competitionId)?.name ?? 'Competição',
+    })));
     setAthletes(view);
     setLoading(false);
   }, []);
@@ -103,6 +114,20 @@ const AthletesPage = () => {
   const openTeamRegistration = async (athlete: AthleteView) => {
     const ct = await dataAccess.getCompetitionTeamById(athlete.competitionTeamId);
     if (ct?.accessToken) navigate(`/equipe/inscricao/${ct.accessToken}`);
+  };
+
+  const handleRegister = async (data: Omit<CompetitionAthlete, 'id' | 'createdAt' | 'updatedAt'>) => {
+    await dataAccess.createCompetitionAthlete(data);
+    toast.success('Atleta cadastrado com sucesso!');
+    setRegistrationOpen(false);
+    refresh();
+  };
+
+  const handleTransfer = async (athleteId: string, newCompetitionTeamId: string) => {
+    await dataAccess.updateCompetitionAthlete(athleteId, { competitionTeamId: newCompetitionTeamId });
+    toast.success('Atleta transferido com sucesso!');
+    setTransferAthlete(null);
+    refresh();
   };
 
   const handleExportRoster = async () => {
@@ -165,7 +190,7 @@ const AthletesPage = () => {
               <FileDown className="w-4 h-4" />
               Relação Nominal (PDF)
             </Button>
-            <Button variant="accent" className="gap-2" onClick={() => setInfoOpen(true)}>
+            <Button variant="accent" className="gap-2" onClick={() => setRegistrationOpen(true)}>
               <Plus className="w-4 h-4" />
               Novo Atleta
             </Button>
@@ -271,9 +296,14 @@ const AthletesPage = () => {
                           {athlete.isCaptain && <Badge className="bg-warning text-warning-foreground">Capitã(o)</Badge>}
                           {athlete.isLibero && <Badge className="bg-accent text-accent-foreground">Líbero</Badge>}
                         </div>
-                        <Button variant="outline" size="sm" className="w-full" onClick={() => openTeamRegistration(athlete)}>
-                          Ver inscrição da equipe
-                        </Button>
+                        <div className="flex flex-col gap-2 pt-2">
+                          <Button variant="outline" size="sm" className="w-full" onClick={() => openTeamRegistration(athlete)}>
+                            Ver inscrição da equipe
+                          </Button>
+                          <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={() => setTransferAthlete(athlete)}>
+                            Transferir Atleta
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -328,7 +358,10 @@ const AthletesPage = () => {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem className="gap-2" onClick={() => openTeamRegistration(athlete)}>
-                                  <User className="w-4 h-4" /> Ver inscrição da equipe
+                                  <User className="w-4 h-4" /> Ver inscrição
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="gap-2" onClick={() => setTransferAthlete(athlete)}>
+                                  <ArrowRightLeft className="w-4 h-4" /> Transferir
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -349,28 +382,175 @@ const AthletesPage = () => {
         )}
       </motion.div>
 
-      <AlertDialog open={infoOpen} onOpenChange={setInfoOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              Cadastro de atletas
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Os atletas são cadastrados pela <strong>inscrição online de cada equipe</strong>, acessível pelo link de convite
-              (painel de inscrições → convidar equipe). Depois de inscritos, aparecem aqui automaticamente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <Button variant="outline" onClick={() => setInfoOpen(false)}>Fechar</Button>
-            <AlertDialogAction onClick={() => { setInfoOpen(false); navigate('/competicoes'); }}>
-              Ir para Competições
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Modal de Cadastro */}
+      <AthleteRegistrationDialog
+        open={registrationOpen}
+        onOpenChange={setRegistrationOpen}
+        teams={availableTeams}
+        onSave={handleRegister}
+      />
+
+      {/* Modal de Transferência */}
+      <AthleteTransferDialog
+        open={!!transferAthlete}
+        onOpenChange={(op) => !op && setTransferAthlete(null)}
+        athlete={transferAthlete}
+        teams={availableTeams}
+        onTransfer={handleTransfer}
+      />
     </MainLayout>
   );
 };
+
+interface AthleteRegistrationDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  teams: (CompetitionTeam & { teamName: string, competitionName: string })[];
+  onSave: (data: Omit<CompetitionAthlete, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+}
+
+function AthleteRegistrationDialog({ open, onOpenChange, teams, onSave }: AthleteRegistrationDialogProps) {
+  const [name, setName] = useState('');
+  const [documentNumber, setDocumentNumber] = useState('');
+  const [gender, setGender] = useState<'male' | 'female'>('female');
+  const [competitionTeamId, setCompetitionTeamId] = useState('');
+  const [position, setPosition] = useState('');
+  const [jerseyNumber, setJerseyNumber] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!competitionTeamId) return;
+    onSave({
+      competitionTeamId,
+      name,
+      documentNumber,
+      gender,
+      position,
+      jerseyNumber: jerseyNumber ? parseInt(jerseyNumber, 10) : undefined,
+      isCaptain: false,
+      isLibero: false,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[450px]">
+        <DialogHeader>
+          <DialogTitle>Cadastrar Novo Atleta</DialogTitle>
+          <DialogDescription>Insira os dados do atleta e escolha a equipe para a qual ele será alocado.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Equipe Destino</Label>
+            <Select value={competitionTeamId} onValueChange={setCompetitionTeamId} required>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a equipe inscrita" />
+              </SelectTrigger>
+              <SelectContent>
+                {teams.map(t => (
+                  <SelectItem key={t.id} value={t.id}>{t.teamName} - {t.competitionName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Nome Completo</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} required />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Documento (RG/CPF)</Label>
+              <Input value={documentNumber} onChange={e => setDocumentNumber(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Gênero</Label>
+              <Select value={gender} onValueChange={(v: 'male' | 'female') => setGender(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="female">Feminino</SelectItem>
+                  <SelectItem value="male">Masculino</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Posição Principal</Label>
+              <Input value={position} onChange={e => setPosition(e.target.value)} placeholder="Ex: Ponteiro" />
+            </div>
+            <div className="space-y-2">
+              <Label>Nº da Camisa (Opcional)</Label>
+              <Input value={jerseyNumber} onChange={e => setJerseyNumber(e.target.value)} type="number" min={1} max={99} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="submit" variant="accent">Cadastrar</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface AthleteTransferDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  athlete: AthleteView | null;
+  teams: (CompetitionTeam & { teamName: string, competitionName: string })[];
+  onTransfer: (athleteId: string, newCompetitionTeamId: string) => Promise<void>;
+}
+
+function AthleteTransferDialog({ open, onOpenChange, athlete, teams, onTransfer }: AthleteTransferDialogProps) {
+  const [newTeamId, setNewTeamId] = useState('');
+
+  useEffect(() => {
+    if (open) setNewTeamId('');
+  }, [open]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!athlete || !newTeamId) return;
+    onTransfer(athlete.id, newTeamId);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Transferir Atleta</DialogTitle>
+          <DialogDescription>
+            Mover o atleta <strong>{athlete?.name}</strong> para outra equipe inscrita.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="p-3 bg-muted rounded-lg text-sm mb-2">
+            <p className="text-muted-foreground">Equipe atual:</p>
+            <p className="font-bold">{athlete?.teamName} - {athlete?.competitionName}</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Nova Equipe</Label>
+            <Select value={newTeamId} onValueChange={setNewTeamId} required>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a nova equipe" />
+              </SelectTrigger>
+              <SelectContent>
+                {teams.filter(t => t.id !== athlete?.competitionTeamId).map(t => (
+                  <SelectItem key={t.id} value={t.id}>{t.teamName} - {t.competitionName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="submit" variant="accent">Confirmar Transferência</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default AthletesPage;

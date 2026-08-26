@@ -10,15 +10,15 @@ import { ROSTER_CAPACITY } from '../domain/roster.rules';
 
 const styles = StyleSheet.create({
   container: {
-    borderWidth: BASEOS_TOKENS.borders.REGULAR,
+    borderWidth: BASEOS_TOKENS.borders.STRONG,
     borderColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
     flexDirection: 'column',
   },
   mainHeader: {
     height: 12,
-    backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
-    borderBottomWidth: BASEOS_TOKENS.borders.THIN,
+    backgroundColor: BASEOS_TOKENS.colors.BLACK,
+    borderBottomWidth: BASEOS_TOKENS.borders.STRONG,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
     flexDirection: 'row',
     alignItems: 'center',
@@ -28,6 +28,7 @@ const styles = StyleSheet.create({
   mainHeaderText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 5.5,
+    color: BASEOS_TOKENS.colors.WHITE,
     letterSpacing: 1.0,
   },
   columnsWrapper: {
@@ -39,14 +40,14 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   dividerRight: {
-    borderRightWidth: BASEOS_TOKENS.borders.REGULAR,
+    borderRightWidth: BASEOS_TOKENS.borders.STRONG,
     borderRightColor: BASEOS_TOKENS.colors.BLACK,
   },
   tableSubHeader: {
     height: 10,
     flexDirection: 'row',
-    backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHTEST,
-    borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
+    backgroundColor: BASEOS_TOKENS.colors.BLACK,
+    borderBottomWidth: BASEOS_TOKENS.borders.STRONG,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
     alignItems: 'center',
   },
@@ -64,6 +65,7 @@ const styles = StyleSheet.create({
   headerLabel: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 4.2,
+    color: BASEOS_TOKENS.colors.WHITE,
   },
   athletesBlock: {
     flex: 1,
@@ -93,10 +95,10 @@ const styles = StyleSheet.create({
   },
   sectionDivider: {
     backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
-    borderTopWidth: BASEOS_TOKENS.borders.THIN,
+    borderTopWidth: BASEOS_TOKENS.borders.STRONG,
     borderTopColor: BASEOS_TOKENS.colors.BLACK,
-    borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
-    borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
+    borderBottomWidth: BASEOS_TOKENS.borders.STRONG,
+    borderBottomColor: BASEOS_TOKENS.colors.BLACK,
     alignItems: 'center',
     justifyContent: 'center',
   },

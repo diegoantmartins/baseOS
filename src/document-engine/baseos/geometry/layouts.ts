@@ -49,13 +49,13 @@ export const THREE_SET_A4_LAYOUT: ScoresheetLayout = {
   cards: {
     header: { x: 6, y: 6, width: 829.89, height: 42 },
     sets: {
-      1: { x: 6, y: 51, width: 480, height: 138 },
-      2: { x: 6, y: 192, width: 480, height: 138 },
-      3: { x: 6, y: 333, width: 480, height: 138 },
+      1: { x: 6, y: 51, width: 520, height: 138 },
+      2: { x: 6, y: 192, width: 520, height: 138 },
+      3: { x: 6, y: 333, width: 520, height: 138 },
       4: undefined,
       5: undefined,
     },
-    rosters: { x: 489, y: 51, width: 346.89, height: 420 },
+    rosters: { x: 529, y: 51, width: 306.89, height: 420 },
     sanctions: { x: 6, y: 478, width: 165, height: 110 },
     signatures: { x: 173.5, y: 478, width: 355, height: 110 },
     result: { x: 531, y: 478, width: 304.89, height: 110 },
@@ -70,16 +70,20 @@ export const FIVE_SET_A4_LAYOUT: ScoresheetLayout = {
   cards: {
     header: { x: 6, y: 6, width: 829.89, height: 42 },
     sets: {
-      1: { x: 6, y: 51, width: 480, height: 82 },
-      2: { x: 6, y: 135.5, width: 480, height: 82 },
-      3: { x: 6, y: 220, width: 480, height: 82 },
-      4: { x: 6, y: 304.5, width: 480, height: 82 },
-      5: { x: 6, y: 389, width: 480, height: 82 },
+      1: { x: 6, y: 51, width: 411, height: 125 },
+      2: { x: 425, y: 51, width: 411, height: 125 },
+      3: { x: 6, y: 179, width: 411, height: 125 },
+      4: { x: 425, y: 179, width: 411, height: 125 },
+      5: { x: 6, y: 307, width: 411, height: 125 },
     },
-    rosters: { x: 489, y: 51, width: 346.89, height: 420 },
-    sanctions: { x: 6, y: 478, width: 165, height: 110 },
-    signatures: { x: 173.5, y: 478, width: 355, height: 110 },
-    result: { x: 531, y: 478, width: 304.89, height: 110 },
+    // RESULT (Resultado) placed next to Set 5 in Row 3
+    result: { x: 425, y: 307, width: 220, height: 125 },
+    // ROSTERS (Equipes) placed next to RESULT in Row 3, spanning down to Row 4
+    rosters: { x: 651, y: 307, width: 184.89, height: 260 },
+    // SANCTIONS (Sanções) placed below Set 5 (Row 4)
+    sanctions: { x: 6, y: 435, width: 140, height: 132 },
+    // SIGNATURES (Assinaturas) placed between Sanctions and Rosters (Row 4)
+    signatures: { x: 152, y: 435, width: 493, height: 132 },
   },
 };
 

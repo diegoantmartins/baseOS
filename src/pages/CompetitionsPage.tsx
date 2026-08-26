@@ -45,6 +45,18 @@ import type { CompetitionRecord, MatchRecord, TeamRecord, ModalityRecord, VenueR
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
 import { useAuth } from '@/components/auth/AuthContext';
 import { useCapability } from '@/hooks/useCapability';
+
+const TIEBREAK_CRITERIA_LABELS_PT: Record<string, string> = {
+  'points': 'Pontos',
+  'victories': 'Vitórias',
+  'head-to-head': 'Confronto Direto',
+  'sets-ratio': 'Set Average',
+  'points-ratio': 'Points Average',
+  'sets-balance': 'Saldo de Sets',
+  'points-balance': 'Saldo de Pontos',
+  'draw': 'Sorteio',
+};
+
 import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
 import { AuditService } from '@/lib/security';
 import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
@@ -66,6 +78,7 @@ export default function CompetitionsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<CompetitionTab>('overview');
   const [createOpen, setCreateOpen] = useState(false);
+  const [editConfigOpen, setEditConfigOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<CompetitionLifecycleStatus | null>(null);
 
   const refresh = useCallback(async () => {
@@ -252,6 +265,19 @@ export default function CompetitionsPage() {
     setCreateOpen(false);
     await refresh();
     setSelectedId(created.id);
+  };
+
+  const handleUpdateConfig = async (updates: Partial<CompetitionRecord>) => {
+    if (!can('competition:edit')) {
+      toast.error('Você não possui permissão para editar configurações.');
+      return;
+    }
+    if (!selected) return;
+
+    await dataAccess.updateCompetition(selected.id, updates);
+    toast.success('Configurações da competição atualizadas com sucesso!');
+    setEditConfigOpen(false);
+    await refresh();
   };
 
   if (loading) {
@@ -481,9 +507,17 @@ export default function CompetitionsPage() {
               {/* Tab 2: Configuração Completa */}
               {activeTab === 'config' && (
                 <Card className="card-elevated">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-display">Configurações Regulamentares</CardTitle>
-                    <CardDescription>Parâmetros de pontuação, desempate, sets por fase e tempos de descanso.</CardDescription>
+                  <CardHeader className="flex flex-row items-center justify-between pb-3">
+                    <div>
+                      <CardTitle className="text-lg font-display">Configurações Regulamentares</CardTitle>
+                      <CardDescription>Parâmetros de pontuação, desempate, sets por fase e tempos de descanso.</CardDescription>
+                    </div>
+                    {can('competition:edit') && (
+                      <Button variant="outline" size="sm" onClick={() => setEditConfigOpen(true)}>
+                        <Settings className="w-4 h-4 mr-1.5" />
+                        Editar Configurações
+                      </Button>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-4 text-sm">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -523,17 +557,17 @@ export default function CompetitionsPage() {
                       </div>
                     </div>
 
-                    <div className="space-y-2 pt-2 border-t border-border/60">
-                      <h4 className="font-semibold text-foreground text-xs uppercase tracking-wider">Ordem de Critérios de Desempate</h4>
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {(selected.tiebreakCriteriaOrder || ['points', 'victories', 'head-to-head', 'sets-ratio', 'points-ratio', 'sets-balance', 'points-balance']).map((crit, idx) => (
-                          <Badge key={crit} variant="secondary" className="gap-1.5 py-1 px-2.5">
-                            <span className="font-bold text-primary">{idx + 1}º</span>
-                            <span className="capitalize">{crit.replace(/-/g, ' ')}</span>
-                          </Badge>
-                        ))}
+                      <div className="space-y-2 pt-2 border-t border-border/60">
+                        <h4 className="font-semibold text-foreground text-xs uppercase tracking-wider">Ordem de Critérios de Desempate</h4>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {(selected.tiebreakCriteriaOrder || ['points', 'victories', 'head-to-head', 'sets-ratio', 'points-ratio', 'sets-balance', 'points-balance']).map((crit, idx) => (
+                            <Badge key={crit} variant="secondary" className="gap-1.5 py-1 px-2.5">
+                              <span className="font-bold text-primary">{idx + 1}º</span>
+                              <span className="capitalize">{TIEBREAK_CRITERIA_LABELS_PT[crit] || crit.replace(/-/g, ' ')}</span>
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
-                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -776,7 +810,142 @@ export default function CompetitionsPage() {
           }
         }}
       />
+
+      {selected && (
+        <CompetitionSettingsEditDialog
+          open={editConfigOpen}
+          onOpenChange={setEditConfigOpen}
+          competition={selected}
+          onSave={handleUpdateConfig}
+        />
+      )}
     </MainLayout>
+  );
+}
+
+interface CompetitionSettingsEditDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  competition: CompetitionRecord;
+  onSave: (updates: Partial<CompetitionRecord>) => Promise<void>;
+}
+
+function CompetitionSettingsEditDialog({ open, onOpenChange, competition, onSave }: CompetitionSettingsEditDialogProps) {
+  const [setFormat, setSetFormat] = useState(competition.setFormat || '3-sets');
+  const [groupStage, setGroupStage] = useState(competition.phaseSetRules?.groupStage || competition.setFormat || '3-sets');
+  const [playoffs, setPlayoffs] = useState(competition.phaseSetRules?.playoffs || competition.setFormat || '3-sets');
+  const [semifinals, setSemifinals] = useState(competition.phaseSetRules?.semifinals || '5-sets');
+  const [final, setFinal] = useState(competition.phaseSetRules?.final || '5-sets');
+
+  useEffect(() => {
+    if (open) {
+      setSetFormat(competition.setFormat || '3-sets');
+      setGroupStage(competition.phaseSetRules?.groupStage || competition.setFormat || '3-sets');
+      setPlayoffs(competition.phaseSetRules?.playoffs || competition.setFormat || '3-sets');
+      setSemifinals(competition.phaseSetRules?.semifinals || '5-sets');
+      setFinal(competition.phaseSetRules?.final || '5-sets');
+    }
+  }, [open, competition]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      setFormat: setFormat as '3-sets' | '5-sets',
+      phaseSetRules: {
+        groupStage: groupStage as '3-sets' | '5-sets',
+        playoffs: playoffs as '3-sets' | '5-sets',
+        semifinals: semifinals as '3-sets' | '5-sets',
+        final: final as '3-sets' | '5-sets',
+      },
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Editar Configurações da Competição</DialogTitle>
+          <DialogDescription>Ajuste o formato de sets por fase.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Formato de Sets Padrão</Label>
+            <Select value={setFormat} onValueChange={(v: '3-sets' | '5-sets') => setSetFormat(v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o formato padrão" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="3-sets">Melhor de 3 sets</SelectItem>
+                <SelectItem value="5-sets">Melhor de 5 sets</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="space-y-3 pt-4 border-t">
+            <Label className="text-muted-foreground uppercase text-xs font-bold">Formatos Específicos por Fase</Label>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs">Grupos</Label>
+                <Select value={groupStage} onValueChange={(v: '3-sets' | '5-sets') => setGroupStage(v)}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="3-sets">3 Sets</SelectItem>
+                    <SelectItem value="5-sets">5 Sets</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-1">
+                <Label className="text-xs">Quartas de Final</Label>
+                <Select value={playoffs} onValueChange={(v: '3-sets' | '5-sets') => setPlayoffs(v)}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="3-sets">3 Sets</SelectItem>
+                    <SelectItem value="5-sets">5 Sets</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Semifinais</Label>
+                <Select value={semifinals} onValueChange={(v: '3-sets' | '5-sets') => setSemifinals(v)}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="3-sets">3 Sets</SelectItem>
+                    <SelectItem value="5-sets">5 Sets</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Finais</Label>
+                <Select value={final} onValueChange={(v: '3-sets' | '5-sets') => setFinal(v)}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="3-sets">3 Sets</SelectItem>
+                    <SelectItem value="5-sets">5 Sets</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-4">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="submit" variant="accent">Salvar Alterações</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

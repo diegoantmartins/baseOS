@@ -10,7 +10,7 @@ import { BASEOS_TOKENS } from '../theme/tokens';
 const styles = StyleSheet.create({
   container: {
     height: 42,
-    borderWidth: BASEOS_TOKENS.borders.REGULAR,
+    borderWidth: BASEOS_TOKENS.borders.STRONG,
     borderColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
     marginBottom: 3,
@@ -20,9 +20,9 @@ const styles = StyleSheet.create({
     height: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: BASEOS_TOKENS.borders.THIN,
+    borderBottomWidth: BASEOS_TOKENS.borders.STRONG,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
-    backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHTEST,
+    backgroundColor: BASEOS_TOKENS.colors.BLACK,
     paddingHorizontal: 6,
   },
   logoTitleBox: {
@@ -33,12 +33,14 @@ const styles = StyleSheet.create({
   competitionTitle: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 7.5,
-    color: BASEOS_TOKENS.colors.BLACK,
+    color: BASEOS_TOKENS.colors.WHITE,
+    textTransform: 'uppercase',
   },
   competitionSub: {
     fontFamily: BASEOS_TOKENS.fonts.REGULAR,
     fontSize: 5.0,
-    color: BASEOS_TOKENS.colors.GRAY_DARK,
+    color: BASEOS_TOKENS.colors.GRAY_LIGHT,
+    textTransform: 'uppercase',
   },
   confrontationBox: {
     flex: 1,
@@ -50,13 +52,14 @@ const styles = StyleSheet.create({
   teamName: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 7.5,
-    color: BASEOS_TOKENS.colors.BLACK,
+    color: BASEOS_TOKENS.colors.WHITE,
+    textTransform: 'uppercase',
   },
   vsText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 8.0,
     marginHorizontal: 6,
-    color: BASEOS_TOKENS.colors.BLACK,
+    color: BASEOS_TOKENS.colors.WHITE,
   },
   headerRightBox: {
     width: 90,
@@ -66,7 +69,8 @@ const styles = StyleSheet.create({
   headerBadge: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 7.0,
-    color: BASEOS_TOKENS.colors.BLACK,
+    color: BASEOS_TOKENS.colors.WHITE,
+    textTransform: 'uppercase',
   },
   metaBar: {
     height: 18,
@@ -113,11 +117,16 @@ export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
     <View style={styles.container}>
       {/* Topo: Nome do Torneio, Confronto em Destaque e Número do Jogo */}
       <View style={styles.topRow}>
-        <View style={styles.logoTitleBox}>
-          <Text style={styles.competitionTitle}>
-            {competition.name ? competition.name.toUpperCase() : 'TORNEIO OFICIAL DE VOLEIBOL'}
-          </Text>
-          <Text style={styles.competitionSub}>BASEOS — SÚMULA OFICIAL</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ backgroundColor: BASEOS_TOKENS.colors.WHITE, paddingVertical: 2, paddingHorizontal: 4, borderRadius: 2, marginRight: 6 }}>
+            <Text style={{ color: BASEOS_TOKENS.colors.BLACK, fontFamily: BASEOS_TOKENS.fonts.BOLD, fontSize: 8 }}>BaseOS</Text>
+          </View>
+          <View style={styles.logoTitleBox}>
+            <Text style={styles.competitionTitle}>
+              {competition.name ? competition.name.toUpperCase() : 'TORNEIO OFICIAL DE VOLEIBOL'}
+            </Text>
+            <Text style={styles.competitionSub}>SÚMULA OFICIAL</Text>
+          </View>
         </View>
 
         <View style={styles.confrontationBox}>

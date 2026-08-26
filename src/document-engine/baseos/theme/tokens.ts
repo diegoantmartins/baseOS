@@ -10,10 +10,10 @@ export const BASEOS_TOKENS = {
   fonts: BASEOS_FONTS,
   fontSizes: BASEOS_FONT_SIZES,
   borders: {
-    HAIRLINE: 0.4,
-    THIN: 0.6,
-    REGULAR: 0.9,
-    STRONG: 1.4,
+    HAIRLINE: 0.2, // Grades internas finas
+    THIN: 0.5,     // Divisões secundárias
+    REGULAR: 1.0,  // Divisões de seção
+    STRONG: 1.5,   // Blocos principais
     DIVIDER: 2.0,
   },
   padding: {

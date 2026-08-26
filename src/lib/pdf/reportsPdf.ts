@@ -1,5 +1,5 @@
 // ============================================================================
-// Central de Relatórios do VolleyPro — PDFs Editoriais de Alta Definição
+// Central de Relatórios do BaseOS — PDFs Editoriais de Alta Definição
 //
 // Relatórios:
 //  1. Boletim Geral de Jogos (confrontos com logos dos times, horários, locais, status)
@@ -206,7 +206,7 @@ function footer(doc: jsPDF, orgName: string): void {
     doc.setFontSize(6.8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...TEXT_MUTED);
-    doc.text(`VolleyPro · Gestão de Voleibol (${orgName})`, MARGIN, FOOTER_Y + 1);
+    doc.text(`BaseOS · Gestão de Voleibol (${orgName})`, MARGIN, FOOTER_Y + 1);
 
     const now = new Date();
     const dateStr = `Emissão: ${now.toLocaleDateString('pt-BR')} às ${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
@@ -224,7 +224,7 @@ function footer(doc: jsPDF, orgName: string): void {
 export function generateMatchesBoletimPdf(
   rows: MatchBoletimRow[],
   competitionName: string,
-  orgName = 'VolleyPro',
+  orgName = 'BaseOS',
 ): jsPDF {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = docHeader(doc, orgName, competitionName, 'Boletim Geral de Jogos & Confrontos');
@@ -396,7 +396,7 @@ export function generateMatchesBoletimPdf(
 export function generateStandingsReportPdf(
   groups: StandingsReportGroup[],
   competitionName: string,
-  orgName = 'VolleyPro',
+  orgName = 'BaseOS',
 ): jsPDF {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = docHeader(doc, orgName, competitionName, 'Relatório Oficial de Classificação');
@@ -550,7 +550,7 @@ export function generateStandingsReportPdf(
 export function generateTeamRosterReportPdf(
   teams: RosterReportTeam[],
   competitionName: string,
-  orgName = 'VolleyPro',
+  orgName = 'BaseOS',
 ): jsPDF {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
@@ -734,7 +734,7 @@ export function generatePodiumReportPdf(
   data: PodiumReportData,
 ): jsPDF {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const orgName = data.orgName || 'VolleyPro';
+  const orgName = data.orgName || 'BaseOS';
   let y = docHeader(doc, orgName, data.competitionName, 'Quadro de Honra & Pódio Oficial');
 
   // Banner Comemorativo

@@ -11,14 +11,14 @@ import { generatePointRulerColumns } from '../geometry/grids';
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'column',
-    borderLeftWidth: BASEOS_TOKENS.borders.REGULAR,
+    borderLeftWidth: BASEOS_TOKENS.borders.STRONG,
     borderLeftColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
   },
   header: {
     height: 10,
-    backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
-    borderBottomWidth: BASEOS_TOKENS.borders.THIN,
+    backgroundColor: BASEOS_TOKENS.colors.BLACK,
+    borderBottomWidth: BASEOS_TOKENS.borders.STRONG,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
     alignItems: 'center',
     justifyContent: 'center',
@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
   headerText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 4.0,
-    color: BASEOS_TOKENS.colors.BLACK,
+    color: BASEOS_TOKENS.colors.WHITE,
   },
   body: {
     flex: 1,
@@ -50,6 +50,7 @@ const styles = StyleSheet.create({
   cellText: {
     fontFamily: BASEOS_TOKENS.fonts.REGULAR,
     fontSize: 3.8,
+    lineHeight: 1,
     color: BASEOS_TOKENS.colors.BLACK,
   },
   markedCell: {
@@ -103,7 +104,7 @@ export const BaseosPointGrid: React.FC<BaseosPointGridProps> = ({
             style={[styles.cell, isMarked ? styles.markedCell : {}]}
           >
             <Text
-              style={[styles.cellText, isMarked ? styles.markedCellText : {}]}
+              style={[styles.cellText, isMarked ? styles.markedCellText : {}, { fontSize: height <= 95 ? 2.8 : 3.8 }]}
             >
               {pt}
             </Text>

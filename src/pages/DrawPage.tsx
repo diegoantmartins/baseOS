@@ -14,6 +14,7 @@ import {
   Calendar,
   ArrowRight,
   GripVertical,
+  MonitorPlay,
 } from 'lucide-react';
 import {
   DndContext,
@@ -27,6 +28,7 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { LiveDrawModal } from '@/components/draw/LiveDrawModal';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +68,7 @@ const DrawPage = () => {
   const [selectedId, setSelectedId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isLiveModalOpen, setIsLiveModalOpen] = useState(false);
 
   const [groupsCount, setGroupsCount] = useState(2);
   const [seedingMode, setSeedingMode] = useState<DrawConfig['seedingMode']>('seeded');
@@ -467,16 +470,22 @@ const DrawPage = () => {
                   </DndContext>
 
                   <Card className="card-elevated">
-                    <CardHeader className="border-b border-border py-3">
-                      <CardTitle className="text-base font-display flex items-center gap-2">
-                        <ClipboardList className="w-4 h-4 text-accent" />
-                        Tabela de Jogos ({matchesToShow?.length ?? 0} jogos)
-                      </CardTitle>
-                      {matchesToShow && (
-                        <CardDescription>
-                          {roundRobinRoundCount(Math.ceil((registeredTeams.length ?? 0) / Math.max(groupsCount, 1)))} rodadas por grupo · turno único
-                        </CardDescription>
-                      )}
+                    <CardHeader className="border-b border-border py-3 flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle className="text-base font-display flex items-center gap-2">
+                          <ClipboardList className="w-4 h-4 text-accent" />
+                          Tabela de Jogos ({matchesToShow?.length ?? 0} jogos)
+                        </CardTitle>
+                        {matchesToShow && (
+                          <CardDescription>
+                            {roundRobinRoundCount(Math.ceil((registeredTeams.length ?? 0) / Math.max(groupsCount, 1)))} rodadas por grupo · turno único
+                          </CardDescription>
+                        )}
+                      </div>
+                      <Button variant="accent" size="sm" onClick={() => setIsLiveModalOpen(true)} className="gap-2">
+                        <MonitorPlay className="w-4 h-4" />
+                        Modo Apresentação (Live)
+                      </Button>
                     </CardHeader>
                     <CardContent className="p-0">
                       <div className="overflow-x-auto">
@@ -541,6 +550,16 @@ const DrawPage = () => {
           </div>
         )}
       </motion.div>
+
+      {selected && groupsToShow && (
+        <LiveDrawModal
+          isOpen={isLiveModalOpen}
+          onClose={() => setIsLiveModalOpen(false)}
+          groups={groupsToShow}
+          teams={teams}
+          competition={selected}
+        />
+      )}
     </MainLayout>
   );
 };
