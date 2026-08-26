@@ -49,7 +49,6 @@ const styles = StyleSheet.create({
     backgroundColor: BASEOS_TOKENS.colors.BLACK,
     borderBottomWidth: BASEOS_TOKENS.borders.STRONG,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
-    alignItems: 'center',
   },
   colNumberHeader: {
     width: 26,
@@ -75,7 +74,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
-    alignItems: 'center',
   },
   cellNumber: {
     width: 26,
@@ -113,7 +111,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
-    alignItems: 'center',
   },
   staffBlock: {
     flexDirection: 'column',
@@ -122,7 +119,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BORDER_MUTED,
-    alignItems: 'center',
   },
   signaturesBlock: {
     flexDirection: 'column',
@@ -161,9 +157,11 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({
     { code: 'M/F', label: 'Médico' },
   ];
 
-  const rowHeight = isCompact ? 5.2 : 16;
-  const dividerHeight = isCompact ? 7 : 12;
-  const sigHeight = isCompact ? 16 : 60;
+  const availableHeight = height - 12 - 10;
+  const dividerHeight = isCompact ? 7 : 10;
+  const sigHeight = isCompact ? 16 : Math.max(25, height * 0.12);
+  const remainingForRows = availableHeight - (2 * dividerHeight) - sigHeight;
+  const rowHeight = remainingForRows / 20;
 
   const renderTeamRoster = (team: BaseosTeamData, isFirst: boolean, sideLetter: 'A' | 'B') => {
     const regularRows = Array.from(
@@ -185,10 +183,12 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({
           <View style={styles.colNumberHeader}>
             <Text style={styles.headerLabel}>Nº</Text>
           </View>
-          <View style={styles.colNameHeader}>
-            <Text style={styles.headerLabel}>
-              {team.name ? team.name.toUpperCase() : `EQUIPE (${sideLetter})`}
-            </Text>
+          <View style={[styles.colNameHeader, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}>
+            <Text style={styles.headerLabel}>EQUIPE  </Text>
+            <View style={{ width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK, marginHorizontal: 2 }} />
+            <Text style={styles.headerLabel}> A  </Text>
+            <View style={{ width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK, marginHorizontal: 2 }} />
+            <Text style={styles.headerLabel}> B    {team.name ? team.name.toUpperCase() : ''}{team.shortName ? ` [${team.shortName.toUpperCase()}]` : ''}</Text>
           </View>
         </View>
 
@@ -197,13 +197,21 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({
           {regularRows.map((ath, idx) => (
             <View key={`reg-${idx}`} style={[styles.row, { height: rowHeight }]}>
               <View style={styles.cellNumber}>
-                <Text style={styles.cellText}>
-                  {ath?.jerseyNumber !== undefined ? String(ath.jerseyNumber) : ''}
-                </Text>
+                {ath?.isCaptain ? (
+                  <View style={{ width: 9, height: 9, borderRadius: 4.5, borderWidth: 0.8, borderColor: BASEOS_TOKENS.colors.BLACK, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={[styles.cellText, { fontSize: 4.8, marginTop: 0.5 }]}>
+                      {ath.jerseyNumber !== undefined ? String(ath.jerseyNumber) : ''}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.cellText}>
+                    {ath?.jerseyNumber !== undefined ? String(ath.jerseyNumber) : ''}
+                  </Text>
+                )}
               </View>
               <View style={styles.cellName}>
                 <Text style={styles.cellText}>
-                  {ath ? `${ath.name}${ath.isCaptain ? ' (C)' : ''}` : ''}
+                  {ath ? ath.name : ''}
                 </Text>
               </View>
             </View>
@@ -255,10 +263,10 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({
         {/* Assinaturas */}
         <View style={[styles.signaturesBlock, { height: sigHeight }]}>
           <View style={styles.signatureLine}>
-            <Text style={styles.signatureLabel}>CAPITÃO {sideLetter}: ____________________________</Text>
+            <Text style={styles.signatureLabel}>CAPITÃO: ____________________________</Text>
           </View>
           <View style={styles.signatureLine}>
-            <Text style={styles.signatureLabel}>TÉCNICO {sideLetter}: ____________________________</Text>
+            <Text style={styles.signatureLabel}>TÉCNICO: ____________________________</Text>
           </View>
         </View>
       </View>
@@ -269,7 +277,6 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({
     <View style={[styles.container, { height }]}>
       <View style={styles.mainHeader}>
         <Text style={styles.mainHeaderText}>EQUIPES</Text>
-        <Text style={styles.mainHeaderText}>( A )   VS   ( B )</Text>
       </View>
       <View style={styles.columnsWrapper}>
         {renderTeamRoster(teamA, true, 'A')}

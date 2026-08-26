@@ -118,8 +118,8 @@ export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
       {/* Topo: Nome do Torneio, Confronto em Destaque e Número do Jogo */}
       <View style={styles.topRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ backgroundColor: BASEOS_TOKENS.colors.BLACK, paddingVertical: 2, paddingHorizontal: 4, borderRadius: 2, marginRight: 6 }}>
-            <Text style={{ color: BASEOS_TOKENS.colors.WHITE, fontFamily: BASEOS_TOKENS.fonts.BOLD, fontSize: 8 }}>VOLLEYSCORE HUB</Text>
+          <View style={{ backgroundColor: BASEOS_TOKENS.colors.WHITE, paddingVertical: 2, paddingHorizontal: 4, borderRadius: 2, marginRight: 6 }}>
+            <Text style={{ color: BASEOS_TOKENS.colors.BLACK, fontFamily: BASEOS_TOKENS.fonts.BOLD, fontSize: 8 }}>BaseOS</Text>
           </View>
           <View style={styles.logoTitleBox}>
             <Text style={styles.competitionTitle}>
@@ -155,7 +155,11 @@ export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
 
         <View style={[styles.metaCell, { flex: 1 }]}>
           <Text style={styles.metaLabel}>DATA:</Text>
-          <Text style={styles.metaValue}>{competition.date || '__/__/____'}</Text>
+          <Text style={styles.metaValue}>
+            {competition.date 
+              ? new Date(competition.date + 'T00:00:00').toLocaleDateString('pt-BR') 
+              : '__/__/____'}
+          </Text>
         </View>
 
         <View style={[styles.metaCell, { flex: 0.9 }]}>

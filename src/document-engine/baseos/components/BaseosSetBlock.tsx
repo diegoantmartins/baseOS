@@ -22,7 +22,7 @@ const styles = StyleSheet.create({
     width: 14,
     borderRightWidth: BASEOS_TOKENS.borders.REGULAR,
     borderRightColor: BASEOS_TOKENS.colors.BLACK,
-    backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHT,
+    backgroundColor: BASEOS_TOKENS.colors.BLACK,
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -35,13 +35,13 @@ const styles = StyleSheet.create({
   setLetter: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 5.0,
-    color: BASEOS_TOKENS.colors.BLACK,
+    color: BASEOS_TOKENS.colors.WHITE,
     lineHeight: 1.05,
   },
   setNum: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 7.0,
-    color: BASEOS_TOKENS.colors.BLACK,
+    color: BASEOS_TOKENS.colors.WHITE,
     marginTop: 1,
   },
   formacaoLettersBox: {
@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
   formacaoChar: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 3.2,
-    color: BASEOS_TOKENS.colors.GRAY_DARK,
+    color: BASEOS_TOKENS.colors.WHITE,
     lineHeight: 0.95,
   },
   mainSetArea: {
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: BASEOS_TOKENS.colors.BLACK,
+    backgroundColor: BASEOS_TOKENS.colors.WHITE,
     borderBottomWidth: BASEOS_TOKENS.borders.STRONG,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
     paddingHorizontal: 4,
@@ -101,13 +101,13 @@ const styles = StyleSheet.create({
   teamNameText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 4.8,
-    color: BASEOS_TOKENS.colors.WHITE,
+    color: BASEOS_TOKENS.colors.BLACK,
     textTransform: 'uppercase',
   },
   srBadgeText: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 3.4,
-    color: BASEOS_TOKENS.colors.WHITE,
+    color: BASEOS_TOKENS.colors.BLACK,
   },
   gridContentRow: {
     flex: 1,
@@ -298,9 +298,18 @@ export const BaseosSetBlock: React.FC<BaseosSetBlockProps> = ({
       <View style={[styles.teamQuadrant, isLastQuadrant ? { borderRightWidth: 0 } : {}]}>
         <View style={styles.teamFormArea}>
           <View style={styles.teamHeader}>
-            <Text style={styles.teamNameText}>
-              {customTitle || `(   ) ${team.name ? team.name.toUpperCase() : 'EQUIPE'}`}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ width: 5, height: 5, borderRadius: 2.5, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK, marginHorizontal: 2 }} />
+              <Text style={styles.teamNameText}> A  </Text>
+              <View style={{ width: 5, height: 5, borderRadius: 2.5, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK, marginHorizontal: 2 }} />
+              <Text style={styles.teamNameText}> B</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontFamily: BASEOS_TOKENS.fonts.BOLD, fontSize: 4.0, color: BASEOS_TOKENS.colors.BLACK, marginRight: 3 }}>EQUIPE</Text>
+              <View style={{ width: 8, height: 8, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK, marginRight: 1 }} />
+              <View style={{ width: 8, height: 8, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK, marginRight: 1 }} />
+              <View style={{ width: 8, height: 8, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK }} />
+            </View>
             <Text style={styles.srBadgeText}>(S) [ ]  (R) [ ]</Text>
           </View>
 

@@ -79,16 +79,16 @@ export const BaseosFiveSetScoresheet: React.FC<BaseosFiveSetScoresheetProps> = (
         </View>
 
         <View style={cardStyle(layout.cards.rosters)}>
-          <BaseosRosters teamA={data.teams.A} teamB={data.teams.B} />
+          <BaseosRosters teamA={data.teams.A} teamB={data.teams.B} height={layout.cards.rosters.height} />
         </View>
         <View style={cardStyle(layout.cards.sanctions)}>
-          <BaseosSanctions sanctions={data.sanctions} improperRequests={data.improperRequests} />
+          <BaseosSanctions sanctions={data.sanctions} improperRequests={data.improperRequests} height={layout.cards.sanctions.height} />
         </View>
         <View style={cardStyle(layout.cards.signatures)}>
-          <BaseosSignatures officials={data.officials} signatures={data.signatures} observations={data.observations} />
+          <BaseosSignatures officials={data.officials} signatures={data.signatures} observations={data.observations} height={layout.cards.signatures.height} />
         </View>
         <View style={cardStyle(layout.cards.result)}>
-          <BaseosResult result={data.result} teamA={data.teams.A} teamB={data.teams.B} maxSets={5} />
+          <BaseosResult result={data.result} teamA={data.teams.A} teamB={data.teams.B} maxSets={5} height={layout.cards.result.height} />
         </View>
 
         {layout.cards.remarks && (

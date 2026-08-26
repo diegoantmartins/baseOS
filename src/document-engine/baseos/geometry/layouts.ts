@@ -79,8 +79,8 @@ export const FIVE_SET_A4_LAYOUT: ScoresheetLayout = {
       5: { x: 6, y: 275, width: 520, height: 120 }, // Set 5 aumentado em largura e altura
     },
     // SANCTIONS e REMARKS na linha de cima (y=400)
-    sanctions: { x: 6, y: 400, width: 200, height: 95 },
-    remarks: { x: 211, y: 400, width: 315, height: 95 },
+    sanctions: { x: 6, y: 400, width: 220, height: 95 },
+    remarks: { x: 231, y: 400, width: 295, height: 95 },
     // RESULT e SIGNATURES na linha de baixo (y=500)
     result: { x: 6, y: 500, width: 220, height: 89 },
     signatures: { x: 231, y: 500, width: 295, height: 89 },

@@ -9,7 +9,6 @@ import { BASEOS_TOKENS } from '../theme/tokens';
 
 const styles = StyleSheet.create({
   container: {
-    height: 110,
     borderWidth: BASEOS_TOKENS.borders.REGULAR,
     borderColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
@@ -85,13 +84,17 @@ const styles = StyleSheet.create({
 });
 
 interface BaseosSignaturesProps {
-  officials?: BaseosOfficialsData;
-  signatures?: BaseosSignaturesData;
+  officials: BaseosOfficialsData;
+  signatures: BaseosSignaturesData;
   observations?: string;
+  height?: number;
 }
 
 export const BaseosSignatures: React.FC<BaseosSignaturesProps> = ({
   officials,
+  signatures,
+  observations,
+  height,
 }) => {
   const officialsList = [
     { label: 'Árbitro Principal:', name: officials?.referee1 },
@@ -103,7 +106,7 @@ export const BaseosSignatures: React.FC<BaseosSignaturesProps> = ({
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, height ? { height } : { height: '100%' }]}>
       <View style={styles.header}>
         <Text style={styles.headerText}>APROVAÇÃO (Equipe de Arbitragem)</Text>
       </View>

@@ -10,7 +10,6 @@ import { BASEOS_TOKENS } from '../theme/tokens';
 
 const styles = StyleSheet.create({
   container: {
-    height: 110,
     borderWidth: BASEOS_TOKENS.borders.STRONG,
     borderColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
@@ -114,7 +113,8 @@ interface BaseosResultProps {
   result?: MatchResultData;
   teamA: BaseosTeamData;
   teamB: BaseosTeamData;
-  maxSets?: number;
+  maxSets?: 3 | 5;
+  height?: number;
 }
 
 export const BaseosResult: React.FC<BaseosResultProps> = ({
@@ -122,6 +122,7 @@ export const BaseosResult: React.FC<BaseosResultProps> = ({
   teamA,
   teamB,
   maxSets = 3,
+  height,
 }) => {
   const setRows = Array.from({ length: maxSets }, (_, i) => {
     const setNo = i + 1;
@@ -129,19 +130,38 @@ export const BaseosResult: React.FC<BaseosResultProps> = ({
     return { setNo, res };
   });
 
+  const totalTA = setRows.reduce((sum, {res}) => sum + (res ? res.timeOutsA || 0 : 0), 0);
+  const totalSA = setRows.reduce((sum, {res}) => sum + (res ? res.substitutionsA || 0 : 0), 0);
+  const totalVA = setRows.reduce((sum, {res}) => sum + (res && res.scoreA > res.scoreB ? 1 : 0), 0);
+  const totalPA = setRows.reduce((sum, {res}) => sum + (res ? res.scoreA || 0 : 0), 0);
+
+  const totalTB = setRows.reduce((sum, {res}) => sum + (res ? res.timeOutsB || 0 : 0), 0);
+  const totalSB = setRows.reduce((sum, {res}) => sum + (res ? res.substitutionsB || 0 : 0), 0);
+  const totalVB = setRows.reduce((sum, {res}) => sum + (res && res.scoreB > res.scoreA ? 1 : 0), 0);
+  const totalPB = setRows.reduce((sum, {res}) => sum + (res ? res.scoreB || 0 : 0), 0);
+  const hasAnyResult = setRows.some(({res}) => !!res);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, height ? { height } : { height: '100%' }]}>
       <View style={styles.header}>
         <Text style={styles.headerText}>RESULTADOS</Text>
       </View>
 
       <View style={styles.teamHeadersRow}>
-        <Text style={styles.teamHeaderText}>
-          EQUIPE ( A ) {teamA.name ? teamA.name.toUpperCase() : ''}
-        </Text>
-        <Text style={styles.teamHeaderText}>
-          {teamB.name ? teamB.name.toUpperCase() : ''} ( B ) EQUIPE
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={styles.teamHeaderText}>EQUIPE  </Text>
+          <View style={{ width: 5, height: 5, borderRadius: 2.5, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.WHITE, marginHorizontal: 2 }} />
+          <Text style={styles.teamHeaderText}> A  </Text>
+          <View style={{ width: 5, height: 5, borderRadius: 2.5, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.WHITE, marginHorizontal: 2 }} />
+          <Text style={styles.teamHeaderText}> B    {teamA.name ? teamA.name.toUpperCase() : ''}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={styles.teamHeaderText}>{teamB.name ? teamB.name.toUpperCase() : ''}    </Text>
+          <View style={{ width: 5, height: 5, borderRadius: 2.5, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.WHITE, marginHorizontal: 2 }} />
+          <Text style={styles.teamHeaderText}> A  </Text>
+          <View style={{ width: 5, height: 5, borderRadius: 2.5, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.WHITE, marginHorizontal: 2 }} />
+          <Text style={styles.teamHeaderText}> B  EQUIPE</Text>
+        </View>
       </View>
 
       <View style={styles.subHeaderRow}>
@@ -217,10 +237,36 @@ export const BaseosResult: React.FC<BaseosResultProps> = ({
         );
       })}
 
-      <View style={styles.durationSummaryRow}>
-        <Text style={styles.summaryText}>
-          Duração Total dos Sets: ( {result?.totalDurationMinutes ? `${result.totalDurationMinutes} min` : '       min'} )
-        </Text>
+      <View style={[styles.setRow, { borderTopWidth: 1, borderTopColor: BASEOS_TOKENS.colors.BLACK, borderBottomWidth: 1, borderBottomColor: BASEOS_TOKENS.colors.BLACK, backgroundColor: BASEOS_TOKENS.colors.GRAY_LIGHTEST }]}>
+        <View style={[styles.col, { width: 14 }]}>
+          <Text style={[styles.colText, { color: BASEOS_TOKENS.colors.BRAND_PRIMARY }]}>{hasAnyResult ? totalTA : ''}</Text>
+        </View>
+        <View style={[styles.col, { width: 12 }]}>
+          <Text style={[styles.colText, { color: BASEOS_TOKENS.colors.BRAND_PRIMARY }]}>{hasAnyResult ? totalSA : ''}</Text>
+        </View>
+        <View style={[styles.col, { width: 12 }]}>
+          <Text style={[styles.colText, { color: BASEOS_TOKENS.colors.BRAND_PRIMARY }]}>{hasAnyResult ? totalVA : ''}</Text>
+        </View>
+        <View style={[styles.col, { width: 20 }]}>
+          <Text style={[styles.colText, { color: BASEOS_TOKENS.colors.BRAND_PRIMARY }]}>{hasAnyResult ? totalPA : ''}</Text>
+        </View>
+        <View style={[styles.col, { flex: 1, backgroundColor: BASEOS_TOKENS.colors.WHITE }]}>
+          <Text style={styles.summaryText}>
+            Duração: {result?.totalDurationMinutes ? `${result.totalDurationMinutes} min` : '       min'}
+          </Text>
+        </View>
+        <View style={[styles.col, { width: 20 }]}>
+          <Text style={[styles.colText, { color: BASEOS_TOKENS.colors.BRAND_PRIMARY }]}>{hasAnyResult ? totalPB : ''}</Text>
+        </View>
+        <View style={[styles.col, { width: 12 }]}>
+          <Text style={[styles.colText, { color: BASEOS_TOKENS.colors.BRAND_PRIMARY }]}>{hasAnyResult ? totalVB : ''}</Text>
+        </View>
+        <View style={[styles.col, { width: 12 }]}>
+          <Text style={[styles.colText, { color: BASEOS_TOKENS.colors.BRAND_PRIMARY }]}>{hasAnyResult ? totalSB : ''}</Text>
+        </View>
+        <View style={[styles.col, { width: 14, borderRightWidth: 0 }]}>
+          <Text style={[styles.colText, { color: BASEOS_TOKENS.colors.BRAND_PRIMARY }]}>{hasAnyResult ? totalTB : ''}</Text>
+        </View>
       </View>
 
       <View style={styles.scheduleSummaryRow}>

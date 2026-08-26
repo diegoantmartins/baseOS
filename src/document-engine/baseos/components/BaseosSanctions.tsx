@@ -9,7 +9,6 @@ import { BASEOS_TOKENS } from '../theme/tokens';
 
 const styles = StyleSheet.create({
   container: {
-    height: 110,
     borderWidth: BASEOS_TOKENS.borders.STRONG,
     borderColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
@@ -97,16 +96,18 @@ const styles = StyleSheet.create({
 interface BaseosSanctionsProps {
   sanctions: SanctionEntry[];
   improperRequests?: { teamA: boolean; teamB: boolean };
+  height?: number;
 }
 
 export const BaseosSanctions: React.FC<BaseosSanctionsProps> = ({
   sanctions,
   improperRequests,
+  height,
 }) => {
   const rows = Array.from({ length: 4 }, (_, i) => sanctions[i]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, height ? { height } : { height: '100%' }]}>
       <View style={styles.header}>
         <Text style={styles.headerText}>SANÇÕES</Text>
       </View>
@@ -168,12 +169,20 @@ export const BaseosSanctions: React.FC<BaseosSanctionsProps> = ({
       </View>
 
       <View style={styles.improperRow}>
-        <Text style={styles.improperText}>
-          SOLICITAÇÕES INDEVIDAS: EQ (A) [{improperRequests?.teamA ? 'X' : ' '}]
-        </Text>
-        <Text style={styles.improperText}>
-          EQ (B) [{improperRequests?.teamB ? 'X' : ' '}]
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={styles.improperText}>SOLICITAÇÕES INDEVIDAS: EQ  </Text>
+          <View style={{ width: 4, height: 4, borderRadius: 2, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK, marginHorizontal: 2 }} />
+          <Text style={styles.improperText}> A  </Text>
+          <View style={{ width: 4, height: 4, borderRadius: 2, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK, marginHorizontal: 2 }} />
+          <Text style={styles.improperText}> B  [{improperRequests?.teamA ? 'X' : ' '}]</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={styles.improperText}>EQ  </Text>
+          <View style={{ width: 4, height: 4, borderRadius: 2, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK, marginHorizontal: 2 }} />
+          <Text style={styles.improperText}> A  </Text>
+          <View style={{ width: 4, height: 4, borderRadius: 2, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK, marginHorizontal: 2 }} />
+          <Text style={styles.improperText}> B  [{improperRequests?.teamB ? 'X' : ' '}]</Text>
+        </View>
       </View>
 
       <View style={styles.footerNote}>
