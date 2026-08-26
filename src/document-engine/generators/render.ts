@@ -195,10 +195,10 @@ export function renderHeaderFields(
   // ── BRANDING BASEOS (Esquerda) ──
   const logoX = startX + 8;
   const logoY = startY + (is3Sets ? 8 : 12);
-  // Barras Vetoriais BaseOS
-  fillRect(page, { x: logoX, y: logoY, width: 14, height: 3.5, color: '#222222' });
-  fillRect(page, { x: logoX + 4, y: logoY + 5.5, width: 18, height: 3.5, color: '#000000' });
-  fillRect(page, { x: logoX, y: logoY + 11, width: 14, height: 3.5, color: '#555555' });
+  // Barras Vetoriais BaseOS Coloridas
+  fillRect(page, { x: logoX, y: logoY, width: 14, height: 3.5, color: '#1e293b' });
+  fillRect(page, { x: logoX + 4, y: logoY + 5.5, width: 18, height: 3.5, color: '#f59e0b' });
+  fillRect(page, { x: logoX, y: logoY + 11, width: 14, height: 3.5, color: '#334155' });
 
   // Texto BaseOS
   drawDynamicText(page, fonts.boldFont, fonts.boldFont, 'BaseOS', {

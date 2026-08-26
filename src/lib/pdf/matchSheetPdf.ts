@@ -136,21 +136,24 @@ function drawHeader(doc: jsPDF, data: MatchSheetData, y: number): number {
   // 1. BRANDING BASEOS (ESQUERDA)
   const logoX = MARGIN + 3;
   const logoY = y + 3.5;
-  // Barra 1 (Topo)
-  doc.setFillColor(60, 60, 60);
+  // Barra 1 (Topo - Slate)
+  doc.setFillColor(30, 41, 59);
   doc.roundedRect(logoX, logoY, 7, 2, 0.5, 0.5, 'F');
-  // Barra 2 (Meio - deslocada)
-  doc.setFillColor(0, 0, 0);
+  // Barra 2 (Meio - Amber/Gold)
+  doc.setFillColor(245, 158, 11);
   doc.roundedRect(logoX + 2, logoY + 3, 9, 2, 0.5, 0.5, 'F');
-  // Barra 3 (Base)
-  doc.setFillColor(100, 100, 100);
+  // Barra 3 (Base - Slate)
+  doc.setFillColor(51, 65, 85);
   doc.roundedRect(logoX, logoY + 6, 7, 2, 0.5, 0.5, 'F');
 
-  // Texto BaseOS
+  // Texto BaseOS Colorido
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(BLACK);
-  doc.text('BaseOS', logoX + 13, logoY + 4);
+  doc.setTextColor(0, 0, 0);
+  doc.text('Base', logoX + 13, logoY + 4);
+  doc.setTextColor(245, 158, 11);
+  doc.text('OS', logoX + 23.5, logoY + 4);
+
   doc.setFontSize(5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(GRAY_MEDIUM);

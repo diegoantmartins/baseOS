@@ -40,20 +40,20 @@ const styles = StyleSheet.create({
   logoBarTop: {
     height: 2.2,
     width: 10,
-    backgroundColor: '#333333',
+    backgroundColor: '#1E293B',
     borderRadius: 0.5,
   },
   logoBarMid: {
     height: 2.2,
     width: 13,
     marginLeft: 2.5,
-    backgroundColor: '#000000',
+    backgroundColor: '#F59E0B',
     borderRadius: 0.5,
   },
   logoBarBot: {
     height: 2.2,
     width: 10,
-    backgroundColor: '#555555',
+    backgroundColor: '#334155',
     borderRadius: 0.5,
   },
   brandName: {
@@ -61,6 +61,10 @@ const styles = StyleSheet.create({
     fontSize: 9.0,
     color: '#000000',
     letterSpacing: 0.5,
+  },
+  brandNameAccent: {
+    fontFamily: BASEOS_TOKENS.fonts.BOLD,
+    color: '#F59E0B',
   },
   brandSubtitle: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
@@ -170,7 +174,9 @@ export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
             <View style={styles.logoBarBot} />
           </View>
           <View>
-            <Text style={styles.brandName}>BaseOS</Text>
+            <Text style={styles.brandName}>
+              Base<Text style={styles.brandNameAccent}>OS</Text>
+            </Text>
             <Text style={styles.brandSubtitle}>GESTÃO DE COMPETIÇÕES</Text>
           </View>
         </View>

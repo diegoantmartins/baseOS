@@ -47,20 +47,20 @@ const styles = StyleSheet.create({
   logoBarTop: {
     height: 2.5,
     width: 10,
-    backgroundColor: '#222222',
+    backgroundColor: '#1E293B',
     borderRadius: 0.8,
   },
   logoBarMid: {
     height: 2.5,
     width: 14,
     marginLeft: 2.5,
-    backgroundColor: '#000000',
+    backgroundColor: '#F59E0B',
     borderRadius: 0.8,
   },
   logoBarBot: {
     height: 2.5,
     width: 10,
-    backgroundColor: '#444444',
+    backgroundColor: '#334155',
     borderRadius: 0.8,
   },
   brandTitle: {
@@ -68,6 +68,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#000000',
     letterSpacing: 0.5,
+  },
+  brandTitleAccent: {
+    color: '#F59E0B',
   },
   brandSubtitle: {
     fontSize: 4.5,
@@ -423,7 +426,9 @@ export function OfficialScoresheetDocument({ data }: OfficialScoresheetPdfProps)
                 <View style={styles.logoBarBot} />
               </View>
               <View style={{ marginLeft: 3 }}>
-                <Text style={styles.brandTitle}>BaseOS</Text>
+                <Text style={styles.brandTitle}>
+                  Base<Text style={styles.brandTitleAccent}>OS</Text>
+                </Text>
                 <Text style={styles.brandSubtitle}>GESTÃO DE COMPETIÇÕES</Text>
               </View>
             </View>

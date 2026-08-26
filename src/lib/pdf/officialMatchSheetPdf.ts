@@ -129,17 +129,17 @@ function drawFederationHeader(d: jsPDF, data: MatchSheetData, y: number, w: numb
   const wRight = w - (wLeft + wMid);
   bx(d, xRight, y, wRight, h, 0.4);
 
-  // Logo Vetorial BaseOS
-  d.setFillColor(60, 60, 60);
+  // Logo Vetorial BaseOS Colorido
+  d.setFillColor(30, 41, 59);
   d.roundedRect(xRight + 3.5, y + 3.0, 6, 1.8, 0.4, 0.4, 'F');
-  d.setFillColor(0, 0, 0);
+  d.setFillColor(245, 158, 11);
   d.roundedRect(xRight + 5.0, y + 5.4, 7.5, 1.8, 0.4, 0.4, 'F');
-  d.setFillColor(100, 100, 100);
+  d.setFillColor(51, 65, 85);
   d.roundedRect(xRight + 3.5, y + 7.8, 6, 1.8, 0.4, 0.4, 'F');
 
   const orgName = data.orgName || 'Federação de Voleibol';
   tx(d, orgName.toUpperCase(), xRight + 15, y + 4.2, 5.5, { b: true });
-  tx(d, 'SISTEMA BaseOS', xRight + 15, y + 7.5, 4.2, { b: true, c: GRAY_MED });
+  tx(d, 'SISTEMA BaseOS', xRight + 15, y + 7.5, 4.2, { b: true, c: '#F59E0B' });
   tx(d, 'SÚMULA OFICIAL', xRight + 15, y + 12.0, 7.5, { b: true });
 }
 
