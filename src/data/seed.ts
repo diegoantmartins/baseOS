@@ -5,7 +5,7 @@ import type { CompetitionRecord, MatchRecord, ModalityRecord, PersonRecord, Refe
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
 import type { DrawRecord } from '@/types/draw';
 
-export const SEED_VERSION = 'voleipro.v8_full_scoresheet_simulation';
+export const SEED_VERSION = 'voleipro.v10_5sets_full_superliga_simulation';
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
@@ -97,6 +97,19 @@ export const seedCompetitions: CompetitionRecord[] = [
     startDate: iso(3 * DAY).slice(0, 10),
     endDate: iso(24 * DAY).slice(0, 10),
     venue: 'Ginásio Municipal',
+    status: 'in-progress',
+  },
+  {
+    id: 'comp-superliga-2026',
+    name: 'Superliga BaseOS 2026 - Melhor de 5 Sets',
+    modality: 'indoor',
+    format: 'round-robin',
+    playerFormat: '6x6',
+    setFormat: '5-sets',
+    genderCategory: 'male',
+    startDate: iso(1 * DAY).slice(0, 10),
+    endDate: iso(30 * DAY).slice(0, 10),
+    venue: 'Ginásio UNIPAR',
     status: 'in-progress',
   },
 ];
@@ -234,6 +247,7 @@ function makeCompetitionTeam(
 }
 
 export const seedCompetitionTeams: CompetitionTeam[] = [
+  // Copa Toledo (3 Sets)
   makeCompetitionTeam('ct-1', 'comp-toledo-2026', 'team-1', 6 * DAY, 'submitted'),
   makeCompetitionTeam('ct-2', 'comp-toledo-2026', 'team-2', 6 * DAY, 'submitted'),
   makeCompetitionTeam('ct-3', 'comp-toledo-2026', 'team-3', 6 * DAY, 'submitted'),
@@ -242,6 +256,16 @@ export const seedCompetitionTeams: CompetitionTeam[] = [
   makeCompetitionTeam('ct-6', 'comp-toledo-2026', 'team-6', 6 * DAY, 'submitted'),
   makeCompetitionTeam('ct-7', 'comp-toledo-2026', 'team-7', 6 * DAY, 'submitted'),
   makeCompetitionTeam('ct-8', 'comp-toledo-2026', 'team-8', 6 * DAY, 'submitted'),
+
+  // Superliga BaseOS (5 Sets)
+  makeCompetitionTeam('ct-5s-1', 'comp-superliga-2026', 'team-1', 10 * DAY, 'submitted'),
+  makeCompetitionTeam('ct-5s-2', 'comp-superliga-2026', 'team-2', 10 * DAY, 'submitted'),
+  makeCompetitionTeam('ct-5s-3', 'comp-superliga-2026', 'team-3', 10 * DAY, 'submitted'),
+  makeCompetitionTeam('ct-5s-4', 'comp-superliga-2026', 'team-4', 10 * DAY, 'submitted'),
+  makeCompetitionTeam('ct-5s-5', 'comp-superliga-2026', 'team-5', 10 * DAY, 'submitted'),
+  makeCompetitionTeam('ct-5s-6', 'comp-superliga-2026', 'team-6', 10 * DAY, 'submitted'),
+  makeCompetitionTeam('ct-5s-7', 'comp-superliga-2026', 'team-7', 10 * DAY, 'submitted'),
+  makeCompetitionTeam('ct-5s-8', 'comp-superliga-2026', 'team-8', 10 * DAY, 'submitted'),
 ];
 
 const MALE_NAMES = [
@@ -306,6 +330,7 @@ function makeRoster(
 }
 
 export const seedCompetitionAthletes: CompetitionAthlete[] = [
+  // Copa Toledo (3 Sets)
   ...makeRoster('ath-1', 'ct-1', MALE_NAMES, 0, 'male'),
   ...makeRoster('ath-2', 'ct-2', MALE_NAMES, 6, 'male'),
   ...makeRoster('ath-3', 'ct-3', MALE_NAMES, 12, 'male'),
@@ -314,6 +339,16 @@ export const seedCompetitionAthletes: CompetitionAthlete[] = [
   ...makeRoster('ath-6', 'ct-6', MALE_NAMES, 30, 'male'),
   ...makeRoster('ath-7', 'ct-7', MALE_NAMES, 36, 'male'),
   ...makeRoster('ath-8', 'ct-8', MALE_NAMES, 42, 'male'),
+
+  // Superliga BaseOS (5 Sets)
+  ...makeRoster('ath-5s-1', 'ct-5s-1', MALE_NAMES, 0, 'male'),
+  ...makeRoster('ath-5s-2', 'ct-5s-2', MALE_NAMES, 6, 'male'),
+  ...makeRoster('ath-5s-3', 'ct-5s-3', MALE_NAMES, 12, 'male'),
+  ...makeRoster('ath-5s-4', 'ct-5s-4', MALE_NAMES, 18, 'male'),
+  ...makeRoster('ath-5s-5', 'ct-5s-5', MALE_NAMES, 24, 'male'),
+  ...makeRoster('ath-5s-6', 'ct-5s-6', MALE_NAMES, 30, 'male'),
+  ...makeRoster('ath-5s-7', 'ct-5s-7', MALE_NAMES, 36, 'male'),
+  ...makeRoster('ath-5s-8', 'ct-5s-8', MALE_NAMES, 42, 'male'),
 ];
 
 function makeMatch(
@@ -327,12 +362,17 @@ function makeMatch(
   athPrefixB: string,
   dateDeltaHours: number,
   court: string,
+  competitionId = 'comp-toledo-2026',
+  customSetFormat: '3-sets' | '5-sets' = '3-sets',
+  status: MatchRecord['status'] = 'scheduled',
+  sets: MatchRecord['sets'] = [],
+  winnerId?: string,
 ): MatchRecord {
   const teamA = seedTeams.find(t => t.id === teamAId)!;
   const teamB = seedTeams.find(t => t.id === teamBId)!;
   return {
     id,
-    competitionId: 'comp-toledo-2026',
+    competitionId,
     round,
     matchNumber,
     teamAId,
@@ -341,13 +381,14 @@ function makeMatch(
     teamBName: teamB.name,
     teamAShortName: teamA.shortName,
     teamBShortName: teamB.shortName,
-    venue: 'Ginásio Municipal',
+    venue: competitionId === 'comp-superliga-2026' ? 'Ginásio UNIPAR' : 'Ginásio Municipal',
     court,
-    phase: 'Fase de Grupos',
+    phase: competitionId === 'comp-superliga-2026' ? 'Fase Regular 5 Sets' : 'Fase de Grupos',
     groupName,
     scheduledTime: iso(dateDeltaHours * HOUR),
-    status: 'scheduled',
-    sets: [],
+    status,
+    sets,
+    winnerId,
     referees: [
       { role: 'first', name: 'Carlos Silva' },
       { role: 'second', name: 'Ana Santos' },
@@ -378,34 +419,59 @@ function makeMatch(
         liberoId: `${athPrefixB}-06`,
       },
     },
-    customSetFormat: '3-sets',
+    customSetFormat,
     createdAt: iso(-1 * DAY),
     updatedAt: iso(-1 * DAY),
   };
 }
 
 export const seedMatches: MatchRecord[] = [
-  // --- GRUPO A ---
-  // Rodada 1
+  // ── COPA TOLEDO (3 SETS) ──
+  // Grupo A
   makeMatch('match-01', 1, 1, 'Grupo A', 'team-1', 'team-2', 'ath-1', 'ath-2', 24, 'Quadra Principal'),
   makeMatch('match-02', 2, 1, 'Grupo A', 'team-3', 'team-4', 'ath-3', 'ath-4', 24, 'Quadra Auxiliar'),
-  // Rodada 2
   makeMatch('match-03', 3, 2, 'Grupo A', 'team-1', 'team-3', 'ath-1', 'ath-3', 26, 'Quadra Principal'),
   makeMatch('match-04', 4, 2, 'Grupo A', 'team-2', 'team-4', 'ath-2', 'ath-4', 26, 'Quadra Auxiliar'),
-  // Rodada 3
   makeMatch('match-05', 5, 3, 'Grupo A', 'team-4', 'team-1', 'ath-4', 'ath-1', 29, 'Quadra Principal'),
   makeMatch('match-06', 6, 3, 'Grupo A', 'team-2', 'team-3', 'ath-2', 'ath-3', 29, 'Quadra Auxiliar'),
 
-  // --- GRUPO B ---
-  // Rodada 1
+  // Grupo B
   makeMatch('match-07', 7, 1, 'Grupo B', 'team-5', 'team-6', 'ath-5', 'ath-6', 25, 'Quadra Principal'),
   makeMatch('match-08', 8, 1, 'Grupo B', 'team-7', 'team-8', 'ath-7', 'ath-8', 25, 'Quadra Auxiliar'),
-  // Rodada 2
   makeMatch('match-09', 9, 2, 'Grupo B', 'team-5', 'team-7', 'ath-5', 'ath-7', 27, 'Quadra Principal'),
   makeMatch('match-10', 10, 2, 'Grupo B', 'team-6', 'team-8', 'ath-6', 'ath-8', 27, 'Quadra Auxiliar'),
-  // Rodada 3
   makeMatch('match-11', 11, 3, 'Grupo B', 'team-8', 'team-5', 'ath-8', 'ath-5', 30, 'Quadra Principal'),
   makeMatch('match-12', 12, 3, 'Grupo B', 'team-6', 'team-7', 'ath-6', 'ath-7', 30, 'Quadra Auxiliar'),
+
+  // ── SUPERLIGA BASEOS (5 SETS) ──
+  makeMatch(
+    'match-5s-01',
+    1,
+    1,
+    'Chave Especial 5 Sets',
+    'team-5',
+    'team-6',
+    'ath-5s-5',
+    'ath-5s-6',
+    12,
+    'Quadra 1',
+    'comp-superliga-2026',
+    '5-sets',
+    'completed',
+    [
+      { setNumber: 1, scoreA: 25, scoreB: 23 },
+      { setNumber: 2, scoreA: 22, scoreB: 25 },
+      { setNumber: 3, scoreA: 25, scoreB: 20 },
+      { setNumber: 4, scoreA: 21, scoreB: 25 },
+      { setNumber: 5, scoreA: 15, scoreB: 13 },
+    ],
+    'team-5'
+  ),
+  makeMatch('match-5s-02', 2, 1, 'Chave Especial 5 Sets', 'team-1', 'team-2', 'ath-5s-1', 'ath-5s-2', 15, 'Quadra 1', 'comp-superliga-2026', '5-sets'),
+  makeMatch('match-5s-03', 3, 1, 'Chave Especial 5 Sets', 'team-3', 'team-4', 'ath-5s-3', 'ath-5s-4', 18, 'Quadra 2', 'comp-superliga-2026', '5-sets'),
+  makeMatch('match-5s-04', 4, 1, 'Chave Especial 5 Sets', 'team-7', 'team-8', 'ath-5s-7', 'ath-5s-8', 21, 'Quadra 2', 'comp-superliga-2026', '5-sets'),
+  makeMatch('match-5s-05', 5, 2, 'Chave Especial 5 Sets', 'team-5', 'team-1', 'ath-5s-5', 'ath-5s-1', 36, 'Quadra 1', 'comp-superliga-2026', '5-sets'),
+  makeMatch('match-5s-06', 6, 2, 'Chave Especial 5 Sets', 'team-6', 'team-2', 'ath-5s-6', 'ath-5s-2', 39, 'Quadra 1', 'comp-superliga-2026', '5-sets'),
 ];
 
 export const seedDraws: DrawRecord[] = [
@@ -446,6 +512,36 @@ export const seedDraws: DrawRecord[] = [
       { round: 2, matchNumber: 10, teamAId: 'team-6', teamBId: 'team-8', groupName: 'Grupo B', phase: 'groups' },
       { round: 3, matchNumber: 11, teamAId: 'team-8', teamBId: 'team-5', groupName: 'Grupo B', phase: 'groups' },
       { round: 3, matchNumber: 12, teamAId: 'team-6', teamBId: 'team-7', groupName: 'Grupo B', phase: 'groups' },
+    ],
+    createdAt: iso(-1 * DAY),
+    updatedAt: iso(-1 * DAY),
+  },
+  {
+    id: 'draw-2',
+    competitionId: 'comp-superliga-2026',
+    config: { groupsCount: 1, seedingMode: 'seeded', seed: 2026, headSeeds: ['team-5'] },
+    groups: [
+      {
+        name: 'Chave Especial 5 Sets',
+        teams: [
+          { teamId: 'team-5', seed: 1 },
+          { teamId: 'team-6', seed: 2 },
+          { teamId: 'team-1', seed: 3 },
+          { teamId: 'team-2', seed: 4 },
+          { teamId: 'team-3', seed: 5 },
+          { teamId: 'team-4', seed: 6 },
+          { teamId: 'team-7', seed: 7 },
+          { teamId: 'team-8', seed: 8 },
+        ],
+      },
+    ],
+    matches: [
+      { round: 1, matchNumber: 1, teamAId: 'team-5', teamBId: 'team-6', groupName: 'Chave Especial 5 Sets', phase: 'groups' },
+      { round: 1, matchNumber: 2, teamAId: 'team-1', teamBId: 'team-2', groupName: 'Chave Especial 5 Sets', phase: 'groups' },
+      { round: 1, matchNumber: 3, teamAId: 'team-3', teamBId: 'team-4', groupName: 'Chave Especial 5 Sets', phase: 'groups' },
+      { round: 1, matchNumber: 4, teamAId: 'team-7', teamBId: 'team-8', groupName: 'Chave Especial 5 Sets', phase: 'groups' },
+      { round: 2, matchNumber: 5, teamAId: 'team-5', teamBId: 'team-1', groupName: 'Chave Especial 5 Sets', phase: 'groups' },
+      { round: 2, matchNumber: 6, teamAId: 'team-6', teamBId: 'team-2', groupName: 'Chave Especial 5 Sets', phase: 'groups' },
     ],
     createdAt: iso(-1 * DAY),
     updatedAt: iso(-1 * DAY),
