@@ -18,49 +18,158 @@ const styles = StyleSheet.create({
     color: '#000000',
     backgroundColor: '#FFFFFF',
   },
-  // Cabeçalho
+  // Cabeçalho Oficial
   headerBox: {
     borderWidth: 1,
     borderColor: '#000000',
-    padding: 4,
+    padding: 3,
     marginBottom: 4,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#FFFFFF',
   },
-  headerRow: {
+  headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingBottom: 2.5,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#CCCCCC',
   },
-  titleText: {
-    fontSize: 12,
+  brandBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: 115,
+  },
+  logoBarsContainer: {
+    width: 14,
+    height: 14,
+    justifyContent: 'space-between',
+  },
+  logoBarTop: {
+    height: 2.5,
+    width: 10,
+    backgroundColor: '#222222',
+    borderRadius: 0.8,
+  },
+  logoBarMid: {
+    height: 2.5,
+    width: 14,
+    marginLeft: 2.5,
+    backgroundColor: '#000000',
+    borderRadius: 0.8,
+  },
+  logoBarBot: {
+    height: 2.5,
+    width: 10,
+    backgroundColor: '#444444',
+    borderRadius: 0.8,
+  },
+  brandTitle: {
+    fontSize: 9,
     fontWeight: 'bold',
+    color: '#000000',
+    letterSpacing: 0.5,
+  },
+  brandSubtitle: {
+    fontSize: 4.5,
+    color: '#555555',
+    fontWeight: 'bold',
+    letterSpacing: 0.2,
+  },
+  centerHeaderBlock: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  federationName: {
+    fontSize: 6.5,
+    fontWeight: 'bold',
+    color: '#444444',
     textAlign: 'center',
+    marginBottom: 0.5,
+  },
+  officialSheetTitle: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#000000',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  modalitySubtitle: {
+    fontSize: 5.5,
+    color: '#555555',
+    textAlign: 'center',
+    marginTop: 0.5,
+  },
+  sealBox: {
+    width: 95,
+    borderWidth: 0.8,
+    borderColor: '#000000',
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 1.5,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sealTag: {
+    fontSize: 4.5,
+    fontWeight: 'bold',
+    color: '#555555',
+    textAlign: 'center',
+  },
+  sealMatchNum: {
+    fontSize: 7.5,
+    fontWeight: 'bold',
+    color: '#000000',
+    textAlign: 'center',
+    marginVertical: 0.5,
+  },
+  sealModeText: {
+    fontSize: 4.5,
+    fontWeight: 'bold',
+    color: '#333333',
+    textAlign: 'center',
+  },
+  competitionBanner: {
+    backgroundColor: '#EFEFEF',
+    borderTopWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: '#000000',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginTop: 2,
     marginBottom: 2,
   },
-  subtitleText: {
+  competitionTitleText: {
     fontSize: 8,
-    textAlign: 'center',
+    fontWeight: 'bold',
+    color: '#000000',
+  },
+  categoryBadgeText: {
+    fontSize: 6.5,
+    fontWeight: 'bold',
     color: '#333333',
   },
   metaGrid: {
     flexDirection: 'row',
-    borderTopWidth: 0.5,
-    borderTopColor: '#000000',
-    marginTop: 3,
-    paddingTop: 2,
+    paddingTop: 1,
   },
   metaCell: {
     flex: 1,
     paddingHorizontal: 2,
   },
   metaLabel: {
-    fontSize: 5.5,
+    fontSize: 5,
     color: '#555555',
     fontWeight: 'bold',
   },
   metaValue: {
-    fontSize: 7.5,
+    fontSize: 7,
     fontWeight: 'bold',
+    color: '#000000',
   },
 
   // Equipes e Elenco
@@ -302,41 +411,76 @@ export function OfficialScoresheetDocument({ data }: OfficialScoresheetPdfProps)
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* ===== 1. CABEÇALHO OFICIAL CBV / FIVB ===== */}
+        {/* ===== 1. CABEÇALHO OFICIAL COM IDENTIDADE BASEOS ===== */}
         <View style={styles.headerBox}>
-          <View style={styles.headerRow}>
-            <Text style={styles.titleText}>SÚMULA OFICIAL DE VOLEIBOL</Text>
-            <Text style={styles.subtitleText}>
-              {data.orgName ? data.orgName.toUpperCase() : 'SISTEMA DE GESTÃO DE COMPETIÇÕES'}
+          {/* Linha 1: Branding BaseOS + Federação Organizadora + Selo do Documento */}
+          <View style={styles.headerTopRow}>
+            {/* Brand BaseOS (Esquerda) */}
+            <View style={styles.brandBox}>
+              <View style={styles.logoBarsContainer}>
+                <View style={styles.logoBarTop} />
+                <View style={styles.logoBarMid} />
+                <View style={styles.logoBarBot} />
+              </View>
+              <View style={{ marginLeft: 3 }}>
+                <Text style={styles.brandTitle}>BaseOS</Text>
+                <Text style={styles.brandSubtitle}>GESTÃO DE COMPETIÇÕES</Text>
+              </View>
+            </View>
+
+            {/* Centro: Título do Documento e Federação */}
+            <View style={styles.centerHeaderBlock}>
+              <Text style={styles.federationName}>
+                {data.orgName ? data.orgName.toUpperCase() : 'FEDERAÇÃO / ENTIDADE ORGANIZADORA'}
+              </Text>
+              <Text style={styles.officialSheetTitle}>
+                SÚMULA OFICIAL DE VOLEIBOL
+              </Text>
+              <Text style={styles.modalitySubtitle}>
+                {isIndoor ? 'VÔLEI DE QUADRA' : 'VÔLEI DE PRAIA'} • {data.playerFormat} • MELHOR DE {totalSets} SETS
+              </Text>
+            </View>
+
+            {/* Selo / Identificador Oficial (Direita) */}
+            <View style={styles.sealBox}>
+              <Text style={styles.sealTag}>PADRÃO CBV / FIVB</Text>
+              <Text style={styles.sealMatchNum}>JOGO Nº {data.matchNumber}</Text>
+              <Text style={styles.sealModeText}>
+                {data.sheetMode === 'pre' ? 'PRÉ-JOGO (MESA)' : 'RESULTADO FINAL'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Linha 2: Banner de Destaque da Competição e Categoria */}
+          <View style={styles.competitionBanner}>
+            <Text style={styles.competitionTitleText}>
+              {data.competition.toUpperCase()}
+            </Text>
+            <Text style={styles.categoryBadgeText}>
+              CATEGORIA: {data.category.toUpperCase()} {data.genderCategory ? `• ${data.genderCategory.toUpperCase()}` : ''}
             </Text>
           </View>
-          <Text style={{ fontSize: 9, fontWeight: 'bold', textAlign: 'center', marginVertical: 1 }}>
-            {data.competition.toUpperCase()}
-          </Text>
-          <Text style={{ fontSize: 7, textAlign: 'center', color: '#444444' }}>
-            {data.category} • {isIndoor ? 'VÔLEI DE QUADRA' : 'VÔLEI DE PRAIA'} ({data.playerFormat}) • {data.format.toUpperCase()}
-          </Text>
 
-          {/* Grid de Metadados da Partida */}
+          {/* Linha 3: Grid Técnico de Metadados da Partida */}
           <View style={styles.metaGrid}>
             <View style={styles.metaCell}>
               <Text style={styles.metaLabel}>JOGO Nº</Text>
               <Text style={styles.metaValue}>{data.matchNumber}</Text>
             </View>
             <View style={styles.metaCell}>
-              <Text style={styles.metaLabel}>RODADA / FASE</Text>
-              <Text style={styles.metaValue}>{data.phase || `Rodada ${data.round}`}</Text>
+              <Text style={styles.metaLabel}>FASE / CHAVE</Text>
+              <Text style={styles.metaValue}>{data.phase || `Rodada ${data.round}`} {data.groupName ? `(${data.groupName})` : ''}</Text>
             </View>
             <View style={styles.metaCell}>
               <Text style={styles.metaLabel}>DATA E HORÁRIO</Text>
               <Text style={styles.metaValue}>{data.date} às {data.time}</Text>
             </View>
             <View style={styles.metaCell}>
-              <Text style={styles.metaLabel}>GINÁSIO / QUADRA</Text>
+              <Text style={styles.metaLabel}>GINÁSIO / LOCAL</Text>
               <Text style={styles.metaValue}>{data.venue} {data.court ? `(${data.court})` : ''}</Text>
             </View>
             <View style={styles.metaCell}>
-              <Text style={styles.metaLabel}>CIDADE</Text>
+              <Text style={styles.metaLabel}>CIDADE / UF</Text>
               <Text style={styles.metaValue}>{data.city || 'Local'}</Text>
             </View>
           </View>

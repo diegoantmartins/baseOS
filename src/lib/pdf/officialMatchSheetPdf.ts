@@ -124,21 +124,23 @@ function drawFederationHeader(d: jsPDF, data: MatchSheetData, y: number, w: numb
   tx(d, nameB, xMid + wMid - 11, y + 11.5, 4.8, { a: 'right', b: true });
   circle(d, xMid + wMid - 6, y + 10.6, 2.2, 0.4); tx(d, 'B', xMid + wMid - 6, y + 11.5, 4.0, { a: 'center', b: true });
 
-  // Bloco 3 (Direita): Brasão / Federação & SÚMULA OFICIAL
+  // Bloco 3 (Direita): Brasão / Sistema BaseOS & SÚMULA OFICIAL
   const xRight = xMid + wMid;
   const wRight = w - (wLeft + wMid);
   bx(d, xRight, y, wRight, h, 0.4);
 
-  if (data.teamA.logoUrl) {
-    drawTeamLogo(d, data.teamA.logoUrl, xRight + 2, y + 1.5, 12);
-  } else {
-    circle(d, xRight + 7, y + h / 2, 5.0, 0.4);
-    tx(d, 'FPV', xRight + 7, y + h / 2 + 1.4, 4.5, { a: 'center', b: true });
-  }
+  // Logo Vetorial BaseOS
+  d.setFillColor(60, 60, 60);
+  d.roundedRect(xRight + 3.5, y + 3.0, 6, 1.8, 0.4, 0.4, 'F');
+  d.setFillColor(0, 0, 0);
+  d.roundedRect(xRight + 5.0, y + 5.4, 7.5, 1.8, 0.4, 0.4, 'F');
+  d.setFillColor(100, 100, 100);
+  d.roundedRect(xRight + 3.5, y + 7.8, 6, 1.8, 0.4, 0.4, 'F');
 
   const orgName = data.orgName || 'Federação de Voleibol';
-  tx(d, orgName.toUpperCase(), xRight + 15, y + 5.2, 6.5, { b: true });
-  tx(d, 'SÚMULA OFICIAL', xRight + 15, y + 11.0, 9.0, { b: true });
+  tx(d, orgName.toUpperCase(), xRight + 15, y + 4.2, 5.5, { b: true });
+  tx(d, 'SISTEMA BaseOS', xRight + 15, y + 7.5, 4.2, { b: true, c: GRAY_MED });
+  tx(d, 'SÚMULA OFICIAL', xRight + 15, y + 12.0, 7.5, { b: true });
 }
 
 // ══════════════════════════════════════════════════════════════════════

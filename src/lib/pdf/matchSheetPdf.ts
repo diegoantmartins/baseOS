@@ -122,121 +122,158 @@ export function generateMatchSheetPdf(data: MatchSheetData): jsPDF {
 
 function drawHeader(doc: jsPDF, data: MatchSheetData, y: number): number {
   const modalityText = data.modality === 'indoor' ? 'VÔLEI DE QUADRA' : 'VÔLEI DE PRAIA';
-  const formatText = data.format.toUpperCase().replace('-', ' ');
   const isPreGame = data.sheetMode === 'pre';
+  const totalSets = data.format === '5-sets' ? 5 : data.format === '3-sets' ? 3 : data.sets.length || 3;
 
-  // Organizador/Sistema
-  if (data.orgName) {
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(GRAY_MEDIUM);
-    doc.text(data.orgName.toUpperCase(), PAGE_WIDTH / 2, y, { align: 'center' });
-    y += 5;
-  }
+  // Box Principal do Topo (Moldura Externa)
+  const headerTopHeight = 16;
+  doc.setFillColor(255, 255, 255);
+  doc.rect(MARGIN, y, CONTENT_WIDTH, headerTopHeight, 'F');
+  doc.setDrawColor(BLACK);
+  doc.setLineWidth(0.4);
+  doc.rect(MARGIN, y, CONTENT_WIDTH, headerTopHeight, 'S');
 
-  // Title
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(BLACK);
-  doc.text('SÚMULA OFICIAL', PAGE_WIDTH / 2, y, { align: 'center' });
-  y += 6;
+  // 1. BRANDING BASEOS (ESQUERDA)
+  const logoX = MARGIN + 3;
+  const logoY = y + 3.5;
+  // Barra 1 (Topo)
+  doc.setFillColor(60, 60, 60);
+  doc.roundedRect(logoX, logoY, 7, 2, 0.5, 0.5, 'F');
+  // Barra 2 (Meio - deslocada)
+  doc.setFillColor(0, 0, 0);
+  doc.roundedRect(logoX + 2, logoY + 3, 9, 2, 0.5, 0.5, 'F');
+  // Barra 3 (Base)
+  doc.setFillColor(100, 100, 100);
+  doc.roundedRect(logoX, logoY + 6, 7, 2, 0.5, 0.5, 'F');
 
-  // Modality and format
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`${modalityText} - ${formatText} (${data.playerFormat})`, PAGE_WIDTH / 2, y, { align: 'center' });
-  y += 8;
-
-  // Competition name
+  // Texto BaseOS
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text(data.competition.toUpperCase(), PAGE_WIDTH / 2, y, { align: 'center' });
-  y += 5;
+  doc.setTextColor(BLACK);
+  doc.text('BaseOS', logoX + 13, logoY + 4);
+  doc.setFontSize(5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(GRAY_MEDIUM);
+  doc.text('GESTÃO DE COMPETIÇÕES', logoX + 13, logoY + 7.5);
 
-  // Category + Naipe
-  doc.setFontSize(10);
+  // Divisória vertical esquerda
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.3);
+  doc.line(MARGIN + 48, y, MARGIN + 48, y + headerTopHeight);
+
+  // 2. CENTRO: ENTIDADE + TÍTULO DA SÚMULA
+  const centerCenterX = MARGIN + 48 + (CONTENT_WIDTH - 48 - 42) / 2;
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(GRAY_DARK);
+  doc.text(data.orgName ? data.orgName.toUpperCase() : 'FEDERAÇÃO / ENTIDADE ORGANIZADORA', centerCenterX, y + 4, { align: 'center' });
+
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(BLACK);
+  doc.text('SÚMULA OFICIAL DE VOLEIBOL', centerCenterX, y + 9.5, { align: 'center' });
+
+  doc.setFontSize(6);
   doc.setFont('helvetica', 'normal');
-  doc.text(data.category, PAGE_WIDTH / 2, y, { align: 'center' });
-  y += 4;
-  if (data.genderCategory) {
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`NAIPE: ${GENDER_CATEGORY_LABEL[data.genderCategory]}`, PAGE_WIDTH / 2, y, { align: 'center' });
-    y += 4;
-  }
+  doc.setTextColor(GRAY_MEDIUM);
+  doc.text(`${modalityText} • ${data.playerFormat} • MELHOR DE ${totalSets} SETS`, centerCenterX, y + 13.5, { align: 'center' });
 
-  // Modo da súmula (pré-jogo para a mesa / resultado final)
-  doc.setFontSize(8);
+  // Divisória vertical direita
+  doc.setDrawColor(210, 210, 210);
+  doc.line(PAGE_WIDTH - MARGIN - 42, y, PAGE_WIDTH - MARGIN - 42, y + headerTopHeight);
+
+  // 3. SELO OFICIAL (DIREITA)
+  const sealX = PAGE_WIDTH - MARGIN - 42;
+  const sealWidth = 42;
+  doc.setFillColor(245, 245, 245);
+  doc.rect(sealX, y, sealWidth, headerTopHeight, 'F');
+  doc.setDrawColor(BLACK);
+  doc.setLineWidth(0.3);
+  doc.rect(sealX, y, sealWidth, headerTopHeight, 'S');
+
+  doc.setFontSize(5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(GRAY_MEDIUM);
+  doc.text('PADRÃO CBV / FIVB', sealX + sealWidth / 2, y + 4, { align: 'center' });
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(BLACK);
+  doc.text(`JOGO Nº ${data.matchNumber}`, sealX + sealWidth / 2, y + 9, { align: 'center' });
+
+  doc.setFontSize(5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(isPreGame ? BLACK : GRAY_MEDIUM);
-  doc.text(
-    isPreGame ? 'PRÉ-JOGO — PREENCHIMENTO MANUAL PELA MESA' : 'PÓS-JOGO — RESULTADO FINAL',
-    PAGE_WIDTH / 2,
-    y,
-    { align: 'center' },
-  );
-  y += 4;
+  doc.text(isPreGame ? 'PRÉ-JOGO (MESA)' : 'RESULTADO FINAL', sealX + sealWidth / 2, y + 13.5, { align: 'center' });
 
-  // Horizontal line
+  y += headerTopHeight;
+
+  // 4. BANNER DA COMPETIÇÃO E CATEGORIA
+  const bannerHeight = 6.5;
+  doc.setFillColor(235, 235, 235);
+  doc.rect(MARGIN, y, CONTENT_WIDTH, bannerHeight, 'F');
   doc.setDrawColor(BLACK);
-  doc.setLineWidth(0.5);
-  doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
-  y += 5;
+  doc.setLineWidth(0.3);
+  doc.rect(MARGIN, y, CONTENT_WIDTH, bannerHeight, 'S');
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(BLACK);
+  doc.text(data.competition.toUpperCase(), MARGIN + 3, y + 4.5);
+
+  const categoryNaipeText = `CATEGORIA: ${data.category.toUpperCase()}${data.genderCategory ? ` • ${GENDER_CATEGORY_LABEL[data.genderCategory]}` : ''}`;
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(GRAY_DARK);
+  doc.text(categoryNaipeText, PAGE_WIDTH - MARGIN - 3, y + 4.5, { align: 'right' });
+
+  y += bannerHeight;
 
   return y;
 }
 
 function drawMatchInfo(doc: jsPDF, data: MatchSheetData, y: number): number {
-  const boxHeight = 18;
-  
-  // Info box background
-  doc.setFillColor(245, 245, 245);
+  const boxHeight = 11;
+  const colWidth = CONTENT_WIDTH / 5;
+
+  // Background e borda
+  doc.setFillColor(250, 250, 250);
   doc.rect(MARGIN, y, CONTENT_WIDTH, boxHeight, 'F');
   doc.setDrawColor(BLACK);
   doc.setLineWidth(0.3);
   doc.rect(MARGIN, y, CONTENT_WIDTH, boxHeight, 'S');
-  
-  // Grid
-  const colWidth = CONTENT_WIDTH / 4;
-  doc.line(MARGIN + colWidth, y, MARGIN + colWidth, y + boxHeight);
-  doc.line(MARGIN + colWidth * 2, y, MARGIN + colWidth * 2, y + boxHeight);
-  doc.line(MARGIN + colWidth * 3, y, MARGIN + colWidth * 3, y + boxHeight);
-  
-  // Labels and values
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
+
+  // Linhas divisórias das colunas
+  for (let i = 1; i < 5; i++) {
+    doc.line(MARGIN + colWidth * i, y, MARGIN + colWidth * i, y + boxHeight);
+  }
+
+  const labelY = y + 3.5;
+  const valueY = y + 8.5;
+
+  doc.setFontSize(5);
+  doc.setFont('helvetica', 'bold');
   doc.setTextColor(GRAY_MEDIUM);
-  
-  const labelY = y + 5;
-  const valueY = y + 12;
-  
-  doc.text('DATA', MARGIN + 2, labelY);
-  doc.text('HORÁRIO', MARGIN + colWidth + 2, labelY);
-  doc.text('RODADA', MARGIN + colWidth * 2 + 2, labelY);
-  doc.text('JOGO Nº', MARGIN + colWidth * 3 + 2, labelY);
-  
-  doc.setFontSize(10);
+
+  doc.text('FASE / CHAVE', MARGIN + 2, labelY);
+  doc.text('DATA E HORÁRIO', MARGIN + colWidth + 2, labelY);
+  doc.text('GINÁSIO / LOCAL', MARGIN + colWidth * 2 + 2, labelY);
+  doc.text('QUADRA', MARGIN + colWidth * 3 + 2, labelY);
+  doc.text('CIDADE / UF', MARGIN + colWidth * 4 + 2, labelY);
+
+  doc.setFontSize(6.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(BLACK);
-  
-  doc.text(data.date, MARGIN + 2, valueY);
-  doc.text(data.time, MARGIN + colWidth + 2, valueY);
-  doc.text(String(data.round), MARGIN + colWidth * 2 + 2, valueY);
-  doc.text(String(data.matchNumber), MARGIN + colWidth * 3 + 2, valueY);
-  
+
+  const phaseText = `${data.phase || `Rodada ${data.round}`}${data.groupName ? ` (${data.groupName})` : ''}`;
+  doc.text(phaseText.slice(0, 20), MARGIN + 2, valueY);
+  doc.text(`${data.date} às ${data.time}`, MARGIN + colWidth + 2, valueY);
+  doc.text((data.venue || 'Local').slice(0, 22), MARGIN + colWidth * 2 + 2, valueY);
+  doc.text((data.court || 'Principal').slice(0, 18), MARGIN + colWidth * 3 + 2, valueY);
+  doc.text((data.city || 'Sede').slice(0, 18), MARGIN + colWidth * 4 + 2, valueY);
+
   y += boxHeight + 3;
-  
-  // Venue
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(GRAY_MEDIUM);
-  doc.text('LOCAL:', MARGIN, y + 4);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(BLACK);
-  doc.text(data.venue + (data.court ? ` - ${data.court}` : ''), MARGIN + 15, y + 4);
-  
-  y += 10;
-  
+
   return y;
 }
 
