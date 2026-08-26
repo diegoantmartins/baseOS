@@ -20,6 +20,7 @@ import {
 import { BlankSheetEmitDialog } from '@/components/match/BlankSheetEmitDialog';
 import { MatchSheetEmitDialog } from '@/components/match/MatchSheetEmitDialog';
 import { ReportPreviewDialog } from '@/components/report/ReportPreviewDialog';
+import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import type { CompetitionRecord, MatchRecord, TeamRecord, PersonRecord } from '@/types/entities';
 import type { CompetitionAthlete } from '@/types/registration';
 
@@ -158,7 +159,7 @@ export default function ReportsPage() {
     if (!competition) return;
     setPreviewDialog({
       open: true,
-      title: 'Boletim Geral de Jogos & Confrontos',
+      title: 'Boletim Geral de Jogos e Confrontos',
       subtitle: `${competition.name} · Visualização oficial antes de impressão/download`,
       filename: `boletim_${competition.name.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase()}.pdf`,
       generatePdf: async () => {
@@ -286,7 +287,7 @@ export default function ReportsPage() {
     if (!competition) return;
     setPreviewDialog({
       open: true,
-      title: 'Quadro de Honra & Pódio Oficial',
+      title: 'Quadro de Honra e Pódio Oficial',
       subtitle: `${competition.name} · Encerramento e Premiações Homologadas`,
       filename: `podio_final_${competition.name.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase()}.pdf`,
       generatePdf: async () => {
@@ -312,200 +313,207 @@ export default function ReportsPage() {
 
   return (
     <MainLayout>
-      <div className="flex flex-col md:flex-row gap-6">
-        
+      <div className="flex flex-col md:flex-row gap-5">
         {/* SIDEBAR DE FILTROS */}
-        <div className="w-full md:w-64 shrink-0 space-y-6">
-          <div>
-            <h2 className="text-xl font-display font-bold text-foreground mb-4 flex items-center gap-2">
-              <Filter className="w-5 h-5 text-primary" /> Filtros
-            </h2>
-            <Card className="card-elevated">
-              <CardContent className="p-4 space-y-4">
-                <div className="space-y-2">
-                  <Label>Competição</Label>
-                  <Select value={competitionId} onValueChange={setCompetitionId} disabled={loading}>
-                    <SelectTrigger className="w-full text-xs">
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {competitions.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Fase / Grupo</Label>
-                  <Select value={selectedPhase} onValueChange={setSelectedPhase} disabled={loading}>
-                    <SelectTrigger className="w-full text-xs">
-                      <SelectValue placeholder="Todas as Fases" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas as Fases</SelectItem>
-                      <SelectItem value="classificatória">Classificatória</SelectItem>
-                      <SelectItem value="quartas">Quartas de Final</SelectItem>
-                      <SelectItem value="semifinal">Semifinal</SelectItem>
-                      <SelectItem value="final">Final</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Gênero</Label>
-                  <Select value={selectedGender} onValueChange={setSelectedGender} disabled={loading}>
-                    <SelectTrigger className="w-full text-xs">
-                      <SelectValue placeholder="Todos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="male">Masculino</SelectItem>
-                      <SelectItem value="female">Feminino</SelectItem>
-                      <SelectItem value="mixed">Misto</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        <div className="w-full md:w-60 shrink-0 space-y-4">
+          <Card className="card-elevated shadow-none border border-border bg-card">
+            <CardHeader className="p-3.5 pb-2 border-b border-border bg-zinc-900/60">
+              <CardTitle className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-primary" /> Filtros
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3.5 space-y-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Competição</Label>
+                <Select value={competitionId} onValueChange={setCompetitionId} disabled={loading}>
+                  <SelectTrigger className="w-full h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
+                    {competitions.map(c => (
+                      <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Fase / Grupo</Label>
+                <Select value={selectedPhase} onValueChange={setSelectedPhase} disabled={loading}>
+                  <SelectTrigger className="w-full h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
+                    <SelectValue placeholder="Todas as Fases" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
+                    <SelectItem value="all" className="text-xs">Todas as Fases</SelectItem>
+                    <SelectItem value="classificatória" className="text-xs">Classificatória</SelectItem>
+                    <SelectItem value="quartas" className="text-xs">Quartas de Final</SelectItem>
+                    <SelectItem value="semifinal" className="text-xs">Semifinal</SelectItem>
+                    <SelectItem value="final" className="text-xs">Final</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Gênero</Label>
+                <Select value={selectedGender} onValueChange={setSelectedGender} disabled={loading}>
+                  <SelectTrigger className="w-full h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
+                    <SelectItem value="all" className="text-xs">Todos</SelectItem>
+                    <SelectItem value="male" className="text-xs">Masculino</SelectItem>
+                    <SelectItem value="female" className="text-xs">Feminino</SelectItem>
+                    <SelectItem value="mixed" className="text-xs">Misto</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* ÁREA PRINCIPAL (DASHBOARD & RELATÓRIOS) */}
-        <div className="flex-1 space-y-6">
-          <div className="mb-2">
-            <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground flex items-center gap-2.5">
-              <FileSpreadsheet className="w-8 h-8 text-primary" />
-              Painel de Relatórios
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Visualize estatísticas gerais e exporte os documentos baseados nos filtros ativos.
-            </p>
+        {/* ÁREA PRINCIPAL (PAINEL E RELATÓRIOS) */}
+        <div className="flex-1 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-primary" />
+                Painel de Relatórios e Boletins
+              </h1>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                Visualize estatísticas consolidadas e exporte documentos oficiais em PDF e CSV.
+              </p>
+            </div>
+            <ContextualHelpButton
+              articles={[
+                { articleId: 'relatorios-gerais', label: 'Como emitir boletins e relatórios' },
+                { articleId: 'relatorios-encerramento', label: 'Boletim de encerramento e pódio' },
+                { articleId: 'gerar-sumula', label: 'Como emitir e imprimir súmulas' },
+              ]}
+              label="Ajuda em relatórios"
+            />
           </div>
-          
+
           {/* KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className="card-elevated border-l-4 border-l-primary">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between text-muted-foreground mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">Equipes</span>
-                  <Users className="w-4 h-4" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="card-elevated shadow-none border border-border bg-card">
+              <CardContent className="p-3.5">
+                <div className="flex items-center justify-between text-muted-foreground mb-1">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider">Equipes</span>
+                  <Users className="w-3.5 h-3.5" />
                 </div>
-                <div className="text-3xl font-black text-foreground">{filteredTeams.length}</div>
+                <div className="text-xl font-semibold tabular-nums text-foreground">{filteredTeams.length}</div>
               </CardContent>
             </Card>
-            <Card className="card-elevated border-l-4 border-l-accent">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between text-muted-foreground mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">Atletas</span>
-                  <Users className="w-4 h-4" />
+            <Card className="card-elevated shadow-none border border-border bg-card">
+              <CardContent className="p-3.5">
+                <div className="flex items-center justify-between text-muted-foreground mb-1">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider">Atletas</span>
+                  <Users className="w-3.5 h-3.5" />
                 </div>
-                <div className="text-3xl font-black text-foreground">
+                <div className="text-xl font-semibold tabular-nums text-foreground">
                   {filteredTeams.length * 10}
                 </div>
               </CardContent>
             </Card>
-            <Card className="card-elevated border-l-4 border-l-blue-500">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between text-muted-foreground mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">Jogos Listados</span>
-                  <ClipboardList className="w-4 h-4" />
+            <Card className="card-elevated shadow-none border border-border bg-card">
+              <CardContent className="p-3.5">
+                <div className="flex items-center justify-between text-muted-foreground mb-1">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider">Jogos Listados</span>
+                  <ClipboardList className="w-3.5 h-3.5" />
                 </div>
-                <div className="text-3xl font-black text-foreground">{filteredMatches.length}</div>
+                <div className="text-xl font-semibold tabular-nums text-foreground">{filteredMatches.length}</div>
               </CardContent>
             </Card>
-            <Card className="card-elevated border-l-4 border-l-success">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between text-muted-foreground mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">Concluídos</span>
-                  <Trophy className="w-4 h-4" />
+            <Card className="card-elevated shadow-none border border-border bg-card">
+              <CardContent className="p-3.5">
+                <div className="flex items-center justify-between text-muted-foreground mb-1">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider">Concluídos</span>
+                  <Trophy className="w-3.5 h-3.5" />
                 </div>
-                <div className="text-3xl font-black text-foreground">{completedMatches.length}</div>
+                <div className="text-xl font-semibold tabular-nums text-foreground">{completedMatches.length}</div>
               </CardContent>
             </Card>
           </div>
 
           {/* LISTA DE RELATÓRIOS */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold font-display text-foreground mt-4">Documentos Disponíveis</h3>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Documentos Disponíveis</h3>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
               {/* Boletim Geral */}
-              <Card className="card-elevated hover:border-primary/40 transition-all flex flex-col justify-between">
-                <CardHeader className="pb-3 flex flex-row gap-3 space-y-0">
-                  <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0 h-fit">
-                    <ClipboardList className="w-5 h-5" />
+              <Card className="card-elevated hover-raise shadow-none border border-border bg-card flex flex-col justify-between">
+                <CardHeader className="p-4 pb-2.5 flex flex-row gap-3 space-y-0">
+                  <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 h-fit">
+                    <ClipboardList className="w-4 h-4" />
                   </div>
-                  <div>
-                    <CardTitle className="text-base font-display">Boletim de Jogos</CardTitle>
-                    <CardDescription className="text-xs leading-relaxed mt-1">Tabela geral com horários e confrontos da competição.</CardDescription>
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-xs sm:text-sm font-semibold text-foreground">Boletim de Jogos</CardTitle>
+                    <CardDescription className="text-[11px] leading-relaxed mt-0.5 text-muted-foreground">Tabela geral com horários e confrontos da competição.</CardDescription>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0 flex gap-2">
-                  <Button variant="accent" className="flex-1 gap-2 text-xs" onClick={openBoletimPreview} disabled={loading || !competition}>
-                    <Eye className="w-4 h-4" /> Ver PDF
+                <CardContent className="p-4 pt-0 flex gap-2">
+                  <Button size="sm" className="flex-1 gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={openBoletimPreview} disabled={loading || !competition}>
+                    <Eye className="w-3.5 h-3.5" /> Ver PDF
                   </Button>
-                  <Button variant="outline" className="gap-2 text-xs" onClick={exportBoletimCsv} disabled={loading || !competition || filteredMatches.length === 0}>
-                    <Download className="w-4 h-4" /> CSV
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60" onClick={exportBoletimCsv} disabled={loading || !competition || filteredMatches.length === 0}>
+                    <Download className="w-3.5 h-3.5" /> CSV
                   </Button>
                 </CardContent>
               </Card>
 
               {/* Classificação */}
-              <Card className="card-elevated hover:border-primary/40 transition-all flex flex-col justify-between">
-                <CardHeader className="pb-3 flex flex-row gap-3 space-y-0">
-                  <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0 h-fit">
-                    <Trophy className="w-5 h-5" />
+              <Card className="card-elevated hover-raise shadow-none border border-border bg-card flex flex-col justify-between">
+                <CardHeader className="p-4 pb-2.5 flex flex-row gap-3 space-y-0">
+                  <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 h-fit">
+                    <Trophy className="w-4 h-4" />
                   </div>
-                  <div>
-                    <CardTitle className="text-base font-display">Classificação por Grupos</CardTitle>
-                    <CardDescription className="text-xs leading-relaxed mt-1">Classificação oficial e critérios de desempate CBV.</CardDescription>
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-xs sm:text-sm font-semibold text-foreground">Classificação por Grupos</CardTitle>
+                    <CardDescription className="text-[11px] leading-relaxed mt-0.5 text-muted-foreground">Classificação oficial e critérios de desempate CBV.</CardDescription>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0 flex gap-2">
-                  <Button variant="accent" className="w-full gap-2 text-xs" onClick={openStandingsPreview} disabled={loading || !competition}>
-                    <Eye className="w-4 h-4" /> Ver PDF
+                <CardContent className="p-4 pt-0 flex gap-2">
+                  <Button size="sm" className="w-full gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={openStandingsPreview} disabled={loading || !competition}>
+                    <Eye className="w-3.5 h-3.5" /> Ver PDF
                   </Button>
                 </CardContent>
               </Card>
 
               {/* Relação Nominal */}
-              <Card className="card-elevated hover:border-primary/40 transition-all flex flex-col justify-between">
-                <CardHeader className="pb-3 flex flex-row gap-3 space-y-0">
-                  <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0 h-fit">
-                    <Users className="w-5 h-5" />
+              <Card className="card-elevated hover-raise shadow-none border border-border bg-card flex flex-col justify-between">
+                <CardHeader className="p-4 pb-2.5 flex flex-row gap-3 space-y-0">
+                  <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 h-fit">
+                    <Users className="w-4 h-4" />
                   </div>
-                  <div>
-                    <CardTitle className="text-base font-display">Relação Nominal das Equipes</CardTitle>
-                    <CardDescription className="text-xs leading-relaxed mt-1">Elenco completo com números, capitão e assinaturas.</CardDescription>
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-xs sm:text-sm font-semibold text-foreground">Relação Nominal das Equipes</CardTitle>
+                    <CardDescription className="text-[11px] leading-relaxed mt-0.5 text-muted-foreground">Elenco completo com números, capitão e assinaturas.</CardDescription>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0 flex gap-2">
-                  <Button variant="accent" className="w-full gap-2 text-xs" onClick={openRostersPreview} disabled={loading}>
-                    <Eye className="w-4 h-4" /> Ver PDF
+                <CardContent className="p-4 pt-0 flex gap-2">
+                  <Button size="sm" className="w-full gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={openRostersPreview} disabled={loading}>
+                    <Eye className="w-3.5 h-3.5" /> Ver PDF
                   </Button>
                 </CardContent>
               </Card>
 
               {/* Pódio Final */}
-              <Card className="card-elevated hover:border-primary/40 transition-all flex flex-col justify-between">
-                <CardHeader className="pb-3 flex flex-row gap-3 space-y-0">
-                  <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0 h-fit">
-                    <Award className="w-5 h-5" />
+              <Card className="card-elevated hover-raise shadow-none border border-border bg-card flex flex-col justify-between">
+                <CardHeader className="p-4 pb-2.5 flex flex-row gap-3 space-y-0">
+                  <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 h-fit">
+                    <Award className="w-4 h-4" />
                   </div>
-                  <div>
-                    <CardTitle className="text-base font-display">Quadro de Honra</CardTitle>
-                    <CardDescription className="text-xs leading-relaxed mt-1">Relatório final com Campeão, Vice e 3º colocado.</CardDescription>
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-xs sm:text-sm font-semibold text-foreground">Quadro de Honra</CardTitle>
+                    <CardDescription className="text-[11px] leading-relaxed mt-0.5 text-muted-foreground">Relatório final com Campeão, Vice e 3º colocado.</CardDescription>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0 flex gap-2">
-                  <Button variant="accent" className="w-full gap-2 text-xs" onClick={openPodiumPreview} disabled={loading || !competition}>
-                    <Eye className="w-4 h-4" /> Ver PDF
+                <CardContent className="p-4 pt-0 flex gap-2">
+                  <Button size="sm" className="w-full gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={openPodiumPreview} disabled={loading || !competition}>
+                    <Eye className="w-3.5 h-3.5" /> Ver PDF
                   </Button>
                 </CardContent>
               </Card>
-              
             </div>
           </div>
         </div>

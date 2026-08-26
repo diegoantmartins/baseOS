@@ -168,40 +168,40 @@ export default function PeoplePage() {
   return (
     <MainLayout>
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-        <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground flex items-center gap-2.5">
-              <Users2 className="w-7 h-7 text-primary" />
-              Pessoas & Papéis
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+              <Users2 className="w-5 h-5 text-primary" />
+              Pessoas e Papéis
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
               Gestão integrada de gestores, técnicos, atletas e árbitros com suporte a múltiplos papéis simultâneos.
             </p>
           </div>
-          <Button variant="accent" onClick={handleOpenCreate} className="gap-2 self-start sm:self-auto">
-            <Plus className="w-4 h-4" />
+          <Button size="sm" onClick={handleOpenCreate} className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none self-start sm:self-auto">
+            <Plus className="w-3.5 h-3.5" />
             Nova Pessoa
           </Button>
         </motion.div>
 
         {/* Filtros e Busca */}
-        <motion.div variants={item} className="flex flex-col sm:flex-row gap-3">
+        <motion.div variants={item} className="flex flex-col sm:flex-row gap-2.5">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar por nome, apelido, documento ou e-mail..."
-              className="pl-9"
+              className="pl-8 text-xs h-8 bg-zinc-900 border-zinc-800 rounded-md"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
             {['all', 'manager', 'coach', 'athlete', 'referee'].map(r => (
               <Button
                 key={r}
-                variant={roleFilter === r ? 'default' : 'outline'}
+                variant={roleFilter === r ? 'secondary' : 'ghost'}
                 size="sm"
-                className="text-xs h-9"
+                className={`text-xs h-8 rounded-md px-2.5 ${roleFilter === r ? 'bg-zinc-800 text-foreground' : 'text-muted-foreground hover:bg-zinc-800/60'}`}
                 onClick={() => setRoleFilter(r)}
               >
                 {r === 'all' ? 'Todos os Papéis' : ROLE_CONFIG[r as PersonRole]?.label}
@@ -212,46 +212,52 @@ export default function PeoplePage() {
 
         {/* Lista de Pessoas */}
         {loading ? (
-          <Card className="p-8 text-center text-muted-foreground animate-pulse">Carregando pessoas...</Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-40 rounded-xl border border-zinc-800 bg-zinc-900/60 animate-pulse" />
+            ))}
+          </div>
         ) : filteredPersons.length === 0 ? (
-          <Card className="p-12 text-center text-muted-foreground">Nenhuma pessoa encontrada com os filtros selecionados.</Card>
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-10 text-center text-xs text-muted-foreground">Nenhuma pessoa encontrada com os filtros selecionados.</CardContent>
+          </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {filteredPersons.map(person => (
               <motion.div key={person.id} variants={item}>
-                <Card className="card-elevated hover:border-primary/40 transition-all flex flex-col justify-between h-full">
-                  <CardHeader className="pb-2.5">
+                <Card className="card-elevated hover-raise shadow-none border border-border bg-card flex flex-col justify-between h-full group">
+                  <CardHeader className="p-4 pb-2.5">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-sm shrink-0 border border-primary/20">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-zinc-800 text-zinc-200 border border-zinc-700/60 font-semibold flex items-center justify-center text-xs shrink-0">
                           {person.fullName.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <CardTitle className="text-base font-display leading-tight">{person.fullName}</CardTitle>
+                        <div className="min-w-0">
+                          <CardTitle className="text-xs sm:text-sm font-semibold truncate text-foreground">{person.fullName}</CardTitle>
                           {person.nickname && (
-                            <span className="text-xs text-muted-foreground">"{person.nickname}"</span>
+                            <span className="text-[11px] text-muted-foreground truncate block">"{person.nickname}"</span>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(person)}>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-zinc-800 rounded-md" onClick={() => handleOpenEdit(person)}>
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(person.id, person.fullName)}>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-red-400 hover:bg-zinc-800 rounded-md" onClick={() => handleDelete(person.id, person.fullName)}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
                     </div>
 
                     {/* Roles Badges */}
-                    <div className="flex flex-wrap gap-1.5 pt-2">
+                    <div className="flex flex-wrap gap-1 pt-2">
                       {person.roles.map(r => {
                         const cfg = ROLE_CONFIG[r];
                         if (!cfg) return null;
                         const Icon = cfg.icon;
                         return (
-                          <Badge key={r} variant="outline" className={`text-[11px] gap-1 px-2 py-0.5 font-medium ${cfg.color}`}>
-                            <Icon className="w-3 h-3" />
+                          <Badge key={r} variant="outline" className="text-[10px] gap-1 px-1.5 py-0 h-4 border-zinc-800 bg-zinc-900 text-zinc-300 font-medium">
+                            <Icon className="w-2.5 h-2.5 text-zinc-400" />
                             {cfg.label}
                           </Badge>
                         );
@@ -259,30 +265,30 @@ export default function PeoplePage() {
                     </div>
                   </CardHeader>
 
-                  <CardContent className="pt-2 text-xs space-y-2 text-muted-foreground border-t border-border/50">
+                  <CardContent className="p-4 pt-2 text-xs space-y-1.5 text-muted-foreground border-t border-border/40">
                     {person.documentId && (
-                      <p><span className="font-semibold text-foreground">Doc:</span> {person.documentId}</p>
+                      <p className="text-[11px]"><span className="font-semibold text-foreground">Doc:</span> {person.documentId}</p>
                     )}
                     {person.email && (
-                      <p className="flex items-center gap-1.5 truncate">
-                        <Mail className="w-3.5 h-3.5 shrink-0" />
+                      <p className="flex items-center gap-1.5 text-[11px] truncate">
+                        <Mail className="w-3 h-3 shrink-0 text-zinc-500" />
                         {person.email}
                       </p>
                     )}
                     {person.phone && (
-                      <p className="flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 shrink-0" />
+                      <p className="flex items-center gap-1.5 text-[11px]">
+                        <Phone className="w-3 h-3 shrink-0 text-zinc-500" />
                         {person.phone}
                       </p>
                     )}
                     {person.teamIds && person.teamIds.length > 0 && (
                       <div className="pt-1">
-                        <span className="font-semibold text-foreground block mb-1">Equipes vinculadas:</span>
+                        <span className="text-[10px] uppercase font-semibold text-muted-foreground block mb-1">Equipes:</span>
                         <div className="flex flex-wrap gap-1">
                           {person.teamIds.map(tid => {
                             const t = teams.find(team => team.id === tid);
                             return (
-                              <Badge key={tid} variant="secondary" className="text-[10px]">
+                              <Badge key={tid} variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">
                                 {t?.shortName || t?.name || tid}
                               </Badge>
                             );
@@ -300,82 +306,88 @@ export default function PeoplePage() {
 
       {/* Modal Criar/Editar Pessoa */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-zinc-950 border-border p-5 rounded-xl shadow-none">
           <DialogHeader>
-            <DialogTitle>{editing ? 'Editar Cadastro de Pessoa' : 'Novo Cadastro de Pessoa'}</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-sm font-semibold text-foreground">{editing ? 'Editar Cadastro de Pessoa' : 'Novo Cadastro de Pessoa'}</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
               Cadastre ou atualize a pessoa e selecione múltiplos papéis conforme aplicável.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSave} className="space-y-4 pt-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="fullName">Nome Completo</Label>
+          <form onSubmit={handleSave} className="space-y-3.5 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label htmlFor="fullName" className="text-[10px] uppercase font-semibold text-muted-foreground">Nome Completo</Label>
                 <Input
                   id="fullName"
                   value={form.fullName}
                   onChange={e => setForm({ ...form, fullName: e.target.value })}
                   placeholder="Nome completo..."
                   required
+                  className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="nickname">Nome Esportivo / Apelido</Label>
+              <div className="space-y-1">
+                <Label htmlFor="nickname" className="text-[10px] uppercase font-semibold text-muted-foreground">Nome Esportivo / Apelido</Label>
                 <Input
                   id="nickname"
                   value={form.nickname}
                   onChange={e => setForm({ ...form, nickname: e.target.value })}
                   placeholder="Como é conhecido..."
+                  className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="documentId">Documento (CPF / RG)</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label htmlFor="documentId" className="text-[10px] uppercase font-semibold text-muted-foreground">Documento (CPF / RG)</Label>
                 <Input
                   id="documentId"
                   value={form.documentId}
                   onChange={e => setForm({ ...form, documentId: e.target.value })}
                   placeholder="000.000.000-00"
+                  className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="birthDate">Data de Nascimento</Label>
+              <div className="space-y-1">
+                <Label htmlFor="birthDate" className="text-[10px] uppercase font-semibold text-muted-foreground">Data de Nascimento</Label>
                 <Input
                   id="birthDate"
                   type="date"
                   value={form.birthDate}
                   onChange={e => setForm({ ...form, birthDate: e.target.value })}
+                  className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="email">E-mail</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label htmlFor="email" className="text-[10px] uppercase font-semibold text-muted-foreground">E-mail</Label>
                 <Input
                   id="email"
                   type="email"
                   value={form.email}
                   onChange={e => setForm({ ...form, email: e.target.value })}
                   placeholder="email@exemplo.com"
+                  className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="phone">Telefone / WhatsApp</Label>
+              <div className="space-y-1">
+                <Label htmlFor="phone" className="text-[10px] uppercase font-semibold text-muted-foreground">Telefone / WhatsApp</Label>
                 <Input
                   id="phone"
                   value={form.phone}
                   onChange={e => setForm({ ...form, phone: e.target.value })}
                   placeholder="(00) 00000-0000"
+                  className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
                 />
               </div>
             </div>
 
             {/* Seleção de Múltiplos Papéis */}
-            <div className="space-y-2 pt-2 border-t border-border/60">
-              <Label className="font-semibold text-foreground block">Papéis / Vínculos Ativos (Permite múltiplos)</Label>
+            <div className="space-y-2 pt-2 border-t border-border/40">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground block">Papéis / Vínculos Ativos</Label>
               <div className="grid grid-cols-2 gap-2">
                 {(['manager', 'coach', 'athlete', 'referee'] as PersonRole[]).map(r => {
                   const cfg = ROLE_CONFIG[r];
@@ -384,7 +396,7 @@ export default function PeoplePage() {
                     <label
                       key={r}
                       onClick={() => handleToggleRole(r)}
-                      className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${checked ? 'border-primary bg-primary/5 text-foreground font-semibold shadow-xs' : 'border-border/60 bg-muted/20 text-muted-foreground'}`}
+                      className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors ${checked ? 'border-zinc-700 bg-zinc-800 text-foreground font-medium' : 'border-zinc-800 bg-zinc-900/60 text-muted-foreground'}`}
                     >
                       <Checkbox checked={checked} onCheckedChange={() => handleToggleRole(r)} />
                       <span className="text-xs">{cfg.label}</span>
@@ -396,8 +408,8 @@ export default function PeoplePage() {
 
             {/* Vinculação de Equipes */}
             {teams.length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-border/60">
-                <Label className="font-semibold text-foreground block">Equipes Vinculadas</Label>
+              <div className="space-y-2 pt-2 border-t border-border/40">
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground block">Equipes Vinculadas</Label>
                 <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
                   {teams.map(t => {
                     const checked = form.teamIds.includes(t.id);
@@ -405,7 +417,7 @@ export default function PeoplePage() {
                       <label
                         key={t.id}
                         onClick={() => handleToggleTeam(t.id)}
-                        className={`flex items-center gap-2 p-2 rounded border cursor-pointer text-xs ${checked ? 'border-primary bg-primary/5 font-semibold' : 'border-border/60 bg-muted/20 text-muted-foreground'}`}
+                        className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer text-xs ${checked ? 'border-zinc-700 bg-zinc-800 text-foreground font-medium' : 'border-zinc-800 bg-zinc-900/60 text-muted-foreground'}`}
                       >
                         <Checkbox checked={checked} onCheckedChange={() => handleToggleTeam(t.id)} />
                         <span className="truncate">{t.name}</span>
@@ -416,22 +428,23 @@ export default function PeoplePage() {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label htmlFor="notes">Observações</Label>
+            <div className="space-y-1">
+              <Label htmlFor="notes" className="text-[10px] uppercase font-semibold text-muted-foreground">Observações</Label>
               <Textarea
                 id="notes"
                 value={form.notes}
                 onChange={e => setForm({ ...form, notes: e.target.value })}
                 placeholder="Anotações gerais..."
                 rows={2}
+                className="text-xs bg-zinc-900 border-zinc-800 rounded-md"
               />
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
+            <DialogFooter className="gap-2 pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setModalOpen(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">
                 Cancelar
               </Button>
-              <Button type="submit" variant="accent">
+              <Button type="submit" size="sm" className="h-8 text-xs rounded-md font-medium shadow-none">
                 Salvar Pessoa
               </Button>
             </DialogFooter>

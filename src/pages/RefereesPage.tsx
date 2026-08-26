@@ -140,116 +140,116 @@ const RefereesPage = () => {
     <MainLayout>
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
         {/* Header */}
-        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Árbitros</h1>
-            <p className="text-muted-foreground mt-1">Gestão de árbitros e escala de jogos</p>
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">Árbitros</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Gestão do quadro de árbitros e escalas oficiais</p>
           </div>
-          <Button variant="accent" className="gap-2" onClick={() => setCreateOpen(true)}>
-            <Plus className="w-4 h-4" />
+          <Button size="sm" className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={() => setCreateOpen(true)}>
+            <Plus className="w-3.5 h-3.5" />
             Novo Árbitro
           </Button>
         </motion.div>
 
         {/* Stats */}
-        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-display font-bold text-foreground">{referees.length}</p>
-              <p className="text-sm text-muted-foreground">Total de Árbitros</p>
+        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-3.5">
+              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Total de Árbitros</span>
+              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">{referees.length}</p>
             </CardContent>
           </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-display font-bold text-success">
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-3.5">
+              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Disponíveis</span>
+              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">
                 {referees.filter(r => r.status === 'available').length}
               </p>
-              <p className="text-sm text-muted-foreground">Disponíveis</p>
             </CardContent>
           </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-display font-bold text-accent">
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-3.5">
+              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Internacionais</span>
+              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">
                 {referees.filter(r => r.level === 'international').length}
               </p>
-              <p className="text-sm text-muted-foreground">Internacionais</p>
             </CardContent>
           </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-display font-bold text-foreground">
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-3.5">
+              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Jogos Apitados</span>
+              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">
                 {referees.reduce((acc, r) => acc + r.matchesRefereed, 0)}
               </p>
-              <p className="text-sm text-muted-foreground">Jogos Apitados</p>
             </CardContent>
           </Card>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Referees List */}
-          <motion.div variants={item} className="lg:col-span-2 space-y-4">
+          <motion.div variants={item} className="lg:col-span-2 space-y-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input
                 placeholder="Buscar árbitros..."
-                className="pl-10"
+                className="pl-8 text-xs h-8 bg-zinc-900 border-zinc-800 rounded-md"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {loading ? (
-                <Card className="card-elevated">
-                  <CardContent className="p-10 text-center text-muted-foreground">Carregando árbitros...</CardContent>
-                </Card>
+                <div className="space-y-2.5">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-20 rounded-xl border border-zinc-800 bg-zinc-900/60 animate-pulse" />
+                  ))}
+                </div>
               ) : (
                 <>
                   {filteredReferees.map(referee => (
-                    <Card key={referee.id} className="card-elevated hover:shadow-lg transition-all group">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-4">
-                          <Avatar className="w-14 h-14">
-                            <AvatarFallback className="bg-primary text-primary-foreground font-bold text-lg">
-                              {referee.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
-                            </AvatarFallback>
-                          </Avatar>
+                    <Card key={referee.id} className="card-elevated hover-raise shadow-none border border-border bg-card group">
+                      <CardContent className="p-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-zinc-800 text-zinc-200 border border-zinc-700/60 font-semibold flex items-center justify-center text-xs shrink-0">
+                            {referee.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                          </div>
 
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold text-foreground">{referee.name}</h3>
-                              <Badge className={cn('text-xs', certificationColors[referee.level])}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <h3 className="font-semibold text-xs sm:text-sm text-foreground truncate">{referee.name}</h3>
+                              <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-300">
                                 {referee.level === 'international' ? 'Internacional' : referee.level === 'national' ? 'Nacional' : 'Regional'}
                               </Badge>
                             </div>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Award className="w-3.5 h-3.5" />
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1 text-[11px]">
+                                <Award className="w-3 h-3 text-zinc-500" />
                                 {referee.matchesRefereed} jogos
                               </span>
-                              <span>{referee.activeCompetitions.length} competições</span>
+                              <span className="text-[11px]">{referee.activeCompetitions.length} competições</span>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-3">
-                            <Badge className={cn(statusColors[referee.status])}>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={referee.status === 'available' ? 'outline' : 'secondary'} className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-300">
                               {statusLabels[referee.status]}
                             </Badge>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon-sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <MoreVertical className="w-4 h-4" />
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-zinc-800 rounded-md">
+                                  <MoreVertical className="w-3.5 h-3.5 text-zinc-400" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem className="gap-2" onClick={() => setViewing(referee)}>
-                                  <Eye className="w-4 h-4" /> Ver Perfil
+                              <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800 text-xs">
+                                <DropdownMenuItem className="gap-2 text-xs" onClick={() => setViewing(referee)}>
+                                  <Eye className="w-3.5 h-3.5" /> Ver Perfil
                                 </DropdownMenuItem>
-                                <DropdownMenuItem className="gap-2" onClick={() => navigate('/jogos/novo')}>
-                                  <Calendar className="w-4 h-4" /> Escalar
+                                <DropdownMenuItem className="gap-2 text-xs" onClick={() => navigate('/jogos/novo')}>
+                                  <Calendar className="w-3.5 h-3.5" /> Escalar
                                 </DropdownMenuItem>
-                                <DropdownMenuItem className="gap-2" onClick={() => setEditing(referee)}>
-                                  <Edit className="w-4 h-4" /> Editar
+                                <DropdownMenuItem className="gap-2 text-xs" onClick={() => setEditing(referee)}>
+                                  <Edit className="w-3.5 h-3.5" /> Editar
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -257,12 +257,12 @@ const RefereesPage = () => {
                         </div>
 
                         {referee.nextMatch && (
-                          <div className="mt-3 pt-3 border-t border-border flex items-center gap-2 text-sm">
-                            <Clock className="w-4 h-4 text-accent" />
-                            <span className="text-muted-foreground">Próximo jogo:</span>
-                            <span className="font-medium">{referee.nextMatch.teams}</span>
-                            <span className="text-muted-foreground">·</span>
-                            <span className="text-muted-foreground">
+                          <div className="mt-2.5 pt-2 border-t border-border flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Clock className="w-3 h-3 text-zinc-400" />
+                            <span className="text-[11px]">Próximo:</span>
+                            <span className="font-medium text-foreground text-[11px] truncate">{referee.nextMatch.teams}</span>
+                            <span className="text-zinc-600">·</span>
+                            <span className="text-[11px]">
                               {new Date(referee.nextMatch.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                             </span>
                           </div>
@@ -271,8 +271,8 @@ const RefereesPage = () => {
                     </Card>
                   ))}
                   {filteredReferees.length === 0 && (
-                    <Card className="card-elevated">
-                      <CardContent className="p-10 text-center text-muted-foreground">
+                    <Card className="card-elevated shadow-none">
+                      <CardContent className="p-8 text-center text-xs text-muted-foreground">
                         Nenhum árbitro encontrado.
                       </CardContent>
                     </Card>
@@ -284,35 +284,35 @@ const RefereesPage = () => {
 
           {/* Schedule */}
           <motion.div variants={item}>
-            <Card className="card-elevated h-full">
-              <CardHeader>
-                <CardTitle className="text-lg font-display flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-accent" />
+            <Card className="card-elevated shadow-none border border-border bg-card h-full">
+              <CardHeader className="p-3.5 pb-2 border-b border-border bg-zinc-900/60">
+                <CardTitle className="text-xs sm:text-sm font-semibold text-foreground flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-primary" />
                   Escala de Arbitragem
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-3.5 space-y-2.5">
                 {schedule.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-6">Nenhum jogo futuro com árbitros escalados.</p>
+                  <p className="text-xs text-muted-foreground text-center py-6">Nenhum jogo futuro com árbitros escalados.</p>
                 )}
                 {schedule.slice(0, 4).map(match => (
-                  <div key={match.id} className="p-3 rounded-lg bg-muted/50 space-y-2">
+                  <div key={match.id} className="p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800 space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground">
+                      <span className="text-[10px] font-medium text-muted-foreground">
                         {new Date(match.scheduledTime).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })} ·{' '}
                         {new Date(match.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      <CheckCircle className="w-4 h-4 text-success" />
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
                     </div>
-                    <p className="font-semibold text-foreground">{match.teamAName} vs {match.teamBName}</p>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Building2 className="w-3.5 h-3.5" />
-                      <span>{match.referees.map(ref => ref.name).join(', ') || 'A definir'}</span>
+                    <p className="font-semibold text-xs text-foreground truncate">{match.teamAName} vs {match.teamBName}</p>
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <Building2 className="w-3 h-3 text-zinc-500" />
+                      <span className="truncate">{match.referees.map(ref => ref.name).join(', ') || 'A definir'}</span>
                     </div>
                   </div>
                 ))}
                 {schedule.length > 0 && (
-                  <Button variant="outline" className="w-full" onClick={() => setScheduleOpen(true)}>
+                  <Button variant="outline" size="sm" className="w-full text-xs h-8 rounded-md border-border hover:bg-zinc-800/60" onClick={() => setScheduleOpen(true)}>
                     Ver Escala Completa
                   </Button>
                 )}
@@ -375,33 +375,33 @@ function RefereeFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: Re
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-zinc-950 border-border p-5 rounded-xl shadow-none">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Editar Árbitro' : 'Novo Árbitro'}</DialogTitle>
-          <DialogDescription>Cadastre ou atualize os dados do árbitro.</DialogDescription>
+          <DialogTitle className="text-sm font-semibold text-foreground">{isEdit ? 'Editar Árbitro' : 'Novo Árbitro'}</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">Cadastre ou atualize os dados do árbitro.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="referee-name">Nome</Label>
-            <Input id="referee-name" value={name} onChange={e => setName(e.target.value)} placeholder="Nome completo" />
+        <div className="space-y-3 py-1">
+          <div className="space-y-1">
+            <Label htmlFor="referee-name" className="text-[10px] uppercase font-semibold text-muted-foreground">Nome Completo</Label>
+            <Input id="referee-name" value={name} onChange={e => setName(e.target.value)} placeholder="Nome completo" className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
           </div>
-          <div className="space-y-2">
-            <Label>Nível de Certificação</Label>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Nível de Certificação</Label>
             <Select value={level} onValueChange={(v: Level) => setLevel(v)}>
-              <SelectTrigger>
+              <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="regional">Regional</SelectItem>
-                <SelectItem value="national">Nacional</SelectItem>
-                <SelectItem value="international">Internacional</SelectItem>
+              <SelectContent className="bg-zinc-900 border-zinc-800">
+                <SelectItem value="regional" className="text-xs">Regional</SelectItem>
+                <SelectItem value="national" className="text-xs">Nacional</SelectItem>
+                <SelectItem value="international" className="text-xs">Internacional</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button variant="accent" disabled={!canSubmit || submitting} onClick={handleSubmit}>
+        <DialogFooter className="gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">Cancelar</Button>
+          <Button size="sm" disabled={!canSubmit || submitting} onClick={handleSubmit} className="h-8 text-xs rounded-md font-medium shadow-none">
             {submitting ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Árbitro'}
           </Button>
         </DialogFooter>
@@ -418,39 +418,37 @@ function RefereeProfileDialog({ referee, schedule, compName, onClose }: {
 }) {
   return (
     <Dialog open={referee !== null} onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-zinc-950 border-border p-5 rounded-xl shadow-none">
         <DialogHeader>
-          <DialogTitle>Perfil do Árbitro</DialogTitle>
+          <DialogTitle className="text-sm font-semibold text-foreground">Perfil do Árbitro</DialogTitle>
         </DialogHeader>
         {referee && (
-          <div className="space-y-3 py-2">
-            <div className="flex items-center gap-3">
-              <Avatar className="w-12 h-12">
-                <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-                  {referee.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
-                </AvatarFallback>
-              </Avatar>
+          <div className="space-y-2.5 py-1 text-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-lg bg-zinc-800 border border-zinc-700/60 font-semibold flex items-center justify-center text-xs text-zinc-200">
+                {referee.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+              </div>
               <div>
-                <p className="font-semibold">{referee.name}</p>
-                <p className="text-sm text-muted-foreground capitalize">{referee.level}</p>
+                <p className="font-semibold text-foreground text-sm">{referee.name}</p>
+                <p className="text-[11px] text-muted-foreground capitalize">{referee.level}</p>
               </div>
             </div>
-            <div className="flex items-center justify-between border-b border-border/60 pb-2 text-sm">
+            <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
               <span className="text-muted-foreground">Jogos apitados</span>
-              <span className="font-medium">{referee.matchesRefereed}</span>
+              <span className="font-medium text-foreground">{referee.matchesRefereed}</span>
             </div>
-            <div className="flex items-center justify-between border-b border-border/60 pb-2 text-sm">
+            <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
               <span className="text-muted-foreground">Competições</span>
-              <span className="font-medium">{referee.activeCompetitions.length}</span>
+              <span className="font-medium text-foreground">{referee.activeCompetitions.length}</span>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground mb-2">Próximos jogos</p>
+              <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1.5">Próximos jogos</p>
               {schedule.length === 0 ? (
-                <p className="text-sm text-muted-foreground/70">Nenhum jogo futuro escalado.</p>
+                <p className="text-xs text-muted-foreground">Nenhum jogo futuro escalado.</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {schedule.slice(0, 3).map(m => (
-                    <div key={m.id} className="text-sm p-2 rounded-lg bg-muted/50">
+                    <div key={m.id} className="text-xs p-2 rounded-md bg-zinc-900/60 border border-zinc-800">
                       {m.teamAShortName} vs {m.teamBShortName} · {compName(m.competitionId)} ·{' '}
                       {new Date(m.scheduledTime).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                     </div>
@@ -460,8 +458,8 @@ function RefereeProfileDialog({ referee, schedule, compName, onClose }: {
             </div>
           </div>
         )}
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Fechar</Button>
+        <DialogFooter className="pt-2">
+          <Button variant="outline" size="sm" onClick={onClose} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">Fechar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -476,30 +474,30 @@ function ScheduleDialog({ open, onOpenChange, schedule, compName }: {
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg bg-zinc-950 border-border p-5 rounded-xl shadow-none">
         <DialogHeader>
-          <DialogTitle>Escala de Arbitragem</DialogTitle>
+          <DialogTitle className="text-sm font-semibold text-foreground">Escala de Arbitragem</DialogTitle>
         </DialogHeader>
-        <div className="max-h-96 overflow-y-auto space-y-3 py-2">
+        <div className="max-h-96 overflow-y-auto space-y-2 py-1 text-xs">
           {schedule.map(match => (
-            <div key={match.id} className="p-3 rounded-lg bg-muted/50 space-y-1">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div key={match.id} className="p-2.5 rounded-md bg-zinc-900/60 border border-zinc-800 space-y-1">
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                 <span>
                   {new Date(match.scheduledTime).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })} ·{' '}
                   {new Date(match.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                 </span>
                 <span>{compName(match.competitionId)}</span>
               </div>
-              <p className="font-semibold">{match.teamAName} vs {match.teamBName}</p>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Building2 className="w-3.5 h-3.5" />
+              <p className="font-semibold text-foreground">{match.teamAName} vs {match.teamBName}</p>
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Building2 className="w-3 h-3 text-zinc-500" />
                 <span>{match.referees.map(ref => ref.name).join(', ') || 'A definir'}</span>
               </div>
             </div>
           ))}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+        <DialogFooter className="pt-2">
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">Fechar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

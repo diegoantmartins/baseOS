@@ -29,6 +29,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { LiveDrawModal } from '@/components/draw/LiveDrawModal';
+import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -248,51 +249,64 @@ const DrawPage = () => {
   return (
     <MainLayout>
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Sorteio</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+              <Shuffle className="w-5 h-5 text-primary" />
+              Sorteio e Chaveamento
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
               Distribua as equipes inscritas em grupos e gere a tabela da fase classificatória
             </p>
           </div>
-          <div className="w-full md:w-80">
-            <Select value={selectedId} onValueChange={handleSelectCompetition}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a competição" />
-              </SelectTrigger>
-              <SelectContent>
-                {competitions.map(c => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <ContextualHelpButton
+              articles={[
+                { articleId: 'sorteio-grupos', label: 'Como sortear os grupos' },
+                { articleId: 'gerar-confrontos', label: 'Como gerar os confrontos' },
+                { articleId: 'regras-classificacao', label: 'Regras de classificação' },
+              ]}
+              label="Ajuda no sorteio"
+            />
+            <div className="w-full md:w-72">
+              <Select value={selectedId} onValueChange={handleSelectCompetition}>
+                <SelectTrigger className="w-full h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
+                  <SelectValue placeholder="Selecione a competição" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800">
+                  {competitions.map(c => (
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </motion.div>
 
         {!selected ? (
-          <Card>
-            <CardContent className="p-10 text-center text-muted-foreground">
+          <Card className="card-elevated shadow-none border border-border bg-card">
+            <CardContent className="p-8 text-center text-xs text-muted-foreground">
               Nenhuma competição cadastrada.
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[380px,1fr] gap-6 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-[340px,1fr] gap-5 items-start">
             {/* Configuração do sorteio */}
-            <Card className="card-elevated">
-              <CardHeader className="border-b border-border">
-                <CardTitle className="text-lg font-display flex items-center gap-2">
-                  <Dices className="w-5 h-5 text-accent" />
+            <Card className="card-elevated shadow-none border border-border bg-card">
+              <CardHeader className="p-3.5 pb-2 border-b border-border bg-zinc-900/60">
+                <CardTitle className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Dices className="w-3.5 h-3.5 text-primary" />
                   Configuração
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-[11px] text-muted-foreground mt-0.5">
                   {registeredTeams.length} equipe(s) inscrita(s) · {selected.name}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-5 p-5">
-                <div className="space-y-2">
-                  <Label>Número de grupos</Label>
+              <CardContent className="space-y-3.5 p-3.5">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Número de grupos</Label>
                   <Select
                     value={String(groupsCount)}
                     onValueChange={v => {
@@ -302,54 +316,54 @@ const DrawPage = () => {
                       setPreview(null);
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-zinc-900 border-zinc-800">
                       {Array.from({ length: Math.max(1, Math.min(8, registeredTeams.length)) }, (_, i) => i + 1).map(n => (
-                        <SelectItem key={n} value={String(n)}>
+                        <SelectItem key={n} value={String(n)} className="text-xs">
                           {n} {n === 1 ? 'grupo' : 'grupos'}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   {groupsCount > 1 && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[10px] text-muted-foreground">
                       Sugerido: {suggestGroupsCount(registeredTeams.length)} grupo(s) para {registeredTeams.length} equipes.
                     </p>
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Tipo de sorteio</Label>
-                  <RadioGroup value={seedingMode} onValueChange={v => { setSeedingMode(v as DrawConfig['seedingMode']); setPreview(null); }}>
-                    <div className="flex items-start space-x-2 rounded-lg border border-border p-3">
-                      <RadioGroupItem value="seeded" id="mode-seeded" />
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Tipo de sorteio</Label>
+                  <RadioGroup value={seedingMode} onValueChange={v => { setSeedingMode(v as DrawConfig['seedingMode']); setPreview(null); }} className="space-y-1.5">
+                    <div className="flex items-start space-x-2 rounded-md border border-zinc-800 bg-zinc-900/60 p-2.5">
+                      <RadioGroupItem value="seeded" id="mode-seeded" className="mt-0.5" />
                       <div>
-                        <Label htmlFor="mode-seeded" className="font-medium">Sorteio dirigido</Label>
-                        <p className="text-xs text-muted-foreground">
-                          Cabeças de chave ficam uma por grupo; as demais são distribuídas aleatoriamente (padrão CBV/FIVB).
+                        <Label htmlFor="mode-seeded" className="font-medium text-xs text-foreground cursor-pointer">Sorteio dirigido</Label>
+                        <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                          Cabeças de chave ficam uma por grupo; demais sorteadas (padrão CBV/FIVB).
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-start space-x-2 rounded-lg border border-border p-3">
-                      <RadioGroupItem value="random" id="mode-random" />
+                    <div className="flex items-start space-x-2 rounded-md border border-zinc-800 bg-zinc-900/60 p-2.5">
+                      <RadioGroupItem value="random" id="mode-random" className="mt-0.5" />
                       <div>
-                        <Label htmlFor="mode-random" className="font-medium">Sorteio puro</Label>
-                        <p className="text-xs text-muted-foreground">Todas as equipes são distribuídas de forma totalmente aleatória.</p>
+                        <Label htmlFor="mode-random" className="font-medium text-xs text-foreground cursor-pointer">Sorteio puro</Label>
+                        <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">Todas as equipes são distribuídas aleatoriamente.</p>
                       </div>
                     </div>
                   </RadioGroup>
                 </div>
 
                 {seedingMode === 'seeded' && (
-                  <div className="space-y-2">
-                    <Label>Cabeças de chave (uma por grupo)</Label>
-                    <div className="max-h-44 overflow-y-auto border border-border rounded-lg divide-y divide-border">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Cabeças de chave (1 por grupo)</Label>
+                    <div className="max-h-36 overflow-y-auto border border-zinc-800 rounded-md bg-zinc-900/40 divide-y divide-zinc-800/60">
                       {registeredTeams.map(team => (
                         <label
                           key={team.id}
-                          className="flex items-center gap-2 p-2 text-sm hover:bg-muted/50 cursor-pointer"
+                          className="flex items-center gap-2 p-2 text-xs hover:bg-zinc-800/40 cursor-pointer"
                         >
                           <Checkbox
                             checked={headSeeds.includes(team.id)}
@@ -363,22 +377,23 @@ const DrawPage = () => {
                               });
                               setPreview(null);
                             }}
+                            className="rounded"
                           />
-                          <span className="font-medium">{team.name}</span>
-                          <span className="text-xs text-muted-foreground">{team.shortName}</span>
+                          <span className="font-medium text-foreground truncate">{team.name}</span>
+                          <span className="text-[10px] text-muted-foreground ml-auto">{team.shortName}</span>
                         </label>
                       ))}
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Máximo {groupsCount} (1 por grupo). A 1ª selecionada é a cabeça de chave nº 1.
+                    <p className="text-[10px] text-muted-foreground">
+                      Máximo {groupsCount} (1 por grupo).
                     </p>
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1 space-y-1.5">
-                      <Label htmlFor="draw-seed">Semente do sorteio</Label>
+                <div className="space-y-1">
+                  <div className="flex items-end gap-1.5">
+                    <div className="flex-1 space-y-1">
+                      <Label htmlFor="draw-seed" className="text-[10px] uppercase font-semibold text-muted-foreground">Semente (Seed)</Label>
                       <Input
                         id="draw-seed"
                         type="number"
@@ -387,43 +402,45 @@ const DrawPage = () => {
                           setSeed(Number(e.target.value) || 0);
                           setPreview(null);
                         }}
+                        className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md font-mono"
                       />
                     </div>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="gap-1"
+                      className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60 gap-1 shrink-0"
                       onClick={() => {
                         setSeed(Math.floor(Math.random() * 100000));
                         setPreview(null);
                       }}
                     >
-                      <RefreshCw className="w-3.5 h-3.5" />
+                      <RefreshCw className="w-3 h-3" />
                       Nova
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    A mesma semente reproduz exatamente o mesmo sorteio (registro oficial).
+                  <p className="text-[10px] text-muted-foreground">
+                    A mesma semente reproduz exatamente o mesmo resultado (registro auditável).
                   </p>
                 </div>
 
-                <div className="pt-2 border-t border-border space-y-2">
-                  <Button variant="accent" className="w-full gap-2" onClick={handleRunDraw} disabled={!canDraw}>
-                    <Shuffle className="w-4 h-4" />
+                <div className="pt-2 border-t border-border/40 space-y-1.5">
+                  <Button size="sm" className="w-full gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={handleRunDraw} disabled={!canDraw}>
+                    <Shuffle className="w-3.5 h-3.5" />
                     Realizar Sorteio
                   </Button>
                   <Button
                     variant="outline"
-                    className="w-full gap-2"
+                    size="sm"
+                    className="w-full gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60"
                     onClick={handleSaveDraw}
                     disabled={!preview || saving}
                   >
-                    <Save className="w-4 h-4" />
+                    <Save className="w-3.5 h-3.5" />
                     {saving ? 'Salvando...' : 'Salvar Sorteio e Gerar Jogos'}
                   </Button>
                   {existingDraw && !preview && (
-                    <p className="text-xs text-center text-muted-foreground">
-                      Sorteio salvo em {new Date(existingDraw.updatedAt).toLocaleString('pt-BR')}. Salve novamente para substituí-lo.
+                    <p className="text-[10px] text-center text-muted-foreground pt-1">
+                      Sorteio salvo em {new Date(existingDraw.updatedAt).toLocaleString('pt-BR')}.
                     </p>
                   )}
                 </div>
@@ -431,24 +448,24 @@ const DrawPage = () => {
             </Card>
 
             {/* Resultado do sorteio */}
-            <div className="space-y-6">
+            <div className="space-y-4">
               {!canDraw && (
-                <Card>
-                  <CardContent className="p-10 text-center text-muted-foreground">
-                    <Users className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                <Card className="card-elevated shadow-none border border-border bg-card">
+                  <CardContent className="p-8 text-center text-xs text-muted-foreground">
+                    <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     Esta competição precisa de pelo menos 2 equipes inscritas para realizar o sorteio.
                   </CardContent>
                 </Card>
               )}
 
               {canDraw && !groupsToShow && (
-                <Card>
-                  <CardContent className="p-10 text-center space-y-2">
-                    <Trophy className="w-10 h-10 mx-auto text-muted-foreground/50" />
-                    <p className="text-muted-foreground">
+                <Card className="card-elevated shadow-none border border-border bg-card">
+                  <CardContent className="p-8 text-center space-y-1.5 text-xs text-muted-foreground">
+                    <Trophy className="w-8 h-8 mx-auto opacity-50 text-muted-foreground" />
+                    <p>
                       Configure o sorteio ao lado e clique em <strong>Realizar Sorteio</strong>.
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[11px]">
                       {registeredMatchCount > 0 && `${registeredMatchCount} jogos serão gerados na fase classificatória.`}
                     </p>
                   </CardContent>
@@ -458,7 +475,7 @@ const DrawPage = () => {
               {groupsToShow && (
                 <>
                   <DndContext sensors={sensors} onDragEnd={handleGroupDragEnd}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                       {groupsToShow.map(group => (
                         <DroppableGroupCard
                           key={group.name}
@@ -469,53 +486,53 @@ const DrawPage = () => {
                     </div>
                   </DndContext>
 
-                  <Card className="card-elevated">
-                    <CardHeader className="border-b border-border py-3 flex flex-row items-center justify-between">
+                  <Card className="card-elevated shadow-none border border-border bg-card overflow-hidden">
+                    <CardHeader className="p-3.5 pb-2.5 border-b border-border bg-zinc-900/60 flex flex-row items-center justify-between">
                       <div>
-                        <CardTitle className="text-base font-display flex items-center gap-2">
-                          <ClipboardList className="w-4 h-4 text-accent" />
+                        <CardTitle className="text-xs sm:text-sm font-semibold text-foreground flex items-center gap-1.5">
+                          <ClipboardList className="w-3.5 h-3.5 text-primary" />
                           Tabela de Jogos ({matchesToShow?.length ?? 0} jogos)
                         </CardTitle>
                         {matchesToShow && (
-                          <CardDescription>
+                          <CardDescription className="text-[11px] text-muted-foreground mt-0.5">
                             {roundRobinRoundCount(Math.ceil((registeredTeams.length ?? 0) / Math.max(groupsCount, 1)))} rodadas por grupo · turno único
                           </CardDescription>
                         )}
                       </div>
-                      <Button variant="accent" size="sm" onClick={() => setIsLiveModalOpen(true)} className="gap-2">
-                        <MonitorPlay className="w-4 h-4" />
-                        Modo Apresentação (Live)
+                      <Button variant="outline" size="sm" onClick={() => setIsLiveModalOpen(true)} className="gap-1.5 text-xs h-7 rounded-md border-border hover:bg-zinc-800/60">
+                        <MonitorPlay className="w-3 h-3" />
+                        Modo Apresentação
                       </Button>
                     </CardHeader>
                     <CardContent className="p-0">
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-xs">
                           <thead>
-                            <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                              <th className="p-3">Jogo</th>
-                              <th className="p-3">Rodada</th>
-                              <th className="p-3">Grupo</th>
-                              <th className="p-3">Equipe A</th>
-                              <th className="p-3">Equipe B</th>
+                            <tr className="border-b border-border/60 text-left text-[10px] uppercase font-semibold text-muted-foreground bg-zinc-900/40">
+                              <th className="p-2.5">Jogo</th>
+                              <th className="p-2.5">Rodada</th>
+                              <th className="p-2.5">Grupo</th>
+                              <th className="p-2.5">Equipe A</th>
+                              <th className="p-2.5">Equipe B</th>
                             </tr>
                           </thead>
-                          <tbody>
+                          <tbody className="divide-y divide-border/40">
                             {matchesToShow?.map(match => {
                               const teamA = teams.find(t => t.id === match.teamAId);
                               const teamB = teams.find(t => t.id === match.teamBId);
                               return (
-                                <tr key={`${match.matchNumber}-${match.teamAId}-${match.teamBId}`} className="border-b border-border/60 hover:bg-muted/40">
-                                  <td className="p-3 font-semibold">{match.matchNumber}</td>
-                                  <td className="p-3">{match.round}ª</td>
-                                  <td className="p-3"><Badge variant="outline">{match.groupName}</Badge></td>
-                                  <td className="p-3 font-medium">{teamA?.name ?? match.teamAId}</td>
-                                  <td className="p-3 font-medium">{teamB?.name ?? match.teamBId}</td>
+                                <tr key={`${match.matchNumber}-${match.teamAId}-${match.teamBId}`} className="hover:bg-zinc-800/30 transition-colors">
+                                  <td className="p-2.5 font-mono font-semibold text-foreground">{match.matchNumber}</td>
+                                  <td className="p-2.5 text-muted-foreground">{match.round}ª</td>
+                                  <td className="p-2.5"><Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-300">{match.groupName}</Badge></td>
+                                  <td className="p-2.5 font-medium text-foreground">{teamA?.name ?? match.teamAId}</td>
+                                  <td className="p-2.5 font-medium text-foreground">{teamB?.name ?? match.teamBId}</td>
                                 </tr>
                               );
                             })}
                             {(!matchesToShow || matchesToShow.length === 0) && (
                               <tr>
-                                <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                                <td colSpan={5} className="p-6 text-center text-xs text-muted-foreground">
                                   Nenhum jogo gerado para este sorteio.
                                 </td>
                               </tr>
@@ -526,22 +543,22 @@ const DrawPage = () => {
                     </CardContent>
                   </Card>
 
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-xl bg-card border border-border">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-border">
                     <div>
-                      <p className="text-sm font-semibold text-foreground">Deseja ajustar os horários e quadras?</p>
-                      <p className="text-xs text-muted-foreground">Acesse a Central de Jogos para definir as datas, horários e quadras de cada confronto.</p>
+                      <p className="text-xs font-semibold text-foreground">Deseja ajustar os horários e quadras?</p>
+                      <p className="text-[11px] text-muted-foreground">Acesse a Central de Jogos para definir as datas, horários e quadras de cada confronto.</p>
                     </div>
-                    <Button variant="accent" size="sm" className="gap-2 shrink-0" onClick={() => navigate('/jogos')}>
-                      <Calendar className="w-4 h-4" />
-                      Ir para Agenda & Horários
-                      <ArrowRight className="w-4 h-4" />
+                    <Button size="sm" className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none shrink-0" onClick={() => navigate('/jogos')}>
+                      <Calendar className="w-3.5 h-3.5" />
+                      Ir para Agenda
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </Button>
                   </div>
 
                   {!preview && existingDraw && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-success" />
-                      Sorteio oficial da competição salvo em {new Date(existingDraw.updatedAt).toLocaleString('pt-BR')}.
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      Sorteio oficial salvo em {new Date(existingDraw.updatedAt).toLocaleString('pt-BR')}.
                     </p>
                   )}
                 </>
@@ -573,17 +590,17 @@ function DroppableGroupCard({ group, teams }: { group: DrawGroup; teams: TeamRec
     <Card
       ref={setNodeRef}
       className={cn(
-        'card-elevated transition-all',
-        isOver && 'border-primary ring-2 ring-primary/20 bg-primary/5'
+        'card-elevated shadow-none border border-border bg-card transition-all',
+        isOver && 'border-primary ring-1 ring-primary/40 bg-zinc-900/80'
       )}
     >
-      <CardHeader className="border-b border-border py-3">
-        <CardTitle className="text-base font-display flex items-center justify-between">
+      <CardHeader className="border-b border-border/60 py-2.5 px-3 bg-zinc-900/40">
+        <CardTitle className="text-xs sm:text-sm font-semibold text-foreground flex items-center justify-between">
           <span>{group.name}</span>
-          <Badge variant="outline">{group.teams.length} equipes</Badge>
+          <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">{group.teams.length} equipes</Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-3 space-y-1.5 min-h-[120px]">
+      <CardContent className="p-2.5 space-y-1.5 min-h-[100px]">
         {group.teams.map((entry, idx) => {
           const team = teams.find(t => t.id === entry.teamId);
           return (
@@ -596,7 +613,7 @@ function DroppableGroupCard({ group, teams }: { group: DrawGroup; teams: TeamRec
           );
         })}
         {group.teams.length === 0 && (
-          <div className="h-20 flex items-center justify-center text-xs text-muted-foreground border border-dashed rounded-lg">
+          <div className="h-16 flex items-center justify-center text-xs text-muted-foreground border border-dashed border-zinc-800 rounded-md">
             Arraste uma equipe para cá
           </div>
         )}
@@ -631,18 +648,18 @@ function DraggableTeamRow({
       {...attributes}
       {...listeners}
       className={cn(
-        'flex items-center gap-3 p-2 rounded-lg bg-card border border-border/60 hover:bg-muted/50 cursor-grab active:cursor-grabbing transition-all select-none',
-        isDragging && 'opacity-40 shadow-xl ring-2 ring-primary'
+        'flex items-center gap-2 p-2 rounded-md bg-zinc-900 border border-zinc-800 hover:border-zinc-700 cursor-grab active:cursor-grabbing transition-all select-none text-xs',
+        isDragging && 'opacity-40 shadow-none ring-1 ring-primary'
       )}
     >
-      <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
-      <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold shrink-0">
+      <GripVertical className="w-3 h-3 text-zinc-500 shrink-0" />
+      <span className="w-4 h-4 rounded bg-zinc-800 text-zinc-400 flex items-center justify-center text-[9px] font-mono font-bold shrink-0">
         {idx + 1}
       </span>
       {team?.logoUrl && (
-        <img src={team.logoUrl} alt="" className="w-6 h-6 rounded object-contain bg-muted p-0.5" />
+        <img src={team.logoUrl} alt="" className="w-5 h-5 rounded object-contain bg-zinc-800 p-0.5" />
       )}
-      <span className="font-medium text-sm truncate">{team?.name ?? teamId}</span>
+      <span className="font-medium text-foreground truncate">{team?.name ?? teamId}</span>
     </div>
   );
 }

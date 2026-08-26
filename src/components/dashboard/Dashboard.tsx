@@ -173,6 +173,48 @@ export function Dashboard() {
     },
   ];
 
+  if (loading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-2">
+            <div className="h-6 w-40 bg-zinc-800/60 rounded-md" />
+            <div className="h-4 w-72 bg-zinc-800/40 rounded-md" />
+          </div>
+          <div className="flex gap-2">
+            <div className="h-8 w-28 bg-zinc-800/60 rounded-md" />
+            <div className="h-8 w-36 bg-zinc-800/60 rounded-md" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-24 rounded-xl border border-border bg-card p-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-zinc-800/80 shrink-0" />
+              <div className="space-y-2 flex-1">
+                <div className="h-3 w-16 bg-zinc-800/60 rounded" />
+                <div className="h-5 w-10 bg-zinc-800/80 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-3">
+            <div className="h-4 w-44 bg-zinc-800/60 rounded" />
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-20 rounded-xl border border-border bg-card" />
+              ))}
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="h-4 w-36 bg-zinc-800/60 rounded" />
+            <div className="h-64 rounded-xl border border-border bg-card" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       {/* Cabeçalho: título + 1 ação primária */}
@@ -181,17 +223,26 @@ export function Dashboard() {
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
             Painel Geral
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             Visão unificada das competições, confrontos, classificação e alertas operacionais.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => navigate('/jogos')}>
-            <Calendar className="w-4 h-4" />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 text-xs font-medium border-border hover:bg-zinc-800/60"
+            onClick={() => navigate('/jogos')}
+          >
+            <Calendar className="w-3.5 h-3.5 text-zinc-400" />
             Central de Jogos
           </Button>
-          <Button size="sm" className="gap-2 text-xs" onClick={() => navigate('/competicoes?new=1')}>
-            <Plus className="w-4 h-4" />
+          <Button
+            size="sm"
+            className="gap-1.5 text-xs font-medium shadow-none"
+            onClick={() => navigate('/competicoes?new=1')}
+          >
+            <Plus className="w-3.5 h-3.5" />
             Nova Competição
           </Button>
         </div>
@@ -202,15 +253,21 @@ export function Dashboard() {
         {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
-            <Card key={i} className="hover-raise">
+            <Card key={i} className="hover-raise border-border bg-card shadow-none">
               <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0">
-                  <Icon className="w-[18px] h-[18px] text-zinc-400" />
+                <div className="w-9 h-9 rounded-lg bg-zinc-800/80 border border-zinc-700/40 flex items-center justify-center shrink-0">
+                  <Icon className="w-4 h-4 text-zinc-300" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">{stat.label}</p>
-                  <h3 className="text-xl font-semibold tabular-nums text-foreground mt-0.5 leading-none">{stat.value}</h3>
-                  <p className="text-[11px] text-muted-foreground mt-1 truncate">{stat.subtext}</p>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider truncate">
+                    {stat.label}
+                  </p>
+                  <h3 className="text-xl font-semibold tabular-nums text-foreground mt-0.5 leading-none">
+                    {stat.value}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground mt-1 truncate">
+                    {stat.subtext}
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -223,15 +280,20 @@ export function Dashboard() {
         <motion.div variants={item} className="space-y-3">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-400" />
-            <h2 className="text-sm font-semibold text-foreground">Alertas Operacionais</h2>
-            <Badge variant="secondary">{alerts.length}</Badge>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Alertas Operacionais</h2>
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-zinc-800 text-zinc-300 border-zinc-700">
+              {alerts.length}
+            </Badge>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {alerts.map(alert => (
-              <div key={alert.id} className="rounded-xl border border-border bg-card px-4 py-3 flex items-center justify-between gap-3 hover-raise">
+              <div
+                key={alert.id}
+                className="rounded-xl border border-border bg-card px-4 py-3 flex items-center justify-between gap-3 hover-raise shadow-none"
+              >
                 <div className="space-y-0.5 min-w-0">
-                  <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
+                  <h4 className="text-xs font-medium text-foreground flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                     <span className="truncate">{alert.title}</span>
                   </h4>
@@ -242,7 +304,7 @@ export function Dashboard() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="shrink-0 text-xs gap-1"
+                  className="shrink-0 text-xs font-medium gap-1 text-zinc-300 hover:text-foreground hover:bg-zinc-800"
                   onClick={() => navigate(alert.linkTo)}
                 >
                   <span>{alert.linkText}</span>
@@ -259,90 +321,135 @@ export function Dashboard() {
         {/* Competições em andamento (2 colunas) */}
         <motion.div variants={item} className="lg:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Competições em Andamento</h2>
-            <Link to="/competicoes" className="text-xs text-muted-foreground hover:text-foreground font-medium flex items-center gap-1">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Competições em Andamento
+            </h2>
+            <Link
+              to="/competicoes"
+              className="text-xs text-muted-foreground hover:text-foreground font-medium flex items-center gap-1 transition-colors"
+            >
               Ver todas ({competitions.length})
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
 
           <div className="space-y-2">
-            {competitions.slice(0, 3).map(comp => {
-              const compMatches = matches.filter(m => m.competitionId === comp.id);
-              const compTeams = competitionTeams.filter(ct => ct.competitionId === comp.id);
-              const finished = compMatches.filter(m => m.status === 'completed' || m.status === 'homologated').length;
-              const progress = compMatches.length > 0 ? Math.round((finished / compMatches.length) * 100) : 0;
-
-              return (
-                <div
-                  key={comp.id}
-                  className="group relative rounded-xl border border-border bg-card overflow-hidden cursor-pointer hover-raise"
-                  onClick={() => navigate('/competicoes')}
+            {competitions.length === 0 ? (
+              <div className="rounded-xl border border-border bg-card p-8 text-center">
+                <p className="text-xs text-muted-foreground">Nenhuma competição cadastrada ainda.</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 text-xs gap-1.5"
+                  onClick={() => navigate('/competicoes?new=1')}
                 >
-                  <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-foreground truncate">{comp.name}</span>
-                        <Badge variant="muted" className="capitalize">
-                          {comp.modality === 'beach' ? 'Praia' : 'Quadra'}
-                        </Badge>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        {comp.venue || 'Local a definir'} · {compTeams.length} equipes · {finished}/{compMatches.length} jogos realizados
-                      </p>
-                    </div>
+                  <Plus className="w-3.5 h-3.5" />
+                  Cadastrar Competição
+                </Button>
+              </div>
+            ) : (
+              competitions.slice(0, 3).map(comp => {
+                const compMatches = matches.filter(m => m.competitionId === comp.id);
+                const compTeams = competitionTeams.filter(ct => ct.competitionId === comp.id);
+                const finished = compMatches.filter(m => m.status === 'completed' || m.status === 'homologated').length;
+                const progress = compMatches.length > 0 ? Math.round((finished / compMatches.length) * 100) : 0;
 
-                    <div className="flex items-center gap-1.5 self-end sm:self-center">
-                      <Button variant="ghost" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); navigate('/jogos'); }}>
-                        Jogos
-                      </Button>
-                      <Button variant="secondary" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); navigate('/competicoes'); }}>
-                        Gerenciar
-                      </Button>
+                return (
+                  <div
+                    key={comp.id}
+                    className="group relative rounded-xl border border-border bg-card overflow-hidden cursor-pointer hover-raise"
+                    onClick={() => navigate('/competicoes')}
+                  >
+                    <div className="px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm text-foreground truncate">{comp.name}</span>
+                          <Badge variant="muted" className="text-[10px] py-0 px-1.5 bg-zinc-800 text-zinc-400 border-zinc-700/60 capitalize">
+                            {comp.modality === 'beach' ? 'Praia' : 'Quadra'}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          {comp.venue || 'Local a definir'} · {compTeams.length} equipes · {finished}/{compMatches.length} jogos realizados
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 self-end sm:self-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs h-8 text-muted-foreground hover:text-foreground hover:bg-zinc-800"
+                          onClick={(e) => { e.stopPropagation(); navigate('/jogos'); }}
+                        >
+                          Jogos
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="text-xs h-8 font-medium bg-zinc-800 hover:bg-zinc-700 text-foreground border border-zinc-700/50"
+                          onClick={(e) => { e.stopPropagation(); navigate('/competicoes'); }}
+                        >
+                          Gerenciar
+                        </Button>
+                      </div>
+                    </div>
+                    {/* Linha fina de progresso (2px) na base do card */}
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-800/80">
+                      <div
+                        className="h-full bg-primary transition-[width] duration-300"
+                        style={{ width: `${progress}%` }}
+                      />
                     </div>
                   </div>
-                  {/* Linha fina de progresso (2px) na base do card */}
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-800">
-                    <div className="h-full bg-primary transition-[width] duration-300" style={{ width: `${progress}%` }} />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </motion.div>
 
         {/* Próximos confrontos (1 coluna) */}
         <motion.div variants={item} className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Próximos Confrontos</h2>
-            <Link to="/jogos" className="text-xs text-muted-foreground hover:text-foreground font-medium flex items-center gap-1">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Próximos Confrontos
+            </h2>
+            <Link
+              to="/jogos"
+              className="text-xs text-muted-foreground hover:text-foreground font-medium flex items-center gap-1 transition-colors"
+            >
               Ver agenda
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
 
-          <Card>
+          <Card className="border-border bg-card shadow-none">
             <CardContent className="p-3 space-y-1">
               {matches.slice(0, 4).length === 0 ? (
                 <p className="text-xs text-center text-muted-foreground py-6">Nenhum confronto agendado no momento.</p>
               ) : (
                 matches.slice(0, 4).map(m => (
-                  <div key={m.id} className="px-3 py-2.5 rounded-lg hover-raise">
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1">
-                      <span className="font-medium text-foreground">Jogo #{m.matchNumber}</span>
-                      <span className="truncate ml-2">{m.court || m.venue || 'Quadra a definir'}</span>
+                  <div
+                    key={m.id}
+                    className="px-3 py-2.5 rounded-lg hover-raise cursor-pointer"
+                    onClick={() => navigate('/jogos')}
+                  >
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+                      <span className="font-medium text-zinc-300">Jogo #{m.matchNumber}</span>
+                      <span className="truncate ml-2 text-zinc-400">{m.court || m.venue || 'Quadra a definir'}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs font-medium text-foreground">
                       <span className="truncate max-w-[110px]">{m.teamAName}</span>
-                      <span className="text-[10px] text-muted-foreground px-2">vs</span>
+                      <span className="text-[10px] text-muted-foreground font-normal px-2">vs</span>
                       <span className="truncate max-w-[110px] text-right">{m.teamBName}</span>
                     </div>
                     <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1 text-zinc-400">
                         <Clock className="w-3 h-3" />
                         {new Date(m.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      <Badge variant={m.status === 'completed' ? 'completed' : 'scheduled'} className="text-[10px] py-0 px-1.5">
+                      <Badge
+                        variant={m.status === 'completed' ? 'completed' : 'scheduled'}
+                        className="text-[10px] py-0 px-1.5 h-4 border-zinc-700/60"
+                      >
                         {m.status === 'completed' ? 'Finalizado' : 'Agendado'}
                       </Badge>
                     </div>

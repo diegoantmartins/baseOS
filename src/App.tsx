@@ -26,6 +26,7 @@ import ModalitiesPage from "./pages/ModalitiesPage";
 import PeoplePage from "./pages/PeoplePage";
 import { CompetitionRegistrationsPage } from "./pages/CompetitionRegistrationsPage";
 import { TeamRosterRegistrationPage } from "./pages/TeamRosterRegistrationPage";
+import HelpCenterPage from "./pages/HelpCenterPage";
 import NotFound from "./pages/NotFound";
 
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -50,6 +51,8 @@ const App = () => (
             <Route path="/sumulas/:matchId" element={<MatchSheetPage />} />
             <Route path="/equipe/inscricao/:token" element={<TeamRosterRegistrationPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/ajuda" element={<HelpCenterPage />} />
+            <Route path="/help" element={<HelpCenterPage />} />
 
             {/* Gestão (apenas organizador) */}
             <Route

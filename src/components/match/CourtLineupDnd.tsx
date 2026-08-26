@@ -255,7 +255,7 @@ export function CourtLineupDnd({
               {/* Zona de Defesa (Posições V, VI, I) */}
               <div>
                 <div className="text-[10px] font-bold text-amber-100/80 uppercase tracking-wider mb-1 text-center">
-                  Zona de Defesa & Saque
+                  Zona de Defesa e Saque
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <CourtSlot

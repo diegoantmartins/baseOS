@@ -56,6 +56,7 @@ import { LiveScorerDeskModal } from '@/components/match/LiveScorerDeskModal';
 import { LiveScoreboardModal } from '@/components/match/LiveScoreboardModal';
 import { MatchCheckinModal } from '@/components/match/MatchCheckinModal';
 import { RefereeAssignmentModal } from '@/components/match/RefereeAssignmentModal';
+import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import { Maximize2, UserCheck, Shield, MoreHorizontal } from 'lucide-react';
 import {
   DropdownMenu,
@@ -384,40 +385,63 @@ export default function MatchesPage() {
     <MainLayout>
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
         {/* Header Title & Actions */}
-        <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
               Central de Jogos
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
               Escalação de confrontos, prevenção de conflitos de quadra, lançamento de parciais e homologação oficial.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 self-start sm:self-auto">
-            <Button variant="outline" size="sm" onClick={() => setBlankSheetOpen(true)} className="gap-1.5 text-xs">
-              <FileSpreadsheet className="w-4 h-4" />
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <ContextualHelpButton
+              articles={[
+                { articleId: 'abrir-partida', label: 'Check-in e início de partida' },
+                { articleId: 'lancar-resultado-sets', label: 'Como lançar placar e parciais' },
+                { articleId: 'gerar-sumula', label: 'Visualizar e emitir súmulas' },
+                { articleId: 'faq-correcao-placar', label: 'Como corrigir placar errado' },
+              ]}
+              label="Ajuda em jogos"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBlankSheetOpen(true)}
+              className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium text-zinc-300 hover:text-foreground"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-zinc-400" />
               Súmula em Branco
             </Button>
-            <Button variant="outline" size="sm" onClick={handleExportBoletim} className="gap-1.5 text-xs">
-              <FileText className="w-4 h-4" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportBoletim}
+              className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium text-zinc-300 hover:text-foreground"
+            >
+              <FileText className="w-3.5 h-3.5 text-zinc-400" />
               Gerar Boletim
             </Button>
-            <Button size="sm" onClick={() => navigate('/jogos/novo')} className="gap-1.5 text-xs">
-              <Plus className="w-4 h-4" />
+            <Button
+              size="sm"
+              onClick={() => navigate('/jogos/novo')}
+              className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none"
+            >
+              <Plus className="w-3.5 h-3.5" />
               Novo Confronto
             </Button>
           </div>
         </motion.div>
 
-        {/* Sub-Tabs Navigation (Seção 30) */}
+        {/* Sub-Tabs Navigation */}
         <motion.div variants={item} className="border-b border-border flex items-center gap-1 overflow-x-auto scrollbar-none pb-px">
           {[
             { id: 'todos', label: 'Todos os Jogos', icon: Calendar },
             { id: 'grupos', label: 'Fase de Grupos', icon: Trophy },
             { id: 'mata-mata', label: 'Mata-mata', icon: GitBranch },
-            { id: 'agenda', label: 'Agenda & Horários', icon: Clock },
+            { id: 'agenda', label: 'Agenda e Horários', icon: Clock },
             { id: 'sumulas', label: 'Súmulas Oficiais', icon: ClipboardList },
-            { id: 'resultados', label: 'Resultados & Homologação', icon: CheckCircle2 },
+            { id: 'resultados', label: 'Resultados e Homologação', icon: CheckCircle2 },
           ].map(tab => {
             const active = activeSubTab === tab.id;
             const Icon = tab.icon;
@@ -426,13 +450,13 @@ export default function MatchesPage() {
                 key={tab.id}
                 onClick={() => setActiveSubTab(tab.id as MatchesSubTab)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-colors duration-150 whitespace-nowrap',
+                  'flex items-center gap-2 px-3.5 py-2 text-xs font-medium border-b-2 transition-colors duration-150 whitespace-nowrap',
                   active
-                    ? 'border-foreground text-foreground font-semibold'
-                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                    ? 'border-primary text-foreground font-medium'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-800/40 rounded-t-md',
                 )}
               >
-                <Icon className={cn('w-4 h-4', active ? 'text-primary' : 'text-muted-foreground')} />
+                <Icon className={cn('w-3.5 h-3.5', active ? 'text-primary' : 'text-zinc-400')} />
                 {tab.label}
               </button>
             );
@@ -440,12 +464,12 @@ export default function MatchesPage() {
         </motion.div>
 
         {/* Filters Bar */}
-        <motion.div variants={item} className="flex flex-col sm:flex-row gap-3">
+        <motion.div variants={item} className="flex flex-col sm:flex-row gap-2.5">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar por equipe, ginásio, quadra, competição..."
-              className="pl-9"
+              className="pl-8 h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md focus-visible:ring-1 focus-visible:ring-ring"
               value={query}
               onChange={e => setQuery(e.target.value)}
             />
@@ -453,28 +477,28 @@ export default function MatchesPage() {
 
           <div className="flex items-center gap-2">
             <Select value={competitionFilter} onValueChange={setCompetitionFilter}>
-              <SelectTrigger className="w-[180px] text-xs">
+              <SelectTrigger className="w-[180px] text-xs h-8 rounded-md bg-zinc-900 border-zinc-800">
                 <SelectValue placeholder="Competição" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as Competições</SelectItem>
+              <SelectContent className="bg-zinc-900 border-zinc-800">
+                <SelectItem value="all" className="text-xs">Todas as Competições</SelectItem>
                 {competitions.map(c => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px] text-xs">
+              <SelectTrigger className="w-[140px] text-xs h-8 rounded-md bg-zinc-900 border-zinc-800">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Status</SelectItem>
-                <SelectItem value="awaiting_schedule">Sem Horário</SelectItem>
-                <SelectItem value="scheduled">Agendados</SelectItem>
-                <SelectItem value="in-progress">Em Andamento</SelectItem>
-                <SelectItem value="completed">Realizados</SelectItem>
-                <SelectItem value="homologated">Homologados</SelectItem>
+              <SelectContent className="bg-zinc-900 border-zinc-800">
+                <SelectItem value="all" className="text-xs">Todos os Status</SelectItem>
+                <SelectItem value="awaiting_schedule" className="text-xs">Sem Horário</SelectItem>
+                <SelectItem value="scheduled" className="text-xs">Agendados</SelectItem>
+                <SelectItem value="in-progress" className="text-xs">Em Andamento</SelectItem>
+                <SelectItem value="completed" className="text-xs">Realizados</SelectItem>
+                <SelectItem value="homologated" className="text-xs">Homologados</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -482,23 +506,23 @@ export default function MatchesPage() {
 
         {/* Banner específico da aba Mata-mata */}
         {activeSubTab === 'mata-mata' && (
-          <motion.div variants={item} className="p-4 rounded-xl bg-card border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 font-semibold text-foreground text-sm">
-                <GitBranch className="w-4 h-4 text-muted-foreground" />
-                Chaveamento Eliminatório & Mata-mata
+          <motion.div variants={item} className="p-3.5 rounded-xl bg-card border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-none">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 font-medium text-foreground text-xs">
+                <GitBranch className="w-3.5 h-3.5 text-zinc-400" />
+                Chaveamento Eliminatório e Mata-mata
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Após o término da fase de grupos, sincronize os classificados ou use <strong className="text-foreground font-medium">Editar Confronto & Horários</strong> em qualquer partida para ajustar equipes, locais e horários.
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Após o término da fase de grupos, sincronize os classificados ou use <strong className="text-foreground font-medium">Editar Confronto e Horários</strong> em qualquer partida para ajustar equipes, locais e horários.
               </p>
             </div>
             <Button
               variant="secondary"
               size="sm"
-              className="gap-2 text-xs shrink-0"
+              className="gap-1.5 text-xs h-8 rounded-md shrink-0 bg-zinc-800 hover:bg-zinc-700 text-foreground border border-zinc-700/60 font-medium"
               onClick={handleSyncPlayoffsFromGroups}
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
               Sincronizar com Fase de Grupos
             </Button>
           </motion.div>
@@ -506,23 +530,23 @@ export default function MatchesPage() {
 
         {/* Banner específico da aba Agenda */}
         {activeSubTab === 'agenda' && (
-          <motion.div variants={item} className="p-4 rounded-xl bg-card border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 font-semibold text-foreground text-sm">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                Agenda & Programação de Horários
+          <motion.div variants={item} className="p-3.5 rounded-xl bg-card border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-none">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 font-medium text-foreground text-xs">
+                <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                Agenda e Programação de Horários
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
                 Ajuste os horários, quadras e confrontos sorteados de qualquer fase com prevenção automática de conflitos de quadra e descanso.
               </p>
             </div>
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 text-xs shrink-0"
+              className="gap-1.5 text-xs h-8 rounded-md shrink-0 border-border hover:bg-zinc-800/60 font-medium text-zinc-300 hover:text-foreground"
               onClick={() => navigate('/jogos/novo')}
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               Novo Confronto
             </Button>
           </motion.div>
@@ -530,11 +554,11 @@ export default function MatchesPage() {
 
         {/* Matches List Grid */}
         {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map(i => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-44 w-full rounded-xl bg-zinc-900 border border-zinc-800" />)}
           </div>
         ) : filteredMatches.length === 0 ? (
-          <Card className="p-12 text-center text-muted-foreground">
+          <Card className="p-12 text-center text-xs text-muted-foreground border-border bg-card shadow-none">
             Nenhum confronto encontrado para a seleção atual.
           </Card>
         ) : (
@@ -545,66 +569,66 @@ export default function MatchesPage() {
 
               return (
                 <motion.div key={m.id} variants={item}>
-                  <Card className="card-elevated hover-raise flex flex-col justify-between h-full">
-                    <CardHeader className="pb-3 pt-4 px-4 sm:px-5">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                  <Card className="card-elevated hover-raise flex flex-col justify-between h-full shadow-none">
+                    <CardHeader className="pb-2.5 pt-3.5 px-4">
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-2">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-foreground">Jogo #{m.record.matchNumber}</span>
+                          <span className="font-semibold text-zinc-200">Jogo #{m.record.matchNumber}</span>
                           <span>·</span>
-                          <span className="truncate max-w-[120px]">{m.competition}</span>
+                          <span className="truncate max-w-[120px] text-zinc-400">{m.competition}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          {m.phase && <Badge variant="muted" className="capitalize">{m.phase}</Badge>}
+                          {m.phase && <Badge variant="muted" className="text-[10px] py-0 px-1.5 h-4 bg-zinc-800 text-zinc-400 border-zinc-700/60 capitalize">{m.phase}</Badge>}
                           {isHomologated ? (
-                            <Badge variant="homologated" className="gap-1">
+                            <Badge variant="homologated" className="text-[10px] py-0 px-1.5 h-4 gap-1">
                               <ShieldCheck className="w-3 h-3" />
                               Homologado
                             </Badge>
                           ) : isFinished ? (
-                            <Badge variant="completed">Realizado</Badge>
+                            <Badge variant="completed" className="text-[10px] py-0 px-1.5 h-4">Realizado</Badge>
                           ) : m.status === 'in-progress' ? (
-                            <Badge variant="live" className="gap-1">
+                            <Badge variant="live" className="text-[10px] py-0 px-1.5 h-4 gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse-subtle" />
                               Em Jogo
                             </Badge>
                           ) : (
-                            <Badge variant="scheduled">Agendado</Badge>
+                            <Badge variant="scheduled" className="text-[10px] py-0 px-1.5 h-4 border-zinc-700/60">Agendado</Badge>
                           )}
                         </div>
                       </div>
 
                       {/* Teams and Result Bar */}
-                      <div className="p-3 rounded-lg bg-zinc-900/60 border border-border/60 flex items-center justify-between gap-2">
+                      <div className="p-3 rounded-lg bg-zinc-900/90 border border-zinc-800 flex items-center justify-between gap-2">
                         {/* Team A */}
                         <div className="flex-1 flex items-center gap-2 min-w-0">
                           {m.teamA.logoUrl ? (
-                            <img src={m.teamA.logoUrl} alt="" className="w-7 h-7 rounded-full object-contain shrink-0" />
+                            <img src={m.teamA.logoUrl} alt="" className="w-6 h-6 rounded-full object-contain shrink-0" />
                           ) : (
-                            <div className="w-7 h-7 rounded-full bg-zinc-800 text-zinc-300 flex items-center justify-center font-semibold text-xs shrink-0">
+                            <div className="w-6 h-6 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/60 flex items-center justify-center font-semibold text-[10px] shrink-0">
                               {m.teamA.shortName.charAt(0)}
                             </div>
                           )}
-                          <span className="font-medium text-sm text-foreground truncate">{m.teamA.name}</span>
+                          <span className="font-medium text-xs text-foreground truncate">{m.teamA.name}</span>
                         </div>
 
                         {/* Score Display */}
-                        <div className="px-3 py-1 rounded-md bg-card border border-border text-center shrink-0">
+                        <div className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-center shrink-0 min-w-[52px]">
                           {isFinished ? (
-                            <div className="text-base font-semibold tabular-nums text-foreground tracking-tight">
+                            <div className="text-sm font-semibold tabular-nums text-foreground tracking-tight">
                               {m.teamA.score} <span className="text-muted-foreground text-xs font-normal">–</span> {m.teamB.score}
                             </div>
                           ) : (
-                            <span className="text-xs font-medium text-muted-foreground">VS</span>
+                            <span className="text-[10px] font-medium text-muted-foreground">VS</span>
                           )}
                         </div>
 
                         {/* Team B */}
                         <div className="flex-1 flex items-center justify-end gap-2 min-w-0 text-right">
-                          <span className="font-medium text-sm text-foreground truncate">{m.teamB.name}</span>
+                          <span className="font-medium text-xs text-foreground truncate">{m.teamB.name}</span>
                           {m.teamB.logoUrl ? (
-                            <img src={m.teamB.logoUrl} alt="" className="w-7 h-7 rounded-full object-contain shrink-0" />
+                            <img src={m.teamB.logoUrl} alt="" className="w-6 h-6 rounded-full object-contain shrink-0" />
                           ) : (
-                            <div className="w-7 h-7 rounded-full bg-zinc-800 text-zinc-300 flex items-center justify-center font-semibold text-xs shrink-0">
+                            <div className="w-6 h-6 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/60 flex items-center justify-center font-semibold text-[10px] shrink-0">
                               {m.teamB.shortName.charAt(0)}
                             </div>
                           )}
@@ -613,9 +637,9 @@ export default function MatchesPage() {
 
                       {/* Sets Parciais */}
                       {isFinished && m.sets && m.sets.length > 0 && (
-                        <div className="flex items-center justify-center gap-1.5 mt-2 text-[11px] text-muted-foreground">
+                        <div className="flex items-center justify-center gap-1.5 mt-2 text-[10px] text-muted-foreground">
                           {m.sets.map((s, idx) => (
-                            <span key={idx} className="px-1.5 py-0.5 rounded bg-zinc-800/70 tabular-nums">
+                            <span key={idx} className="px-1.5 py-0.5 rounded bg-zinc-800/80 border border-zinc-700/40 tabular-nums">
                               {s.a}-{s.b}
                             </span>
                           ))}
@@ -624,14 +648,14 @@ export default function MatchesPage() {
                     </CardHeader>
 
                     {/* Footer: info + hierarquia de ações (1 primária contextual + ghost + menu ···) */}
-                    <CardContent className="px-4 sm:px-5 pb-3.5 pt-2.5 border-t border-border/60 mt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-4 min-w-0">
-                        <span className="flex items-center gap-1.5 min-w-0">
-                          <MapPin className="w-3.5 h-3.5 shrink-0" />
+                    <CardContent className="px-4 pb-3 pt-2 border-t border-border mt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="flex items-center gap-1 min-w-0">
+                          <MapPin className="w-3 h-3 text-zinc-400 shrink-0" />
                           <span className="truncate">{m.venue} {m.court ? `· ${m.court}` : ''}</span>
                         </span>
-                        <span className="flex items-center gap-1.5 shrink-0">
-                          <Clock className="w-3.5 h-3.5" />
+                        <span className="flex items-center gap-1 shrink-0">
+                          <Clock className="w-3 h-3 text-zinc-400" />
                           {new Date(m.date).toLocaleDateString('pt-BR')} às {m.time}
                         </span>
                       </div>
@@ -642,19 +666,19 @@ export default function MatchesPage() {
                           <Button
                             variant="success"
                             size="sm"
-                            className="h-8 px-3 text-xs gap-1.5"
+                            className="h-7 px-2.5 text-xs gap-1 font-medium"
                             onClick={() => setPendingHomologateMatch(m.record)}
                           >
-                            <CheckCircle className="w-3.5 h-3.5" />
+                            <CheckCircle className="w-3 h-3" />
                             Homologar
                           </Button>
                         ) : canSubmitMatchScore(m.record) ? (
                           <Button
                             size="sm"
-                            className="h-8 px-3 text-xs gap-1.5"
+                            className="h-7 px-2.5 text-xs gap-1 font-medium shadow-none"
                             onClick={() => setLiveScorerMatch(m.record)}
                           >
-                            <Volleyball className="w-3.5 h-3.5" />
+                            <Volleyball className="w-3 h-3" />
                             Mesa
                           </Button>
                         ) : null}
@@ -663,10 +687,10 @@ export default function MatchesPage() {
                           <Button
                             variant="secondary"
                             size="sm"
-                            className="h-8 px-2.5 text-xs gap-1"
+                            className="h-7 px-2 text-xs gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 font-medium"
                             onClick={() => setResultMatch(m.record)}
                           >
-                            <PenLine className="w-3.5 h-3.5" />
+                            <PenLine className="w-3 h-3 text-zinc-400" />
                             Placar
                           </Button>
                         )}
@@ -675,10 +699,10 @@ export default function MatchesPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-2 text-xs"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-zinc-800/60"
                             onClick={() => setSheetMatch(m)}
                           >
-                            <FileText className="w-3.5 h-3.5 mr-1" />
+                            <FileText className="w-3 h-3 mr-1 text-zinc-400" />
                             Súmula
                           </Button>
                         )}
@@ -686,28 +710,28 @@ export default function MatchesPage() {
                         {/* Ações secundárias agrupadas */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon-sm" aria-label="Mais ações da partida">
-                              <MoreHorizontal className="w-4 h-4" />
+                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-zinc-800/60 text-muted-foreground hover:text-foreground" aria-label="Mais ações da partida">
+                              <MoreHorizontal className="w-3.5 h-3.5" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-52">
-                            <DropdownMenuItem onClick={() => setLiveScoreboardMatch(m.record)}>
-                              <Maximize2 className="w-4 h-4 mr-2" />
+                          <DropdownMenuContent align="end" className="w-52 p-1.5 bg-zinc-900 border-border shadow-none rounded-lg">
+                            <DropdownMenuItem onClick={() => setLiveScoreboardMatch(m.record)} className="text-xs rounded-md cursor-pointer hover:bg-zinc-800/60">
+                              <Maximize2 className="w-3.5 h-3.5 mr-2 text-zinc-400" />
                               Telão / Placar do Jogo
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setCheckinMatch(m.record)}>
-                              <UserCheck className="w-4 h-4 mr-2" />
+                            <DropdownMenuItem onClick={() => setCheckinMatch(m.record)} className="text-xs rounded-md cursor-pointer hover:bg-zinc-800/60">
+                              <UserCheck className="w-3.5 h-3.5 mr-2 text-zinc-400" />
                               Check-in de Atletas
                             </DropdownMenuItem>
                             {can('match:edit') && (
-                              <DropdownMenuItem onClick={() => setRefereeMatch(m.record)}>
-                                <Shield className="w-4 h-4 mr-2" />
+                              <DropdownMenuItem onClick={() => setRefereeMatch(m.record)} className="text-xs rounded-md cursor-pointer hover:bg-zinc-800/60">
+                                <Shield className="w-3.5 h-3.5 mr-2 text-zinc-400" />
                                 Escalação de Arbitragem
                               </DropdownMenuItem>
                             )}
                             {(can('match:edit') || can('match:schedule')) && (
-                              <DropdownMenuItem onClick={() => setEditMatch(m.record)}>
-                                <Pencil className="w-4 h-4 mr-2" />
+                              <DropdownMenuItem onClick={() => setEditMatch(m.record)} className="text-xs rounded-md cursor-pointer hover:bg-zinc-800/60">
+                                <Pencil className="w-3.5 h-3.5 mr-2 text-zinc-400" />
                                 Editar / Agendar
                               </DropdownMenuItem>
                             )}
@@ -943,31 +967,31 @@ function ScheduleMatchDialog({ match, competition, allMatches, teams, venues, on
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg bg-zinc-950 border-border p-5 rounded-xl shadow-none">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
+          <DialogTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <Pencil className="w-4 h-4 text-primary" />
-            Editar Confronto & Horários
+            Editar Confronto e Horários
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs text-muted-foreground">
             Ajuste as equipes sorteadas, fase, data, horário e quadra do Jogo #{match.matchNumber}.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-3.5 py-1">
           {/* Equipes do Confronto */}
-          <div className="p-3 bg-muted/40 rounded-xl border border-border/70 space-y-3">
-            <p className="text-xs font-bold text-foreground">Equipes do Confronto (Sorteio / Chaveamento)</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-muted-foreground">Equipe A (Mandante)</Label>
+          <div className="p-3 bg-zinc-900/80 rounded-lg border border-zinc-800 space-y-2.5">
+            <p className="text-[11px] font-semibold text-foreground">Equipes do Confronto (Sorteio / Chaveamento)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Equipe A (Mandante)</Label>
                 <Select value={teamAId} onValueChange={setTeamAId}>
-                  <SelectTrigger className="text-xs h-9">
+                  <SelectTrigger className="text-xs h-8 rounded-md bg-zinc-950 border-zinc-800">
                     <SelectValue placeholder="Selecione a Equipe A" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
                     {teams.map(t => (
-                      <SelectItem key={t.id} value={t.id}>
+                      <SelectItem key={t.id} value={t.id} className="text-xs">
                         {t.name} ({t.shortName || 'TBD'})
                       </SelectItem>
                     ))}
@@ -975,15 +999,15 @@ function ScheduleMatchDialog({ match, competition, allMatches, teams, venues, on
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-muted-foreground">Equipe B (Visitante)</Label>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Equipe B (Visitante)</Label>
                 <Select value={teamBId} onValueChange={setTeamBId}>
-                  <SelectTrigger className="text-xs h-9">
+                  <SelectTrigger className="text-xs h-8 rounded-md bg-zinc-950 border-zinc-800">
                     <SelectValue placeholder="Selecione a Equipe B" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
                     {teams.map(t => (
-                      <SelectItem key={t.id} value={t.id}>
+                      <SelectItem key={t.id} value={t.id} className="text-xs">
                         {t.name} ({t.shortName || 'TBD'})
                       </SelectItem>
                     ))}
@@ -997,83 +1021,83 @@ function ScheduleMatchDialog({ match, competition, allMatches, teams, venues, on
           </div>
 
           {/* Fase e Identificação */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold">Fase do Torneio</Label>
+          <div className="grid grid-cols-3 gap-2.5">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Fase do Torneio</Label>
               <Select value={phase} onValueChange={setPhase}>
-                <SelectTrigger className="text-xs h-9">
+                <SelectTrigger className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="group-stage">Fase de Grupos</SelectItem>
-                  <SelectItem value="oitavas">Oitavas de Final</SelectItem>
-                  <SelectItem value="quartas">Quartas de Final</SelectItem>
-                  <SelectItem value="semifinal">Semifinais</SelectItem>
-                  <SelectItem value="terceiro_lugar">Disputa 3º Lugar</SelectItem>
-                  <SelectItem value="final">Grande Final</SelectItem>
+                <SelectContent className="bg-zinc-900 border-zinc-800">
+                  <SelectItem value="group-stage" className="text-xs">Fase de Grupos</SelectItem>
+                  <SelectItem value="oitavas" className="text-xs">Oitavas de Final</SelectItem>
+                  <SelectItem value="quartas" className="text-xs">Quartas de Final</SelectItem>
+                  <SelectItem value="semifinal" className="text-xs">Semifinais</SelectItem>
+                  <SelectItem value="terceiro_lugar" className="text-xs">Disputa 3º Lugar</SelectItem>
+                  <SelectItem value="final" className="text-xs">Grande Final</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold">Nº do Jogo</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Nº do Jogo</Label>
               <Input
                 type="number"
                 value={matchNumber}
                 onChange={e => setMatchNumber(e.target.value)}
-                className="text-xs h-9"
+                className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800"
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold">Chave / Grupo</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Chave / Grupo</Label>
               <Input
                 value={groupName}
                 onChange={e => setGroupName(e.target.value)}
-                placeholder="Ex: A, B, Chave 1"
-                className="text-xs h-9"
+                placeholder="Ex: A, B"
+                className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800"
               />
             </div>
           </div>
 
           {/* Data e Horário */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="sched-date" className="text-[11px] font-semibold">Data da Partida</Label>
-              <Input id="sched-date" type="date" value={date} onChange={e => setDate(e.target.value)} className="text-xs h-9" />
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1">
+              <Label htmlFor="sched-date" className="text-[10px] uppercase font-semibold text-muted-foreground">Data da Partida</Label>
+              <Input id="sched-date" type="date" value={date} onChange={e => setDate(e.target.value)} className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800" />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="sched-time" className="text-[11px] font-semibold">Horário de Início</Label>
-              <Input id="sched-time" type="time" value={time} onChange={e => setTime(e.target.value)} className="text-xs h-9" />
+            <div className="space-y-1">
+              <Label htmlFor="sched-time" className="text-[10px] uppercase font-semibold text-muted-foreground">Horário de Início</Label>
+              <Input id="sched-time" type="time" value={time} onChange={e => setTime(e.target.value)} className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800" />
             </div>
           </div>
 
           {/* Local e Quadra */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold">Ginásio / Local</Label>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Ginásio / Local</Label>
               <Select value={venue} onValueChange={v => { setVenue(v); setCourt(''); }}>
-                <SelectTrigger className="text-xs h-9">
+                <SelectTrigger className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800">
                   <SelectValue placeholder="Selecione o local" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-zinc-900 border-zinc-800">
                   {venues.map(v => (
-                    <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>
+                    <SelectItem key={v.id} value={v.name} className="text-xs">{v.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold">Quadra</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Quadra</Label>
               <Select value={court} onValueChange={setCourt}>
-                <SelectTrigger className="text-xs h-9">
+                <SelectTrigger className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800">
                   <SelectValue placeholder="Selecione a quadra" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-zinc-900 border-zinc-800">
                   {availableCourts.map(c => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                    <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
                   ))}
-                  {availableCourts.length === 0 && <SelectItem value="Quadra Principal">Quadra Principal</SelectItem>}
+                  {availableCourts.length === 0 && <SelectItem value="Quadra Principal" className="text-xs">Quadra Principal</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
@@ -1081,15 +1105,15 @@ function ScheduleMatchDialog({ match, competition, allMatches, teams, venues, on
 
           {/* Alertas de Conflito de Horário / Quadra */}
           {conflicts.length > 0 && (
-            <div className="space-y-2 pt-1">
+            <div className="space-y-1.5 pt-1">
               {conflicts.map((c, i) => (
                 <div
                   key={i}
                   className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${c.severity === 'error' ? 'bg-destructive/10 border-destructive/25 text-red-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}
                 >
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold">{c.severity === 'error' ? 'Conflito Crítico:' : 'Aviso Operacional:'}</span> {c.message}
+                    <span className="font-semibold">{c.severity === 'error' ? 'Conflito Crítico:' : 'Aviso Operacional:'}</span> {c.message}
                   </div>
                 </div>
               ))}
@@ -1097,9 +1121,16 @@ function ScheduleMatchDialog({ match, competition, allMatches, teams, venues, on
           )}
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" size="sm" onClick={onClose}>Cancelar</Button>
-            <Button size="sm" disabled={saving || hasBlockingError || isSameTeam} onClick={handleSave} className="font-semibold">
+        <DialogFooter className="gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={onClose} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">
+            Cancelar
+          </Button>
+          <Button
+            size="sm"
+            disabled={saving || hasBlockingError || isSameTeam}
+            onClick={handleSave}
+            className="h-8 text-xs rounded-md font-medium shadow-none"
+          >
             {saving ? 'Salvando...' : 'Salvar Alterações'}
           </Button>
         </DialogFooter>
@@ -1161,33 +1192,33 @@ function ResultValidationDialog({ match, competition, onClose, onSaved }: Result
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-zinc-950 border-border p-5 rounded-xl shadow-none">
         <DialogHeader>
-          <DialogTitle>Lançar Placar da Partida</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-sm font-semibold text-foreground">Lançar Placar da Partida</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
             {match.teamAName} vs {match.teamBName} ({setFormat === '5-sets' ? 'Melhor de 5 sets' : 'Melhor de 3 sets'})
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-2">
-          <div className="flex items-center gap-3 px-1 text-xs font-semibold text-muted-foreground uppercase">
+        <div className="space-y-3 py-1">
+          <div className="flex items-center gap-3 px-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
             <span className="flex-1 truncate">{match.teamAShortName || match.teamAName}</span>
-            <span className="w-16 text-center">SET</span>
+            <span className="w-14 text-center">SET</span>
             <span className="flex-1 text-right truncate">{match.teamBShortName || match.teamBName}</span>
           </div>
 
           {setScores.map((set, idx) => (
-            <div key={idx} className="flex items-center gap-3">
+            <div key={idx} className="flex items-center gap-2.5">
               <Input
                 type="number"
                 min={0}
                 max={50}
                 placeholder="--"
-                className="flex-1 text-center font-bold font-mono text-base"
+                className="flex-1 text-center font-semibold font-mono text-sm h-8 rounded-md bg-zinc-900 border-zinc-800"
                 value={set.a}
                 onChange={e => setSetScores(prev => prev.map((s, i) => (i === idx ? { ...s, a: e.target.value } : s)))}
               />
-              <span className="w-16 text-center text-xs font-bold bg-muted py-2 rounded-lg">
+              <span className="w-14 text-center text-[10px] font-semibold uppercase tracking-wider bg-zinc-800/80 text-zinc-300 py-1.5 rounded border border-zinc-700/50">
                 Set {idx + 1}
               </span>
               <Input
@@ -1195,7 +1226,7 @@ function ResultValidationDialog({ match, competition, onClose, onSaved }: Result
                 min={0}
                 max={50}
                 placeholder="--"
-                className="flex-1 text-center font-bold font-mono text-base"
+                className="flex-1 text-center font-semibold font-mono text-sm h-8 rounded-md bg-zinc-900 border-zinc-800"
                 value={set.b}
                 onChange={e => setSetScores(prev => prev.map((s, i) => (i === idx ? { ...s, b: e.target.value } : s)))}
               />
@@ -1204,22 +1235,22 @@ function ResultValidationDialog({ match, competition, onClose, onSaved }: Result
 
           {/* Validation Feedback */}
           {validation.valid ? (
-            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 space-y-1">
-              <p className="font-bold flex items-center gap-1">
+            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 space-y-0.5">
+              <p className="font-semibold flex items-center gap-1">
                 <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
                 Resultado válido: {validation.scoreA} x {validation.scoreB}
               </p>
-              <p>
-                Vencedor confirmado: <strong>{validation.winner === 'A' ? match.teamAName : match.teamBName}</strong>
+              <p className="text-[11px]">
+                Vencedor confirmado: <strong className="text-emerald-300">{validation.winner === 'A' ? match.teamAName : match.teamBName}</strong>
               </p>
             </div>
           ) : filledSets.length > 0 ? (
-            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-xs text-destructive space-y-1">
-              <p className="font-bold flex items-center gap-1">
+            <div className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/30 text-xs text-destructive space-y-1">
+              <p className="font-semibold flex items-center gap-1">
                 <AlertTriangle className="w-3.5 h-3.5" />
                 Validação de Placar:
               </p>
-              <ul className="list-disc pl-4 space-y-0.5">
+              <ul className="list-disc pl-4 space-y-0.5 text-[11px]">
                 {validation.errors.map((err, i) => (
                   <li key={i}>{err}</li>
                 ))}
@@ -1228,9 +1259,16 @@ function ResultValidationDialog({ match, competition, onClose, onSaved }: Result
           ) : null}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button disabled={saving || !validation.valid} onClick={handleSave}>
+        <DialogFooter className="gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={onClose} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">
+            Cancelar
+          </Button>
+          <Button
+            size="sm"
+            disabled={saving || !validation.valid}
+            onClick={handleSave}
+            className="h-8 text-xs rounded-md font-medium shadow-none"
+          >
             {saving ? 'Salvando...' : 'Finalizar Partida'}
           </Button>
         </DialogFooter>

@@ -27,6 +27,7 @@ import { dataAccess } from '@/services/dataAccess';
 import { generateTeamRosterReportPdf, downloadReportsPdf } from '@/lib/pdf/reportsPdf';
 import type { CompetitionRecord, TeamRecord } from '@/types/entities';
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
+import { cn } from '@/lib/utils';
 
 interface AthleteView extends CompetitionAthlete {
   teamName: string;
@@ -173,137 +174,158 @@ const AthletesPage = () => {
       'Relatório Geral de Atletas',
     );
     downloadReportsPdf(doc, 'relacao_nominal_atletas.pdf');
-    toast.success('Relação nominal gerada!');
+    toast.success('Relação nominal gerada com sucesso!');
   };
 
   return (
     <MainLayout>
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
         {/* Header */}
-        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Atletas</h1>
-            <p className="text-muted-foreground mt-1">Atletas inscritos nas competições</p>
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">Atletas</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Atletas inscritos nas competições</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={handleExportRoster} disabled={athletes.length === 0}>
-              <FileDown className="w-4 h-4" />
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60" onClick={handleExportRoster} disabled={athletes.length === 0}>
+              <FileDown className="w-3.5 h-3.5" />
               Relação Nominal (PDF)
             </Button>
-            <Button variant="accent" className="gap-2" onClick={() => setRegistrationOpen(true)}>
-              <Plus className="w-4 h-4" />
+            <Button size="sm" className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={() => setRegistrationOpen(true)}>
+              <Plus className="w-3.5 h-3.5" />
               Novo Atleta
             </Button>
           </div>
         </motion.div>
 
         {/* Stats */}
-        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-display font-bold text-foreground">{athletes.length}</p>
-              <p className="text-sm text-muted-foreground">Total de Atletas</p>
+        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-3.5">
+              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Total de Atletas</span>
+              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">{athletes.length}</p>
             </CardContent>
           </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-display font-bold text-foreground">{femaleCount}</p>
-              <p className="text-sm text-muted-foreground">Feminino</p>
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-3.5">
+              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Feminino</span>
+              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">{femaleCount}</p>
             </CardContent>
           </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-display font-bold text-foreground">{maleCount}</p>
-              <p className="text-sm text-muted-foreground">Masculino</p>
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-3.5">
+              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Masculino</span>
+              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">{maleCount}</p>
             </CardContent>
           </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-display font-bold text-accent">
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-3.5">
+              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Equipes Inscritas</span>
+              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">
                 {new Set(athletes.map(a => a.competitionTeamId)).size}
               </p>
-              <p className="text-sm text-muted-foreground">Equipes Inscritas</p>
             </CardContent>
           </Card>
         </motion.div>
 
         {/* Filters */}
-        <motion.div variants={item} className="flex flex-col md:flex-row gap-4">
+        <motion.div variants={item} className="flex flex-col sm:flex-row gap-2.5">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <Input
               placeholder="Buscar atletas, equipes, posições..."
-              className="pl-10"
+              className="pl-8 text-xs h-8 bg-zinc-900 border-zinc-800 rounded-md"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
           <Select value={genderFilter} onValueChange={(v: typeof genderFilter) => setGenderFilter(v)}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[150px] text-xs h-8 bg-zinc-900 border-zinc-800 rounded-md">
               <SelectValue placeholder="Gênero" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="female">Feminino</SelectItem>
-              <SelectItem value="male">Masculino</SelectItem>
+            <SelectContent className="bg-zinc-900 border-zinc-800">
+              <SelectItem value="all" className="text-xs">Todos</SelectItem>
+              <SelectItem value="female" className="text-xs">Feminino</SelectItem>
+              <SelectItem value="male" className="text-xs">Masculino</SelectItem>
             </SelectContent>
           </Select>
-          <div className="flex gap-1 bg-muted p-1 rounded-lg">
-            <Button variant={viewMode === 'grid' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('grid')}>
+          <div className="flex gap-0.5 bg-zinc-900 p-0.5 rounded-md border border-zinc-800">
+            <Button
+              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+              size="sm"
+              className={cn('text-xs h-7 px-2.5 rounded-sm font-medium transition-colors', viewMode === 'grid' ? 'bg-zinc-800 text-foreground' : 'text-muted-foreground')}
+              onClick={() => setViewMode('grid')}
+            >
               Grid
             </Button>
-            <Button variant={viewMode === 'table' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('table')}>
+            <Button
+              variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+              size="sm"
+              className={cn('text-xs h-7 px-2.5 rounded-sm font-medium transition-colors', viewMode === 'table' ? 'bg-zinc-800 text-foreground' : 'text-muted-foreground')}
+              onClick={() => setViewMode('table')}
+            >
               Tabela
             </Button>
           </div>
         </motion.div>
 
         {loading ? (
-          <Card className="card-elevated">
-            <CardContent className="p-12 text-center text-muted-foreground">Carregando atletas...</CardContent>
-          </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-44 rounded-xl border border-zinc-800 bg-zinc-900/60 animate-pulse" />
+            ))}
+          </div>
         ) : (
           <>
             {viewMode === 'grid' ? (
-              <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
                 {filteredAthletes.map(athlete => (
-                  <Card key={athlete.id} className="card-elevated hover:shadow-lg transition-all group overflow-hidden">
-                    <CardContent className="p-0">
-                      <div className="bg-gradient-to-br from-primary to-primary/80 p-6 text-center">
-                        <Avatar className="w-20 h-20 mx-auto border-4 border-primary-foreground/20">
-                          <AvatarFallback className="bg-primary-foreground text-primary text-2xl font-display font-bold">
-                            {athlete.jerseyNumber ?? '—'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <h3 className="font-display font-bold text-primary-foreground text-lg mt-3">{athlete.name}</h3>
-                        <p className="text-primary-foreground/70 text-sm">{athlete.position}</p>
+                  <Card key={athlete.id} className="card-elevated hover-raise shadow-none border border-border bg-card group overflow-hidden">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-zinc-800 border border-zinc-700/60 text-zinc-200 flex items-center justify-center font-mono font-bold text-sm shrink-0">
+                          {athlete.jerseyNumber ?? '—'}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-xs sm:text-sm text-foreground truncate">{athlete.name}</h3>
+                          <p className="text-[11px] text-muted-foreground truncate">{athlete.position || 'Geral'}</p>
+                          <div className="flex items-center gap-1 mt-1">
+                            {athlete.isCaptain && (
+                              <Badge variant="default" className="text-[9px] py-0 px-1 bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                CAP
+                              </Badge>
+                            )}
+                            {athlete.isLibero && (
+                              <Badge variant="outline" className="text-[9px] py-0 px-1 border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+                                LÍBERO
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="p-4 space-y-3">
+                      <div className="space-y-1.5 pt-2 border-t border-border text-xs">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Equipe</span>
-                          <Badge variant="secondary">{athlete.teamShortName}</Badge>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Competição</span>
-                          <span className="text-sm font-medium text-right">{athlete.competitionName}</span>
+                          <span className="text-[11px] text-muted-foreground">Equipe</span>
+                          <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">{athlete.teamShortName}</Badge>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Idade</span>
-                          <span className="font-medium">{athlete.age !== undefined ? `${athlete.age} anos` : '—'}</span>
+                          <span className="text-[11px] text-muted-foreground">Competição</span>
+                          <span className="text-[11px] font-medium text-foreground truncate max-w-[130px]">{athlete.competitionName}</span>
                         </div>
-                        <div className="flex items-center justify-center gap-2 pt-2">
-                          {athlete.isCaptain && <Badge className="bg-warning text-warning-foreground">Capitã(o)</Badge>}
-                          {athlete.isLibero && <Badge className="bg-accent text-accent-foreground">Líbero</Badge>}
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-muted-foreground">Idade</span>
+                          <span className="text-[11px] font-medium tabular-nums text-foreground">{athlete.age !== undefined ? `${athlete.age} anos` : '—'}</span>
                         </div>
-                        <div className="flex flex-col gap-2 pt-2">
-                          <Button variant="outline" size="sm" className="w-full" onClick={() => openTeamRegistration(athlete)}>
-                            Ver inscrição da equipe
-                          </Button>
-                          <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={() => setTransferAthlete(athlete)}>
-                            Transferir Atleta
-                          </Button>
-                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 pt-1 border-t border-border">
+                        <Button variant="ghost" size="sm" className="h-7 text-xs flex-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-zinc-800" onClick={() => openTeamRegistration(athlete)}>
+                          Inscrição
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs flex-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-zinc-800" onClick={() => setTransferAthlete(athlete)}>
+                          Transferir
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -311,57 +333,59 @@ const AthletesPage = () => {
               </motion.div>
             ) : (
               <motion.div variants={item}>
-                <Card className="card-elevated overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Atleta</TableHead>
-                        <TableHead>Posição</TableHead>
-                        <TableHead>Equipe</TableHead>
-                        <TableHead className="text-center">Camisa</TableHead>
-                        <TableHead>Função</TableHead>
-                        <TableHead></TableHead>
+                <Card className="card-elevated shadow-none overflow-hidden border border-border">
+                  <Table className="text-xs">
+                    <TableHeader className="bg-zinc-900/60">
+                      <TableRow className="border-b border-border">
+                        <TableHead className="font-semibold text-muted-foreground py-2.5">Atleta</TableHead>
+                        <TableHead className="font-semibold text-muted-foreground py-2.5">Posição</TableHead>
+                        <TableHead className="font-semibold text-muted-foreground py-2.5">Equipe</TableHead>
+                        <TableHead className="font-semibold text-muted-foreground py-2.5 text-center">Camisa</TableHead>
+                        <TableHead className="font-semibold text-muted-foreground py-2.5">Função</TableHead>
+                        <TableHead className="py-2.5"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredAthletes.map(athlete => (
-                        <TableRow key={athlete.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Avatar className="w-10 h-10">
-                                <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-                                  {athlete.jerseyNumber ?? '—'}
-                                </AvatarFallback>
-                              </Avatar>
+                        <TableRow key={athlete.id} className="border-b border-border/40 hover:bg-zinc-800/30 transition-colors">
+                          <TableCell className="py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded bg-zinc-800 border border-zinc-700/60 text-zinc-300 font-mono font-bold text-xs flex items-center justify-center">
+                                {athlete.jerseyNumber ?? '—'}
+                              </div>
                               <div>
-                                <p className="font-medium">{athlete.name}</p>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="font-medium text-foreground">{athlete.name}</p>
+                                <p className="text-[10px] text-muted-foreground">
                                   {athlete.age !== undefined ? `${athlete.age} anos · ` : ''}{athlete.competitionName}
                                 </p>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>{athlete.position}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{athlete.teamShortName}</Badge>
+                          <TableCell className="py-2.5 text-muted-foreground">{athlete.position}</TableCell>
+                          <TableCell className="py-2.5">
+                            <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">{athlete.teamShortName}</Badge>
                           </TableCell>
-                          <TableCell className="text-center">{athlete.jerseyNumber ?? '—'}</TableCell>
-                          <TableCell>
-                            {athlete.isCaptain ? 'Capitã(o)' : athlete.isLibero ? 'Líbero' : '—'}
+                          <TableCell className="py-2.5 text-center font-mono font-semibold">{athlete.jerseyNumber ?? '—'}</TableCell>
+                          <TableCell className="py-2.5">
+                            {athlete.isCaptain ? (
+                              <Badge variant="default" className="text-[9px] py-0 px-1 bg-amber-500/20 text-amber-400 border border-amber-500/30">CAP</Badge>
+                            ) : athlete.isLibero ? (
+                              <Badge variant="outline" className="text-[9px] py-0 px-1 border-emerald-500/40 text-emerald-400 bg-emerald-500/10">LÍBERO</Badge>
+                            ) : '—'}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-2.5 text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon-sm">
-                                  <MoreVertical className="w-4 h-4" />
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-zinc-800 rounded-md">
+                                  <MoreVertical className="w-3.5 h-3.5" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem className="gap-2" onClick={() => openTeamRegistration(athlete)}>
-                                  <User className="w-4 h-4" /> Ver inscrição
+                              <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800 text-xs">
+                                <DropdownMenuItem className="gap-2 text-xs" onClick={() => openTeamRegistration(athlete)}>
+                                  <User className="w-3.5 h-3.5" /> Ver inscrição
                                 </DropdownMenuItem>
-                                <DropdownMenuItem className="gap-2" onClick={() => setTransferAthlete(athlete)}>
-                                  <ArrowRightLeft className="w-4 h-4" /> Transferir
+                                <DropdownMenuItem className="gap-2 text-xs" onClick={() => setTransferAthlete(athlete)}>
+                                  <ArrowRightLeft className="w-3.5 h-3.5" /> Transferir
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -374,8 +398,8 @@ const AthletesPage = () => {
               </motion.div>
             )}
             {filteredAthletes.length === 0 && (
-              <Card className="card-elevated">
-                <CardContent className="p-12 text-center text-muted-foreground">Nenhum atleta encontrado.</CardContent>
+              <Card className="card-elevated shadow-none">
+                <CardContent className="p-10 text-center text-xs text-muted-foreground">Nenhum atleta encontrado.</CardContent>
               </Card>
             )}
           </>
@@ -434,60 +458,60 @@ function AthleteRegistrationDialog({ open, onOpenChange, teams, onSave }: Athlet
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[450px]">
+      <DialogContent className="sm:max-w-md bg-zinc-950 border-border p-5 rounded-xl shadow-none">
         <DialogHeader>
-          <DialogTitle>Cadastrar Novo Atleta</DialogTitle>
-          <DialogDescription>Insira os dados do atleta e escolha a equipe para a qual ele será alocado.</DialogDescription>
+          <DialogTitle className="text-sm font-semibold text-foreground">Cadastrar Novo Atleta</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">Insira os dados do atleta e escolha a equipe de destino.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Equipe Destino</Label>
+        <form onSubmit={handleSubmit} className="space-y-3.5 py-1">
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Equipe Destino</Label>
             <Select value={competitionTeamId} onValueChange={setCompetitionTeamId} required>
-              <SelectTrigger>
+              <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
                 <SelectValue placeholder="Selecione a equipe inscrita" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-zinc-900 border-zinc-800">
                 {teams.map(t => (
-                  <SelectItem key={t.id} value={t.id}>{t.teamName} - {t.competitionName}</SelectItem>
+                  <SelectItem key={t.id} value={t.id} className="text-xs">{t.teamName} - {t.competitionName}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>Nome Completo</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} required />
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Nome Completo</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} required className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Documento (RG/CPF)</Label>
-              <Input value={documentNumber} onChange={e => setDocumentNumber(e.target.value)} required />
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Documento (RG/CPF)</Label>
+              <Input value={documentNumber} onChange={e => setDocumentNumber(e.target.value)} required className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
             </div>
-            <div className="space-y-2">
-              <Label>Gênero</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Gênero</Label>
               <Select value={gender} onValueChange={(v: 'male' | 'female') => setGender(v)}>
-                <SelectTrigger>
+                <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="female">Feminino</SelectItem>
-                  <SelectItem value="male">Masculino</SelectItem>
+                <SelectContent className="bg-zinc-900 border-zinc-800">
+                  <SelectItem value="female" className="text-xs">Feminino</SelectItem>
+                  <SelectItem value="male" className="text-xs">Masculino</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Posição Principal</Label>
-              <Input value={position} onChange={e => setPosition(e.target.value)} placeholder="Ex: Ponteiro" />
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Posição Principal</Label>
+              <Input value={position} onChange={e => setPosition(e.target.value)} placeholder="Ex: Ponteiro" className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
             </div>
-            <div className="space-y-2">
-              <Label>Nº da Camisa (Opcional)</Label>
-              <Input value={jerseyNumber} onChange={e => setJerseyNumber(e.target.value)} type="number" min={1} max={99} />
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Nº da Camisa</Label>
+              <Input value={jerseyNumber} onChange={e => setJerseyNumber(e.target.value)} type="number" min={1} max={99} className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" variant="accent">Cadastrar</Button>
+          <DialogFooter className="gap-2 pt-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">Cancelar</Button>
+            <Button type="submit" size="sm" className="h-8 text-xs rounded-md font-medium shadow-none">Cadastrar</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -518,34 +542,34 @@ function AthleteTransferDialog({ open, onOpenChange, athlete, teams, onTransfer 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md bg-zinc-950 border-border p-5 rounded-xl shadow-none">
         <DialogHeader>
-          <DialogTitle>Transferir Atleta</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-sm font-semibold text-foreground">Transferir Atleta</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
             Mover o atleta <strong>{athlete?.name}</strong> para outra equipe inscrita.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="p-3 bg-muted rounded-lg text-sm mb-2">
-            <p className="text-muted-foreground">Equipe atual:</p>
-            <p className="font-bold">{athlete?.teamName} - {athlete?.competitionName}</p>
+        <form onSubmit={handleSubmit} className="space-y-3.5 py-1">
+          <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-lg text-xs">
+            <p className="text-muted-foreground text-[10px] uppercase font-semibold">Equipe atual:</p>
+            <p className="font-medium text-foreground mt-0.5">{athlete?.teamName} - {athlete?.competitionName}</p>
           </div>
-          <div className="space-y-2">
-            <Label>Nova Equipe</Label>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Nova Equipe</Label>
             <Select value={newTeamId} onValueChange={setNewTeamId} required>
-              <SelectTrigger>
+              <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
                 <SelectValue placeholder="Selecione a nova equipe" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-zinc-900 border-zinc-800">
                 {teams.filter(t => t.id !== athlete?.competitionTeamId).map(t => (
-                  <SelectItem key={t.id} value={t.id}>{t.teamName} - {t.competitionName}</SelectItem>
+                  <SelectItem key={t.id} value={t.id} className="text-xs">{t.teamName} - {t.competitionName}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" variant="accent">Confirmar Transferência</Button>
+          <DialogFooter className="gap-2 pt-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">Cancelar</Button>
+            <Button type="submit" size="sm" className="h-8 text-xs rounded-md font-medium shadow-none">Confirmar Transferência</Button>
           </DialogFooter>
         </form>
       </DialogContent>

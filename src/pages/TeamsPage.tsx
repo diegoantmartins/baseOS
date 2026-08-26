@@ -33,6 +33,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { dataAccess, generateToken } from '@/services/dataAccess';
 import { compressImageToDataUrl } from '@/lib/imageUtils';
 import { TeamCreatedShareDialog } from '@/components/registration/TeamCreatedShareDialog';
+import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
 import type { CompetitionAthlete } from '@/types/registration';
 import { cn } from '@/lib/utils';
@@ -149,81 +150,91 @@ const TeamsPage = () => {
     <MainLayout>
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
         {/* Header */}
-        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Equipes</h1>
-            <p className="text-muted-foreground mt-1">Gerencie equipes e seus atletas</p>
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">Equipes</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Gerencie equipes e seus atletas</p>
           </div>
-          <Button variant="accent" className="gap-2" onClick={() => setCreateOpen(true)}>
-            <Plus className="w-4 h-4" />
-            Nova Equipe
-          </Button>
+          <div className="flex items-center gap-2">
+            <ContextualHelpButton
+              articles={[
+                { articleId: 'cadastrar-equipe', label: 'Como cadastrar uma equipe' },
+                { articleId: 'cadastrar-atleta', label: 'Como gerenciar o elenco' },
+                { articleId: 'definir-capitao-libero', label: 'Definir Capitão e Líberos' },
+                { articleId: 'portal-equipes-auto-inscricao', label: 'Link de auto-inscrição para a equipe' },
+              ]}
+              label="Ajuda em equipes"
+            />
+            <Button size="sm" className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={() => setCreateOpen(true)}>
+              <Plus className="w-3.5 h-3.5" />
+              Nova Equipe
+            </Button>
+          </div>
         </motion.div>
 
         {/* Stats */}
-        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-display font-bold text-foreground">{teams.length}</p>
-              <p className="text-sm text-muted-foreground">Total de Equipes</p>
+        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-3.5">
+              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Total de Equipes</span>
+              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">{teams.length}</p>
             </CardContent>
           </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-display font-bold text-indoor">{teams.filter(t => t.modality === 'indoor').length}</p>
-              <p className="text-sm text-muted-foreground">Vôlei de Quadra</p>
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-3.5">
+              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Vôlei de Quadra</span>
+              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">{teams.filter(t => t.modality === 'indoor').length}</p>
             </CardContent>
           </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-display font-bold text-beach">{teams.filter(t => t.modality === 'beach').length}</p>
-              <p className="text-sm text-muted-foreground">Vôlei de Praia</p>
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-3.5">
+              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Vôlei de Praia</span>
+              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">{teams.filter(t => t.modality === 'beach').length}</p>
             </CardContent>
           </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-display font-bold text-accent">{totalAthletes}</p>
-              <p className="text-sm text-muted-foreground">Total de Atletas</p>
+          <Card className="card-elevated shadow-none">
+            <CardContent className="p-3.5">
+              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Total de Atletas</span>
+              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">{totalAthletes}</p>
             </CardContent>
           </Card>
         </motion.div>
 
         {/* Filters */}
-        <motion.div variants={item} className="flex flex-col sm:flex-row gap-4">
+        <motion.div variants={item} className="flex flex-col sm:flex-row gap-2.5">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar por nome da equipe..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="pl-9"
+              className="pl-8 text-xs h-8 bg-zinc-900 border-zinc-800 rounded-md"
             />
           </div>
           <Select value={modalityFilter} onValueChange={(v: 'all' | 'indoor' | 'beach') => setModalityFilter(v)}>
-            <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectTrigger className="w-full sm:w-[170px] text-xs h-8 bg-zinc-900 border-zinc-800 rounded-md">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas Modalidades</SelectItem>
-              <SelectItem value="indoor">Vôlei de Quadra</SelectItem>
-              <SelectItem value="beach">Vôlei de Praia</SelectItem>
+            <SelectContent className="bg-zinc-900 border-zinc-800">
+              <SelectItem value="all" className="text-xs">Todas Modalidades</SelectItem>
+              <SelectItem value="indoor" className="text-xs">Vôlei de Quadra</SelectItem>
+              <SelectItem value="beach" className="text-xs">Vôlei de Praia</SelectItem>
             </SelectContent>
           </Select>
         </motion.div>
 
         {/* Teams Grid */}
-        <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i} className="card-elevated animate-pulse">
-                <CardContent className="p-6">
-                  <div className="w-14 h-14 bg-muted rounded-xl mb-4" />
-                  <div className="h-5 bg-muted rounded w-3/4 mb-2" />
-                  <div className="h-4 bg-muted rounded w-1/2 mb-4" />
-                  <div className="space-y-2">
-                    <div className="h-3 bg-muted rounded" />
-                    <div className="h-3 bg-muted rounded" />
-                    <div className="h-3 bg-muted rounded" />
+              <Card key={i} className="card-elevated shadow-none animate-pulse">
+                <CardContent className="p-4">
+                  <div className="w-10 h-10 bg-zinc-800 rounded-lg mb-3" />
+                  <div className="h-4 bg-zinc-800 rounded w-3/4 mb-2" />
+                  <div className="h-3 bg-zinc-800 rounded w-1/2 mb-3" />
+                  <div className="space-y-1.5">
+                    <div className="h-2.5 bg-zinc-800 rounded" />
+                    <div className="h-2.5 bg-zinc-800 rounded" />
                   </div>
                 </CardContent>
               </Card>
@@ -241,8 +252,8 @@ const TeamsPage = () => {
                 />
               ))}
               {filteredTeams.length === 0 && (
-                <Card className="card-elevated md:col-span-2 lg:col-span-3">
-                  <CardContent className="p-12 text-center text-muted-foreground">
+                <Card className="card-elevated shadow-none md:col-span-2 lg:col-span-3">
+                  <CardContent className="p-10 text-center text-xs text-muted-foreground">
                     Nenhuma equipe encontrada.
                   </CardContent>
                 </Card>
@@ -271,16 +282,16 @@ const TeamsPage = () => {
         onOpenChange={v => { if (!v) setShareTeam(null); }}
       />
       <AlertDialog open={deleting !== null} onOpenChange={v => { if (!v) setDeleting(null); }}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-zinc-950 border-border p-5 rounded-xl shadow-none">
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir equipe?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-sm font-semibold text-foreground">Excluir equipe?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
               A equipe <strong>{deleting?.name}</strong> será removida permanentemente. Essa ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleting(null)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => deleting && handleDelete(deleting.id)}>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel onClick={() => setDeleting(null)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="h-8 text-xs rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 font-medium" onClick={() => deleting && handleDelete(deleting.id)}>
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -306,32 +317,29 @@ function TeamCard({
   const winRate = team.matchesPlayed > 0 ? Math.round((team.wins / team.matchesPlayed) * 100) : 0;
 
   return (
-    <Card className="card-elevated hover-raise group">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3 min-w-0">
+    <Card className="card-elevated hover-raise group shadow-none">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2.5 min-w-0">
             {team.logoUrl ? (
               <img
                 src={team.logoUrl}
                 alt={`Escudo ${team.name}`}
-                className="w-14 h-14 rounded-xl object-contain bg-muted p-1 border"
+                className="w-10 h-10 rounded-lg object-contain bg-zinc-950 p-1 border border-zinc-800 shrink-0"
               />
             ) : (
-              <div className={cn(
-                'w-14 h-14 rounded-xl flex items-center justify-center font-display font-bold text-lg shrink-0',
-                team.modality === 'indoor' ? 'bg-indoor text-indoor-foreground' : 'bg-beach text-beach-foreground'
-              )}>
+              <div className="w-10 h-10 rounded-lg bg-zinc-800 border border-zinc-700/60 text-zinc-300 flex items-center justify-center font-semibold text-xs shrink-0">
                 {team.shortName}
               </div>
             )}
             <div className="min-w-0">
-              <h3 className="font-semibold text-foreground truncate">{team.name}</h3>
-              <p className="text-xs text-muted-foreground truncate">
+              <h3 className="font-semibold text-xs sm:text-sm text-foreground truncate">{team.name}</h3>
+              <p className="text-[11px] text-muted-foreground truncate">
                 {team.city ? `${team.city} · ` : ''}{team.modality === 'indoor' ? 'Vôlei de Quadra' : 'Vôlei de Praia'}
               </p>
               {team.managerName && (
-                <p className="text-[11px] text-primary flex items-center gap-1 mt-0.5 truncate">
-                  <User className="w-3 h-3" />
+                <p className="text-[10px] text-zinc-400 flex items-center gap-1 mt-0.5 truncate">
+                  <User className="w-3 h-3 text-zinc-500" />
                   {team.managerName}
                 </p>
               )}
@@ -339,50 +347,50 @@ function TeamCard({
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                <MoreVertical className="w-4 h-4" />
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-zinc-800 rounded-md">
+                <MoreVertical className="w-3.5 h-3.5 text-zinc-400" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem className="gap-2" onClick={onShare}>
-                <MessageCircle className="w-4 h-4" /> Compartilhar Acesso (WhatsApp)
+            <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800 text-xs">
+              <DropdownMenuItem className="gap-2 text-xs" onClick={onShare}>
+                <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2" onClick={onView}>
-                <Eye className="w-4 h-4" /> Ver Detalhes
+              <DropdownMenuItem className="gap-2 text-xs" onClick={onView}>
+                <Eye className="w-3.5 h-3.5" /> Ver Detalhes
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2" onClick={onEdit}>
-                <Edit className="w-4 h-4" /> Editar
+              <DropdownMenuItem className="gap-2 text-xs" onClick={onEdit}>
+                <Edit className="w-3.5 h-3.5" /> Editar
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2 text-destructive" onClick={onDelete}>
-                <Trash2 className="w-4 h-4" /> Excluir
+              <DropdownMenuItem className="gap-2 text-xs text-red-400 hover:text-red-300" onClick={onDelete}>
+                <Trash2 className="w-3.5 h-3.5" /> Excluir
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Técnico</span>
-            <span className="font-medium">{team.coachName ?? '—'}</span>
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-[11px]">Técnico</span>
+            <span className="font-medium text-foreground truncate max-w-[150px]">{team.coachName ?? '—'}</span>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Atletas</span>
-            <span className="font-medium">{team.athletes}</span>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-[11px]">Atletas</span>
+            <span className="font-medium tabular-nums text-foreground">{team.athletes}</span>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Vitórias</span>
-            <span className="font-medium text-success">{team.wins}/{team.matchesPlayed}</span>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-[11px]">Vitórias</span>
+            <span className="font-medium tabular-nums text-foreground">{team.wins}/{team.matchesPlayed}</span>
           </div>
 
           {/* Win Rate — indicador linear fino (2px), neutro */}
-          <div className="pt-2">
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="text-muted-foreground">Taxa de Vitória</span>
-              <span className="font-medium text-foreground">{winRate}%</span>
+          <div className="pt-1.5">
+            <div className="flex items-center justify-between text-[10px] mb-1">
+              <span className="text-muted-foreground uppercase font-semibold">Taxa de Vitória</span>
+              <span className="font-medium tabular-nums text-foreground">{winRate}%</span>
             </div>
             <div className="h-0.5 bg-zinc-800 overflow-hidden">
               <div
-                className="h-full bg-zinc-500 transition-all duration-150"
+                className="h-full bg-primary transition-all duration-150"
                 style={{ width: `${winRate}%` }}
               />
             </div>
@@ -487,37 +495,37 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto p-5 bg-zinc-950 border-border rounded-xl shadow-none">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Editar Equipe' : 'Cadastrar Nova Equipe'}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-sm font-semibold text-foreground">{isEdit ? 'Editar Equipe' : 'Cadastrar Nova Equipe'}</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
             {isEdit
               ? 'Atualize os dados e credenciais da equipe.'
               : 'Cadastre a equipe, o responsável e gere o link de acesso para envio no WhatsApp.'}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
+        <div className="space-y-3.5 py-1">
           {/* Logo/Escudo */}
-          <div className="space-y-2">
-            <Label>Logo / Escudo da Equipe</Label>
-            <div className="flex items-center gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Logo / Escudo da Equipe</Label>
+            <div className="flex items-center gap-3">
               {logoUrl ? (
                 <img
                   src={logoUrl}
                   alt="Pré-visualização do escudo"
-                  className="w-16 h-16 rounded-xl object-contain bg-muted p-1 border border-border"
+                  className="w-12 h-12 rounded-lg object-contain bg-zinc-900 p-1 border border-zinc-800"
                 />
               ) : (
-                <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
-                  <Users className="w-6 h-6" />
+                <div className="w-12 h-12 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400">
+                  <Users className="w-5 h-5" />
                 </div>
               )}
-              <div className="flex-1 space-y-2">
+              <div className="flex-1 space-y-1">
                 <Label
                   htmlFor="team-logo"
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/50 text-sm font-medium cursor-pointer hover:bg-muted transition-colors"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-zinc-800 bg-zinc-900 text-xs font-medium cursor-pointer hover:bg-zinc-800 transition-colors text-zinc-300"
                 >
-                  <Upload className="w-4 h-4" />
+                  <Upload className="w-3.5 h-3.5" />
                   {uploading ? 'Processando...' : 'Enviar imagem'}
                 </Label>
                 <input
@@ -532,7 +540,7 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
                   <button
                     type="button"
                     onClick={() => setLogoUrl(undefined)}
-                    className="block text-xs text-destructive hover:underline"
+                    className="block text-[11px] text-red-400 hover:underline"
                   >
                     Remover escudo
                   </button>
@@ -542,25 +550,26 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
           </div>
 
           {/* Dados Principais */}
-          <div className="space-y-3 p-3.5 rounded-xl border bg-muted/20">
-            <p className="text-xs font-bold text-foreground uppercase tracking-wider">1. Informações da Equipe</p>
+          <div className="space-y-2.5 p-3 rounded-lg border border-zinc-800 bg-zinc-900/60">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">1. Informações da Equipe</p>
 
-            <div className="space-y-2">
-              <Label htmlFor="team-name">Nome da Equipe *</Label>
+            <div className="space-y-1">
+              <Label htmlFor="team-name" className="text-[10px] uppercase font-semibold text-muted-foreground">Nome da Equipe *</Label>
               <Input
                 id="team-name"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Ex.: Sada Cruzeiro Vôlei"
+                className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="team-short" className="flex items-center justify-between">
-                  <span>Sigla Oficial (3 Letras) *</span>
-                  <span className={`text-[10px] ${shortName.trim().length === 3 ? 'text-emerald-500 font-bold' : 'text-amber-500'}`}>
-                    {shortName.trim().length}/3 letras
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label htmlFor="team-short" className="flex items-center justify-between text-[10px] uppercase font-semibold text-muted-foreground">
+                  <span>Sigla (3 Letras) *</span>
+                  <span className={`text-[10px] ${shortName.trim().length === 3 ? 'text-emerald-400 font-bold' : 'text-amber-400'}`}>
+                    {shortName.trim().length}/3
                   </span>
                 </Label>
                 <Input
@@ -569,86 +578,87 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
                   onChange={e => setShortName(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3))}
                   placeholder="Ex.: CRU"
                   maxLength={3}
-                  className="font-mono font-bold tracking-widest text-center uppercase"
+                  className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md font-mono font-bold tracking-widest text-center uppercase"
                 />
-                <p className="text-[10px] text-muted-foreground">
-                  Obrigatório para identificação na súmula oficial (ex.: OSA, MIN, FLA).
-                </p>
               </div>
-              <div className="space-y-2">
-                <Label>Modalidade</Label>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Modalidade</Label>
                 <Select value={modality} onValueChange={(v: 'indoor' | 'beach') => setModality(v)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="indoor">Vôlei de Quadra</SelectItem>
-                    <SelectItem value="beach">Vôlei de Praia</SelectItem>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
+                    <SelectItem value="indoor" className="text-xs">Vôlei de Quadra</SelectItem>
+                    <SelectItem value="beach" className="text-xs">Vôlei de Praia</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="team-city">Cidade</Label>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label htmlFor="team-city" className="text-[10px] uppercase font-semibold text-muted-foreground">Cidade</Label>
                 <Input
                   id="team-city"
                   value={city}
                   onChange={e => setCity(e.target.value)}
                   placeholder="Ex.: Belo Horizonte"
+                  className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="team-coach">Técnico / Treinador</Label>
+              <div className="space-y-1">
+                <Label htmlFor="team-coach" className="text-[10px] uppercase font-semibold text-muted-foreground">Técnico / Treinador</Label>
                 <Input
                   id="team-coach"
                   value={coachName}
                   onChange={e => setCoachName(e.target.value)}
                   placeholder="Nome do técnico"
+                  className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md"
                 />
               </div>
             </div>
           </div>
 
-          {/* Gestor & Acesso */}
-          <div className="space-y-3 p-3.5 rounded-xl border border-primary/20 bg-primary/5">
+          {/* Gestor e Acesso */}
+          <div className="space-y-2.5 p-3 rounded-lg border border-zinc-800 bg-zinc-900/60">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5" />
-                2. Gestor / Responsável & Acesso
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <User className="w-3 h-3 text-zinc-400" />
+                2. Gestor / Responsável e Acesso
               </p>
-              <Badge variant="outline" className="text-[10px]">WhatsApp & Senha</Badge>
+              <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">WhatsApp e Senha</Badge>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="manager-name">Nome do Gestor / Responsável</Label>
+            <div className="space-y-1">
+              <Label htmlFor="manager-name" className="text-[10px] uppercase font-semibold text-muted-foreground">Nome do Gestor</Label>
               <Input
                 id="manager-name"
                 value={managerName}
                 onChange={e => setManagerName(e.target.value)}
                 placeholder="Ex.: Carlos Alberto Silva"
+                className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md"
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="manager-phone" className="flex items-center gap-1">
-                  <Phone className="w-3 h-3 text-emerald-600" />
-                  WhatsApp / Telefone
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label htmlFor="manager-phone" className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1">
+                  <Phone className="w-3 h-3 text-emerald-400" />
+                  WhatsApp
                 </Label>
                 <Input
                   id="manager-phone"
                   value={managerPhone}
                   onChange={e => setManagerPhone(e.target.value)}
                   placeholder="(31) 98765-4321"
+                  className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="manager-email" className="flex items-center gap-1">
-                  <Mail className="w-3 h-3 text-primary" />
-                  E-mail / Usuário de Login
+              <div className="space-y-1">
+                <Label htmlFor="manager-email" className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1">
+                  <Mail className="w-3 h-3 text-zinc-400" />
+                  E-mail
                 </Label>
                 <Input
                   id="manager-email"
@@ -656,22 +666,23 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
                   value={managerEmail}
                   onChange={e => setManagerEmail(e.target.value)}
                   placeholder="gestor@equipe.com"
+                  className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md"
                 />
               </div>
             </div>
 
-            <div className="space-y-2 pt-1">
+            <div className="space-y-1 pt-1">
               <div className="flex items-center justify-between">
-                <Label htmlFor="manager-pwd" className="flex items-center gap-1">
-                  <KeyRound className="w-3 h-3 text-amber-500" />
-                  Senha de Acesso do Gestor
+                <Label htmlFor="manager-pwd" className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1">
+                  <KeyRound className="w-3 h-3 text-zinc-400" />
+                  Senha do Gestor
                 </Label>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={handleGeneratePassword}
-                  className="h-6 text-[11px] gap-1 text-primary px-2"
+                  className="h-6 text-[10px] gap-1 text-muted-foreground hover:text-foreground px-1.5"
                 >
                   <Dices className="w-3 h-3" />
                   Gerar Senha
@@ -681,25 +692,22 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
                 id="manager-pwd"
                 value={managerPassword}
                 onChange={e => setManagerPassword(e.target.value)}
-                placeholder="Defina uma senha ou clique em Gerar Senha"
-                className="font-mono"
+                placeholder="Defina uma senha"
+                className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md font-mono"
               />
-              <p className="text-[11px] text-muted-foreground">
-                Esta senha e o link único serão preparados para você enviar diretamente via WhatsApp após o cadastro.
-              </p>
             </div>
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+        <DialogFooter className="gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">Cancelar</Button>
           <Button
-            variant="accent"
+            size="sm"
             disabled={!canSubmit || submitting || uploading}
             onClick={handleSubmit}
-            className="gap-1.5"
+            className="h-8 text-xs rounded-md font-medium shadow-none"
           >
-            {submitting ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Equipe & Gerar Link'}
+            {submitting ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Equipe e Gerar Link'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -727,33 +735,33 @@ function TeamDetailsDialog({ team, onClose }: { team: TeamView | null; onClose: 
 
   return (
     <Dialog open={team !== null} onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-zinc-950 border-border p-5 rounded-xl shadow-none">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary" />
+          <DialogTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Users className="w-4 h-4 text-primary" />
             Detalhes da Equipe
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-3 py-2">
+        <div className="space-y-2 py-1 text-xs">
           {details.map(d => (
-            <div key={d.label} className="flex items-center justify-between border-b border-border/60 pb-2 text-sm">
+            <div key={d.label} className="flex items-center justify-between border-b border-border/40 pb-1.5">
               <span className="text-muted-foreground">{d.label}</span>
-              <span className="font-medium text-right max-w-[200px] truncate">{d.value}</span>
+              <span className="font-medium text-right max-w-[200px] truncate text-foreground">{d.value}</span>
             </div>
           ))}
           {team && team.competitions.length > 0 && (
             <div className="space-y-1 pt-1">
-              <span className="text-xs text-muted-foreground">Competições:</span>
-              <div className="flex flex-wrap gap-1.5">
+              <span className="text-[10px] text-muted-foreground uppercase font-semibold">Competições:</span>
+              <div className="flex flex-wrap gap-1">
                 {team.competitions.map((c, idx) => (
-                  <Badge key={idx} variant="secondary">{c}</Badge>
+                  <Badge key={idx} variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">{c}</Badge>
                 ))}
               </div>
             </div>
           )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Fechar</Button>
+        <DialogFooter className="pt-2">
+          <Button variant="outline" size="sm" onClick={onClose} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">Fechar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

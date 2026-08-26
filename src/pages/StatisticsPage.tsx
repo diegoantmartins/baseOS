@@ -130,99 +130,103 @@ const StatisticsPage = () => {
     <MainLayout>
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
         {/* Header */}
-        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Estatísticas</h1>
-            <p className="text-muted-foreground mt-1">Análise de desempenho e rankings</p>
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              Estatísticas
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Análise de desempenho e rankings consolidados</p>
           </div>
           <Select value={season} onValueChange={setSeason} disabled={seasons.length === 0}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[150px] text-xs h-8 bg-zinc-900 border-zinc-800 rounded-md">
               <SelectValue placeholder="Temporada" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-zinc-900 border-zinc-800">
               {seasons.map(year => (
-                <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                <SelectItem key={year} value={String(year)} className="text-xs">{year}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </motion.div>
 
         {/* Overview Stats */}
-        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="card-elevated">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-accent/10">
-                <Trophy className="w-6 h-6 text-accent" />
+        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="card-elevated shadow-none border border-border bg-card">
+            <CardContent className="p-3.5 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-zinc-800 text-zinc-300 flex items-center justify-center shrink-0">
+                <Trophy className="w-4 h-4 text-zinc-400" />
               </div>
-              <div>
-                <p className="text-2xl font-display font-bold">{completedMatches.length}</p>
-                <p className="text-sm text-muted-foreground">Jogos Realizados</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-primary/10">
-                <Target className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-display font-bold">{totalPoints.toLocaleString('pt-BR')}</p>
-                <p className="text-sm text-muted-foreground">Pontos Marcados</p>
+              <div className="min-w-0">
+                <span className="text-[9px] uppercase font-semibold tracking-wider text-muted-foreground block">Jogos Realizados</span>
+                <p className="text-xl font-semibold tabular-nums text-foreground mt-0.5">{completedMatches.length}</p>
               </div>
             </CardContent>
           </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-success/10">
-                <Users className="w-6 h-6 text-success" />
+          <Card className="card-elevated shadow-none border border-border bg-card">
+            <CardContent className="p-3.5 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-zinc-800 text-zinc-300 flex items-center justify-center shrink-0">
+                <Target className="w-4 h-4 text-zinc-400" />
               </div>
-              <div>
-                <p className="text-2xl font-display font-bold">{teams.length}</p>
-                <p className="text-sm text-muted-foreground">Equipes</p>
+              <div className="min-w-0">
+                <span className="text-[9px] uppercase font-semibold tracking-wider text-muted-foreground block">Pontos Marcados</span>
+                <p className="text-xl font-semibold tabular-nums text-foreground mt-0.5">{totalPoints.toLocaleString('pt-BR')}</p>
               </div>
             </CardContent>
           </Card>
-          <Card className="card-elevated">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-beach/10">
-                <Calendar className="w-6 h-6 text-beach" />
+          <Card className="card-elevated shadow-none border border-border bg-card">
+            <CardContent className="p-3.5 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-zinc-800 text-zinc-300 flex items-center justify-center shrink-0">
+                <Users className="w-4 h-4 text-zinc-400" />
               </div>
-              <div>
-                <p className="text-2xl font-display font-bold">{seasonMatches.length}</p>
-                <p className="text-sm text-muted-foreground">Jogos na Temporada</p>
+              <div className="min-w-0">
+                <span className="text-[9px] uppercase font-semibold tracking-wider text-muted-foreground block">Equipes</span>
+                <p className="text-xl font-semibold tabular-nums text-foreground mt-0.5">{teams.length}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="card-elevated shadow-none border border-border bg-card">
+            <CardContent className="p-3.5 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-zinc-800 text-zinc-300 flex items-center justify-center shrink-0">
+                <Calendar className="w-4 h-4 text-zinc-400" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[9px] uppercase font-semibold tracking-wider text-muted-foreground block">Jogos da Temporada</span>
+                <p className="text-xl font-semibold tabular-nums text-foreground mt-0.5">{seasonMatches.length}</p>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
         {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Matches per Month */}
           <motion.div variants={item} className="lg:col-span-2">
-            <Card className="card-elevated h-full">
-              <CardHeader>
-                <CardTitle className="text-lg font-display flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-accent" />
+            <Card className="card-elevated shadow-none border border-border bg-card h-full">
+              <CardHeader className="p-3.5 pb-2 border-b border-border bg-zinc-900/60">
+                <CardTitle className="text-xs sm:text-sm font-semibold text-foreground flex items-center gap-1.5">
+                  <BarChart3 className="w-4 h-4 text-primary" />
                   Jogos por Mês
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4">
                 {matchesPerMonth.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-20">Sem jogos nesta temporada.</p>
+                  <p className="text-xs text-muted-foreground text-center py-16">Sem jogos nesta temporada.</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={matchesPerMonth}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
-                      <YAxis stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                      <XAxis dataKey="month" stroke="#71717a" fontSize={11} />
+                      <YAxis stroke="#71717a" allowDecimals={false} fontSize={11} />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
+                          backgroundColor: '#18181b',
+                          border: '1px solid #27272a',
                           borderRadius: '8px',
+                          fontSize: '12px',
                         }}
                       />
-                      <Bar dataKey="jogos" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="jogos" fill="#f97316" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -232,26 +236,26 @@ const StatisticsPage = () => {
 
           {/* Competition Distribution */}
           <motion.div variants={item}>
-            <Card className="card-elevated h-full">
-              <CardHeader>
-                <CardTitle className="text-lg font-display flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-accent" />
+            <Card className="card-elevated shadow-none border border-border bg-card h-full">
+              <CardHeader className="p-3.5 pb-2 border-b border-border bg-zinc-900/60">
+                <CardTitle className="text-xs sm:text-sm font-semibold text-foreground flex items-center gap-1.5">
+                  <Trophy className="w-4 h-4 text-primary" />
                   Por Competição
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4">
                 {competitionDistribution.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-20">Sem dados.</p>
+                  <p className="text-xs text-muted-foreground text-center py-16">Sem dados.</p>
                 ) : (
                   <>
-                    <ResponsiveContainer width="100%" height={200}>
+                    <ResponsiveContainer width="100%" height={180}>
                       <PieChart>
                         <Pie
                           data={competitionDistribution}
                           cx="50%"
                           cy="50%"
-                          innerRadius={50}
-                          outerRadius={80}
+                          innerRadius={45}
+                          outerRadius={75}
                           paddingAngle={2}
                           dataKey="value"
                         >
@@ -262,14 +266,14 @@ const StatisticsPage = () => {
                         <Tooltip />
                       </PieChart>
                     </ResponsiveContainer>
-                    <div className="mt-4 space-y-2">
+                    <div className="mt-3 space-y-1.5 text-xs">
                       {competitionDistribution.map((entry, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
-                            <span>{entry.name}</span>
+                        <div key={idx} className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                            <span className="truncate text-muted-foreground">{entry.name}</span>
                           </div>
-                          <span className="font-semibold">{entry.value}%</span>
+                          <span className="font-semibold tabular-nums text-foreground">{entry.value}%</span>
                         </div>
                       ))}
                     </div>
@@ -281,15 +285,15 @@ const StatisticsPage = () => {
         </div>
 
         {/* Rankings */}
-        <motion.div variants={item}>
-          <Tabs defaultValue="wins" className="space-y-4">
-            <TabsList className="bg-muted/50">
-              <TabsTrigger value="wins" className="gap-2">
-                <Trophy className="w-4 h-4" />
+        <motion.div variants={item} className="space-y-3">
+          <Tabs defaultValue="wins" className="space-y-3">
+            <TabsList className="bg-zinc-900 p-0.5 rounded-md border border-zinc-800 h-8 gap-0.5">
+              <TabsTrigger value="wins" className="gap-1.5 text-xs h-7 rounded-sm data-[state=active]:bg-zinc-800 data-[state=active]:text-foreground text-muted-foreground">
+                <Trophy className="w-3.5 h-3.5" />
                 Equipes por Vitórias
               </TabsTrigger>
-              <TabsTrigger value="points" className="gap-2">
-                <Zap className="w-4 h-4" />
+              <TabsTrigger value="points" className="gap-1.5 text-xs h-7 rounded-sm data-[state=active]:bg-zinc-800 data-[state=active]:text-foreground text-muted-foreground">
+                <Zap className="w-3.5 h-3.5" />
                 Equipes por Pontos
               </TabsTrigger>
             </TabsList>
@@ -310,29 +314,31 @@ const StatisticsPage = () => {
 function RankingTable({ data, statLabel }: { data: RankingRow[]; statLabel: string }) {
   if (data.length === 0) {
     return (
-      <Card className="card-elevated">
-        <CardContent className="p-10 text-center text-muted-foreground">Sem dados para exibir.</CardContent>
+      <Card className="card-elevated shadow-none border border-border bg-card">
+        <CardContent className="p-8 text-center text-xs text-muted-foreground">Sem dados para exibir.</CardContent>
       </Card>
     );
   }
   return (
-    <Card className="card-elevated">
+    <Card className="card-elevated shadow-none border border-border bg-card overflow-hidden">
       <CardContent className="p-0">
-        <div className="divide-y divide-border">
+        <div className="divide-y divide-border/40">
           {data.map((team, idx) => (
-            <div key={idx} className="flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center font-display font-bold">
+            <div key={idx} className="flex items-center gap-3 p-3 hover:bg-zinc-800/30 transition-colors text-xs">
+              <div className="w-6 h-6 rounded bg-zinc-800 text-zinc-300 font-mono font-bold text-xs flex items-center justify-center shrink-0">
                 {idx + 1}
               </div>
-              <div className="flex-1 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center font-display font-bold text-primary">
-                  {team.team}
+              <div className="flex-1 flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700/60 flex items-center justify-center font-bold text-xs text-zinc-200 shrink-0">
+                  {team.team.slice(0, 3)}
                 </div>
-                <p className="font-semibold text-foreground">{team.name}</p>
-                <Badge variant="secondary" className="text-xs">{statLabel}</Badge>
+                <div className="min-w-0">
+                  <p className="font-semibold text-foreground truncate">{team.name}</p>
+                </div>
+                <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">{statLabel}</Badge>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-display font-bold text-accent">{team.value}</p>
+                <p className="text-base font-semibold tabular-nums text-foreground">{team.value}</p>
               </div>
             </div>
           ))}

@@ -127,36 +127,36 @@ export const MatchCheckinModal: React.FC<MatchCheckinModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-6">
-        <DialogHeader className="border-b pb-3">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-5 bg-zinc-950 border-border rounded-xl shadow-none">
+        <DialogHeader className="border-b border-border pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-primary" />
-              <DialogTitle className="text-base sm:text-lg font-bold">
+              <UserCheck className="w-4 h-4 text-primary" />
+              <DialogTitle className="text-sm sm:text-base font-semibold text-foreground">
                 Check-in Presencial · Jogo #{match.matchNumber}
               </DialogTitle>
             </div>
-            <Badge variant="outline" className="text-xs">
-              Mínimo exigido: {validation.minRequired} atletas por equipe
+            <Badge variant="outline" className="text-[10px] py-0 px-2 border-zinc-800 bg-zinc-900 text-zinc-400">
+              Mínimo exigido: {validation.minRequired} atletas/equipe
             </Badge>
           </div>
-          <DialogDescription>
+          <DialogDescription className="text-xs text-muted-foreground">
             Confirme os atletas presentes em quadra antes do início do aquecimento oficial.
           </DialogDescription>
         </DialogHeader>
 
         {/* Alertas de Validação */}
         {(!validation.valid || validation.warnings.length > 0) && (
-          <div className="space-y-2 py-2">
+          <div className="space-y-1.5 py-1">
             {validation.errors.map((err, i) => (
-              <div key={i} className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-center gap-2 font-medium">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div key={i} className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/25 text-red-400 text-xs flex items-center gap-2 font-medium">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                 <span>{err}</span>
               </div>
             ))}
             {validation.warnings.map((warn, i) => (
-              <div key={i} className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 text-xs flex items-center gap-2 font-medium">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div key={i} className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs flex items-center gap-2 font-medium">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                 <span>{warn}</span>
               </div>
             ))}
@@ -164,22 +164,22 @@ export const MatchCheckinModal: React.FC<MatchCheckinModalProps> = ({
         )}
 
         {/* Listas de Elencos das Duas Equipes */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 py-2">
           {/* EQUIPE A */}
-          <Card className="border">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center justify-between border-b pb-2">
+          <Card className="border border-zinc-800 bg-zinc-900/70 shadow-none rounded-lg">
+            <CardContent className="p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
                 <div>
-                  <h3 className="font-bold text-sm text-foreground">{match.teamAName}</h3>
-                  <span className="text-[11px] text-muted-foreground">
+                  <h3 className="font-semibold text-xs text-foreground">{match.teamAName}</h3>
+                  <span className="text-[10px] text-muted-foreground">
                     Presentes: {validation.teamAPresent} de {teamAAthletes.length}
                   </span>
                 </div>
                 <div className="flex gap-1">
-                  <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" onClick={() => checkAll(teamAAthletes)}>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 hover:bg-zinc-800" onClick={() => checkAll(teamAAthletes)}>
                     Marcar Todos
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-muted-foreground" onClick={() => uncheckAll(teamAAthletes)}>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-muted-foreground hover:bg-zinc-800" onClick={() => uncheckAll(teamAAthletes)}>
                     Limpar
                   </Button>
                 </div>
@@ -192,23 +192,23 @@ export const MatchCheckinModal: React.FC<MatchCheckinModalProps> = ({
                     <div
                       key={athlete.id}
                       onClick={() => toggleCheckin(athlete.id)}
-                      className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-colors ${isChecked ? 'bg-primary/5 border-primary/40' : 'bg-muted/30 border-border opacity-60'}`}
+                      className={`flex items-center justify-between p-2 rounded-md border text-xs cursor-pointer transition-colors ${isChecked ? 'bg-zinc-800/80 border-zinc-700' : 'bg-zinc-950 border-zinc-800/70 opacity-50'}`}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         <Checkbox checked={isChecked} onCheckedChange={() => toggleCheckin(athlete.id)} />
-                        <span className="font-mono font-bold text-primary">
+                        <span className="font-mono text-zinc-300 font-semibold text-xs">
                           {athlete.jerseyNumber !== undefined ? `#${athlete.jerseyNumber}` : '#--'}
                         </span>
-                        <span className="font-medium text-foreground">{athlete.name}</span>
+                        <span className="font-medium text-foreground truncate">{athlete.name}</span>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         {athlete.isCaptain && (
-                          <Badge variant="default" className="text-[9px] py-0 bg-amber-600">
-                            <Star className="w-2.5 h-2.5 mr-0.5" /> CAP
+                          <Badge variant="default" className="text-[9px] py-0 px-1 h-3.5 bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                            CAP
                           </Badge>
                         )}
                         {athlete.isLibero && (
-                          <Badge variant="outline" className="text-[9px] py-0 border-emerald-500 text-emerald-600">
+                          <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
                             LÍBERO
                           </Badge>
                         )}
@@ -224,20 +224,20 @@ export const MatchCheckinModal: React.FC<MatchCheckinModalProps> = ({
           </Card>
 
           {/* EQUIPE B */}
-          <Card className="border">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center justify-between border-b pb-2">
+          <Card className="border border-zinc-800 bg-zinc-900/70 shadow-none rounded-lg">
+            <CardContent className="p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
                 <div>
-                  <h3 className="font-bold text-sm text-foreground">{match.teamBName}</h3>
-                  <span className="text-[11px] text-muted-foreground">
+                  <h3 className="font-semibold text-xs text-foreground">{match.teamBName}</h3>
+                  <span className="text-[10px] text-muted-foreground">
                     Presentes: {validation.teamBPresent} de {teamBAthletes.length}
                   </span>
                 </div>
                 <div className="flex gap-1">
-                  <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" onClick={() => checkAll(teamBAthletes)}>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 hover:bg-zinc-800" onClick={() => checkAll(teamBAthletes)}>
                     Marcar Todos
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-muted-foreground" onClick={() => uncheckAll(teamBAthletes)}>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-muted-foreground hover:bg-zinc-800" onClick={() => uncheckAll(teamBAthletes)}>
                     Limpar
                   </Button>
                 </div>
@@ -250,23 +250,23 @@ export const MatchCheckinModal: React.FC<MatchCheckinModalProps> = ({
                     <div
                       key={athlete.id}
                       onClick={() => toggleCheckin(athlete.id)}
-                      className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-colors ${isChecked ? 'bg-primary/5 border-primary/40' : 'bg-muted/30 border-border opacity-60'}`}
+                      className={`flex items-center justify-between p-2 rounded-md border text-xs cursor-pointer transition-colors ${isChecked ? 'bg-zinc-800/80 border-zinc-700' : 'bg-zinc-950 border-zinc-800/70 opacity-50'}`}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         <Checkbox checked={isChecked} onCheckedChange={() => toggleCheckin(athlete.id)} />
-                        <span className="font-mono font-bold text-primary">
+                        <span className="font-mono text-zinc-300 font-semibold text-xs">
                           {athlete.jerseyNumber !== undefined ? `#${athlete.jerseyNumber}` : '#--'}
                         </span>
-                        <span className="font-medium text-foreground">{athlete.name}</span>
+                        <span className="font-medium text-foreground truncate">{athlete.name}</span>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         {athlete.isCaptain && (
-                          <Badge variant="default" className="text-[9px] py-0 bg-amber-600">
-                            <Star className="w-2.5 h-2.5 mr-0.5" /> CAP
+                          <Badge variant="default" className="text-[9px] py-0 px-1 h-3.5 bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                            CAP
                           </Badge>
                         )}
                         {athlete.isLibero && (
-                          <Badge variant="outline" className="text-[9px] py-0 border-emerald-500 text-emerald-600">
+                          <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
                             LÍBERO
                           </Badge>
                         )}
@@ -282,12 +282,12 @@ export const MatchCheckinModal: React.FC<MatchCheckinModalProps> = ({
           </Card>
         </div>
 
-        <DialogFooter className="border-t pt-3 flex items-center justify-between">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="border-t border-border pt-3 flex items-center justify-between gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">
             Cancelar
           </Button>
-          <Button type="button" variant="accent" onClick={handleSave} disabled={saving} className="gap-2">
-            <CheckCircle className="w-4 h-4" />
+          <Button type="button" size="sm" onClick={handleSave} disabled={saving} className="h-8 text-xs rounded-md font-medium gap-1.5 shadow-none">
+            <CheckCircle className="w-3.5 h-3.5" />
             Salvar Check-in da Partida
           </Button>
         </DialogFooter>

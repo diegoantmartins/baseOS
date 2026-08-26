@@ -108,30 +108,30 @@ export const RefereeAssignmentModal: React.FC<RefereeAssignmentModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto p-6">
-        <DialogHeader className="border-b pb-3">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto p-5 bg-zinc-950 border-border rounded-xl shadow-none">
+        <DialogHeader className="border-b border-border pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-primary" />
-              <DialogTitle className="text-base sm:text-lg font-bold">
+              <Shield className="w-4 h-4 text-primary" />
+              <DialogTitle className="text-sm sm:text-base font-semibold text-foreground">
                 Escalação de Arbitragem · Jogo #{match.matchNumber}
               </DialogTitle>
             </div>
-            <Badge variant="outline" className="text-xs font-mono">
+            <Badge variant="outline" className="text-[10px] font-mono py-0 px-1.5 border-zinc-800 bg-zinc-900 text-zinc-400">
               {match.teamAShortName} vs {match.teamBShortName}
             </Badge>
           </div>
-          <DialogDescription>
+          <DialogDescription className="text-xs text-muted-foreground">
             Defina os juízes e apontadores oficiais para a partida e verifique sobreposições de agenda.
           </DialogDescription>
         </DialogHeader>
 
         {/* Alertas de Conflito de Horário */}
         {conflicts.length > 0 && (
-          <div className="space-y-2 py-2">
+          <div className="space-y-1.5 py-1">
             {conflicts.map((c, i) => (
-              <div key={i} className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-center gap-2 font-medium">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
+              <div key={i} className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/25 text-red-400 text-xs flex items-center gap-2 font-medium">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                 <span>{c.message}</span>
               </div>
             ))}
@@ -139,16 +139,16 @@ export const RefereeAssignmentModal: React.FC<RefereeAssignmentModalProps> = ({
         )}
 
         {/* Lista de Árbitros */}
-        <div className="space-y-3 py-3">
+        <div className="space-y-2.5 py-2">
           {referees.map((ref, idx) => (
-            <div key={idx} className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/20">
+            <div key={idx} className="flex items-center gap-2 p-2.5 rounded-lg border border-zinc-800 bg-zinc-900/60">
               <div className="w-1/3">
-                <Label className="text-[10px] text-muted-foreground font-semibold">Função / Cargo</Label>
+                <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Função / Cargo</Label>
                 <Select value={ref.role} onValueChange={v => handleUpdateReferee(idx, 'role', v)}>
-                  <SelectTrigger className="text-xs h-8">
+                  <SelectTrigger className="text-xs h-8 rounded-md bg-zinc-950 border-zinc-800">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
                     {STANDARD_REFEREE_ROLES.map(role => (
                       <SelectItem key={role} value={role} className="text-xs">
                         {role}
@@ -159,24 +159,24 @@ export const RefereeAssignmentModal: React.FC<RefereeAssignmentModalProps> = ({
               </div>
 
               <div className="flex-1">
-                <Label className="text-[10px] text-muted-foreground font-semibold">Nome Completo do Oficial</Label>
+                <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Nome Completo</Label>
                 <Input
                   value={ref.name}
                   onChange={e => handleUpdateReferee(idx, 'name', e.target.value)}
-                  placeholder="Nome do árbitro / apontador"
-                  className="text-xs h-8"
+                  placeholder="Nome do oficial"
+                  className="text-xs h-8 rounded-md bg-zinc-950 border-zinc-800"
                 />
               </div>
 
-              <div className="pt-4">
+              <div className="pt-3.5">
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400 hover:bg-zinc-800"
                   onClick={() => handleRemoveReferee(idx)}
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </div>
@@ -186,7 +186,7 @@ export const RefereeAssignmentModal: React.FC<RefereeAssignmentModalProps> = ({
             type="button"
             variant="outline"
             size="sm"
-            className="w-full text-xs font-semibold gap-1.5 border-dashed"
+            className="w-full text-xs font-medium gap-1.5 border-dashed border-zinc-700/80 hover:bg-zinc-800/60 h-8 rounded-md text-zinc-300"
             onClick={handleAddReferee}
           >
             <Plus className="w-3.5 h-3.5" />
@@ -194,12 +194,12 @@ export const RefereeAssignmentModal: React.FC<RefereeAssignmentModalProps> = ({
           </Button>
         </div>
 
-        <DialogFooter className="border-t pt-3 flex items-center justify-between">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="border-t border-border pt-3 flex items-center justify-between gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">
             Cancelar
           </Button>
-          <Button type="button" variant="accent" onClick={handleSave} disabled={saving} className="gap-2">
-            <CheckCircle className="w-4 h-4" />
+          <Button type="button" size="sm" onClick={handleSave} disabled={saving} className="h-8 text-xs rounded-md font-medium gap-1.5 shadow-none">
+            <CheckCircle className="w-3.5 h-3.5" />
             Salvar Escalação
           </Button>
         </DialogFooter>

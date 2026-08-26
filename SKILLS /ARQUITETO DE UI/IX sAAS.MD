@@ -38,10 +38,3 @@ Atuar como um especialista em design de produtos digitais, transformando interfa
 2. PRESERVE rigorosamente todas as regras de negócio, rotas e dados originais; altere apenas a camada de apresentação.
 3. Se houver excesso de botões grandes (ex: ações de relatórios PDF), reduza-os imediatamente a botões secundários para não parecer uma landing page de vendas.
 
-## 4. Protocolo de Execução e Prevenção de Rate Limit (MUITO IMPORTANTE)
-Você está operando em um ambiente com limite estrito de requisições de API (40 RPM). Para evitar o bloqueio (Erro 429 - Too Many Requests), você está ESTRITAMENTE PROIBIDO de iniciar loops longos de leitura ou edição em massa.
-
-Siga obrigatoriamente este fluxo de trabalho modular:
-1. **Um arquivo por vez:** Leia, analise e edite apenas UM (1) arquivo ou componente por interação. Não tente vasculhar o diretório inteiro.
-2. **Pausa obrigatória:** Assim que você finalizar a refatoração ou a análise desse arquivo específico, PARE IMEDIATAMENTE a sua execução.
-3. **Aguarde aprovação:** Não tente adivinhar o próximo passo nem pular para o próximo componente. Termine a sua resposta perguntando: *"Alteração concluída. Posso prosseguir para o próximo componente?"*

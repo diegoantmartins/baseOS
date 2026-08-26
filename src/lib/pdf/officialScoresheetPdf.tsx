@@ -328,7 +328,7 @@ export function OfficialScoresheetDocument({ data }: OfficialScoresheetPdfProps)
               <Text style={styles.metaValue}>{data.phase || `Rodada ${data.round}`}</Text>
             </View>
             <View style={styles.metaCell}>
-              <Text style={styles.metaLabel}>DATA & HORÁRIO</Text>
+              <Text style={styles.metaLabel}>DATA E HORÁRIO</Text>
               <Text style={styles.metaValue}>{data.date} às {data.time}</Text>
             </View>
             <View style={styles.metaCell}>
@@ -486,9 +486,9 @@ export function OfficialScoresheetDocument({ data }: OfficialScoresheetPdfProps)
 
         {/* ===== 5. SANÇÕES, OBSERVAÇÕES E ASSINATURAS ===== */}
         <View style={styles.bottomSection}>
-          {/* Sanções & Conduta */}
+          {/* Sanções e Conduta */}
           <View style={styles.bottomBox}>
-            <Text style={styles.boxTitle}>SANÇÕES & CONDUTA</Text>
+            <Text style={styles.boxTitle}>SANÇÕES E CONDUTA</Text>
             {data.sanctions.length > 0 ? (
               data.sanctions.map((s, idx) => (
                 <Text key={idx} style={{ fontSize: 6 }}>
@@ -504,7 +504,7 @@ export function OfficialScoresheetDocument({ data }: OfficialScoresheetPdfProps)
 
           {/* Observações / Protestos */}
           <View style={styles.bottomBox}>
-            <Text style={styles.boxTitle}>OBSERVAÇÕES & PROTESTO FORMAL DO CAPITÃO</Text>
+            <Text style={styles.boxTitle}>OBSERVAÇÕES E PROTESTO FORMAL DO CAPITÃO</Text>
             <Text style={{ fontSize: 6, color: '#333333' }}>
               {data.observations || 'Sem observações adicionais relatadas pela equipe de arbitragem.'}
             </Text>

@@ -19,6 +19,7 @@ import {
   UserRound,
   FileSpreadsheet,
   Dices,
+  HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -26,22 +27,23 @@ import { useAuth } from '@/components/auth/AuthContext';
 import { ROLE_LABELS } from '@/types/auth';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: Trophy, label: 'Campeonatos', path: '/competitions' },
-  { icon: Calendar, label: 'Jogos', path: '/matches' },
-  { icon: ClipboardList, label: 'Súmulas', path: '/match-sheets' },
-  { icon: Users, label: 'Equipes', path: '/teams' },
-  { icon: UserCheck, label: 'Atletas', path: '/athletes' },
-  { icon: Building2, label: 'Locais', path: '/venues' },
+  { icon: LayoutDashboard, label: 'Painel', path: '/competicoes-ativas' },
+  { icon: Trophy, label: 'Competições', path: '/competicoes' },
+  { icon: Calendar, label: 'Partidas', path: '/jogos' },
+  { icon: ClipboardList, label: 'Súmulas', path: '/sumulas' },
+  { icon: Users, label: 'Equipes', path: '/equipes' },
+  { icon: UserCheck, label: 'Atletas', path: '/atletas' },
+  { icon: Building2, label: 'Locais', path: '/locais' },
   { icon: Dices, label: 'Sorteio', path: '/sorteio' },
-  { icon: Building2, label: 'Árbitros', path: '/referees' },
-  { icon: BarChart3, label: 'Estatísticas', path: '/statistics' },
-  { icon: FileSpreadsheet, label: 'Relatórios', path: '/reports' },
-  { icon: Settings, label: 'Configurações', path: '/settings' },
+  { icon: Building2, label: 'Pessoas', path: '/pessoas' },
+  { icon: BarChart3, label: 'Estatísticas', path: '/estatisticas' },
+  { icon: FileSpreadsheet, label: 'Relatórios', path: '/relatorios' },
+  { icon: Settings, label: 'Configurações', path: '/configuracoes' },
+  { icon: HelpCircle, label: 'Central de Ajuda', path: '/ajuda' },
 ];
 
 /** Itens restritos ao perfil de organizador. */
-const ORGANIZER_ONLY = new Set(['/competitions', '/teams', '/athletes', '/venues', '/sorteio', '/referees', '/statistics', '/reports', '/settings']);
+const ORGANIZER_ONLY = new Set(['/competicoes', '/equipes', '/atletas', '/locais', '/sorteio', '/pessoas', '/estatisticas', '/relatorios', '/configuracoes', '/settings']);
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);

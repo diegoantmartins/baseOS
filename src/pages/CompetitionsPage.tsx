@@ -41,6 +41,9 @@ import { computeStandingsByGroup, computeBestThirds } from '@/services/standings
 import { computePodium } from '@/services/playoffsService';
 import { GENDER_CATEGORY_LABELS } from '@/types/registration';
 import { generateStandingsReportPdf, downloadReportsPdf } from '@/lib/pdf/reportsPdf';
+import { CompetitionProgress } from '@/components/competition/CompetitionProgress';
+import { CompetitionPendingTasks } from '@/components/competition/CompetitionPendingTasks';
+import { evaluateCompetitionReadiness } from '@/services/competitionReadinessService';
 import type { CompetitionRecord, MatchRecord, TeamRecord, ModalityRecord, VenueRecord, CompetitionLifecycleStatus } from '@/types/entities';
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
 import { useAuth } from '@/components/auth/AuthContext';
@@ -158,6 +161,20 @@ export default function CompetitionsPage() {
     if (!selected) return null;
     return computePodium(selectedMatches);
   }, [selected, selectedMatches]);
+
+  // Competition Readiness Report
+  const readinessReport = useMemo(() => {
+    if (!selected) return null;
+    return evaluateCompetitionReadiness({
+      competition: selected,
+      modalities,
+      venues,
+      teams,
+      competitionTeams,
+      athletes: competitionAthletes,
+      matches,
+    });
+  }, [selected, modalities, venues, teams, competitionTeams, competitionAthletes, matches]);
 
   // Bracket matches
   const bracketMatches = useMemo(() => {
@@ -295,31 +312,30 @@ export default function CompetitionsPage() {
     <MainLayout>
       <div className="space-y-6">
         {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground flex items-center gap-2.5">
-              <Trophy className="w-8 h-8 text-primary" />
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
               Gestão de Competições
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
               Ciclo completo: planejamento, inscrições, sorteio, confrontos, classificação e relatórios.
             </p>
           </div>
           {can('competition:create') && (
-            <Button variant="accent" className="gap-2 self-start sm:self-auto" onClick={() => setCreateOpen(true)}>
-              <Plus className="w-4 h-4" />
+            <Button size="sm" className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none self-start sm:self-auto" onClick={() => setCreateOpen(true)}>
+              <Plus className="w-3.5 h-3.5" />
               Nova Competição
             </Button>
           )}
         </div>
 
         {/* Layout: Sidebar de Competições + Contexto Detalhado */}
-        <div className="grid grid-cols-1 lg:grid-cols-[280px,1fr] gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px,1fr] gap-5 items-start">
           {/* Seletor de Competições */}
-          <Card className="card-elevated">
-            <CardHeader className="p-4 border-b border-border">
-              <CardTitle className="text-sm font-display font-bold flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-primary" />
+          <Card className="card-elevated shadow-none">
+            <CardHeader className="p-3.5 border-b border-border">
+              <CardTitle className="text-xs uppercase font-semibold tracking-wider text-muted-foreground flex items-center gap-2">
+                <Trophy className="w-3.5 h-3.5 text-zinc-400" />
                 Torneios Cadastrados ({competitions.length})
               </CardTitle>
             </CardHeader>
@@ -330,16 +346,16 @@ export default function CompetitionsPage() {
                   type="button"
                   onClick={() => setSelectedId(comp.id)}
                   className={cn(
-                    'w-full text-left p-3 rounded-lg transition-all text-xs flex flex-col gap-1',
+                    'w-full text-left p-2.5 rounded-md transition-colors text-xs flex flex-col gap-1',
                     selectedId === comp.id
-                      ? 'bg-primary/10 border border-primary/30 font-semibold text-primary shadow-xs'
-                      : 'hover:bg-muted/50 text-foreground',
+                      ? 'bg-zinc-800 text-foreground font-medium border border-zinc-700/60'
+                      : 'hover:bg-zinc-800/50 text-muted-foreground hover:text-foreground',
                   )}
                 >
-                  <span className="font-bold truncate">{comp.name}</span>
+                  <span className="font-medium text-foreground truncate">{comp.name}</span>
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                     <span>{comp.modality === 'beach' ? 'Praia' : 'Quadra'} · {comp.playerFormat}</span>
-                    <Badge variant="outline" className="text-[9px] py-0">{comp.status}</Badge>
+                    <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">{comp.status}</Badge>
                   </div>
                 </button>
               ))}
@@ -367,6 +383,18 @@ export default function CompetitionsPage() {
               {/* Tab 1: Visão Geral */}
               {activeTab === 'overview' && (
                 <div className="space-y-6">
+                  {/* Competition Readiness System */}
+                  {readinessReport && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                      <div className="lg:col-span-2">
+                        <CompetitionProgress report={readinessReport} onRefresh={refresh} />
+                      </div>
+                      <div>
+                        <CompetitionPendingTasks tasks={readinessReport.pendingTasks} />
+                      </div>
+                    </div>
+                  )}
+
                   {/* Status & Lifecycle Controls */}
                   <Card className="card-elevated">
                     <CardHeader className="pb-3">
@@ -492,7 +520,7 @@ export default function CompetitionsPage() {
 
                     <Card className="card-elevated p-4 space-y-2">
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Sorteio & Chaves</span>
+                        <span>Sorteio e Chaves</span>
                         <Dices className="w-4 h-4 text-primary" />
                       </div>
                       <p className="text-2xl font-bold font-display">{selected.groupsCount || 1} Grupos</p>
@@ -522,7 +550,7 @@ export default function CompetitionsPage() {
                   <CardContent className="space-y-4 text-sm">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
-                        <span className="text-xs text-muted-foreground block font-semibold uppercase">Modalidade & Formato</span>
+                        <span className="text-xs text-muted-foreground block font-semibold uppercase">Modalidade e Formato</span>
                         <p className="font-bold mt-1">{selected.modality === 'beach' ? 'Vôlei de Praia' : 'Vôlei de Quadra'} ({selected.playerFormat})</p>
                       </div>
                       <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
@@ -648,7 +676,7 @@ export default function CompetitionsPage() {
                 <Card className="card-elevated p-8 text-center space-y-4">
                   <Dices className="w-12 h-12 text-primary mx-auto" />
                   <div>
-                    <h3 className="text-lg font-bold font-display">Motor de Sorteio de Grupos & Tabela de Berger</h3>
+                    <h3 className="text-lg font-bold font-display">Motor de Sorteio de Grupos e Tabela de Berger</h3>
                     <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1">
                       Realize sorteio automático ou manual com potes, cabeças de chave e geração direta dos confrontos.
                     </p>
@@ -697,7 +725,7 @@ export default function CompetitionsPage() {
                 </Card>
               )}
 
-              {/* Tab 7: Classificação & Mata-mata */}
+              {/* Tab 7: Classificação e Mata-mata */}
               {activeTab === 'standings' && (
                 <div className="space-y-6">
                   <div className="flex justify-end">
@@ -755,7 +783,7 @@ export default function CompetitionsPage() {
                 <Card className="card-elevated p-8 text-center space-y-4">
                   <FileSpreadsheet className="w-12 h-12 text-primary mx-auto" />
                   <div>
-                    <h3 className="text-lg font-bold font-display">Central de Relatórios & Documentos</h3>
+                    <h3 className="text-lg font-bold font-display">Central de Relatórios e Documentos</h3>
                     <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1">
                       Emita súmulas oficiais, ordens de saque, classificação detalhada e boletins da competição.
                     </p>
@@ -862,86 +890,90 @@ function CompetitionSettingsEditDialog({ open, onOpenChange, competition, onSave
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-md bg-zinc-950 border-border p-5 rounded-xl shadow-none">
         <DialogHeader>
-          <DialogTitle>Editar Configurações da Competição</DialogTitle>
-          <DialogDescription>Ajuste o formato de sets por fase.</DialogDescription>
+          <DialogTitle className="text-sm font-semibold text-foreground">Editar Configurações da Competição</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">Ajuste o formato de sets por fase.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Formato de Sets Padrão</Label>
+        <form onSubmit={handleSubmit} className="space-y-3.5 py-1">
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Formato de Sets Padrão</Label>
             <Select value={setFormat} onValueChange={(v: '3-sets' | '5-sets') => setSetFormat(v)}>
-              <SelectTrigger>
+              <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
                 <SelectValue placeholder="Selecione o formato padrão" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3-sets">Melhor de 3 sets</SelectItem>
-                <SelectItem value="5-sets">Melhor de 5 sets</SelectItem>
+              <SelectContent className="bg-zinc-900 border-zinc-800">
+                <SelectItem value="3-sets" className="text-xs">Melhor de 3 sets</SelectItem>
+                <SelectItem value="5-sets" className="text-xs">Melhor de 5 sets</SelectItem>
               </SelectContent>
             </Select>
           </div>
           
-          <div className="space-y-3 pt-4 border-t">
-            <Label className="text-muted-foreground uppercase text-xs font-bold">Formatos Específicos por Fase</Label>
+          <div className="space-y-2.5 pt-2 border-t border-border">
+            <Label className="text-muted-foreground uppercase text-[10px] font-semibold tracking-wider">Formatos Específicos por Fase</Label>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
-                <Label className="text-xs">Grupos</Label>
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Grupos</Label>
                 <Select value={groupStage} onValueChange={(v: '3-sets' | '5-sets') => setGroupStage(v)}>
-                  <SelectTrigger className="h-8 text-xs">
+                  <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="3-sets">3 Sets</SelectItem>
-                    <SelectItem value="5-sets">5 Sets</SelectItem>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
+                    <SelectItem value="3-sets" className="text-xs">3 Sets</SelectItem>
+                    <SelectItem value="5-sets" className="text-xs">5 Sets</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               
               <div className="space-y-1">
-                <Label className="text-xs">Quartas de Final</Label>
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Quartas de Final</Label>
                 <Select value={playoffs} onValueChange={(v: '3-sets' | '5-sets') => setPlayoffs(v)}>
-                  <SelectTrigger className="h-8 text-xs">
+                  <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="3-sets">3 Sets</SelectItem>
-                    <SelectItem value="5-sets">5 Sets</SelectItem>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
+                    <SelectItem value="3-sets" className="text-xs">3 Sets</SelectItem>
+                    <SelectItem value="5-sets" className="text-xs">5 Sets</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">Semifinais</Label>
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Semifinais</Label>
                 <Select value={semifinals} onValueChange={(v: '3-sets' | '5-sets') => setSemifinals(v)}>
-                  <SelectTrigger className="h-8 text-xs">
+                  <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="3-sets">3 Sets</SelectItem>
-                    <SelectItem value="5-sets">5 Sets</SelectItem>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
+                    <SelectItem value="3-sets" className="text-xs">3 Sets</SelectItem>
+                    <SelectItem value="5-sets" className="text-xs">5 Sets</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">Finais</Label>
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Finais</Label>
                 <Select value={final} onValueChange={(v: '3-sets' | '5-sets') => setFinal(v)}>
-                  <SelectTrigger className="h-8 text-xs">
+                  <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="3-sets">3 Sets</SelectItem>
-                    <SelectItem value="5-sets">5 Sets</SelectItem>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
+                    <SelectItem value="3-sets" className="text-xs">3 Sets</SelectItem>
+                    <SelectItem value="5-sets" className="text-xs">5 Sets</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
           </div>
 
-          <DialogFooter className="pt-4">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" variant="accent">Salvar Alterações</Button>
+          <DialogFooter className="gap-2 pt-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">
+              Cancelar
+            </Button>
+            <Button type="submit" size="sm" className="h-8 text-xs rounded-md font-medium shadow-none">
+              Salvar Alterações
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -1029,119 +1061,121 @@ function CompetitionFormDialog({ open, onOpenChange, onSubmit, modalities, venue
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto p-5 bg-zinc-950 border-border rounded-xl shadow-none">
         <DialogHeader>
-          <DialogTitle>Nova Competição</DialogTitle>
-          <DialogDescription>Defina os parâmetros técnicos e regulamentares da nova competição.</DialogDescription>
+          <DialogTitle className="text-sm font-semibold text-foreground">Nova Competição</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">Defina os parâmetros técnicos e regulamentares da nova competição.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="comp-name">Nome da Competição</Label>
-            <Input id="comp-name" value={name} onChange={e => setName(e.target.value)} placeholder="Ex.: Superliga Regional 2026" />
+        <div className="space-y-3.5 py-1">
+          <div className="space-y-1">
+            <Label htmlFor="comp-name" className="text-[10px] uppercase font-semibold text-muted-foreground">Nome da Competição</Label>
+            <Input id="comp-name" value={name} onChange={e => setName(e.target.value)} placeholder="Ex.: Superliga Regional 2026" className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Modalidade</Label>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Modalidade</Label>
               <Select value={modality} onValueChange={(v: 'indoor' | 'beach') => setModality(v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="indoor">Vôlei de Quadra</SelectItem>
-                  <SelectItem value="beach">Vôlei de Praia</SelectItem>
+                <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800">
+                  <SelectItem value="indoor" className="text-xs">Vôlei de Quadra</SelectItem>
+                  <SelectItem value="beach" className="text-xs">Vôlei de Praia</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>Categoria / Naipe</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Categoria / Naipe</Label>
               <Select value={genderCategory} onValueChange={(v: 'male' | 'female' | 'mixed') => setGenderCategory(v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="female">Feminino</SelectItem>
-                  <SelectItem value="male">Masculino</SelectItem>
-                  <SelectItem value="mixed">Misto</SelectItem>
+                <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800">
+                  <SelectItem value="female" className="text-xs">Feminino</SelectItem>
+                  <SelectItem value="male" className="text-xs">Masculino</SelectItem>
+                  <SelectItem value="mixed" className="text-xs">Misto</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Formato de Atletas</Label>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Formato de Atletas</Label>
               <Select value={playerFormat} onValueChange={setPlayerFormat}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="6x6">6x6 (Quadra)</SelectItem>
-                  <SelectItem value="4x4">4x4 (Misto / Areia)</SelectItem>
-                  <SelectItem value="2x2">2x2 (Dupla)</SelectItem>
-                  <SelectItem value="3x3">3x3 (Trio)</SelectItem>
+                <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800">
+                  <SelectItem value="6x6" className="text-xs">6x6 (Quadra)</SelectItem>
+                  <SelectItem value="4x4" className="text-xs">4x4 (Misto / Areia)</SelectItem>
+                  <SelectItem value="2x2" className="text-xs">2x2 (Dupla)</SelectItem>
+                  <SelectItem value="3x3" className="text-xs">3x3 (Trio)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>Sets Padrão</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Sets Padrão</Label>
               <Select value={setsFormat} onValueChange={setSetsFormat}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="3-sets">Melhor de 3 sets</SelectItem>
-                  <SelectItem value="5-sets">Melhor de 5 sets</SelectItem>
-                  <SelectItem value="1-set">Set Único</SelectItem>
+                <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800">
+                  <SelectItem value="3-sets" className="text-xs">Melhor de 3 sets</SelectItem>
+                  <SelectItem value="5-sets" className="text-xs">Melhor de 5 sets</SelectItem>
+                  <SelectItem value="1-set" className="text-xs">Set Único</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Sistema de Disputa</Label>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Sistema de Disputa</Label>
             <Select value={format} onValueChange={setFormat}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="group-stage-knockout">Fase de Grupos + Mata-mata (Recomendado)</SelectItem>
-                <SelectItem value="round-robin">Todos contra Todos (Pontos Corridos)</SelectItem>
-                <SelectItem value="single-elimination">Eliminatória Simples (Mata-mata direto)</SelectItem>
+              <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-zinc-900 border-zinc-800">
+                <SelectItem value="group-stage-knockout" className="text-xs">Fase de Grupos + Mata-mata (Recomendado)</SelectItem>
+                <SelectItem value="round-robin" className="text-xs">Todos contra Todos (Pontos Corridos)</SelectItem>
+                <SelectItem value="single-elimination" className="text-xs">Eliminatória Simples (Mata-mata direto)</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {format === 'group-stage-knockout' && (
-            <div className="grid grid-cols-3 gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
-              <div className="space-y-1.5">
-                <Label>Nº de Grupos</Label>
-                <Input type="number" min={1} max={8} value={groupsCount} onChange={e => setGroupsCount(Number(e.target.value))} />
+            <div className="grid grid-cols-3 gap-2.5 p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800">
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Nº Grupos</Label>
+                <Input type="number" min={1} max={8} value={groupsCount} onChange={e => setGroupsCount(Number(e.target.value))} className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md" />
               </div>
-              <div className="space-y-1.5">
-                <Label>Classif. por Grupo</Label>
-                <Input type="number" min={1} max={4} value={advancingPerGroup} onChange={e => setAdvancingPerGroup(Number(e.target.value))} />
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Classif./Grupo</Label>
+                <Input type="number" min={1} max={4} value={advancingPerGroup} onChange={e => setAdvancingPerGroup(Number(e.target.value))} className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md" />
               </div>
-              <div className="space-y-1.5">
-                <Label>Melhores 3ºs</Label>
-                <Input type="number" min={0} max={4} value={bestThirdsCount} onChange={e => setBestThirdsCount(Number(e.target.value))} />
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Melhores 3ºs</Label>
+                <Input type="number" min={0} max={4} value={bestThirdsCount} onChange={e => setBestThirdsCount(Number(e.target.value))} className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md" />
               </div>
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="comp-venue">Local Principal / Ginásio</Label>
-            <Input id="comp-venue" value={venue} onChange={e => setVenue(e.target.value)} placeholder="Ex.: Ginásio UNIPAR Toledo" />
+          <div className="space-y-1">
+            <Label htmlFor="comp-venue" className="text-[10px] uppercase font-semibold text-muted-foreground">Local Principal / Ginásio</Label>
+            <Input id="comp-venue" value={venue} onChange={e => setVenue(e.target.value)} placeholder="Ex.: Ginásio UNIPAR Toledo" className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="comp-start">Início</Label>
-              <Input id="comp-start" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+          <div className="grid grid-cols-3 gap-2.5">
+            <div className="space-y-1">
+              <Label htmlFor="comp-start" className="text-[10px] uppercase font-semibold text-muted-foreground">Início</Label>
+              <Input id="comp-start" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="comp-end">Fim</Label>
-              <Input id="comp-end" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+            <div className="space-y-1">
+              <Label htmlFor="comp-end" className="text-[10px] uppercase font-semibold text-muted-foreground">Fim</Label>
+              <Input id="comp-end" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="comp-deadline">Prazo Inscrições</Label>
-              <Input id="comp-deadline" type="date" value={defaultDeadline} onChange={e => setDefaultDeadline(e.target.value)} />
+            <div className="space-y-1">
+              <Label htmlFor="comp-deadline" className="text-[10px] uppercase font-semibold text-muted-foreground">Prazo Inscrições</Label>
+              <Input id="comp-deadline" type="date" value={defaultDeadline} onChange={e => setDefaultDeadline(e.target.value)} className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
             </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button variant="accent" disabled={!canSubmit || submitting} onClick={handleSubmit}>
+        <DialogFooter className="gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">
+            Cancelar
+          </Button>
+          <Button size="sm" disabled={!canSubmit || submitting} onClick={handleSubmit} className="h-8 text-xs rounded-md font-medium shadow-none">
             {submitting ? 'Criando...' : 'Criar Competição'}
           </Button>
         </DialogFooter>

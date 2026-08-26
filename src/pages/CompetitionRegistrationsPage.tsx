@@ -180,14 +180,14 @@ export function CompetitionRegistrationsPage() {
     <MainLayout>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/competicoes')} aria-label="Voltar">
-              <ArrowLeft className="w-5 h-5" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/competicoes')} aria-label="Voltar" className="h-8 w-8 rounded-md hover:bg-zinc-800">
+              <ArrowLeft className="w-4 h-4" />
             </Button>
             <div>
-              <h1 className="text-2xl font-display font-bold">{competition.name}</h1>
-              <p className="text-muted-foreground mt-1">
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">{competition.name}</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Inscrições por equipe · {GENDER_CATEGORY_LABELS[competition.genderCategory]} ·{' '}
                 {competition.playerFormat}
               </p>
@@ -197,22 +197,22 @@ export function CompetitionRegistrationsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="gap-2"
+              className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60"
               onClick={handleExportAll}
               disabled={exporting}
             >
-              <FileDown className="w-4 h-4" />
+              <FileDown className="w-3.5 h-3.5" />
               {exporting ? 'Gerando...' : 'Súmulas de Todas as Partidas (PDF)'}
             </Button>
-            <Button variant="accent" size="sm" className="gap-2" onClick={() => setInviteOpen(true)} disabled={availableTeams.length === 0}>
-              <UserPlus className="w-4 h-4" />
+            <Button size="sm" className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={() => setInviteOpen(true)} disabled={availableTeams.length === 0}>
+              <UserPlus className="w-3.5 h-3.5" />
               Convidar Equipe
             </Button>
           </div>
         </div>
 
         {/* Cards de resumo */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <SummaryCard label="Equipes" value={registrations.length} />
           <SummaryCard
             label="Pendentes"
@@ -229,27 +229,27 @@ export function CompetitionRegistrationsPage() {
         </div>
 
         {/* Lista de inscrições */}
-        <Card className="card-elevated">
-          <CardHeader className="border-b border-border">
-            <CardTitle className="text-lg font-display flex items-center gap-2">
-              <Users className="w-5 h-5 text-accent" />
-              Equipes Convidadas
+        <Card className="card-elevated shadow-none">
+          <CardHeader className="p-3.5 border-b border-border">
+            <CardTitle className="text-xs uppercase font-semibold tracking-wider text-muted-foreground flex items-center gap-2">
+              <Users className="w-3.5 h-3.5 text-zinc-400" />
+              Equipes Convidadas ({registrations.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {registrations.length === 0 ? (
-              <div className="p-10 text-center">
-                <p className="text-muted-foreground">Nenhuma equipe convidada ainda.</p>
+              <div className="p-8 text-center">
+                <p className="text-xs text-muted-foreground">Nenhuma equipe convidada ainda.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-border bg-muted/30">
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Equipe</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Status</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Prazo Limite</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">Ações</th>
+                    <tr className="border-b border-border bg-zinc-900/50">
+                      <th className="text-left py-2.5 px-3.5 font-semibold text-muted-foreground">Equipe</th>
+                      <th className="text-left py-2.5 px-3.5 font-semibold text-muted-foreground">Status</th>
+                      <th className="text-left py-2.5 px-3.5 font-semibold text-muted-foreground">Prazo Limite</th>
+                      <th className="text-right py-2.5 px-3.5 font-semibold text-muted-foreground">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -257,35 +257,35 @@ export function CompetitionRegistrationsPage() {
                       const expired = new Date(registration.registrationDeadline).getTime() < now;
                       const locked = isRegistrationLocked(registration, new Date(now));
                       return (
-                        <tr key={registration.id} className="border-b border-border/50 hover:bg-muted/40">
-                          <td className="py-3 px-4">
+                        <tr key={registration.id} className="border-b border-border/40 hover:bg-zinc-800/30 transition-colors">
+                          <td className="py-2.5 px-3.5">
                             <button
                               type="button"
                               className="text-left"
                               onClick={() => navigate(`/equipe/inscricao/${registration.accessToken}`)}
                             >
-                              <span className="font-semibold hover:underline inline-flex items-center gap-2">
+                              <span className="font-medium text-foreground hover:underline inline-flex items-center gap-1.5">
                                 {registration.teamName}
-                                <Badge variant="outline">{registration.teamShortName}</Badge>
+                                <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">{registration.teamShortName}</Badge>
                               </span>
                             </button>
                           </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
-                              <Badge variant={statusVariant(registration.status)}>
+                          <td className="py-2.5 px-3.5">
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant={statusVariant(registration.status)} className="text-[10px] py-0 px-1.5 h-4">
                                 {REGISTRATION_STATUS_LABELS[registration.status]}
                               </Badge>
                               {locked && (
-                                <Badge variant="destructive" className="gap-1">
-                                  <Lock className="w-3 h-3" />
-                                  {expired ? 'Prazo expirado' : 'Bloqueado'}
+                                <Badge variant="destructive" className="gap-1 text-[10px] py-0 px-1.5 h-4">
+                                  <Lock className="w-2.5 h-2.5" />
+                                  {expired ? 'Expirado' : 'Bloqueado'}
                                 </Badge>
                               )}
                             </div>
                           </td>
-                          <td className="py-3 px-4">
-                            <span className={cn('inline-flex items-center gap-1.5', expired && 'text-destructive')}>
-                              <CalendarClock className="w-4 h-4" />
+                          <td className="py-2.5 px-3.5">
+                            <span className={cn('inline-flex items-center gap-1.5 tabular-nums text-muted-foreground', expired && 'text-red-400')}>
+                              <CalendarClock className="w-3.5 h-3.5" />
                               {new Date(registration.registrationDeadline).toLocaleString('pt-BR', {
                                 day: '2-digit',
                                 month: '2-digit',
@@ -295,40 +295,40 @@ export function CompetitionRegistrationsPage() {
                               })}
                             </span>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-2.5 px-3.5">
                             <div className="flex items-center justify-end gap-1">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="gap-1.5"
+                                className="h-7 text-xs px-2 gap-1 rounded-md hover:bg-zinc-800"
                                 onClick={() => copyInviteLink(registration)}
                               >
-                                <ClipboardCopy className="w-4 h-4" />
+                                <ClipboardCopy className="w-3 h-3 text-zinc-400" />
                                 Link
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="gap-1.5"
+                                className="h-7 text-xs px-2 gap-1 rounded-md hover:bg-zinc-800"
                                 onClick={() => setEditingRegistration(registration)}
                               >
-                                <RefreshCw className="w-4 h-4" />
+                                <RefreshCw className="w-3 h-3 text-zinc-400" />
                                 Prorrogar
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className={cn('gap-1.5', !registration.isLocked && 'text-destructive')}
+                                className={cn('h-7 text-xs px-2 gap-1 rounded-md hover:bg-zinc-800', !registration.isLocked && 'text-red-400 hover:text-red-300')}
                                 onClick={() => handleToggleLock(registration)}
                               >
                                 {registration.isLocked ? (
                                   <>
-                                    <Unlock className="w-4 h-4" />
+                                    <Unlock className="w-3 h-3" />
                                     Reabrir
                                   </>
                                 ) : (
                                   <>
-                                    <Lock className="w-4 h-4" />
+                                    <Lock className="w-3 h-3" />
                                     Bloquear
                                   </>
                                 )}
@@ -345,8 +345,8 @@ export function CompetitionRegistrationsPage() {
           </CardContent>
         </Card>
 
-        <p className="text-sm text-muted-foreground">
-          <Link to={`/jogos`} className="underline">
+        <p className="text-xs text-muted-foreground">
+          <Link to={`/jogos`} className="underline hover:text-foreground">
             Ir para Jogos
           </Link>{' '}
           · O link de convite dá acesso ao portal de inscrição sem necessidade de cadastro.
@@ -376,10 +376,10 @@ export function CompetitionRegistrationsPage() {
 
 function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
-    <Card className="card-elevated">
-      <CardContent className="p-4">
-        <p className="text-2xl font-display font-bold">{value}</p>
-        <p className="text-sm text-muted-foreground">{label}</p>
+    <Card className="card-elevated shadow-none">
+      <CardContent className="p-3.5">
+        <p className="text-xl font-semibold tabular-nums text-foreground">{value}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
       </CardContent>
     </Card>
   );

@@ -227,7 +227,7 @@ export function generateMatchesBoletimPdf(
   orgName = 'BaseOS',
 ): jsPDF {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  let y = docHeader(doc, orgName, competitionName, 'Boletim Geral de Jogos & Confrontos');
+  let y = docHeader(doc, orgName, competitionName, 'Boletim Geral de Jogos e Confrontos');
 
   if (rows.length === 0) {
     doc.setFontSize(9);
@@ -735,7 +735,7 @@ export function generatePodiumReportPdf(
 ): jsPDF {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const orgName = data.orgName || 'BaseOS';
-  let y = docHeader(doc, orgName, data.competitionName, 'Quadro de Honra & Pódio Oficial');
+  let y = docHeader(doc, orgName, data.competitionName, 'Quadro de Honra e Pódio Oficial');
 
   // Banner Comemorativo
   doc.setFillColor(...NAVY);
@@ -760,7 +760,7 @@ export function generatePodiumReportPdf(
       color: GOLD,
       bgColor: GOLD_LIGHT,
       border: GOLD,
-      label: 'TROFÉU & MEDALHA DE OURO',
+      label: 'TROFÉU E MEDALHA DE OURO',
     },
     {
       title: '2º LUGAR · VICE-CAMPEÃO',
