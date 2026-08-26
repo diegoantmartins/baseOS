@@ -82,14 +82,22 @@ export default function HelpCenterPage() {
     }
   };
 
+  const handleCategoryClick = (catId: HelpCategoryId | 'todas') => {
+    setSelectedCategory(catId);
+    if (searchQuery.trim()) {
+      setSearchQuery('');
+    }
+  };
+
   // Filtered articles
   const filteredArticles = useMemo(() => {
     let list = HELP_ARTICLES;
-    if (searchQuery.trim()) {
-      list = searchHelpArticles(searchQuery);
-    }
     if (selectedCategory !== 'todas') {
       list = list.filter((a) => a.category === selectedCategory);
+    }
+    if (searchQuery.trim()) {
+      const searched = searchHelpArticles(searchQuery);
+      list = list.filter((a) => searched.some((s) => s.id === a.id));
     }
     return list;
   }, [searchQuery, selectedCategory]);
@@ -288,7 +296,7 @@ export default function HelpCenterPage() {
                     'h-7 px-3 text-xs rounded-full shadow-none font-medium',
                     selectedCategory !== 'todas' && 'border-zinc-800 bg-zinc-950 text-muted-foreground hover:text-foreground'
                   )}
-                  onClick={() => setSelectedCategory('todas')}
+                  onClick={() => handleCategoryClick('todas')}
                 >
                   Todas ({HELP_ARTICLES.length})
                 </Button>
@@ -305,7 +313,7 @@ export default function HelpCenterPage() {
                         'h-7 px-3 text-xs rounded-full gap-1.5 shadow-none font-medium',
                         !isSelected && 'border-zinc-800 bg-zinc-950 text-muted-foreground hover:text-foreground'
                       )}
-                      onClick={() => setSelectedCategory(cat.id)}
+                      onClick={() => handleCategoryClick(cat.id)}
                     >
                       <Icon className="w-3 h-3" />
                       <span>{cat.title}</span>
@@ -315,13 +323,34 @@ export default function HelpCenterPage() {
                 })}
               </div>
 
+              {/* Status do filtro ativo quando há busca */}
+              {searchQuery.trim() && (
+                <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/60 border border-zinc-800 text-xs">
+                  <span className="text-muted-foreground">
+                    Exibindo resultados para: <strong className="text-foreground">"{searchQuery.trim()}"</strong> ({filteredArticles.length} {filteredArticles.length === 1 ? 'artigo encontrado' : 'artigos encontrados'})
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 text-xs text-primary hover:text-primary/80"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Limpar busca
+                  </Button>
+                </div>
+              )}
+
               {/* 3. Articles Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
                 {filteredArticles.length === 0 ? (
                   <div className="col-span-full py-12 text-center space-y-2 rounded-xl bg-zinc-950 border border-zinc-800">
                     <HelpCircle className="w-8 h-8 text-muted-foreground mx-auto" />
-                    <p className="text-sm font-medium text-foreground">Nenhum artigo encontrado para sua busca</p>
-                    <p className="text-xs text-muted-foreground">Tente pesquisar por outros termos como "equipe", "súmula", "sets" ou "classificação".</p>
+                    <p className="text-sm font-medium text-foreground">Nenhum artigo encontrado</p>
+                    <p className="text-xs text-muted-foreground">
+                      {searchQuery.trim()
+                        ? `Não encontramos artigos para "${searchQuery}" nesta seleção.`
+                        : 'Não há artigos nesta categoria no momento.'}
+                    </p>
                     <Button
                       size="sm"
                       variant="outline"
@@ -331,7 +360,7 @@ export default function HelpCenterPage() {
                         setSelectedCategory('todas');
                       }}
                     >
-                      Limpar filtros
+                      Ver todos os artigos
                     </Button>
                   </div>
                 ) : (

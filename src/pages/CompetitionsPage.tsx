@@ -60,6 +60,17 @@ const TIEBREAK_CRITERIA_LABELS_PT: Record<string, string> = {
   'draw': 'Sorteio',
 };
 
+const COMPETITION_STATUS_LABELS_PT: Record<string, string> = {
+  'draft': 'Rascunho',
+  'registration-open': 'Inscrições Abertas',
+  'registration-closed': 'Inscrições Encerradas',
+  'draw-pending': 'Sorteio Pendente',
+  'in-progress': 'Em Andamento',
+  'playoffs': 'Mata-mata',
+  'completed': 'Finalizada',
+  'archived': 'Arquivada',
+};
+
 import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
 import { AuditService } from '@/lib/security';
 import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
@@ -385,13 +396,11 @@ export default function CompetitionsPage() {
                 <div className="space-y-6">
                   {/* Competition Readiness System */}
                   {readinessReport && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                      <div className="lg:col-span-2">
-                        <CompetitionProgress report={readinessReport} onRefresh={refresh} />
-                      </div>
-                      <div>
+                    <div className="space-y-4">
+                      <CompetitionProgress report={readinessReport} onRefresh={refresh} />
+                      {readinessReport.pendingTasks && readinessReport.pendingTasks.length > 0 && (
                         <CompetitionPendingTasks tasks={readinessReport.pendingTasks} />
-                      </div>
+                      )}
                     </div>
                   )}
 
@@ -400,7 +409,7 @@ export default function CompetitionsPage() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base font-display flex items-center justify-between">
                         <span>Fluxo e Ciclo de Vida da Competição</span>
-                        <Badge variant="default" className="capitalize">{selected.status}</Badge>
+                        <Badge variant="default">{COMPETITION_STATUS_LABELS_PT[selected.status] || selected.status}</Badge>
                       </CardTitle>
                       <CardDescription>Avance o status conforme o progresso do torneio.</CardDescription>
                     </CardHeader>

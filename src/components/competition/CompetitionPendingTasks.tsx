@@ -50,23 +50,23 @@ export function CompetitionPendingTasks({ tasks, className }: CompetitionPending
           </span>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {tasks.map((task) => (
             <div
               key={task.id}
               className={cn(
-                'flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-lg border transition-colors',
+                'p-3.5 rounded-lg border transition-colors space-y-2.5',
                 task.severity === 'blocker' && 'bg-red-950/20 border-red-900/40 hover:border-red-800/60',
                 task.severity === 'warning' && 'bg-amber-950/20 border-amber-900/40 hover:border-amber-800/60',
                 task.severity === 'info' && 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700'
               )}
             >
-              <div className="space-y-0.5 min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Badge
                     variant="outline"
                     className={cn(
-                      'text-[9px] uppercase font-semibold py-0 px-1.5 h-4 border-zinc-800',
+                      'text-[9px] uppercase font-semibold py-0 px-1.5 h-4 border-zinc-800 shrink-0',
                       task.severity === 'blocker' && 'bg-red-950/60 text-red-400 border-red-900/60',
                       task.severity === 'warning' && 'bg-amber-950/60 text-amber-400 border-amber-900/60',
                       task.severity === 'info' && 'bg-zinc-800 text-zinc-300'
@@ -76,16 +76,16 @@ export function CompetitionPendingTasks({ tasks, className }: CompetitionPending
                     {task.severity === 'warning' && 'Atenção'}
                     {task.severity === 'info' && 'Informativo'}
                   </Badge>
-                  <span className="text-xs font-semibold text-foreground truncate">
+                  <span className="text-xs font-semibold text-foreground break-words">
                     {task.title}
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                <p className="text-[11px] text-muted-foreground leading-relaxed break-words">
                   {task.description}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+              <div className="flex items-center justify-end gap-2 pt-1 border-t border-zinc-800/40 flex-wrap">
                 {task.articleId && (
                   <Button
                     size="sm"
