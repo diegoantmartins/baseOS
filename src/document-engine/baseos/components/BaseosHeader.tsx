@@ -1,5 +1,5 @@
 // =====================================================================
-// BaseOS Component - Cabeçalho Oficial (Fiel ao Modelo Regional CBV)
+// BaseOS Component - Cabeçalho Oficial (Padrão Homologado CBV / FIVB)
 // =====================================================================
 
 import React from 'react';
@@ -17,84 +17,126 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   topRow: {
-    height: 24,
+    height: 25,
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: BASEOS_TOKENS.borders.STRONG,
-    borderBottomColor: BASEOS_TOKENS.colors.BLACK,
-    backgroundColor: BASEOS_TOKENS.colors.BRAND_PRIMARY,
+    justifyContent: 'space-between',
+    borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
+    borderBottomColor: '#CCCCCC',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 6,
   },
-  logoTitleBox: {
-    width: 150,
-    flexDirection: 'column',
-    justifyContent: 'center',
-  },
-  competitionTitle: {
-    fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 7.5,
-    color: BASEOS_TOKENS.colors.BLACK,
-    textTransform: 'uppercase',
-  },
-  competitionSub: {
-    fontFamily: BASEOS_TOKENS.fonts.REGULAR,
-    fontSize: 5.0,
-    color: BASEOS_TOKENS.colors.BLACK,
-    textTransform: 'uppercase',
-  },
-  confrontationBox: {
-    flex: 1,
+  brandSection: {
     flexDirection: 'row',
+    alignItems: 'center',
+    width: 140,
+  },
+  logoBars: {
+    width: 13,
+    height: 13,
+    justifyContent: 'space-between',
+    marginRight: 4,
+  },
+  logoBarTop: {
+    height: 2.2,
+    width: 10,
+    backgroundColor: '#333333',
+    borderRadius: 0.5,
+  },
+  logoBarMid: {
+    height: 2.2,
+    width: 13,
+    marginLeft: 2.5,
+    backgroundColor: '#000000',
+    borderRadius: 0.5,
+  },
+  logoBarBot: {
+    height: 2.2,
+    width: 10,
+    backgroundColor: '#555555',
+    borderRadius: 0.5,
+  },
+  brandName: {
+    fontFamily: BASEOS_TOKENS.fonts.BOLD,
+    fontSize: 9.0,
+    color: '#000000',
+    letterSpacing: 0.5,
+  },
+  brandSubtitle: {
+    fontFamily: BASEOS_TOKENS.fonts.BOLD,
+    fontSize: 4.2,
+    color: '#666666',
+    letterSpacing: 0.2,
+  },
+  centerSection: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
-  teamName: {
+  docTitle: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 7.5,
-    color: BASEOS_TOKENS.colors.BLACK,
+    fontSize: 6.8,
+    color: '#333333',
     textTransform: 'uppercase',
   },
-  vsText: {
+  confrontationTitle: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 8.0,
-    marginHorizontal: 6,
-    color: BASEOS_TOKENS.colors.BLACK,
+    fontSize: 8.5,
+    color: '#000000',
+    textTransform: 'uppercase',
+    marginTop: 0.5,
   },
-  headerRightBox: {
-    width: 90,
+  rightSection: {
+    width: 110,
     alignItems: 'flex-end',
     justifyContent: 'center',
   },
-  headerBadge: {
+  sealBox: {
+    borderWidth: 0.6,
+    borderColor: '#000000',
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 4,
+    paddingVertical: 1.5,
+    alignItems: 'center',
+    borderRadius: 1,
+  },
+  sealStandard: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 7.0,
-    color: BASEOS_TOKENS.colors.BLACK,
+    fontSize: 4.2,
+    color: '#555555',
+    textTransform: 'uppercase',
+  },
+  sealMatchNum: {
+    fontFamily: BASEOS_TOKENS.fonts.BOLD,
+    fontSize: 7.5,
+    color: '#000000',
     textTransform: 'uppercase',
   },
   metaBar: {
-    height: 18,
+    height: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: BASEOS_TOKENS.colors.WHITE,
+    backgroundColor: '#FAFAFA',
   },
   metaCell: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 4,
     borderRightWidth: BASEOS_TOKENS.borders.HAIRLINE,
-    borderRightColor: BASEOS_TOKENS.colors.BORDER_MUTED,
+    borderRightColor: '#DCDCDC',
+    height: '100%',
   },
   metaLabel: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 4.8,
-    color: BASEOS_TOKENS.colors.GRAY_DARK,
+    color: '#555555',
     marginRight: 2,
   },
   metaValue: {
     fontFamily: BASEOS_TOKENS.fonts.BOLD,
     fontSize: 5.8,
-    color: BASEOS_TOKENS.colors.BLACK,
+    color: '#000000',
   },
 });
 
@@ -112,48 +154,52 @@ export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
   teamBName,
 }) => {
   const genderLabel = match.gender === 'female' ? 'Feminino' : (match.gender === 'mixed' ? 'Misto' : 'Masculino');
+  const compName = competition.name ? competition.name.toUpperCase() : 'TORNEIO OFICIAL';
+  const nameA = teamAName ? teamAName.toUpperCase() : 'EQUIPE A';
+  const nameB = teamBName ? teamBName.toUpperCase() : 'EQUIPE B';
 
   return (
     <View style={styles.container}>
-      {/* Topo: Nome do Torneio, Confronto em Destaque e Número do Jogo */}
+      {/* Linha Superior: Branding BaseOS + Súmula Oficial + Confronto + Selo */}
       <View style={styles.topRow}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ backgroundColor: BASEOS_TOKENS.colors.WHITE, paddingVertical: 2, paddingHorizontal: 4, borderRadius: 2, marginRight: 6 }}>
-            <Text style={{ color: BASEOS_TOKENS.colors.BLACK, fontFamily: BASEOS_TOKENS.fonts.BOLD, fontSize: 8 }}>BaseOS</Text>
+        {/* Esquerda: Branding BaseOS */}
+        <View style={styles.brandSection}>
+          <View style={styles.logoBars}>
+            <View style={styles.logoBarTop} />
+            <View style={styles.logoBarMid} />
+            <View style={styles.logoBarBot} />
           </View>
-          <View style={styles.logoTitleBox}>
-            <Text style={styles.competitionTitle}>
-              {competition.name ? competition.name.toUpperCase() : 'TORNEIO OFICIAL DE VOLEIBOL'}
-            </Text>
-            <Text style={styles.competitionSub}>SÚMULA OFICIAL</Text>
+          <View>
+            <Text style={styles.brandName}>BaseOS</Text>
+            <Text style={styles.brandSubtitle}>GESTÃO DE COMPETIÇÕES</Text>
           </View>
         </View>
 
-        <View style={styles.confrontationBox}>
-          <Text style={styles.teamName}>
-            {teamAName ? teamAName.toUpperCase() : 'EQUIPE A'}
-          </Text>
-          <Text style={styles.vsText}>X</Text>
-          <Text style={styles.teamName}>
-            {teamBName ? teamBName.toUpperCase() : 'EQUIPE B'}
-          </Text>
+        {/* Centro: Título do Documento e Confronto */}
+        <View style={styles.centerSection}>
+          <Text style={styles.docTitle}>SÚMULA OFICIAL • {compName}</Text>
+          <Text style={styles.confrontationTitle}>{nameA}   ×   {nameB}</Text>
         </View>
 
-        <View style={styles.headerRightBox}>
-          <Text style={styles.headerBadge}>JOGO Nº {match.number || '____'}</Text>
+        {/* Direita: Selo Padrão CBV / FIVB */}
+        <View style={styles.rightSection}>
+          <View style={styles.sealBox}>
+            <Text style={styles.sealStandard}>PADRÃO CBV / FIVB</Text>
+            <Text style={styles.sealMatchNum}>JOGO Nº {match.number || '01'}</Text>
+          </View>
         </View>
       </View>
 
       {/* Faixa de Metadados em Linha Única */}
       <View style={styles.metaBar}>
-        <View style={[styles.metaCell, { flex: 2 }]}>
+        <View style={[styles.metaCell, { flex: 2.2 }]}>
           <Text style={styles.metaLabel}>LOCAL:</Text>
           <Text style={styles.metaValue}>
             {competition.location || competition.city || 'Ginásio Principal'}
           </Text>
         </View>
 
-        <View style={[styles.metaCell, { flex: 1 }]}>
+        <View style={[styles.metaCell, { flex: 1.1 }]}>
           <Text style={styles.metaLabel}>DATA:</Text>
           <Text style={styles.metaValue}>
             {competition.date 
@@ -167,17 +213,17 @@ export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
           <Text style={styles.metaValue}>{match.scheduledTime || '__:__'}</Text>
         </View>
 
-        <View style={[styles.metaCell, { flex: 0.7 }]}>
+        <View style={[styles.metaCell, { flex: 0.9 }]}>
           <Text style={styles.metaLabel}>NAIPE:</Text>
           <Text style={styles.metaValue}>{genderLabel}</Text>
         </View>
 
-        <View style={[styles.metaCell, { flex: 1 }]}>
-          <Text style={styles.metaLabel}>GRUPO:</Text>
-          <Text style={styles.metaValue}>{competition.phase || 'A'}</Text>
+        <View style={[styles.metaCell, { flex: 1.1 }]}>
+          <Text style={styles.metaLabel}>FASE / GRUPO:</Text>
+          <Text style={styles.metaValue}>{competition.phase || 'Classificatória'}</Text>
         </View>
 
-        <View style={[styles.metaCell, { flex: 1, borderRightWidth: 0 }]}>
+        <View style={[styles.metaCell, { flex: 0.8, borderRightWidth: 0 }]}>
           <Text style={styles.metaLabel}>QUADRA:</Text>
           <Text style={styles.metaValue}>{competition.court || '1'}</Text>
         </View>
