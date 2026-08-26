@@ -90,7 +90,9 @@ export const SUMULA5_FIELDS = {
 export const SUMULA5_GEOMETRY: SumulaGeometry = {
   pageWidth: SUMULA5_PAGE.width,
   pageHeight: SUMULA5_PAGE.height,
-  cleanZones: [], // Layout 100% imutável e original preservado
+  cleanZones: [
+    { x: 10, y: 8, width: 1170, height: 126 },
+  ],
   logoZone: { x: 90, y: 20, width: 70, height: 55 },
   fields: SUMULA5_FIELDS,
 };

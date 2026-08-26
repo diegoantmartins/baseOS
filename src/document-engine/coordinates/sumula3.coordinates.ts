@@ -93,7 +93,9 @@ export const SUMULA3_FIELDS = {
 export const SUMULA3_GEOMETRY: SumulaGeometry = {
   pageWidth: SUMULA3_PAGE.width,
   pageHeight: SUMULA3_PAGE.height,
-  cleanZones: [], // Layout 100% imutável e original preservado
+  cleanZones: [
+    { x: 10, y: 6, width: 972, height: 92 },
+  ],
   logoZone: { x: 22, y: 12, width: 100, height: 22 },
   fields: SUMULA3_FIELDS,
 };

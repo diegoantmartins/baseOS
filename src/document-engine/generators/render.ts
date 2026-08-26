@@ -9,7 +9,7 @@
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import type { CleanZone, FieldCoords, SumulaFieldMap, SumulaGeometry } from '../schemas/sumula.schema';
-import { fillRect } from '../utils/drawLine';
+import { fillRect, drawLine } from '../utils/drawLine';
 import { drawDynamicText } from '../utils/drawText';
 import type { MatchDocument, Officials } from '../schemas/match.schema';
 import type { FieldLayoutOverride } from '../../types/documentEdit';
@@ -159,8 +159,8 @@ export function renderTeamBadges(
 }
 
 /**
- * Renderiza os campos de texto do cabeçalho oficial diretamente sobre as linhas
- * e caixas do template da Federação (SEM retângulos ou sobreposições visuais).
+ * Renderiza o novo cabeçalho oficial com identidade visual BaseOS,
+ * logotipo vetorial, banner da competição e grid técnico de 5 colunas.
  */
 export function renderHeaderFields(
   page: PDFPage,
@@ -170,77 +170,257 @@ export function renderHeaderFields(
   orgName?: string,
   values?: Record<string, string>,
 ): void {
-  const f = geometry.fields;
+  const is3Sets = page.getWidth() < 1100;
+  const pageWidth = page.getWidth();
+  const startX = 12;
+  const startY = 8;
+  const headerWidth = pageWidth - 24;
+  const headerHeight = is3Sets ? 86 : 124;
 
-  // 1. Nome da Competição
-  if (f.competitionName) {
-    const text = resolveFieldValue(values, 'competitionName', match.competitionName || '');
-    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.competitionName);
+  // 0. Limpeza completa da faixa do cabeçalho
+  fillRect(page, { x: startX, y: startY, width: headerWidth, height: headerHeight, color: '#ffffff' });
+
+  // Moldura Externa do Cabeçalho
+  drawLine(page, { x1: startX, y1: startY, x2: startX + headerWidth, y2: startY, thickness: 0.8, color: '#000000' });
+  drawLine(page, { x1: startX, y1: startY + headerHeight, x2: startX + headerWidth, y2: startY + headerHeight, thickness: 0.8, color: '#000000' });
+  drawLine(page, { x1: startX, y1: startY, x2: startX, y2: startY + headerHeight, thickness: 0.8, color: '#000000' });
+  drawLine(page, { x1: startX + headerWidth, y1: startY, x2: startX + headerWidth, y2: startY + headerHeight, thickness: 0.8, color: '#000000' });
+
+  // 1. Linha Superior (Branding BaseOS + Título Oficial + Selo)
+  const topBarHeight = is3Sets ? 34 : 48;
+  const brandWidth = is3Sets ? 190 : 230;
+  const sealWidth = is3Sets ? 160 : 190;
+  const centerWidth = headerWidth - brandWidth - sealWidth;
+
+  // ── BRANDING BASEOS (Esquerda) ──
+  const logoX = startX + 8;
+  const logoY = startY + (is3Sets ? 8 : 12);
+  // Barras Vetoriais BaseOS
+  fillRect(page, { x: logoX, y: logoY, width: 14, height: 3.5, color: '#222222' });
+  fillRect(page, { x: logoX + 4, y: logoY + 5.5, width: 18, height: 3.5, color: '#000000' });
+  fillRect(page, { x: logoX, y: logoY + 11, width: 14, height: 3.5, color: '#555555' });
+
+  // Texto BaseOS
+  drawDynamicText(page, fonts.boldFont, fonts.boldFont, 'BaseOS', {
+    x: logoX + 28,
+    y: logoY + 1,
+    width: 140,
+    height: 14,
+    fontSize: is3Sets ? 13 : 16,
+    bold: true,
+    align: 'left',
+  });
+  drawDynamicText(page, fonts.boldFont, fonts.boldFont, 'SISTEMA OFICIAL DE COMPETIÇÕES', {
+    x: logoX + 28,
+    y: logoY + (is3Sets ? 12 : 15),
+    width: 140,
+    height: 10,
+    fontSize: is3Sets ? 5.5 : 7,
+    bold: true,
+    align: 'left',
+  });
+
+  // Divisória vertical esquerda
+  drawLine(page, {
+    x1: startX + brandWidth,
+    y1: startY,
+    x2: startX + brandWidth,
+    y2: startY + topBarHeight,
+    thickness: 0.5,
+    color: '#d4d4d8',
+  });
+
+  // ── CENTRO: ENTIDADE + TÍTULO DA SÚMULA ──
+  const effectiveOrg = resolveFieldValue(values, 'orgName', orgName || 'FEDERAÇÃO / ENTIDADE ORGANIZADORA').toUpperCase();
+  drawDynamicText(page, fonts.boldFont, fonts.boldFont, effectiveOrg, {
+    x: startX + brandWidth + 5,
+    y: startY + (is3Sets ? 3 : 5),
+    width: centerWidth - 10,
+    height: 9,
+    fontSize: is3Sets ? 7 : 8.5,
+    bold: true,
+    align: 'center',
+  });
+
+  drawDynamicText(page, fonts.boldFont, fonts.boldFont, 'SÚMULA OFICIAL DE VOLEIBOL', {
+    x: startX + brandWidth + 5,
+    y: startY + (is3Sets ? 11 : 16),
+    width: centerWidth - 10,
+    height: 14,
+    fontSize: is3Sets ? 13 : 17,
+    bold: true,
+    align: 'center',
+  });
+
+  const formatSubtitle = `VÔLEI DE QUADRA • 6x6 • MELHOR DE ${match.format === '5-sets' ? '5' : '3'} SETS`;
+  drawDynamicText(page, fonts.font, fonts.boldFont, formatSubtitle, {
+    x: startX + brandWidth + 5,
+    y: startY + (is3Sets ? 24 : 33),
+    width: centerWidth - 10,
+    height: 9,
+    fontSize: is3Sets ? 6.5 : 8,
+    align: 'center',
+  });
+
+  // Divisória vertical direita
+  drawLine(page, {
+    x1: startX + headerWidth - sealWidth,
+    y1: startY,
+    x2: startX + headerWidth - sealWidth,
+    y2: startY + topBarHeight,
+    thickness: 0.5,
+    color: '#d4d4d8',
+  });
+
+  // ── SELO OFICIAL (Direita) ──
+  const sealX = startX + headerWidth - sealWidth;
+  fillRect(page, { x: sealX + 4, y: startY + 3, width: sealWidth - 8, height: topBarHeight - 6, color: '#f4f4f5' });
+  drawDynamicText(page, fonts.boldFont, fonts.boldFont, 'PADRÃO CBV / FIVB', {
+    x: sealX + 6,
+    y: startY + (is3Sets ? 5 : 7),
+    width: sealWidth - 12,
+    height: 8,
+    fontSize: is3Sets ? 5.5 : 7,
+    bold: true,
+    align: 'center',
+  });
+
+  const matchNumVal = resolveFieldValue(values, 'matchNumber', match.matchNumber ? `JOGO Nº ${match.matchNumber}` : 'JOGO OFICIAL');
+  drawDynamicText(page, fonts.boldFont, fonts.boldFont, String(matchNumVal).startsWith('JOGO') ? String(matchNumVal) : `JOGO Nº ${matchNumVal}`, {
+    x: sealX + 6,
+    y: startY + (is3Sets ? 12 : 17),
+    width: sealWidth - 12,
+    height: 12,
+    fontSize: is3Sets ? 10 : 13,
+    bold: true,
+    align: 'center',
+  });
+
+  drawDynamicText(page, fonts.boldFont, fonts.boldFont, 'DOCUMENTO HOMOLOGADO', {
+    x: sealX + 6,
+    y: startY + (is3Sets ? 23 : 32),
+    width: sealWidth - 12,
+    height: 8,
+    fontSize: is3Sets ? 5 : 6.5,
+    bold: true,
+    align: 'center',
+  });
+
+  // Divisória horizontal abaixo do top bar
+  drawLine(page, {
+    x1: startX,
+    y1: startY + topBarHeight,
+    x2: startX + headerWidth,
+    y2: startY + topBarHeight,
+    thickness: 0.6,
+    color: '#000000',
+  });
+
+  // 2. Banner da Competição e Categoria
+  const bannerY = startY + topBarHeight;
+  const bannerHeight = is3Sets ? 20 : 28;
+  fillRect(page, { x: startX, y: bannerY, width: headerWidth, height: bannerHeight, color: '#ebebeb' });
+
+  // Nome da Competição
+  const compName = resolveFieldValue(values, 'competitionName', match.competitionName || 'COMPETIÇÃO OFICIAL').toUpperCase();
+  drawDynamicText(page, fonts.boldFont, fonts.boldFont, compName, {
+    x: startX + 10,
+    y: bannerY + (is3Sets ? 5 : 8),
+    width: headerWidth * 0.55,
+    height: 12,
+    fontSize: is3Sets ? 9.5 : 12,
+    bold: true,
+    align: 'left',
+  });
+
+  // Categoria e Naipe
+  const catName = resolveFieldValue(values, 'categoryName', match.categoryName || 'LIVRE').toUpperCase();
+  const genderStr = match.gender === 'male' ? 'MASCULINO' : match.gender === 'female' ? 'FEMININO' : 'MISTO';
+  const catNaipeText = `CATEGORIA: ${catName} • NAIPE: ${genderStr}`;
+  drawDynamicText(page, fonts.boldFont, fonts.boldFont, catNaipeText, {
+    x: startX + headerWidth * 0.55,
+    y: bannerY + (is3Sets ? 5 : 8),
+    width: headerWidth * 0.43,
+    height: 12,
+    fontSize: is3Sets ? 8 : 10,
+    bold: true,
+    align: 'right',
+  });
+
+  // Divisória horizontal abaixo do banner
+  drawLine(page, {
+    x1: startX,
+    y1: bannerY + bannerHeight,
+    x2: startX + headerWidth,
+    y2: bannerY + bannerHeight,
+    thickness: 0.6,
+    color: '#000000',
+  });
+
+  // 3. Grid de Metadados Técnicos em 5 Colunas
+  const metaY = bannerY + bannerHeight;
+  const metaHeight = headerHeight - topBarHeight - bannerHeight;
+  const colWidth = headerWidth / 5;
+
+  fillRect(page, { x: startX, y: metaY, width: headerWidth, height: metaHeight, color: '#fbfbfb' });
+
+  for (let i = 1; i < 5; i++) {
+    drawLine(page, {
+      x1: startX + colWidth * i,
+      y1: metaY,
+      x2: startX + colWidth * i,
+      y2: metaY + metaHeight,
+      thickness: 0.4,
+      color: '#d4d4d8',
+    });
   }
 
-  // 2. Cidade
-  if (f.city) {
-    const defaultCity = match.teamA?.city
-      ? `${match.teamA.city}${match.teamA.state ? ' / ' + match.teamA.state : ''}`
-      : (match.city || '');
-    const text = resolveFieldValue(values, 'city', defaultCity);
-    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.city);
-  }
+  const metaItems = [
+    {
+      label: 'FASE / CHAVE',
+      val: resolveFieldValue(values, 'phase', match.phase || 'Classificatória') + (values?.groupName ? ` (${values.groupName})` : ''),
+    },
+    {
+      label: 'DATA E HORÁRIO',
+      val: `${resolveFieldValue(values, 'date', match.date || '--')} às ${resolveFieldValue(values, 'time', match.startTime || '--')}`,
+    },
+    {
+      label: 'GINÁSIO / LOCAL',
+      val: resolveFieldValue(values, 'venue', match.venue || 'Ginásio Oficial'),
+    },
+    {
+      label: 'QUADRA',
+      val: match.court || 'Principal',
+    },
+    {
+      label: 'CIDADE / UF',
+      val: resolveFieldValue(values, 'city', match.teamA?.city ? `${match.teamA.city}${match.teamA.state ? ' / ' + match.teamA.state : ''}` : (match.city || 'Sede')),
+    },
+  ];
 
-  // 3. Fase
-  if (f.phase) {
-    const text = resolveFieldValue(values, 'phase', match.phase || '');
-    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.phase);
-  }
-
-  // 4. Jogo Nº
-  if (f.matchNumber) {
-    const numText = match.matchNumber ? String(match.matchNumber).padStart(2, '0') : '';
-    const text = resolveFieldValue(values, 'matchNumber', numText);
-    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.matchNumber);
-  }
-
-  // 5. Ginásio / Local
-  if (f.venue) {
-    const venueText = match.venue ? (match.court ? `${match.venue} (${match.court})` : match.venue) : '';
-    const text = resolveFieldValue(values, 'venue', venueText);
-    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.venue);
-  }
-
-  // 6. Sexo (MASC / FEM)
-  if (match.gender === 'male' && f.genderMasc) {
-    drawDynamicText(page, fonts.boldFont, fonts.boldFont, 'X', f.genderMasc);
-  } else if (match.gender === 'female' && f.genderFem) {
-    drawDynamicText(page, fonts.boldFont, fonts.boldFont, 'X', f.genderFem);
-  }
-
-  // 7. Categoria
-  if (f.categoryName) {
-    const text = resolveFieldValue(values, 'categoryName', match.categoryName || '');
-    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.categoryName);
-  }
-
-  // 8. Data
-  if (f.date) {
-    const text = resolveFieldValue(values, 'date', match.date || '');
-    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.date);
-  }
-
-  // 9. Horário
-  if (f.time) {
-    const text = resolveFieldValue(values, 'time', match.startTime || '');
-    if (text) drawDynamicText(page, fonts.font, fonts.boldFont, text, f.time);
-  }
-
-  // 10. Equipe A e Equipe B (Confronto)
-  if (f.teamAName) {
-    const text = resolveFieldValue(values, 'teamAName', match.teamA.name || '');
-    if (text) drawDynamicText(page, fonts.boldFont, fonts.boldFont, text, f.teamAName);
-  }
-  if (f.teamBName) {
-    const text = resolveFieldValue(values, 'teamBName', match.teamB.name || '');
-    if (text) drawDynamicText(page, fonts.boldFont, fonts.boldFont, text, f.teamBName);
-  }
+  metaItems.forEach((item, idx) => {
+    const colX = startX + colWidth * idx;
+    // Label
+    drawDynamicText(page, fonts.boldFont, fonts.boldFont, item.label, {
+      x: colX + 4,
+      y: metaY + (is3Sets ? 3 : 5),
+      width: colWidth - 8,
+      height: 8,
+      fontSize: is3Sets ? 5.5 : 7,
+      bold: true,
+      align: 'left',
+    });
+    // Valor
+    drawDynamicText(page, fonts.boldFont, fonts.boldFont, item.val, {
+      x: colX + 4,
+      y: metaY + (is3Sets ? 11 : 16),
+      width: colWidth - 8,
+      height: 12,
+      fontSize: is3Sets ? 7.5 : 9.5,
+      bold: true,
+      align: 'left',
+    });
+  });
 }
 
 /**
