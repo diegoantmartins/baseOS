@@ -8,7 +8,7 @@ on:
 jobs:
   release:
     name: Build Docker & Verify Deployment
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout Code
