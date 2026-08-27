@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Volleyball } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Button } from '@/components/ui/button';
 import { CreateMatchForm } from '@/components/match/CreateMatchForm';
 import { toast } from 'sonner';
 import { dataAccess } from '@/services/dataAccess';
@@ -82,7 +85,28 @@ const CreateMatchPage = () => {
 
   return (
     <MainLayout>
-      <div className="py-6">
+      <div className="space-y-6">
+        <PageHeader
+          title={
+            <span className="flex items-center gap-2">
+              <Volleyball className="w-5 h-5 text-primary" />
+              Novo Confronto
+            </span>
+          }
+          description="Agende uma nova partida preenchendo as equipes, rodada, local, horário e equipe de arbitragem."
+          secondaryActions={
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs h-8 rounded-md"
+              onClick={handleCancel}
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Voltar para Competições
+            </Button>
+          }
+        />
+
         <CreateMatchForm
           onSubmit={handleSubmit}
           onCancel={handleCancel}

@@ -116,7 +116,8 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', 'Space Grotesk', system-ui, sans-serif;
+    /* Space Grotesk como display primário para h1/h2/h3; Inter como fallback */
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
     letter-spacing: -0.015em;
   }
 
@@ -164,6 +165,12 @@
 }
 
 @layer utilities {
+  /* Números tabulares — aplicar em TODA coluna de dados esportivos:
+     placares, classificações, estatísticas, contadores de sets/pontos. */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted)) transparent;

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useAuth } from '@/components/auth/AuthContext';
+import { useAuth } from '@/components/auth/useAuth';
 import {
   TenantSecurityService,
   type SystemCapability,
@@ -53,6 +53,21 @@ export function useCapability() {
     [user]
   );
 
+  const canHomologateMatch = useCallback((): boolean => {
+    return TenantSecurityService.canHomologateMatch(user);
+  }, [user]);
+
+  const canDeleteResource = useCallback(
+    (resourceType: 'competition' | 'team' | 'athlete' | 'match' | 'venue' | 'referee' | 'modality' | 'user'): boolean => {
+      return TenantSecurityService.canDeleteResource(user, resourceType);
+    },
+    [user]
+  );
+
+  const canPerformDatabaseMaintenance = useCallback((): boolean => {
+    return TenantSecurityService.canPerformDatabaseMaintenance(user);
+  }, [user]);
+
   return {
     user,
     role: user?.role,
@@ -63,5 +78,8 @@ export function useCapability() {
     canManageRoster,
     canSubmitMatchScore,
     canReopenMatch,
+    canHomologateMatch,
+    canDeleteResource,
+    canPerformDatabaseMaintenance,
   };
 }

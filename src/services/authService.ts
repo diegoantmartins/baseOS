@@ -381,7 +381,7 @@ export const authService = {
   async adminResetPassword(userId: string, newPassword: string): Promise<{ ok: boolean; error?: string }> {
     const session = readStoredSession();
     if (!session || !this.hasRole(session, ['admin', 'organizer'])) {
-      return { ok: false, error: 'Permissão negada. Apenas administradores podem redefinir senhas.' };
+      return { ok: false, error: 'Permissão negada. Apenas administradores e organizadores podem redefinir senhas.' };
     }
 
     const val = validatePasswordStrength(newPassword);
@@ -393,6 +393,11 @@ export const authService = {
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) {
       return { ok: false, error: 'Usuário não encontrado.' };
+    }
+
+    // Privilege Escalation Protection: Organizador não pode redefinir senha de Administrador
+    if (session.user.role === 'organizer' && targetUser.role === 'admin') {
+      return { ok: false, error: 'Permissão negada. Organizadores não podem redefinir a senha de administradores.' };
     }
 
     setCustomPassword(targetUser.email, newPassword);
@@ -471,6 +476,15 @@ export const authService = {
     input: Omit<import('@/types/auth').SystemUser, 'id' | 'createdAt'> & { initialPassword?: string }
   ): Promise<import('@/types/auth').SystemUser> {
     const session = readStoredSession();
+    if (!session || !this.hasRole(session, ['admin', 'organizer'])) {
+      throw new Error('Permissão negada. Apenas administradores e organizadores podem cadastrar usuários.');
+    }
+
+    // Privilege Escalation Protection: Organizador não pode criar outro Administrador
+    if (session.user.role === 'organizer' && input.role === 'admin') {
+      throw new Error('Permissão negada. Organizadores não possuem permissão para criar contas de Administrador.');
+    }
+
     const users = readStoredUsers();
 
     if (users.some(u => u.email.toLowerCase() === input.email.trim().toLowerCase())) {
@@ -492,9 +506,9 @@ export const authService = {
 
     AuditService.logEvent(
       'Criação de Usuário',
-      session?.user.email ?? 'Administrador',
+      session.user.email,
       'success',
-      `Novo usuário criado: ${newUser.name} (${newUser.email}) com perfil ${newUser.role}.`
+      `Novo usuário criado: ${newUser.name} (${newUser.email}) com perfil ${newUser.role} por ${session.user.name}.`
     );
 
     return newUser;
@@ -502,17 +516,37 @@ export const authService = {
 
   async updateUser(id: string, updates: Partial<import('@/types/auth').SystemUser>): Promise<import('@/types/auth').SystemUser> {
     const session = readStoredSession();
+    if (!session || !this.hasRole(session, ['admin', 'organizer'])) {
+      throw new Error('Permissão negada. Apenas administradores e organizadores podem atualizar usuários.');
+    }
+
     const users = readStoredUsers();
     const idx = users.findIndex(u => u.id === id);
-    if (idx === -1) throw new Error('Usuário não encontrado');
+    if (idx === -1) throw new Error('Usuário não encontrado.');
+
+    // Privilege Escalation Protection: Organizador não pode alterar conta ou promover para Administrador
+    if (session.user.role === 'organizer') {
+      if (users[idx].role === 'admin' || updates.role === 'admin') {
+        throw new Error('Permissão negada. Organizadores não podem modificar ou promover administradores.');
+      }
+    }
+
+    // Proteção de Integridade: Não permitir desativar ou rebaixar o único Administrador ativo
+    if (users[idx].role === 'admin' && (updates.status === 'inactive' || (updates.role && updates.role !== 'admin'))) {
+      const activeAdmins = users.filter(u => u.role === 'admin' && u.status === 'active' && u.id !== id);
+      if (activeAdmins.length === 0) {
+        throw new Error('Operação negada. O sistema deve manter pelo menos um Administrador ativo.');
+      }
+    }
+
     users[idx] = { ...users[idx], ...updates };
     writeStoredUsers(users);
 
     AuditService.logEvent(
       'Atualização de Usuário',
-      session?.user.email ?? 'Administrador',
+      session.user.email,
       'info',
-      `Usuário ${users[idx].name} (${users[idx].email}) atualizado. Status: ${users[idx].status}, Perfil: ${users[idx].role}.`
+      `Usuário ${users[idx].name} (${users[idx].email}) atualizado por ${session.user.name}. Status: ${users[idx].status}, Perfil: ${users[idx].role}.`
     );
 
     return users[idx];
@@ -520,16 +554,35 @@ export const authService = {
 
   async deleteUser(id: string): Promise<void> {
     const session = readStoredSession();
+    if (!session || !this.hasRole(session, ['admin', 'organizer'])) {
+      throw new Error('Permissão negada. Apenas administradores e organizadores podem excluir usuários.');
+    }
+
     const users = readStoredUsers();
     const target = users.find(u => u.id === id);
+    if (!target) throw new Error('Usuário não encontrado.');
+
+    // Privilege Escalation Protection: Organizador não pode excluir Administrador
+    if (session.user.role === 'organizer' && target.role === 'admin') {
+      throw new Error('Permissão negada. Organizadores não possuem autorização para excluir administradores.');
+    }
+
+    // Proteção de Integridade: Não permitir excluir o único Administrador ativo
+    if (target.role === 'admin') {
+      const activeAdmins = users.filter(u => u.role === 'admin' && u.status === 'active' && u.id !== id);
+      if (activeAdmins.length === 0) {
+        throw new Error('Operação negada. Não é permitido excluir o único Administrador ativo do sistema.');
+      }
+    }
+
     const filtered = users.filter(u => u.id !== id);
     writeStoredUsers(filtered);
 
     AuditService.logEvent(
       'Exclusão de Usuário',
-      session?.user.email ?? 'Administrador',
+      session.user.email,
       'warning',
-      `Usuário ${target?.name ?? id} foi removido do sistema.`
+      `Usuário ${target.name} (${target.email}) foi removido do sistema por ${session.user.name}.`
     );
   },
 };

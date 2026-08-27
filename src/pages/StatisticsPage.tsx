@@ -9,6 +9,8 @@ import {
   Calendar,
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { StateContainer } from '@/components/ui/StateContainer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -34,7 +36,9 @@ type RankingRow = {
   value: number;
 };
 
-const CHART_COLORS = ['hsl(var(--accent))', 'hsl(var(--primary))', 'hsl(var(--beach))', 'hsl(var(--success))', 'hsl(var(--destructive))', 'hsl(var(--warning))'];
+// Cores semânticas do design system Enterprise Dark (sem tokens fantasmas).
+// --beach foi removido do CSS; substituído por --info (zinc-400 dessaturado).
+const CHART_COLORS = ['hsl(var(--accent))', 'hsl(var(--primary))', 'hsl(var(--info))', 'hsl(var(--success))', 'hsl(var(--destructive))', 'hsl(var(--warning))'];
 
 const container = {
   hidden: { opacity: 0 },
@@ -128,27 +132,28 @@ const StatisticsPage = () => {
 
   return (
     <MainLayout>
-      <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-        {/* Header */}
-        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+      <div className="space-y-6">
+        <PageHeader
+          title={
+            <span className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-primary" />
               Estatísticas
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Análise de desempenho e rankings consolidados</p>
-          </div>
-          <Select value={season} onValueChange={setSeason} disabled={seasons.length === 0}>
-            <SelectTrigger className="w-full sm:w-[150px] text-xs h-8 bg-zinc-900 border-zinc-800 rounded-md">
-              <SelectValue placeholder="Temporada" />
-            </SelectTrigger>
-            <SelectContent className="bg-zinc-900 border-zinc-800">
-              {seasons.map(year => (
-                <SelectItem key={year} value={String(year)} className="text-xs">{year}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </motion.div>
+            </span>
+          }
+          description="Análise de desempenho e rankings consolidados"
+          secondaryActions={
+            <Select value={season} onValueChange={setSeason} disabled={seasons.length === 0}>
+              <SelectTrigger className="w-full sm:w-[150px] text-xs h-8 bg-zinc-900 border-zinc-800 rounded-md">
+                <SelectValue placeholder="Temporada" />
+              </SelectTrigger>
+              <SelectContent className="bg-zinc-900 border-zinc-800">
+                {seasons.map(year => (
+                  <SelectItem key={year} value={String(year)} className="text-xs">{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+        />
 
         {/* Overview Stats */}
         <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -306,7 +311,7 @@ const StatisticsPage = () => {
             </TabsContent>
           </Tabs>
         </motion.div>
-      </motion.div>
+      </div>
     </MainLayout>
   );
 };

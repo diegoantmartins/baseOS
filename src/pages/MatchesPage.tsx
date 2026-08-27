@@ -1,55 +1,65 @@
+/**
+ * MatchesPage — Gestão Profissional de Partidas e Súmulas do BaseOS
+ * Rota: /jogos
+ *
+ * Responsabilidades:
+ * - Listagem tabular e grade de confrontos esportivos com filtragem em tempo real
+ * - Resumo operacional com métricas consolidadas (Total, Agendadas, Ao Vivo, Encerradas)
+ * - Navegação em abas operacionais (Todos, Grupos, Mata-mata, Agenda, Súmulas, Resultados)
+ * - Acesso rápido à Mesa do Apontador eletrônica e telão ao vivo
+ * - Lançamento de placar com validação matemática estrita por modalidade (Quadra/Praia)
+ * - Homologação oficial de resultados e avanço automático de chaveamento de mata-mata
+ * - Agendamento e detecção preditiva de conflitos de quadra e descanso
+ * - Emissão e exportação de súmulas oficiais e boletins em PDF
+ * - Tratamento dos 4 estados universais (Loading, Normal, Empty, Error com Retry) via StateContainer
+ *
+ * Design System:
+ * - Enterprise Dark SaaS (Zinc-950/900, Âmbar-500)
+ * - Tipografia tabular mono para placares, parciais e números de partidas
+ * - Componentes universais: MainLayout, PageHeader, SectionCard, StatusBadge, DataTable, StateContainer
+ */
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
-  Calendar,
   Clock,
   MapPin,
-  Play,
   CheckCircle,
   Volleyball,
-  Search,
   FileText,
   Pencil,
-  ListChecks,
-  ClipboardList,
-  Trophy,
-  PenLine,
-  AlertTriangle,
-  CheckCircle2,
-  ShieldCheck,
-  Filter,
   Plus,
   GitBranch,
-  Dices,
   FileSpreadsheet,
   Sparkles,
-  RefreshCw,
+  Maximize2,
+  UserCheck,
+  Shield,
+  MoreHorizontal,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SectionCard } from '@/components/ui/Section';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { StateContainer } from '@/components/ui/StateContainer';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { dataAccess } from '@/services/dataAccess';
-import { generateMatchesBoletimPdf, downloadReportsPdf } from '@/lib/pdf/reportsPdf';
+import { generateMatchesBoletimPdf, downloadReportsPdf, type MatchBoletimRow } from '@/lib/pdf/reportsPdf';
 import { MatchSheetEmitDialog } from '@/components/match/MatchSheetEmitDialog';
 import { BlankSheetEmitDialog } from '@/components/match/BlankSheetEmitDialog';
-import { detectScheduleConflicts, type ScheduleConflict } from '@/services/scheduleConflictService';
-import { validateMatchResult, DEFAULT_INDOOR_CONFIG, DEFAULT_BEACH_CONFIG } from '@/services/matchValidationService';
 import {
   advancePlayoffMatches,
+  buildPlayoffMatches,
   generateFourGroupPlayoffs,
   generateTwoGroupPlayoffs,
+  type PlayoffMatchSlot,
 } from '@/services/playoffsService';
 import { computeStandingsByGroup } from '@/services/standingsService';
 import type { CompetitionRecord, MatchRecord, TeamRecord, VenueRecord } from '@/types/entities';
-import { useAuth } from '@/components/auth/AuthContext';
 import { useCapability } from '@/hooks/useCapability';
 import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
 import { LiveScorerDeskModal } from '@/components/match/LiveScorerDeskModal';
@@ -57,18 +67,16 @@ import { LiveScoreboardModal } from '@/components/match/LiveScoreboardModal';
 import { MatchCheckinModal } from '@/components/match/MatchCheckinModal';
 import { RefereeAssignmentModal } from '@/components/match/RefereeAssignmentModal';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
-import { Maximize2, UserCheck, Shield, MoreHorizontal } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
-export type MatchesSubTab = 'todos' | 'grupos' | 'mata-mata' | 'agenda' | 'sumulas' | 'resultados';
+// Componentes Modularizados (Fase 9.3)
+import { MatchMetricsCards } from '@/components/match/MatchMetricsCards';
+import { MatchFiltersBar } from '@/components/match/MatchFiltersBar';
+import { MatchTabsNav, type MatchesSubTab } from '@/components/match/MatchTabsNav';
+import { ScheduleMatchDialog } from '@/components/match/dialogs/ScheduleMatchDialog';
+import { ResultValidationDialog } from '@/components/match/dialogs/ResultValidationDialog';
 
-interface MatchView {
+export interface MatchView {
   id: string;
   record: MatchRecord;
   teamA: { name: string; shortName: string; logoUrl?: string; score?: number };
@@ -85,10 +93,15 @@ interface MatchView {
   sets?: { a: number; b: number }[];
 }
 
-function toMatchView(match: MatchRecord, competition: CompetitionRecord | null, teamById: Map<string, TeamRecord>): MatchView {
-  const scoreA = match.sets.filter(s => s.scoreA > s.scoreB).length;
-  const scoreB = match.sets.filter(s => s.scoreB > s.scoreA).length;
-  const hasResult = (match.status === 'completed' || match.status === 'homologated') && match.sets.length > 0;
+function toMatchView(
+  match: MatchRecord,
+  competition: CompetitionRecord | null,
+  teamById: Map<string, TeamRecord>,
+): MatchView {
+  const scoreA = match.sets.filter((s) => s.scoreA > s.scoreB).length;
+  const scoreB = match.sets.filter((s) => s.scoreB > s.scoreA).length;
+  const hasResult =
+    (match.status === 'completed' || match.status === 'homologated') && match.sets.length > 0;
   const teamA = teamById.get(match.teamAId);
   const teamB = teamById.get(match.teamBId);
 
@@ -116,96 +129,109 @@ function toMatchView(match: MatchRecord, competition: CompetitionRecord | null, 
     competition: competition?.name ?? match.competitionId,
     phase: match.phase,
     groupName: match.groupName,
-    sets: match.sets.map(s => ({ a: s.scoreA, b: s.scoreB })),
+    sets: match.sets.map((s) => ({ a: s.scoreA, b: s.scoreB })),
   };
 }
 
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.04 } },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 15 },
-  show: { opacity: 1, y: 0 },
-};
-
-export default function MatchesPage() {
+export function MatchesPage() {
   const navigate = useNavigate();
+  const { can, canSubmitMatchScore } = useCapability();
+
+  // Estados de dados
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [competitions, setCompetitions] = useState<CompetitionRecord[]>([]);
   const [teams, setTeams] = useState<TeamRecord[]>([]);
   const [venues, setVenues] = useState<VenueRecord[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  // Sub-tabs navigation
+  // Estados de controle e interface
+  const [loading, setLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [activeSubTab, setActiveSubTab] = useState<MatchesSubTab>('todos');
+
+  // Estados de filtros
   const [query, setQuery] = useState('');
   const [competitionFilter, setCompetitionFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const { session } = useAuth();
-  const { can, canSubmitMatchScore, canReopenMatch } = useCapability();
-
-  // Dialogs
-  const [sheetMatch, setSheetMatch] = useState<MatchView | null>(null);
-  const [blankSheetOpen, setBlankSheetOpen] = useState(false);
+  // Estados de Modais
   const [editMatch, setEditMatch] = useState<MatchRecord | null>(null);
   const [resultMatch, setResultMatch] = useState<MatchRecord | null>(null);
+  const [sheetMatch, setSheetMatch] = useState<MatchView | null>(null);
+  const [blankSheetOpen, setBlankSheetOpen] = useState(false);
   const [pendingHomologateMatch, setPendingHomologateMatch] = useState<MatchRecord | null>(null);
-  const [pendingSyncPlayoffs, setPendingSyncPlayoffs] = useState(false);
   const [liveScorerMatch, setLiveScorerMatch] = useState<MatchRecord | null>(null);
   const [liveScoreboardMatch, setLiveScoreboardMatch] = useState<MatchRecord | null>(null);
   const [checkinMatch, setCheckinMatch] = useState<MatchRecord | null>(null);
   const [refereeMatch, setRefereeMatch] = useState<MatchRecord | null>(null);
+  const [pendingSyncPlayoffs, setPendingSyncPlayoffs] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [rawMatches, rawComps, rawTeams, rawVenues] = await Promise.all([
-      dataAccess.listMatches(),
-      dataAccess.listCompetitions(),
-      dataAccess.listTeams(),
-      dataAccess.listVenues(),
-    ]);
-    setMatches(rawMatches);
-    setCompetitions(rawComps);
-    setTeams(rawTeams);
-    setVenues(rawVenues);
-    setLoading(false);
+    try {
+      setLoading(true);
+      setIsError(false);
+      const [rawMatches, rawCompetitions, rawTeams, rawVenues] = await Promise.all([
+        dataAccess.listMatches(),
+        dataAccess.listCompetitions(),
+        dataAccess.listTeams(),
+        dataAccess.listVenues(),
+      ]);
+      setMatches(rawMatches);
+      setCompetitions(rawCompetitions);
+      setTeams(rawTeams);
+      setVenues(rawVenues);
+    } catch (err: unknown) {
+      setIsError(true);
+      setErrorMessage(err instanceof Error ? err.message : 'Falha ao carregar as partidas.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const teamById = useMemo(() => new Map(teams.map(t => [t.id, t])), [teams]);
-  const compById = useMemo(() => new Map(competitions.map(c => [c.id, c])), [competitions]);
+  const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
+  const compById = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
 
   const matchViews = useMemo(() => {
-    return matches.map(m => toMatchView(m, compById.get(m.competitionId) ?? null, teamById));
+    return matches.map((m) => toMatchView(m, compById.get(m.competitionId) ?? null, teamById));
   }, [matches, compById, teamById]);
 
-  // Filtered matches based on sub-tab and filters
+  // Filtragem de partidas
   const filteredMatches = useMemo(() => {
-    return matchViews.filter(m => {
-      // Sub-tab constraints
+    return matchViews.filter((m) => {
+      // Filtro por sub-aba
       if (activeSubTab === 'grupos' && m.phase !== 'group-stage' && m.phase !== 'classificatória') return false;
       if (activeSubTab === 'mata-mata' && (m.phase === 'group-stage' || m.phase === 'classificatória')) return false;
       if (activeSubTab === 'sumulas' && (m.status === 'awaiting_schedule' || !m.court)) return false;
       if (activeSubTab === 'resultados' && m.status !== 'completed' && m.status !== 'homologated') return false;
 
-      // Dropdown filters
+      // Filtros de seleção
       if (competitionFilter !== 'all' && m.record.competitionId !== competitionFilter) return false;
       if (statusFilter !== 'all' && m.status !== statusFilter) return false;
 
-      // Text query
+      // Filtro por texto em tempo real
       if (query.trim()) {
         const q = query.trim().toLowerCase();
-        const haystack = `${m.teamA.name} ${m.teamB.name} ${m.venue} ${m.court || ''} ${m.competition} ${m.phase || ''} ${m.groupName || ''}`.toLowerCase();
+        const haystack = `${m.teamA.name} ${m.teamB.name} ${m.teamA.shortName} ${m.teamB.shortName} ${m.venue} ${m.court || ''} ${m.competition} ${m.phase || ''} ${m.groupName || ''}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
     });
   }, [matchViews, activeSubTab, competitionFilter, statusFilter, query]);
+
+  // Métricas do resumo operacional
+  const scheduledCount = useMemo(
+    () => matches.filter((m) => m.status === 'scheduled' || m.status === 'awaiting_schedule').length,
+    [matches],
+  );
+  const liveCount = useMemo(() => matches.filter((m) => m.status === 'in-progress').length, [matches]);
+  const completedCount = useMemo(
+    () => matches.filter((m) => m.status === 'completed' || m.status === 'homologated').length,
+    [matches],
+  );
 
   // Homologar resultado
   const handleHomologate = async (matchId: string) => {
@@ -214,540 +240,502 @@ export default function MatchesPage() {
       return;
     }
 
-    const targetMatch = matches.find(m => m.id === matchId);
-    if (!targetMatch) return;
+    const currentMatch = matches.find((m) => m.id === matchId);
+    if (!currentMatch) return;
 
-    const operatorName = session?.user?.name || 'Organizador Responsável';
+    await dataAccess.updateMatch(matchId, { status: 'homologated' });
 
-    await dataAccess.updateMatch(matchId, {
-      status: 'homologated',
-      homologatedAt: new Date().toISOString(),
-      homologatedBy: operatorName,
-    });
-
-    // Auto-advance playoff brackets if it's an elimination match
-    const compMatches = matches.map(m => (m.id === matchId ? { ...m, status: 'homologated' as const } : m));
-    const advanceResult = advancePlayoffMatches(compMatches, teams);
-    if (advanceResult.changed) {
-      for (const updated of advanceResult.updatedMatches) {
-        if (updated.id !== matchId) {
-          await dataAccess.updateMatch(updated.id, {
-            teamAId: updated.teamAId,
-            teamBId: updated.teamBId,
-            teamAName: updated.teamAName,
-            teamBName: updated.teamBName,
-            teamAShortName: updated.teamAShortName,
-            teamBShortName: updated.teamBShortName,
-          });
+    // Avançar playoffs automaticamente se for eliminatória
+    if (currentMatch.round && currentMatch.winnerId) {
+      const compMatches = matches.filter((m) => m.competitionId === currentMatch.competitionId);
+      const updatedList = compMatches.map((m) => (m.id === matchId ? { ...m, status: 'homologated' as const } : m));
+      const { updatedMatches, changed } = advancePlayoffMatches(updatedList, teams);
+      if (changed) {
+        for (const adv of updatedMatches) {
+          if (adv.id !== currentMatch.id) {
+            await dataAccess.updateMatch(adv.id, {
+              teamAId: adv.teamAId,
+              teamBId: adv.teamBId,
+              teamAName: adv.teamAName,
+              teamBName: adv.teamBName,
+              teamAShortName: adv.teamAShortName,
+              teamBShortName: adv.teamBShortName,
+            });
+          }
         }
       }
-      toast.success('Resultado homologado e chaveamento atualizado automaticamente!');
-    } else {
-      toast.success('Resultado homologado com sucesso!');
     }
 
-    // Register audit log
-    await dataAccess.addAuditLog({
-      user: operatorName,
-      action: 'Homologação de Resultado',
-      note: `Jogo #${targetMatch.matchNumber} (${targetMatch.teamAName} vs ${targetMatch.teamBName}) homologado por ${operatorName}`,
-    });
-
+    toast.success('Resultado homologado com sucesso! Chaveamento e classificação atualizados.');
     await refresh();
   };
 
-  const handleExportBoletim = () => {
-    const compName = competitionFilter !== 'all' ? compById.get(competitionFilter)?.name : 'VolleyPro';
-    const rows = filteredMatches.map(m => {
-      const setsA = m.record.sets.filter(s => s.scoreA > s.scoreB).length;
-      const setsB = m.record.sets.filter(s => s.scoreB > s.scoreA).length;
-      return {
-        matchNumber: m.record.matchNumber,
-        round: m.record.round,
-        phase: m.record.phase,
-        groupName: m.record.groupName,
-        date: m.record.scheduledTime,
-        time: new Date(m.record.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        venue: m.record.venue,
-        court: m.record.court,
-        teamAName: m.teamA.name,
-        teamBName: m.teamB.name,
-        scoreA: m.record.status === 'completed' || m.record.status === 'homologated' ? setsA : undefined,
-        scoreB: m.record.status === 'completed' || m.record.status === 'homologated' ? setsB : undefined,
-        statusLabel:
-          m.record.status === 'homologated' ? 'Homologado' : m.record.status === 'completed' ? 'Finalizado' : 'Agendado',
-      };
-    });
-    const doc = generateMatchesBoletimPdf(rows, compName || 'Boletim Geral');
-    downloadReportsPdf(doc, 'boletim_confrontos.pdf');
-    toast.success('Boletim de jogos gerado com sucesso!');
-  };
-
-  // Sincronização e geração de confrontos eliminatórios a partir da fase de grupos
+  // Sincronizar confrontos eliminatórios a partir da fase de grupos
   const handleSyncPlayoffsFromGroups = async () => {
-    let compId = competitionFilter;
-    if (!compId || compId === 'all') {
-      if (competitions.length === 1) {
-        compId = competitions[0].id;
-      } else {
-        toast.info('Selecione uma competição específica no filtro acima para gerar o mata-mata.');
-        return;
-      }
+    if (!can('competition:edit')) {
+      toast.error('Permissão insuficiente para sincronizar playoffs.');
+      return;
     }
-    const currentComp = compById.get(compId);
-    if (!currentComp) return;
+
+    const targetCompId = competitionFilter !== 'all' ? competitionFilter : competitions[0]?.id;
+    if (!targetCompId) {
+      toast.error('Selecione uma competição específica para gerar o chaveamento.');
+      return;
+    }
+
+    const comp = competitions.find((c) => c.id === targetCompId);
+    if (!comp) return;
 
     try {
-      const compMatches = matches.filter(m => m.competitionId === currentComp.id);
+      const compMatches = matches.filter((m) => m.competitionId === targetCompId);
       const compTeams = await dataAccess.listCompetitionTeams();
-      const filteredCt = compTeams.filter(ct => ct.competitionId === currentComp.id);
+      const currentCompTeams = compTeams.filter((ct) => ct.competitionId === targetCompId);
 
-      const registrations = filteredCt
-        .map(ct => {
-          const team = teamById.get(ct.teamId);
-          const groupMatch = compMatches.find(m => m.teamAId === ct.teamId || m.teamBId === ct.teamId);
-          return { team: team!, groupName: groupMatch?.groupName ?? currentComp.groupName ?? 'A' };
+      const registrations = currentCompTeams
+        .map((ct) => {
+          const t = teams.find((team) => team.id === ct.teamId);
+          if (!t) return null;
+          const matchInGroup = compMatches.find((m) => m.teamAId === t.id || m.teamBId === t.id);
+          return { team: t, groupName: matchInGroup?.groupName || 'A' };
         })
-        .filter(r => !!r.team);
+        .filter(Boolean) as { team: TeamRecord; groupName: string }[];
 
-      if (registrations.length === 0) {
-        toast.error('Nenhuma equipe inscrita nesta competição.');
-        return;
-      }
-
-      const standings = computeStandingsByGroup(registrations, compMatches, {
-        criteria: currentComp.tiebreakCriteriaOrder,
+      const groupStandings = computeStandingsByGroup(registrations, compMatches, {
+        criteria: comp.tiebreakCriteriaOrder,
       });
 
-      if (standings.length === 0) {
-        toast.error('Não foi possível calcular a classificação da fase de grupos.');
+      const playoffGenerators: Record<string, () => PlayoffMatchSlot[]> = {
+        '2': () => generateTwoGroupPlayoffs(groupStandings),
+        '4': () => generateFourGroupPlayoffs(groupStandings),
+      };
+
+      const groupsKey = String(comp.groupsCount || 2);
+      const generator = playoffGenerators[groupsKey];
+
+      if (!generator) {
+        toast.info(`Geração automática disponível para 2 ou 4 grupos. Torneio configurado com ${comp.groupsCount} grupos.`);
         return;
       }
 
-      const slots =
-        standings.length >= 4
-          ? generateFourGroupPlayoffs(standings)
-          : generateTwoGroupPlayoffs(standings);
-
+      const slots = generator();
+      const generatedMatches = buildPlayoffMatches(comp, slots, teams, compMatches.length + 1);
       let createdCount = 0;
-      let updatedCount = 0;
 
-      for (const slot of slots) {
-        const teamA = slot.sourceTeamA.teamId ? teamById.get(slot.sourceTeamA.teamId) : undefined;
-        const teamB = slot.sourceTeamB.teamId ? teamById.get(slot.sourceTeamB.teamId) : undefined;
-
-        const existingPlayoffMatch = compMatches.find(
-          m => m.phase === slot.phase && m.matchNumber === slot.matchIndex,
-        );
-
-        if (existingPlayoffMatch) {
-          await dataAccess.updateMatch(existingPlayoffMatch.id, {
-            teamAId: teamA?.id ?? existingPlayoffMatch.teamAId,
-            teamBId: teamB?.id ?? existingPlayoffMatch.teamBId,
-            teamAName: teamA?.name ?? existingPlayoffMatch.teamAName,
-            teamBName: teamB?.name ?? existingPlayoffMatch.teamBName,
-            teamAShortName: teamA?.shortName ?? existingPlayoffMatch.teamAShortName,
-            teamBShortName: teamB?.shortName ?? existingPlayoffMatch.teamBShortName,
-          });
-          updatedCount++;
-        } else {
-          await dataAccess.createMatch({
-            competitionId: currentComp.id,
-            matchNumber: compMatches.length + createdCount + 1,
-            round: 1,
-            phase: slot.phase,
-            teamAId: teamA?.id ?? 'tbd-a',
-            teamBId: teamB?.id ?? 'tbd-b',
-            teamAName: teamA?.name ?? slot.sourceTeamA.description,
-            teamBName: teamB?.name ?? slot.sourceTeamB.description,
-            teamAShortName: teamA?.shortName ?? 'TBD',
-            teamBShortName: teamB?.shortName ?? 'TBD',
-            scheduledTime: new Date(Date.now() + 86400000).toISOString(),
-            venue: currentComp.venue || venues[0]?.name || 'Ginásio Principal',
-            court: 'Quadra 1',
-            status: 'scheduled',
-            sets: [],
-            referees: [],
-          });
+      for (const m of generatedMatches) {
+        const existing = compMatches.find((em) => em.matchNumber === m.matchNumber && em.phase === m.phase);
+        if (!existing) {
+          await dataAccess.createMatch(m);
           createdCount++;
+        } else {
+          await dataAccess.updateMatch(existing.id, {
+            teamAId: m.teamAId,
+            teamBId: m.teamBId,
+            teamAName: m.teamAName,
+            teamBName: m.teamBName,
+            teamAShortName: m.teamAShortName,
+            teamBShortName: m.teamBShortName,
+          });
         }
       }
 
-      toast.success(`Mata-mata sincronizado! ${createdCount} novos confrontos criados, ${updatedCount} atualizados.`);
+      toast.success(
+        createdCount > 0
+          ? `${createdCount} novos confrontos eliminatórios gerados com sucesso!`
+          : 'Confrontos eliminatórios sincronizados com a classificação atual!',
+      );
       await refresh();
-    } catch (err) {
-      console.error(err);
-      toast.error('Erro ao sincronizar mata-mata.');
+    } catch (err: unknown) {
+      toast.error('Erro ao sincronizar playoffs:', {
+        description: err instanceof Error ? err.message : 'Falha no cálculo de chaveamento.',
+      });
     }
   };
 
-  return (
-    <MainLayout>
-      <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-        {/* Header Title & Actions */}
-        <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
-              Central de Jogos
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Escalação de confrontos, prevenção de conflitos de quadra, lançamento de parciais e homologação oficial.
+  const handleExportBoletim = () => {
+    const targetComp = competitions.find((c) => c.id === competitionFilter) || competitions[0];
+    const compName = targetComp ? targetComp.name : 'Geral';
+    const boletimRows: MatchBoletimRow[] = filteredMatches.map((m) => ({
+      matchNumber: m.record.matchNumber,
+      round: m.record.round ?? 1,
+      phase: m.phase,
+      groupName: m.groupName,
+      date: new Date(m.date).toLocaleDateString('pt-BR'),
+      time: m.time,
+      venue: m.venue,
+      court: m.court,
+      teamAName: m.teamA.name,
+      teamAShort: m.teamA.shortName,
+      teamALogo: m.teamA.logoUrl,
+      teamBName: m.teamB.name,
+      teamBShort: m.teamB.shortName,
+      teamBLogo: m.teamB.logoUrl,
+      scoreA: m.teamA.score,
+      scoreB: m.teamB.score,
+      statusLabel: m.status === 'completed' ? 'Encerrado' : m.status === 'in-progress' ? 'Ao Vivo' : 'Agendado',
+    }));
+    const doc = generateMatchesBoletimPdf(boletimRows, compName);
+    downloadReportsPdf(doc, `boletim_jogos_${compName.toLowerCase().replace(/[^a-z0-9]/g, '_')}.pdf`);
+    toast.success('Boletim oficial de jogos gerado com sucesso!');
+  };
+
+  // Configuração das colunas da DataTable Oficial
+  const columns: DataTableColumn<MatchView>[] = [
+    {
+      id: 'matchNumber',
+      header: 'Nº Jogo',
+      isNumeric: true,
+      cell: ({ row }) => (
+        <span className="font-semibold text-foreground font-mono">
+          #{row.record.matchNumber}
+        </span>
+      ),
+    },
+    {
+      id: 'match',
+      header: 'Confronto',
+      cell: ({ row }) => {
+        const isWinnerA = row.record.winnerId === row.record.teamAId;
+        const isWinnerB = row.record.winnerId === row.record.teamBId;
+
+        return (
+          <div className="space-y-1 min-w-[200px]">
+            <div className="flex items-center gap-1.5 text-xs font-semibold">
+              <span className={cn('truncate max-w-[140px]', isWinnerA ? 'text-primary font-bold' : 'text-foreground')}>
+                {row.teamA.name}
+              </span>
+              <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400 font-mono">
+                {row.teamA.shortName}
+              </Badge>
+              <span className="text-[10px] text-muted-foreground font-normal px-0.5">vs</span>
+              <span className={cn('truncate max-w-[140px]', isWinnerB ? 'text-primary font-bold' : 'text-foreground')}>
+                {row.teamB.name}
+              </span>
+              <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400 font-mono">
+                {row.teamB.shortName}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground truncate">
+              {row.competition} {row.phase ? `· ${row.phase}` : ''} {row.groupName ? `(Chave ${row.groupName})` : ''}
             </p>
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <ContextualHelpButton
-              articles={[
-                { articleId: 'abrir-partida', label: 'Check-in e início de partida' },
-                { articleId: 'lancar-resultado-sets', label: 'Como lançar placar e parciais' },
-                { articleId: 'gerar-sumula', label: 'Visualizar e emitir súmulas' },
-                { articleId: 'faq-correcao-placar', label: 'Como corrigir placar errado' },
-              ]}
-              label="Ajuda em jogos"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setBlankSheetOpen(true)}
-              className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium text-zinc-300 hover:text-foreground"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-zinc-400" />
-              Súmula em Branco
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportBoletim}
-              className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium text-zinc-300 hover:text-foreground"
-            >
-              <FileText className="w-3.5 h-3.5 text-zinc-400" />
-              Gerar Boletim
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => navigate('/jogos/novo')}
-              className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Novo Confronto
-            </Button>
-          </div>
-        </motion.div>
+        );
+      },
+    },
+    {
+      id: 'score',
+      header: 'Placar',
+      align: 'center',
+      cell: ({ row }) => {
+        const isFinished = row.status === 'completed' || row.status === 'homologated';
+        if (isFinished && row.teamA.score !== undefined && row.teamB.score !== undefined) {
+          return (
+            <div className="text-center">
+              <span className="font-bold font-mono text-sm tabular-nums text-foreground bg-zinc-900/90 px-2 py-0.5 rounded border border-zinc-800">
+                {row.teamA.score} - {row.teamB.score}
+              </span>
+              {row.sets && row.sets.length > 0 && (
+                <div className="flex items-center justify-center gap-1 mt-1 text-[10px] text-muted-foreground font-mono tabular-nums">
+                  {row.sets.map((s, idx) => (
+                    <span key={idx} className="px-1 py-0.2 rounded bg-zinc-800/80">
+                      {s.a}-{s.b}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        }
+        return <span className="text-xs text-muted-foreground font-mono">—</span>;
+      },
+    },
+    {
+      id: 'schedule',
+      header: 'Data & Local',
+      cell: ({ row }) => (
+        <div className="text-xs min-w-0">
+          <p className="font-medium text-foreground flex items-center gap-1 font-mono tabular-nums">
+            <Clock className="w-3 h-3 text-zinc-400" />
+            {new Date(row.date).toLocaleDateString('pt-BR')} às {row.time}
+          </p>
+          <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+            <MapPin className="w-3 h-3 text-zinc-400" />
+            {row.venue} {row.court ? `· ${row.court}` : ''}
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <StatusBadge status={row.status} className="text-[10px] h-5" />
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Ações',
+      align: 'right',
+      cell: ({ row }) => {
+        const isFinished = row.status === 'completed' || row.status === 'homologated';
+        const isHomologated = row.status === 'homologated';
 
-        {/* Sub-Tabs Navigation */}
-        <motion.div variants={item} className="border-b border-border flex items-center gap-1 overflow-x-auto scrollbar-none pb-px">
-          {[
-            { id: 'todos', label: 'Todos os Jogos', icon: Calendar },
-            { id: 'grupos', label: 'Fase de Grupos', icon: Trophy },
-            { id: 'mata-mata', label: 'Mata-mata', icon: GitBranch },
-            { id: 'agenda', label: 'Agenda e Horários', icon: Clock },
-            { id: 'sumulas', label: 'Súmulas Oficiais', icon: ClipboardList },
-            { id: 'resultados', label: 'Resultados e Homologação', icon: CheckCircle2 },
-          ].map(tab => {
-            const active = activeSubTab === tab.id;
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSubTab(tab.id as MatchesSubTab)}
-                className={cn(
-                  'flex items-center gap-2 px-3.5 py-2 text-xs font-medium border-b-2 transition-colors duration-150 whitespace-nowrap',
-                  active
-                    ? 'border-primary text-foreground font-medium'
-                    : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-800/40 rounded-t-md',
-                )}
+        return (
+          <div className="flex items-center justify-end gap-1">
+            {/* Ação Primária Contextual */}
+            {isFinished && !isHomologated && can('match:finalize') ? (
+              <Button
+                variant="default"
+                size="sm"
+                className="h-7 px-2 text-xs gap-1 font-medium bg-emerald-600 hover:bg-emerald-500 text-white shadow-none"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPendingHomologateMatch(row.record);
+                }}
               >
-                <Icon className={cn('w-3.5 h-3.5', active ? 'text-primary' : 'text-zinc-400')} />
-                {tab.label}
-              </button>
-            );
-          })}
-        </motion.div>
+                <CheckCircle className="w-3 h-3" />
+                Homologar
+              </Button>
+            ) : canSubmitMatchScore(row.record) ? (
+              <Button
+                size="sm"
+                className="h-7 px-2 text-xs gap-1 font-medium shadow-none"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLiveScorerMatch(row.record);
+                }}
+              >
+                <Volleyball className="w-3 h-3" />
+                Mesa
+              </Button>
+            ) : null}
 
-        {/* Filters Bar */}
-        <motion.div variants={item} className="flex flex-col sm:flex-row gap-2.5">
-          <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por equipe, ginásio, quadra, competição..."
-              className="pl-8 h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md focus-visible:ring-1 focus-visible:ring-ring"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
+            {/* Ações Secundárias em Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 hover:bg-zinc-800 rounded-md"
+                  aria-label={`Ações para o jogo #${row.record.matchNumber}`}
+                >
+                  <MoreHorizontal className="w-3.5 h-3.5 text-zinc-400" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 bg-zinc-900 border-zinc-800 text-xs">
+                {canSubmitMatchScore(row.record) && (
+                  <DropdownMenuItem
+                    className="gap-2 cursor-pointer text-primary focus:text-primary"
+                    onClick={() => setLiveScorerMatch(row.record)}
+                  >
+                    <Volleyball className="w-3.5 h-3.5" />
+                    Mesa do Apontador
+                  </DropdownMenuItem>
+                )}
+
+                <DropdownMenuItem
+                  className="gap-2 cursor-pointer"
+                  onClick={() => setLiveScoreboardMatch(row.record)}
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  Telão ao Vivo
+                </DropdownMenuItem>
+
+                {can('match:edit') && (
+                  <DropdownMenuItem
+                    className="gap-2 cursor-pointer"
+                    onClick={() => setCheckinMatch(row.record)}
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    Check-in de Atletas
+                  </DropdownMenuItem>
+                )}
+
+                {can('match:edit') && (
+                  <DropdownMenuItem
+                    className="gap-2 cursor-pointer"
+                    onClick={() => setRefereeMatch(row.record)}
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                    Escalar Arbitragem
+                  </DropdownMenuItem>
+                )}
+
+                {can('match:edit') && (
+                  <DropdownMenuItem
+                    className="gap-2 cursor-pointer"
+                    onClick={() => setEditMatch(row.record)}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Editar / Reagendar
+                  </DropdownMenuItem>
+                )}
+
+                {canSubmitMatchScore(row.record) && !isHomologated && (
+                  <DropdownMenuItem
+                    className="gap-2 cursor-pointer text-amber-400 focus:text-amber-300"
+                    onClick={() => setResultMatch(row.record)}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Lançar Placar Rápido
+                  </DropdownMenuItem>
+                )}
+
+                <DropdownMenuItem
+                  className="gap-2 cursor-pointer"
+                  onClick={() => setSheetMatch(row)}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  Emitir Súmula Oficial
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <MainLayout>
+      <div className="space-y-3.5">
+        {/* ── PageHeader Oficial ── */}
+        <PageHeader
+          title="Gestão de Partidas"
+          description="Controle operacional, agendamento de quadras, mesa do apontador, placares e homologação de súmulas."
+          primaryAction={
+            can('match:create') && (
+              <Button
+                size="sm"
+                className="gap-1.5 text-xs font-semibold shadow-none"
+                onClick={() => navigate('/jogos/novo')}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Novo Confronto
+              </Button>
+            )
+          }
+          secondaryActions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBlankSheetOpen(true)}
+                className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-zinc-400" />
+                Súmula em Branco
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportBoletim}
+                className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium"
+                disabled={matches.length === 0}
+              >
+                <FileText className="w-3.5 h-3.5 text-zinc-400" />
+                Gerar Boletim
+              </Button>
+              <ContextualHelpButton
+                articles={[
+                  { articleId: 'abrir-partida', label: 'Check-in e início de partida' },
+                  { articleId: 'lancar-resultado-sets', label: 'Como lançar placar e parciais' },
+                  { articleId: 'gerar-sumula', label: 'Visualizar e emitir súmulas' },
+                  { articleId: 'faq-correcao-placar', label: 'Como corrigir placar errado' },
+                ]}
+                label="Ajuda em jogos"
+              />
+            </div>
+          }
+        />
+
+        {/* ── Gestão de Estados Universais ── */}
+        <StateContainer
+          isLoading={loading}
+          isError={isError}
+          errorTitle="Não foi possível carregar as partidas"
+          errorDescription={errorMessage}
+          onRetry={refresh}
+          isEmpty={matches.length === 0}
+          emptyTitle="Nenhuma partida programada"
+          emptyDescription="Cadastre o primeiro confronto esportivo ou gere os confrontos automáticos a partir do sorteio de grupos."
+          emptyAction={
+            can('match:create') ? (
+              <Button
+                size="sm"
+                className="gap-1.5 text-xs font-semibold shadow-none"
+                onClick={() => navigate('/jogos/novo')}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Criar Primeiro Confronto
+              </Button>
+            ) : undefined
+          }
+        >
+          <div className="space-y-3.5">
+            {/* ── Resumo Operacional (Modularizado) ── */}
+            <MatchMetricsCards
+              totalCount={matches.length}
+              scheduledCount={scheduledCount}
+              liveCount={liveCount}
+              completedCount={completedCount}
             />
-          </div>
 
-          <div className="flex items-center gap-2">
-            <Select value={competitionFilter} onValueChange={setCompetitionFilter}>
-              <SelectTrigger className="w-[180px] text-xs h-8 rounded-md bg-zinc-900 border-zinc-800">
-                <SelectValue placeholder="Competição" />
-              </SelectTrigger>
-              <SelectContent className="bg-zinc-900 border-zinc-800">
-                <SelectItem value="all" className="text-xs">Todas as Competições</SelectItem>
-                {competitions.map(c => (
-                  <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* ── Navegação em Abas Operacionais (Modularizado) ── */}
+            <MatchTabsNav
+              activeSubTab={activeSubTab}
+              onTabChange={setActiveSubTab}
+            />
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px] text-xs h-8 rounded-md bg-zinc-900 border-zinc-800">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent className="bg-zinc-900 border-zinc-800">
-                <SelectItem value="all" className="text-xs">Todos os Status</SelectItem>
-                <SelectItem value="awaiting_schedule" className="text-xs">Sem Horário</SelectItem>
-                <SelectItem value="scheduled" className="text-xs">Agendados</SelectItem>
-                <SelectItem value="in-progress" className="text-xs">Em Andamento</SelectItem>
-                <SelectItem value="completed" className="text-xs">Realizados</SelectItem>
-                <SelectItem value="homologated" className="text-xs">Homologados</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </motion.div>
-
-        {/* Banner específico da aba Mata-mata */}
-        {activeSubTab === 'mata-mata' && (
-          <motion.div variants={item} className="p-3.5 rounded-xl bg-card border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-none">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2 font-medium text-foreground text-xs">
-                <GitBranch className="w-3.5 h-3.5 text-zinc-400" />
-                Chaveamento Eliminatório e Mata-mata
+            {/* Banners Contextuais */}
+            {activeSubTab === 'mata-mata' && (
+              <div className="p-3.5 rounded-xl bg-card border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-none">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 font-semibold text-foreground text-xs">
+                    <GitBranch className="w-3.5 h-3.5 text-primary" />
+                    Chaveamento Eliminatório e Mata-mata
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Após o término da fase de grupos, sincronize os classificados para preencher os confrontos eliminatórios automaticamente.
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="gap-1.5 text-xs h-8 rounded-md shrink-0 bg-zinc-800 hover:bg-zinc-700 text-foreground border border-zinc-700/60 font-medium"
+                  onClick={handleSyncPlayoffsFromGroups}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-primary" />
+                  Sincronizar com Fase de Grupos
+                </Button>
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Após o término da fase de grupos, sincronize os classificados ou use <strong className="text-foreground font-medium">Editar Confronto e Horários</strong> em qualquer partida para ajustar equipes, locais e horários.
-              </p>
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="gap-1.5 text-xs h-8 rounded-md shrink-0 bg-zinc-800 hover:bg-zinc-700 text-foreground border border-zinc-700/60 font-medium"
-              onClick={handleSyncPlayoffsFromGroups}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-primary" />
-              Sincronizar com Fase de Grupos
-            </Button>
-          </motion.div>
-        )}
+            )}
 
-        {/* Banner específico da aba Agenda */}
-        {activeSubTab === 'agenda' && (
-          <motion.div variants={item} className="p-3.5 rounded-xl bg-card border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-none">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2 font-medium text-foreground text-xs">
-                <Clock className="w-3.5 h-3.5 text-zinc-400" />
-                Agenda e Programação de Horários
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Ajuste os horários, quadras e confrontos sorteados de qualquer fase com prevenção automática de conflitos de quadra e descanso.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-xs h-8 rounded-md shrink-0 border-border hover:bg-zinc-800/60 font-medium text-zinc-300 hover:text-foreground"
-              onClick={() => navigate('/jogos/novo')}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Novo Confronto
-            </Button>
-          </motion.div>
-        )}
+            {/* ── Tabela Principal e Filtros ── */}
+            <SectionCard density="dense">
+              {/* Barra de Filtros (Modularizado) */}
+              <MatchFiltersBar
+                query={query}
+                onQueryChange={setQuery}
+                competitionFilter={competitionFilter}
+                onCompetitionFilterChange={setCompetitionFilter}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
+                competitions={competitions}
+              />
 
-        {/* Matches List Grid */}
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-44 w-full rounded-xl bg-zinc-900 border border-zinc-800" />)}
+              {/* DataTable Oficial */}
+              <DataTable
+                data={filteredMatches}
+                columns={columns}
+                emptyTitle="Nenhum confronto encontrado para os filtros selecionados"
+                emptyDescription="Tente alterar os termos de busca, selecionar outra competição ou alternar a aba operacional."
+              />
+            </SectionCard>
           </div>
-        ) : filteredMatches.length === 0 ? (
-          <Card className="p-12 text-center text-xs text-muted-foreground border-border bg-card shadow-none">
-            Nenhum confronto encontrado para a seleção atual.
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredMatches.map(m => {
-              const isFinished = m.status === 'completed' || m.status === 'homologated';
-              const isHomologated = m.status === 'homologated';
+        </StateContainer>
+      </div>
 
-              return (
-                <motion.div key={m.id} variants={item}>
-                  <Card className="card-elevated hover-raise flex flex-col justify-between h-full shadow-none">
-                    <CardHeader className="pb-2.5 pt-3.5 px-4">
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-zinc-200">Jogo #{m.record.matchNumber}</span>
-                          <span>·</span>
-                          <span className="truncate max-w-[120px] text-zinc-400">{m.competition}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {m.phase && <Badge variant="muted" className="text-[10px] py-0 px-1.5 h-4 bg-zinc-800 text-zinc-400 border-zinc-700/60 capitalize">{m.phase}</Badge>}
-                          {isHomologated ? (
-                            <Badge variant="homologated" className="text-[10px] py-0 px-1.5 h-4 gap-1">
-                              <ShieldCheck className="w-3 h-3" />
-                              Homologado
-                            </Badge>
-                          ) : isFinished ? (
-                            <Badge variant="completed" className="text-[10px] py-0 px-1.5 h-4">Realizado</Badge>
-                          ) : m.status === 'in-progress' ? (
-                            <Badge variant="live" className="text-[10px] py-0 px-1.5 h-4 gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse-subtle" />
-                              Em Jogo
-                            </Badge>
-                          ) : (
-                            <Badge variant="scheduled" className="text-[10px] py-0 px-1.5 h-4 border-zinc-700/60">Agendado</Badge>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Teams and Result Bar */}
-                      <div className="p-3 rounded-lg bg-zinc-900/90 border border-zinc-800 flex items-center justify-between gap-2">
-                        {/* Team A */}
-                        <div className="flex-1 flex items-center gap-2 min-w-0">
-                          {m.teamA.logoUrl ? (
-                            <img src={m.teamA.logoUrl} alt="" className="w-6 h-6 rounded-full object-contain shrink-0" />
-                          ) : (
-                            <div className="w-6 h-6 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/60 flex items-center justify-center font-semibold text-[10px] shrink-0">
-                              {m.teamA.shortName.charAt(0)}
-                            </div>
-                          )}
-                          <span className="font-medium text-xs text-foreground truncate">{m.teamA.name}</span>
-                        </div>
-
-                        {/* Score Display */}
-                        <div className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-center shrink-0 min-w-[52px]">
-                          {isFinished ? (
-                            <div className="text-sm font-semibold tabular-nums text-foreground tracking-tight">
-                              {m.teamA.score} <span className="text-muted-foreground text-xs font-normal">–</span> {m.teamB.score}
-                            </div>
-                          ) : (
-                            <span className="text-[10px] font-medium text-muted-foreground">VS</span>
-                          )}
-                        </div>
-
-                        {/* Team B */}
-                        <div className="flex-1 flex items-center justify-end gap-2 min-w-0 text-right">
-                          <span className="font-medium text-xs text-foreground truncate">{m.teamB.name}</span>
-                          {m.teamB.logoUrl ? (
-                            <img src={m.teamB.logoUrl} alt="" className="w-6 h-6 rounded-full object-contain shrink-0" />
-                          ) : (
-                            <div className="w-6 h-6 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/60 flex items-center justify-center font-semibold text-[10px] shrink-0">
-                              {m.teamB.shortName.charAt(0)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Sets Parciais */}
-                      {isFinished && m.sets && m.sets.length > 0 && (
-                        <div className="flex items-center justify-center gap-1.5 mt-2 text-[10px] text-muted-foreground">
-                          {m.sets.map((s, idx) => (
-                            <span key={idx} className="px-1.5 py-0.5 rounded bg-zinc-800/80 border border-zinc-700/40 tabular-nums">
-                              {s.a}-{s.b}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </CardHeader>
-
-                    {/* Footer: info + hierarquia de ações (1 primária contextual + ghost + menu ···) */}
-                    <CardContent className="px-4 pb-3 pt-2 border-t border-border mt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="flex items-center gap-1 min-w-0">
-                          <MapPin className="w-3 h-3 text-zinc-400 shrink-0" />
-                          <span className="truncate">{m.venue} {m.court ? `· ${m.court}` : ''}</span>
-                        </span>
-                        <span className="flex items-center gap-1 shrink-0">
-                          <Clock className="w-3 h-3 text-zinc-400" />
-                          {new Date(m.date).toLocaleDateString('pt-BR')} às {m.time}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1 self-end sm:self-center">
-                        {/* Ação primária contextual: Homologar (pendente) ou Mesa (ao vivo) */}
-                        {isFinished && !isHomologated && can('match:finalize') ? (
-                          <Button
-                            variant="success"
-                            size="sm"
-                            className="h-7 px-2.5 text-xs gap-1 font-medium"
-                            onClick={() => setPendingHomologateMatch(m.record)}
-                          >
-                            <CheckCircle className="w-3 h-3" />
-                            Homologar
-                          </Button>
-                        ) : canSubmitMatchScore(m.record) ? (
-                          <Button
-                            size="sm"
-                            className="h-7 px-2.5 text-xs gap-1 font-medium shadow-none"
-                            onClick={() => setLiveScorerMatch(m.record)}
-                          >
-                            <Volleyball className="w-3 h-3" />
-                            Mesa
-                          </Button>
-                        ) : null}
-
-                        {canSubmitMatchScore(m.record) && !isFinished && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-7 px-2 text-xs gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 font-medium"
-                            onClick={() => setResultMatch(m.record)}
-                          >
-                            <PenLine className="w-3 h-3 text-zinc-400" />
-                            Placar
-                          </Button>
-                        )}
-
-                        {can('scoresheet:view') && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-zinc-800/60"
-                            onClick={() => setSheetMatch(m)}
-                          >
-                            <FileText className="w-3 h-3 mr-1 text-zinc-400" />
-                            Súmula
-                          </Button>
-                        )}
-
-                        {/* Ações secundárias agrupadas */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-zinc-800/60 text-muted-foreground hover:text-foreground" aria-label="Mais ações da partida">
-                              <MoreHorizontal className="w-3.5 h-3.5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-52 p-1.5 bg-zinc-900 border-border shadow-none rounded-lg">
-                            <DropdownMenuItem onClick={() => setLiveScoreboardMatch(m.record)} className="text-xs rounded-md cursor-pointer hover:bg-zinc-800/60">
-                              <Maximize2 className="w-3.5 h-3.5 mr-2 text-zinc-400" />
-                              Telão / Placar do Jogo
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setCheckinMatch(m.record)} className="text-xs rounded-md cursor-pointer hover:bg-zinc-800/60">
-                              <UserCheck className="w-3.5 h-3.5 mr-2 text-zinc-400" />
-                              Check-in de Atletas
-                            </DropdownMenuItem>
-                            {can('match:edit') && (
-                              <DropdownMenuItem onClick={() => setRefereeMatch(m.record)} className="text-xs rounded-md cursor-pointer hover:bg-zinc-800/60">
-                                <Shield className="w-3.5 h-3.5 mr-2 text-zinc-400" />
-                                Escalação de Arbitragem
-                              </DropdownMenuItem>
-                            )}
-                            {(can('match:edit') || can('match:schedule')) && (
-                              <DropdownMenuItem onClick={() => setEditMatch(m.record)} className="text-xs rounded-md cursor-pointer hover:bg-zinc-800/60">
-                                <Pencil className="w-3.5 h-3.5 mr-2 text-zinc-400" />
-                                Editar / Agendar
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
-      </motion.div>
-
-      {/* Modal Edição & Prevenção de Conflitos de Agenda */}
+      {/* ── Modais Auxiliares (Modularizados) ── */}
       {editMatch && (
         <ScheduleMatchDialog
           match={editMatch}
@@ -765,7 +753,6 @@ export default function MatchesPage() {
         />
       )}
 
-      {/* Modal Lançamento de Placar e Validação Matemática */}
       {resultMatch && (
         <ResultValidationDialog
           match={resultMatch}
@@ -784,7 +771,6 @@ export default function MatchesPage() {
         />
       )}
 
-      {/* Modal Emissão de Súmula e Ordem de Saque da Partida */}
       {sheetMatch && (
         <MatchSheetEmitDialog
           open={sheetMatch !== null}
@@ -794,13 +780,8 @@ export default function MatchesPage() {
         />
       )}
 
-      {/* Modal Emissão de Súmula em Branco Padrão */}
-      <BlankSheetEmitDialog
-        open={blankSheetOpen}
-        onOpenChange={setBlankSheetOpen}
-      />
+      <BlankSheetEmitDialog open={blankSheetOpen} onOpenChange={setBlankSheetOpen} />
 
-      {/* Modal de Confirmação de Homologação de Resultado */}
       <ConfirmActionDialog
         open={pendingHomologateMatch !== null}
         onOpenChange={(open) => !open && setPendingHomologateMatch(null)}
@@ -820,7 +801,6 @@ export default function MatchesPage() {
         }}
       />
 
-      {/* Modal de Confirmação de Geração de Mata-Mata */}
       <ConfirmActionDialog
         open={pendingSyncPlayoffs}
         onOpenChange={setPendingSyncPlayoffs}
@@ -834,45 +814,35 @@ export default function MatchesPage() {
         }}
       />
 
-      {/* Modal da Mesa do Apontador (Ao Vivo) */}
       <LiveScorerDeskModal
         open={liveScorerMatch !== null}
         onOpenChange={(open) => !open && setLiveScorerMatch(null)}
         match={liveScorerMatch}
         competition={
-          liveScorerMatch
-            ? competitions.find((c) => c.id === liveScorerMatch.competitionId) || null
-            : null
+          liveScorerMatch ? competitions.find((c) => c.id === liveScorerMatch.competitionId) || null : null
         }
         onMatchUpdated={refresh}
       />
 
-      {/* Modal de Telão / Placar do Jogo */}
       <LiveScoreboardModal
         open={liveScoreboardMatch !== null}
         onOpenChange={(open) => !open && setLiveScoreboardMatch(null)}
         match={liveScoreboardMatch}
         competition={
-          liveScoreboardMatch
-            ? competitions.find((c) => c.id === liveScoreboardMatch.competitionId) || null
-            : null
+          liveScoreboardMatch ? competitions.find((c) => c.id === liveScoreboardMatch.competitionId) || null : null
         }
       />
 
-      {/* Modal de Check-in Presencial de Atletas */}
       <MatchCheckinModal
         open={checkinMatch !== null}
         onOpenChange={(open) => !open && setCheckinMatch(null)}
         match={checkinMatch}
         competition={
-          checkinMatch
-            ? competitions.find((c) => c.id === checkinMatch.competitionId) || null
-            : null
+          checkinMatch ? competitions.find((c) => c.id === checkinMatch.competitionId) || null : null
         }
         onCheckinSaved={refresh}
       />
 
-      {/* Modal de Escalação de Arbitragem */}
       <RefereeAssignmentModal
         open={refereeMatch !== null}
         onOpenChange={(open) => !open && setRefereeMatch(null)}
@@ -884,395 +854,4 @@ export default function MatchesPage() {
   );
 }
 
-// ============================================================================
-// Modal de Edição de Confronto & Agendamento com Verificação de Conflitos
-// ============================================================================
-
-interface ScheduleMatchDialogProps {
-  match: MatchRecord;
-  competition: CompetitionRecord | null;
-  allMatches: MatchRecord[];
-  teams: TeamRecord[];
-  venues: VenueRecord[];
-  onClose: () => void;
-  onSaved: (updates: Partial<MatchRecord>) => Promise<void>;
-}
-
-function ScheduleMatchDialog({ match, competition, allMatches, teams, venues, onClose, onSaved }: ScheduleMatchDialogProps) {
-  const [teamAId, setTeamAId] = useState(match.teamAId || '');
-  const [teamBId, setTeamBId] = useState(match.teamBId || '');
-  const [date, setDate] = useState(match.scheduledTime ? match.scheduledTime.split('T')[0] : '');
-  const [time, setTime] = useState(
-    match.scheduledTime ? new Date(match.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
-  );
-  const [venue, setVenue] = useState(match.venue || venues[0]?.name || '');
-  const [court, setCourt] = useState(match.court || '');
-  const [phase, setPhase] = useState(match.phase || 'classificatória');
-  const [matchNumber, setMatchNumber] = useState(String(match.matchNumber || 1));
-  const [round, setRound] = useState(String(match.round || 1));
-  const [groupName, setGroupName] = useState(match.groupName || '');
-  const [saving, setSaving] = useState(false);
-
-  const selectedVenueObj = venues.find(v => v.name === venue);
-  const availableCourts = selectedVenueObj?.courts || [];
-
-  // Live conflict detection
-  const conflicts = useMemo(() => {
-    if (!date || !time || !venue || !court || !competition) return [];
-    const isoDateTime = `${date}T${time}:00`;
-    return detectScheduleConflicts({
-      matchId: match.id,
-      scheduledTime: isoDateTime,
-      venueName: venue,
-      courtName: court,
-      teamAId: teamAId || match.teamAId,
-      teamBId: teamBId || match.teamBId,
-      competition,
-      allMatches,
-      venues,
-    });
-  }, [date, time, venue, court, match, teamAId, teamBId, competition, allMatches, venues]);
-
-  const hasBlockingError = conflicts.some(c => c.severity === 'error');
-  const isSameTeam = teamAId && teamBId && teamAId === teamBId;
-
-  const handleSave = async () => {
-    if (saving || isSameTeam) return;
-    setSaving(true);
-    try {
-      const selectedTeamA = teams.find(t => t.id === teamAId);
-      const selectedTeamB = teams.find(t => t.id === teamBId);
-      const scheduledTime = date && time ? new Date(`${date}T${time}:00`).toISOString() : match.scheduledTime;
-
-      await onSaved({
-        teamAId: teamAId || match.teamAId,
-        teamBId: teamBId || match.teamBId,
-        teamAName: selectedTeamA?.name ?? match.teamAName,
-        teamBName: selectedTeamB?.name ?? match.teamBName,
-        teamAShortName: selectedTeamA?.shortName ?? match.teamAShortName,
-        teamBShortName: selectedTeamB?.shortName ?? match.teamBShortName,
-        scheduledTime,
-        venue,
-        court: court || undefined,
-        phase: phase || undefined,
-        matchNumber: Number(matchNumber) || match.matchNumber,
-        round: Number(round) || match.round,
-        groupName: groupName || undefined,
-        status: court && date && time ? (match.status === 'awaiting_schedule' ? 'scheduled' : match.status) : match.status,
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg bg-zinc-950 border-border p-5 rounded-xl shadow-none">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Pencil className="w-4 h-4 text-primary" />
-            Editar Confronto e Horários
-          </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
-            Ajuste as equipes sorteadas, fase, data, horário e quadra do Jogo #{match.matchNumber}.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-3.5 py-1">
-          {/* Equipes do Confronto */}
-          <div className="p-3 bg-zinc-900/80 rounded-lg border border-zinc-800 space-y-2.5">
-            <p className="text-[11px] font-semibold text-foreground">Equipes do Confronto (Sorteio / Chaveamento)</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Equipe A (Mandante)</Label>
-                <Select value={teamAId} onValueChange={setTeamAId}>
-                  <SelectTrigger className="text-xs h-8 rounded-md bg-zinc-950 border-zinc-800">
-                    <SelectValue placeholder="Selecione a Equipe A" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
-                    {teams.map(t => (
-                      <SelectItem key={t.id} value={t.id} className="text-xs">
-                        {t.name} ({t.shortName || 'TBD'})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Equipe B (Visitante)</Label>
-                <Select value={teamBId} onValueChange={setTeamBId}>
-                  <SelectTrigger className="text-xs h-8 rounded-md bg-zinc-950 border-zinc-800">
-                    <SelectValue placeholder="Selecione a Equipe B" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
-                    {teams.map(t => (
-                      <SelectItem key={t.id} value={t.id} className="text-xs">
-                        {t.name} ({t.shortName || 'TBD'})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {isSameTeam && (
-              <p className="text-[11px] text-destructive font-medium">As equipes A e B não podem ser iguais.</p>
-            )}
-          </div>
-
-          {/* Fase e Identificação */}
-          <div className="grid grid-cols-3 gap-2.5">
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Fase do Torneio</Label>
-              <Select value={phase} onValueChange={setPhase}>
-                <SelectTrigger className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  <SelectItem value="group-stage" className="text-xs">Fase de Grupos</SelectItem>
-                  <SelectItem value="oitavas" className="text-xs">Oitavas de Final</SelectItem>
-                  <SelectItem value="quartas" className="text-xs">Quartas de Final</SelectItem>
-                  <SelectItem value="semifinal" className="text-xs">Semifinais</SelectItem>
-                  <SelectItem value="terceiro_lugar" className="text-xs">Disputa 3º Lugar</SelectItem>
-                  <SelectItem value="final" className="text-xs">Grande Final</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Nº do Jogo</Label>
-              <Input
-                type="number"
-                value={matchNumber}
-                onChange={e => setMatchNumber(e.target.value)}
-                className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Chave / Grupo</Label>
-              <Input
-                value={groupName}
-                onChange={e => setGroupName(e.target.value)}
-                placeholder="Ex: A, B"
-                className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800"
-              />
-            </div>
-          </div>
-
-          {/* Data e Horário */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <Label htmlFor="sched-date" className="text-[10px] uppercase font-semibold text-muted-foreground">Data da Partida</Label>
-              <Input id="sched-date" type="date" value={date} onChange={e => setDate(e.target.value)} className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800" />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="sched-time" className="text-[10px] uppercase font-semibold text-muted-foreground">Horário de Início</Label>
-              <Input id="sched-time" type="time" value={time} onChange={e => setTime(e.target.value)} className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800" />
-            </div>
-          </div>
-
-          {/* Local e Quadra */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Ginásio / Local</Label>
-              <Select value={venue} onValueChange={v => { setVenue(v); setCourt(''); }}>
-                <SelectTrigger className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800">
-                  <SelectValue placeholder="Selecione o local" />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  {venues.map(v => (
-                    <SelectItem key={v.id} value={v.name} className="text-xs">{v.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Quadra</Label>
-              <Select value={court} onValueChange={setCourt}>
-                <SelectTrigger className="text-xs h-8 rounded-md bg-zinc-900 border-zinc-800">
-                  <SelectValue placeholder="Selecione a quadra" />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  {availableCourts.map(c => (
-                    <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
-                  ))}
-                  {availableCourts.length === 0 && <SelectItem value="Quadra Principal" className="text-xs">Quadra Principal</SelectItem>}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Alertas de Conflito de Horário / Quadra */}
-          {conflicts.length > 0 && (
-            <div className="space-y-1.5 pt-1">
-              {conflicts.map((c, i) => (
-                <div
-                  key={i}
-                  className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${c.severity === 'error' ? 'bg-destructive/10 border-destructive/25 text-red-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}
-                >
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold">{c.severity === 'error' ? 'Conflito Crítico:' : 'Aviso Operacional:'}</span> {c.message}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <DialogFooter className="gap-2 pt-2">
-          <Button variant="outline" size="sm" onClick={onClose} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">
-            Cancelar
-          </Button>
-          <Button
-            size="sm"
-            disabled={saving || hasBlockingError || isSameTeam}
-            onClick={handleSave}
-            className="h-8 text-xs rounded-md font-medium shadow-none"
-          >
-            {saving ? 'Salvando...' : 'Salvar Alterações'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ============================================================================
-// Modal de Placar com Validação Matemática
-// ============================================================================
-
-interface ResultValidationDialogProps {
-  match: MatchRecord;
-  competition: CompetitionRecord | null;
-  onClose: () => void;
-  onSaved: (sets: MatchRecord['sets'], winnerId: string) => Promise<void>;
-}
-
-function ResultValidationDialog({ match, competition, onClose, onSaved }: ResultValidationDialogProps) {
-  const isBeach = competition?.modality === 'beach';
-  const setFormat = match.phase === 'semifinal' || match.phase === 'final'
-    ? (competition?.phaseSetRules?.final || competition?.setFormat || '3-sets')
-    : (competition?.setFormat || '3-sets');
-
-  const maxSets = setFormat === '5-sets' ? 5 : setFormat === '1-set' ? 1 : 3;
-
-  const [setScores, setSetScores] = useState<{ a: string; b: string }[]>(() => {
-    const existing = match.sets.map(s => ({ a: String(s.scoreA), b: String(s.scoreB) }));
-    return [...existing, ...Array.from({ length: maxSets - existing.length }, () => ({ a: '', b: '' }))].slice(0, maxSets);
-  });
-  const [saving, setSaving] = useState(false);
-
-  const filledSets = setScores.filter(s => s.a !== '' && s.b !== '').map((s, idx) => ({
-    setNumber: idx + 1,
-    scoreA: Number(s.a),
-    scoreB: Number(s.b),
-  }));
-
-  const validation = useMemo(() => {
-    const config = isBeach ? DEFAULT_BEACH_CONFIG : DEFAULT_INDOOR_CONFIG;
-    const typedFormat = setFormat === '5-sets' ? '5-sets' : setFormat === '1-set' ? '1-set' : '3-sets';
-    return validateMatchResult(filledSets, { ...config, setFormat: typedFormat });
-  }, [filledSets, isBeach, setFormat]);
-
-  const handleSave = async () => {
-    if (!validation.valid || !validation.winner) {
-      toast.error(validation.errors[0] || 'Resultado incompleto ou matematicamente inválido.');
-      return;
-    }
-    const winnerId = validation.winner === 'A' ? match.teamAId : match.teamBId;
-    setSaving(true);
-    try {
-      await onSaved(filledSets, winnerId);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md bg-zinc-950 border-border p-5 rounded-xl shadow-none">
-        <DialogHeader>
-          <DialogTitle className="text-sm font-semibold text-foreground">Lançar Placar da Partida</DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
-            {match.teamAName} vs {match.teamBName} ({setFormat === '5-sets' ? 'Melhor de 5 sets' : 'Melhor de 3 sets'})
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-3 py-1">
-          <div className="flex items-center gap-3 px-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-            <span className="flex-1 truncate">{match.teamAShortName || match.teamAName}</span>
-            <span className="w-14 text-center">SET</span>
-            <span className="flex-1 text-right truncate">{match.teamBShortName || match.teamBName}</span>
-          </div>
-
-          {setScores.map((set, idx) => (
-            <div key={idx} className="flex items-center gap-2.5">
-              <Input
-                type="number"
-                min={0}
-                max={50}
-                placeholder="--"
-                className="flex-1 text-center font-semibold font-mono text-sm h-8 rounded-md bg-zinc-900 border-zinc-800"
-                value={set.a}
-                onChange={e => setSetScores(prev => prev.map((s, i) => (i === idx ? { ...s, a: e.target.value } : s)))}
-              />
-              <span className="w-14 text-center text-[10px] font-semibold uppercase tracking-wider bg-zinc-800/80 text-zinc-300 py-1.5 rounded border border-zinc-700/50">
-                Set {idx + 1}
-              </span>
-              <Input
-                type="number"
-                min={0}
-                max={50}
-                placeholder="--"
-                className="flex-1 text-center font-semibold font-mono text-sm h-8 rounded-md bg-zinc-900 border-zinc-800"
-                value={set.b}
-                onChange={e => setSetScores(prev => prev.map((s, i) => (i === idx ? { ...s, b: e.target.value } : s)))}
-              />
-            </div>
-          ))}
-
-          {/* Validation Feedback */}
-          {validation.valid ? (
-            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 space-y-0.5">
-              <p className="font-semibold flex items-center gap-1">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                Resultado válido: {validation.scoreA} x {validation.scoreB}
-              </p>
-              <p className="text-[11px]">
-                Vencedor confirmado: <strong className="text-emerald-300">{validation.winner === 'A' ? match.teamAName : match.teamBName}</strong>
-              </p>
-            </div>
-          ) : filledSets.length > 0 ? (
-            <div className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/30 text-xs text-destructive space-y-1">
-              <p className="font-semibold flex items-center gap-1">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Validação de Placar:
-              </p>
-              <ul className="list-disc pl-4 space-y-0.5 text-[11px]">
-                {validation.errors.map((err, i) => (
-                  <li key={i}>{err}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
-
-        <DialogFooter className="gap-2 pt-2">
-          <Button variant="outline" size="sm" onClick={onClose} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">
-            Cancelar
-          </Button>
-          <Button
-            size="sm"
-            disabled={saving || !validation.valid}
-            onClick={handleSave}
-            className="h-8 text-xs rounded-md font-medium shadow-none"
-          >
-            {saving ? 'Salvando...' : 'Finalizar Partida'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+export default MatchesPage;

@@ -20,4 +20,38 @@ export default defineConfig(({ mode }) => ({
     },
   },
   assetsInclude: ["**/*.pdf"],
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            // Isolamento dos motores pesados de geração e manipulação de PDF
+            if (
+              id.includes('@react-pdf') ||
+              id.includes('pdf-lib') ||
+              id.includes('jspdf') ||
+              id.includes('html2canvas') ||
+              id.includes('dompurify')
+            ) {
+              return 'vendor-pdf';
+            }
+            // Isolamento do pacote de ícones lucide
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons';
+            }
+            // Núcleo do React e roteamento
+            if (
+              id.includes('react') ||
+              id.includes('react-dom') ||
+              id.includes('react-router-dom') ||
+              id.includes('@tanstack/react-query')
+            ) {
+              return 'vendor-core';
+            }
+          }
+        },
+      },
+    },
+  },
 }));

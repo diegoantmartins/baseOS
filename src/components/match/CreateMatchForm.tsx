@@ -284,9 +284,11 @@ export function CreateMatchForm({ onSubmit, onCancel, defaultCompetitionId }: Cr
                         <p className="text-sm font-medium mb-2">Modalidade</p>
                         <div className="p-4 rounded-xl border-2 border-accent/40 bg-accent/5 flex items-center gap-3">
                           {lockedCompetition.modality === 'indoor' ? (
-                            <Volleyball className="w-8 h-8 text-indoor" />
+                            // indoor → âmbar (marca primária)
+                            <Volleyball className="w-8 h-8 text-primary" />
                           ) : (
-                            <Waves className="w-8 h-8 text-beach" />
+                            // beach → zinc-400 (neutro distinto)
+                            <Waves className="w-8 h-8 text-zinc-400" />
                           )}
                           <span className="font-medium">
                             {lockedCompetition.modality === 'indoor' ? 'Quadra' : 'Praia'}
@@ -311,12 +313,13 @@ export function CreateMatchForm({ onSubmit, onCancel, defaultCompetitionId }: Cr
                                 className={cn(
                                   'p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2',
                                   field.value === 'indoor'
-                                    ? 'border-indoor bg-indoor/10'
-                                    : 'border-border hover:border-indoor/50'
+                                    // indoor selecionado: borda âmbar + fundo âmbar/10
+                                    ? 'border-primary bg-primary/10'
+                                    : 'border-border hover:border-primary/40'
                                 )}
                               >
-                                <Volleyball className={cn('w-8 h-8', field.value === 'indoor' ? 'text-indoor' : 'text-muted-foreground')} />
-                                <span className={cn('font-medium', field.value === 'indoor' ? 'text-indoor' : 'text-foreground')}>Quadra</span>
+                                <Volleyball className={cn('w-8 h-8', field.value === 'indoor' ? 'text-primary' : 'text-muted-foreground')} />
+                                <span className={cn('font-medium', field.value === 'indoor' ? 'text-primary' : 'text-foreground')}>Quadra</span>
                               </button>
                               <button
                                 type="button"
@@ -328,12 +331,13 @@ export function CreateMatchForm({ onSubmit, onCancel, defaultCompetitionId }: Cr
                                 className={cn(
                                   'p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2',
                                   field.value === 'beach'
-                                    ? 'border-beach bg-beach/10'
-                                    : 'border-border hover:border-beach/50'
+                                    // beach selecionado: borda zinc-500 + fundo zinc-800 (distinção de modalidade)
+                                    ? 'border-zinc-500 bg-zinc-800'
+                                    : 'border-border hover:border-zinc-500/50'
                                 )}
                               >
-                                <Waves className={cn('w-8 h-8', field.value === 'beach' ? 'text-beach' : 'text-muted-foreground')} />
-                                <span className={cn('font-medium', field.value === 'beach' ? 'text-beach' : 'text-foreground')}>Praia</span>
+                                <Waves className={cn('w-8 h-8', field.value === 'beach' ? 'text-zinc-300' : 'text-muted-foreground')} />
+                                <span className={cn('font-medium', field.value === 'beach' ? 'text-zinc-200' : 'text-foreground')}>Praia</span>
                               </button>
                             </div>
                             <FormMessage />

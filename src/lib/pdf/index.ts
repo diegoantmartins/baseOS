@@ -26,9 +26,12 @@ export {
 
 export {
   OfficialScoresheetDocument,
+} from './officialScoresheetPdf';
+
+export {
   generateOfficialScoresheetPdfBlob,
   downloadOfficialScoresheetPdf,
-} from './officialScoresheetPdf';
+} from './officialScoresheetPdfGenerator';
 
 export {
   generateMatchSheetPdf,

@@ -235,4 +235,36 @@ export class TenantSecurityService {
     if (match.status !== 'completed') return true;
     return user.role === 'admin' || user.role === 'organizer';
   }
+
+  /**
+   * Proteção para homologação definitiva de partidas.
+   */
+  public static canHomologateMatch(user: UserProfile | null | undefined): boolean {
+    if (!user) return false;
+    return user.role === 'admin' || user.role === 'organizer';
+  }
+
+  /**
+   * Proteção para exclusão de recursos esportivos e cadastrais.
+   */
+  public static canDeleteResource(
+    user: UserProfile | null | undefined,
+    resourceType: 'competition' | 'team' | 'athlete' | 'match' | 'venue' | 'referee' | 'modality' | 'user'
+  ): boolean {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    if (user.role === 'organizer') {
+      // Organizadores podem excluir recursos esportivos, exceto outros usuários do sistema
+      return resourceType !== 'user';
+    }
+    return false;
+  }
+
+  /**
+   * Proteção para operações críticas de banco de dados e auditoria (Reset, Limpeza de Dados e Purge de Logs).
+   */
+  public static canPerformDatabaseMaintenance(user: UserProfile | null | undefined): boolean {
+    if (!user) return false;
+    return user.role === 'admin';
+  }
 }

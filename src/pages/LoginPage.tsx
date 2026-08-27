@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { LogIn, Volleyball, UserRound, ShieldCheck, Users } from 'lucide-react';
-import { useAuth } from '@/components/auth/AuthContext';
+import { useAuth } from '@/components/auth/useAuth';
 import { DEMO_USERS } from '@/services/authService';
 import { ROLE_LABELS } from '@/types/auth';
 import { Button } from '@/components/ui/button';

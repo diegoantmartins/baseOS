@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { generateOfficialScoresheetPdfBlob, OfficialScoresheetDocument } from '@/lib/pdf/officialScoresheetPdf';
+import { OfficialScoresheetDocument } from '@/lib/pdf/officialScoresheetPdf';
+import { generateOfficialScoresheetPdfBlob } from '@/lib/pdf/officialScoresheetPdfGenerator';
 import type { MatchSheetData } from '@/lib/pdf/matchSheetPdf';
 
 function createMockData(overrides: Partial<MatchSheetData> = {}): MatchSheetData {

@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import type { CompetitionAthlete, CompetitionAthleteInput } from '@/types/registration';
 
-export const ATHLETE_POSITIONS = [
+const ATHLETE_POSITIONS = [
   'Levantador(a)',
   'Ponteiro(a)',
   'Oposto(a)',

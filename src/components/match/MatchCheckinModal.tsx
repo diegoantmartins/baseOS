@@ -26,7 +26,7 @@ import { dataAccess } from '@/services/dataAccess';
 import { getMatchRosters } from '@/services/registrationService';
 import { MatchCheckinService } from '@/services/matchCheckinService';
 import { AuditService } from '@/lib/security';
-import { useAuth } from '@/components/auth/AuthContext';
+import { useAuth } from '@/components/auth/useAuth';
 import type { CompetitionAthlete } from '@/types/registration';
 import type { CompetitionRecord, MatchRecord } from '@/types/entities';
 

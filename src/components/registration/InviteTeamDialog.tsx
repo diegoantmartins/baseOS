@@ -15,17 +15,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import type { TeamRecord } from '@/types/entities';
-
-const DAY_MS = 24 * 3600 * 1000;
+import { defaultDeadlineFromNow } from './registrationHelpers';
 
 function toLocalInputValue(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-export function defaultDeadlineFromNow(days = 7): string {
-  return new Date(Date.now() + days * DAY_MS).toISOString();
 }
 
 interface InviteTeamDialogProps {

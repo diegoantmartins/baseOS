@@ -29,7 +29,7 @@ import {
 import { toast } from 'sonner';
 import { dataAccess } from '@/services/dataAccess';
 import { AuditService } from '@/lib/security';
-import { useAuth } from '@/components/auth/AuthContext';
+import { useAuth } from '@/components/auth/useAuth';
 import { useCapability } from '@/hooks/useCapability';
 import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
 import type { CompetitionRecord, MatchRecord, SetScoreRecord } from '@/types/entities';

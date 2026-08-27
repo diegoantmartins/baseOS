@@ -2,7 +2,7 @@
 
 import { Navigate, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { useAuth } from './AuthContext';
+import { useAuth } from './useAuth';
 import type { UserRole } from '@/types/auth';
 
 interface RequireAuthProps {

@@ -28,6 +28,8 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { StateContainer } from '@/components/ui/StateContainer';
 import { LiveDrawModal } from '@/components/draw/LiveDrawModal';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -235,63 +237,51 @@ const DrawPage = () => {
   const groupsToShow = preview?.groups ?? existingDraw?.groups ?? null;
   const matchesToShow = preview?.matches ?? existingDraw?.matches ?? null;
 
-  if (loading) {
-    return (
-      <MainLayout>
-        <div className="space-y-4">
-          <Skeleton className="h-10 w-80" />
-          <Skeleton className="h-96 w-full" />
-        </div>
-      </MainLayout>
-    );
-  }
-
   return (
     <MainLayout>
-      <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+      <div className="space-y-6">
+        <PageHeader
+          title={
+            <span className="flex items-center gap-2">
               <Shuffle className="w-5 h-5 text-primary" />
               Sorteio e Chaveamento
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Distribua as equipes inscritas em grupos e gere a tabela da fase classificatória
-            </p>
-          </div>
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <ContextualHelpButton
-              articles={[
-                { articleId: 'sorteio-grupos', label: 'Como sortear os grupos' },
-                { articleId: 'gerar-confrontos', label: 'Como gerar os confrontos' },
-                { articleId: 'regras-classificacao', label: 'Regras de classificação' },
-              ]}
-              label="Ajuda no sorteio"
-            />
-            <div className="w-full md:w-72">
-              <Select value={selectedId} onValueChange={handleSelectCompetition}>
-                <SelectTrigger className="w-full h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
-                  <SelectValue placeholder="Selecione a competição" />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  {competitions.map(c => (
-                    <SelectItem key={c.id} value={c.id} className="text-xs">
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            </span>
+          }
+          description="Distribua as equipes inscritas em grupos e gere a tabela da fase classificatória"
+          secondaryActions={
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <ContextualHelpButton
+                articles={[
+                  { articleId: 'sorteio-grupos', label: 'Como sortear os grupos' },
+                  { articleId: 'gerar-confrontos', label: 'Como gerar os confrontos' },
+                  { articleId: 'regras-classificacao', label: 'Regras de classificação' },
+                ]}
+                label="Ajuda no sorteio"
+              />
+              <div className="w-full sm:w-72">
+                <Select value={selectedId} onValueChange={handleSelectCompetition}>
+                  <SelectTrigger className="w-full h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
+                    <SelectValue placeholder="Selecione a competição" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
+                    {competitions.map(c => (
+                      <SelectItem key={c.id} value={c.id} className="text-xs">
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
-        </motion.div>
+          }
+        />
 
-        {!selected ? (
-          <Card className="card-elevated shadow-none border border-border bg-card">
-            <CardContent className="p-8 text-center text-xs text-muted-foreground">
-              Nenhuma competição cadastrada.
-            </CardContent>
-          </Card>
-        ) : (
+        <StateContainer
+          isLoading={loading}
+          isEmpty={!selected}
+          emptyTitle="Nenhuma competição selecionada"
+          emptyDescription="Cadastre ou selecione uma competição para configurar o chaveamento e realizar o sorteio dos grupos."
+        >
           <div className="grid grid-cols-1 lg:grid-cols-[340px,1fr] gap-5 items-start">
             {/* Configuração do sorteio */}
             <Card className="card-elevated shadow-none border border-border bg-card">
@@ -565,8 +555,8 @@ const DrawPage = () => {
               )}
             </div>
           </div>
-        )}
-      </motion.div>
+        </StateContainer>
+      </div>
 
       {selected && groupsToShow && (
         <LiveDrawModal

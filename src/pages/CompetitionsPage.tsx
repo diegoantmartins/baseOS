@@ -1,86 +1,66 @@
+/**
+ * CompetitionsPage — Gestão de Competições e Torneios do BaseOS
+ *
+ * Responsabilidades:
+ * - Ciclo completo: planejamento, inscrições, sorteio, confrontos, classificação e relatórios
+ * - Master-Detail com filtros rápidos (busca por nome, modalidade, status)
+ * - Orquestração modularizada com componentes especializados por domínio
+ * - Preservação estrita de regras esportivas, permissões (RBAC / useCapability), auditoria (AuditService) e geração de PDF
+ *
+ * Design System:
+ * - Enterprise Dark SaaS (Zinc-950/900, Âmbar-500)
+ * - Tratamento de 4 estados (Loading, Normal, Empty, Error)
+ */
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Section, SectionCard } from '@/components/ui/Section';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { StateContainer } from '@/components/ui/StateContainer';
 import { CompetitionHeader, type CompetitionTab } from '@/components/competition/CompetitionHeader';
-import { TournamentBracket } from '@/components/competition/TournamentBracket';
-import { StandingsTable } from '@/components/competition/StandingsTable';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Trophy,
-  GitBranch,
-  ListOrdered,
-  UserPlus,
   Plus,
-  FileDown,
   Calendar,
-  Settings,
-  Users,
-  UserCheck,
   Dices,
-  Play,
-  CheckCircle,
-  Award,
-  Clock,
-  MapPin,
-  Sparkles,
-  ArrowRight,
-  Shield,
   FileSpreadsheet,
 } from 'lucide-react';
 import { dataAccess } from '@/services/dataAccess';
 import { computeStandingsByGroup, computeBestThirds } from '@/services/standingsService';
 import { computePodium } from '@/services/playoffsService';
-import { GENDER_CATEGORY_LABELS } from '@/types/registration';
 import { generateStandingsReportPdf, downloadReportsPdf } from '@/lib/pdf/reportsPdf';
-import { CompetitionProgress } from '@/components/competition/CompetitionProgress';
-import { CompetitionPendingTasks } from '@/components/competition/CompetitionPendingTasks';
 import { evaluateCompetitionReadiness } from '@/services/competitionReadinessService';
 import type { CompetitionRecord, MatchRecord, TeamRecord, ModalityRecord, VenueRecord, CompetitionLifecycleStatus } from '@/types/entities';
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
-import { useAuth } from '@/components/auth/AuthContext';
+import { useAuth } from '@/components/auth/useAuth';
 import { useCapability } from '@/hooks/useCapability';
-
-const TIEBREAK_CRITERIA_LABELS_PT: Record<string, string> = {
-  'points': 'Pontos',
-  'victories': 'Vitórias',
-  'head-to-head': 'Confronto Direto',
-  'sets-ratio': 'Set Average',
-  'points-ratio': 'Points Average',
-  'sets-balance': 'Saldo de Sets',
-  'points-balance': 'Saldo de Pontos',
-  'draw': 'Sorteio',
-};
-
-const COMPETITION_STATUS_LABELS_PT: Record<string, string> = {
-  'draft': 'Rascunho',
-  'registration-open': 'Inscrições Abertas',
-  'registration-closed': 'Inscrições Encerradas',
-  'draw-pending': 'Sorteio Pendente',
-  'in-progress': 'Em Andamento',
-  'playoffs': 'Mata-mata',
-  'completed': 'Finalizada',
-  'archived': 'Arquivada',
-};
-
 import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
 import { AuditService } from '@/lib/security';
 import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
-import { cn } from '@/lib/utils';
+import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
+
+// Componentes Modularizados (Fase 9.3)
+import { CompetitionSidebarList } from '@/components/competition/CompetitionSidebarList';
+import { CompetitionOverviewTab } from '@/components/competition/tabs/CompetitionOverviewTab';
+import { CompetitionConfigTab } from '@/components/competition/tabs/CompetitionConfigTab';
+import { CompetitionTeamsTab } from '@/components/competition/tabs/CompetitionTeamsTab';
+import { CompetitionAthletesTab } from '@/components/competition/tabs/CompetitionAthletesTab';
+import { CompetitionStandingsTab } from '@/components/competition/tabs/CompetitionStandingsTab';
+import { CompetitionFormDialog } from '@/components/competition/dialogs/CompetitionFormDialog';
+import { CompetitionSettingsEditDialog } from '@/components/competition/dialogs/CompetitionSettingsEditDialog';
 
 export default function CompetitionsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { session } = useAuth();
   const { can } = useCapability();
+
+  // Estados de dados
   const [competitions, setCompetitions] = useState<CompetitionRecord[]>([]);
   const [modalities, setModalities] = useState<ModalityRecord[]>([]);
   const [venues, setVenues] = useState<VenueRecord[]>([]);
@@ -88,32 +68,50 @@ export default function CompetitionsPage() {
   const [competitionTeams, setCompetitionTeams] = useState<CompetitionTeam[]>([]);
   const [competitionAthletes, setCompetitionAthletes] = useState<CompetitionAthlete[]>([]);
   const [matches, setMatches] = useState<MatchRecord[]>([]);
+  
+  // Estados de controle e interface
   const [loading, setLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<CompetitionTab>('overview');
   const [createOpen, setCreateOpen] = useState(false);
   const [editConfigOpen, setEditConfigOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<CompetitionLifecycleStatus | null>(null);
 
+  // Estados de filtros da lista
+  const [searchTerm, setSearchTerm] = useState('');
+  const [modalityFilter, setModalityFilter] = useState<'all' | 'indoor' | 'beach'>('all');
+
   const refresh = useCallback(async () => {
-    const [comps, mods, vns, tms, cts, aths, ms] = await Promise.all([
-      dataAccess.listCompetitions(),
-      dataAccess.listModalities(),
-      dataAccess.listVenues(),
-      dataAccess.listTeams(),
-      dataAccess.listCompetitionTeams(),
-      dataAccess.listCompetitionAthletes(),
-      dataAccess.listMatches(),
-    ]);
-    setCompetitions(comps);
-    setModalities(mods);
-    setVenues(vns);
-    setTeams(tms);
-    setCompetitionTeams(cts);
-    setCompetitionAthletes(aths);
-    setMatches(ms);
-    setSelectedId(prev => prev ?? comps[0]?.id ?? null);
-    setLoading(false);
+    try {
+      setLoading(true);
+      setIsError(false);
+      const [comps, mods, vns, tms, cts, aths, ms] = await Promise.all([
+        dataAccess.listCompetitions(),
+        dataAccess.listModalities(),
+        dataAccess.listVenues(),
+        dataAccess.listTeams(),
+        dataAccess.listCompetitionTeams(),
+        dataAccess.listCompetitionAthletes(),
+        dataAccess.listMatches(),
+      ]);
+      setCompetitions(comps);
+      setModalities(mods);
+      setVenues(vns);
+      setTeams(tms);
+      setCompetitionTeams(cts);
+      setCompetitionAthletes(aths);
+      setMatches(ms);
+      setSelectedId((prev) => prev ?? comps[0]?.id ?? null);
+    } catch (err: unknown) {
+      setIsError(true);
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Falha ao carregar as competições.',
+      );
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -127,33 +125,42 @@ export default function CompetitionsPage() {
     }
   }, [searchParams, setSearchParams]);
 
-  const selected = competitions.find(c => c.id === selectedId) ?? null;
+  // Filtragem de competições na barra lateral
+  const filteredCompetitions = useMemo(() => {
+    return competitions.filter((comp) => {
+      const matchesSearch = comp.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesModality = modalityFilter === 'all' || comp.modality === modalityFilter;
+      return matchesSearch && matchesModality;
+    });
+  }, [competitions, searchTerm, modalityFilter]);
 
-  // Selected competition data
+  const selected = competitions.find((c) => c.id === selectedId) ?? null;
+
+  // Dados da competição selecionada
   const selectedTeams = useMemo(() => {
     if (!selected) return [];
-    return competitionTeams.filter(ct => ct.competitionId === selected.id);
+    return competitionTeams.filter((ct) => ct.competitionId === selected.id);
   }, [selected, competitionTeams]);
 
   const selectedMatches = useMemo(() => {
     if (!selected) return [];
-    return matches.filter(m => m.competitionId === selected.id);
+    return matches.filter((m) => m.competitionId === selected.id);
   }, [selected, matches]);
 
   const selectedAthletes = useMemo(() => {
     if (!selected) return [];
-    const teamIds = selectedTeams.map(t => t.id);
-    return competitionAthletes.filter(a => teamIds.includes(a.competitionTeamId));
+    const teamIds = selectedTeams.map((t) => t.id);
+    return competitionAthletes.filter((a) => teamIds.includes(a.competitionTeamId));
   }, [selected, selectedTeams, competitionAthletes]);
 
-  // Standings
+  // Classificação por grupos
   const standings = useMemo(() => {
     if (!selected) return [];
     const registrations: { team: TeamRecord; groupName?: string }[] = [];
     for (const ct of selectedTeams) {
-      const team = teams.find(t => t.id === ct.teamId);
+      const team = teams.find((t) => t.id === ct.teamId);
       if (!team) continue;
-      const groupMatch = selectedMatches.find(m => m.teamAId === team.id || m.teamBId === team.id);
+      const groupMatch = selectedMatches.find((m) => m.teamAId === team.id || m.teamBId === team.id);
       registrations.push({ team, groupName: groupMatch?.groupName ?? selected.groupName });
     }
     return computeStandingsByGroup(registrations, selectedMatches, {
@@ -161,19 +168,19 @@ export default function CompetitionsPage() {
     });
   }, [selected, selectedTeams, teams, selectedMatches]);
 
-  // Best thirds if enabled
+  // Melhores terceiros
   const bestThirds = useMemo(() => {
     if (!selected?.bestThirdsCount || selected.bestThirdsCount <= 0) return [];
     return computeBestThirds(standings, selected.bestThirdsCount);
   }, [selected, standings]);
 
-  // Podium apuration if playoffs exist
+  // Pódio
   const podium = useMemo(() => {
     if (!selected) return null;
     return computePodium(selectedMatches);
   }, [selected, selectedMatches]);
 
-  // Competition Readiness Report
+  // Prontidão
   const readinessReport = useMemo(() => {
     if (!selected) return null;
     return evaluateCompetitionReadiness({
@@ -187,22 +194,22 @@ export default function CompetitionsPage() {
     });
   }, [selected, modalities, venues, teams, competitionTeams, competitionAthletes, matches]);
 
-  // Bracket matches
+  // Chaveamento
   const bracketMatches = useMemo(() => {
     if (!selected) return [];
     const rounds = new Map<number, MatchRecord[]>();
-    for (const m of selectedMatches.filter(m => m.phase !== 'group-stage' && m.phase !== 'classificatoria')) {
+    for (const m of selectedMatches.filter((m) => m.phase !== 'group-stage' && m.phase !== 'classificatoria')) {
       const r = m.round ?? 1;
       const list = rounds.get(r) ?? [];
       list.push(m);
       rounds.set(r, list);
     }
     const setsWon = (m: MatchRecord, team: 'A' | 'B') =>
-      m.sets.filter(s => (team === 'A' ? s.scoreA : s.scoreB) > (team === 'A' ? s.scoreB : s.scoreA)).length;
+      m.sets.filter((s) => (team === 'A' ? s.scoreA : s.scoreB) > (team === 'A' ? s.scoreB : s.scoreA)).length;
     return [...rounds.entries()]
       .sort((a, b) => a[0] - b[0])
       .map(([round, ms]) =>
-        [...ms].sort((a, b) => a.matchNumber - b.matchNumber).map(m => ({
+        [...ms].sort((a, b) => a.matchNumber - b.matchNumber).map((m) => ({
           id: m.id,
           round,
           position: m.matchNumber,
@@ -219,7 +226,7 @@ export default function CompetitionsPage() {
   const handleExportStandings = () => {
     if (!selected) return;
     const doc = generateStandingsReportPdf(
-      standings.map(group => ({ groupName: group.groupName, standings: group.standings })),
+      standings.map((group) => ({ groupName: group.groupName, standings: group.standings })),
       selected.name,
     );
     const safeName = selected.name.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase();
@@ -241,7 +248,7 @@ export default function CompetitionsPage() {
       'Alteração de Ciclo de Competição',
       session?.user?.email || 'organizador',
       'info',
-      `Competição "${selected.name}" avançou para status "${newStatus}" por ${operatorName}.`
+      `Competição "${selected.name}" avançou para status "${newStatus}" por ${operatorName}.`,
     );
     toast.success(`Status da competição alterado para "${newStatus}".`);
     await refresh();
@@ -287,7 +294,7 @@ export default function CompetitionsPage() {
       'Criação de Competição',
       session?.user?.email || 'organizador',
       'success',
-      `Nova competição "${created.name}" criada por ${session?.user?.name || 'Organizador'}.`
+      `Nova competição "${created.name}" criada por ${session?.user?.name || 'Organizador'}.`,
     );
     toast.success(`Competição "${created.name}" criada com sucesso!`);
     setCreateOpen(false);
@@ -308,512 +315,282 @@ export default function CompetitionsPage() {
     await refresh();
   };
 
-  if (loading) {
-    return (
-      <MainLayout>
-        <div className="space-y-4">
-          <Skeleton className="h-10 w-80" />
-          <Skeleton className="h-96 w-full" />
+  // Colunas da tabela de partidas dentro da aba "matches"
+  const matchColumns: DataTableColumn<MatchRecord>[] = [
+    {
+      id: 'matchNumber',
+      header: 'Nº Jogo',
+      isNumeric: true,
+      cell: ({ row }) => (
+        <span className="font-semibold text-foreground">Jogo #{row.matchNumber}</span>
+      ),
+    },
+    {
+      id: 'phase',
+      header: 'Fase / Grupo',
+      cell: ({ row }) => (
+        <Badge variant="outline" className="text-[10px] bg-zinc-900 border-zinc-800 text-zinc-300 capitalize">
+          {row.phase || row.groupName || 'Geral'}
+        </Badge>
+      ),
+    },
+    {
+      id: 'confronto',
+      header: 'Confronto',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="font-semibold text-foreground truncate max-w-[140px]">{row.teamAName}</span>
+          <span className="text-[10px] text-muted-foreground font-normal">vs</span>
+          <span className="font-semibold text-foreground truncate max-w-[140px]">{row.teamBName}</span>
         </div>
-      </MainLayout>
-    );
-  }
+      ),
+    },
+    {
+      id: 'court',
+      header: 'Quadra / Local',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">{row.court || row.venue || 'A definir'}</span>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => <StatusBadge status={row.status} className="text-[10px] h-5" />,
+    },
+    {
+      id: 'actions',
+      header: 'Ação',
+      align: 'right',
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-zinc-800"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/sumulas/${row.id}`);
+          }}
+        >
+          Súmula
+        </Button>
+      ),
+    },
+  ];
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
-              Gestão de Competições
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Ciclo completo: planejamento, inscrições, sorteio, confrontos, classificação e relatórios.
-            </p>
-          </div>
-          {can('competition:create') && (
-            <Button size="sm" className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none self-start sm:self-auto" onClick={() => setCreateOpen(true)}>
-              <Plus className="w-3.5 h-3.5" />
-              Nova Competição
-            </Button>
-          )}
-        </div>
+      <div className="space-y-3.5">
+        {/* ── PageHeader Oficial ── */}
+        <PageHeader
+          title="Gestão de Competições"
+          description="Planejamento de torneios, controle de fases, chaveamento e homologação de resultados esportivos."
+          primaryAction={
+            can('competition:create') && (
+              <Button
+                size="sm"
+                className="gap-1.5 text-xs font-semibold shadow-none"
+                onClick={() => setCreateOpen(true)}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Nova Competição
+              </Button>
+            )
+          }
+          secondaryActions={
+            <ContextualHelpButton
+              articles={[
+                { articleId: 'fluxo-competicao-passo-a-passo', label: 'Guia do Organizador: do Rascunho à Final' },
+                { articleId: 'ciclo-vida-competicao', label: 'Entendendo os status do torneio' },
+                { articleId: 'abrir-inscricoes', label: 'Como abrir e encerrar inscrições' },
+                { articleId: 'criterios-desempate', label: 'Critérios de desempate homologados' },
+              ]}
+              label="Ajuda em torneios"
+            />
+          }
+        />
 
-        {/* Layout: Sidebar de Competições + Contexto Detalhado */}
-        <div className="grid grid-cols-1 lg:grid-cols-[280px,1fr] gap-5 items-start">
-          {/* Seletor de Competições */}
-          <Card className="card-elevated shadow-none">
-            <CardHeader className="p-3.5 border-b border-border">
-              <CardTitle className="text-xs uppercase font-semibold tracking-wider text-muted-foreground flex items-center gap-2">
-                <Trophy className="w-3.5 h-3.5 text-zinc-400" />
-                Torneios Cadastrados ({competitions.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2 space-y-1">
-              {competitions.map(comp => (
-                <button
-                  key={comp.id}
-                  type="button"
-                  onClick={() => setSelectedId(comp.id)}
-                  className={cn(
-                    'w-full text-left p-2.5 rounded-md transition-colors text-xs flex flex-col gap-1',
-                    selectedId === comp.id
-                      ? 'bg-zinc-800 text-foreground font-medium border border-zinc-700/60'
-                      : 'hover:bg-zinc-800/50 text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <span className="font-medium text-foreground truncate">{comp.name}</span>
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>{comp.modality === 'beach' ? 'Praia' : 'Quadra'} · {comp.playerFormat}</span>
-                    <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">{comp.status}</Badge>
-                  </div>
-                </button>
-              ))}
-              {competitions.length === 0 && (
-                <p className="text-xs text-muted-foreground p-4 text-center">Nenhuma competição cadastrada.</p>
-              )}
-            </CardContent>
-          </Card>
+        {/* ── Gestão de Estados Universais ── */}
+        <StateContainer
+          isLoading={loading}
+          isError={isError}
+          errorTitle="Não foi possível carregar as competições"
+          errorDescription={errorMessage}
+          onRetry={refresh}
+          isEmpty={competitions.length === 0}
+          emptyTitle="Nenhuma competição cadastrada"
+          emptyDescription="Cadastre seu primeiro torneio para iniciar a gestão de equipes, chaves e súmulas."
+          emptyAction={
+            can('competition:create') && (
+              <Button
+                size="sm"
+                className="gap-1.5 text-xs font-semibold shadow-none"
+                onClick={() => setCreateOpen(true)}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Cadastrar Nova Competição
+              </Button>
+            )
+          }
+        >
+          {/* ── Grid Mestre-Detalhe ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-[300px,1fr] gap-4 items-start">
+            {/* ── Coluna Esquerda: Seletor & Filtros de Torneios (Modularizado) ── */}
+            <CompetitionSidebarList
+              competitions={competitions}
+              filteredCompetitions={filteredCompetitions}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              modalityFilter={modalityFilter}
+              onModalityFilterChange={setModalityFilter}
+            />
 
-          {/* Área Principal da Competição Selecionada */}
-          {selected ? (
-            <div className="space-y-6">
-              {/* Context Header with Tabs */}
-              <CompetitionHeader
-                competition={selected}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                extraStats={{
-                  teamsCount: selectedTeams.length,
-                  matchesCount: selectedMatches.length,
-                  athletesCount: selectedAthletes.length,
-                }}
-              />
+            {/* ── Coluna Direita: Contexto do Torneio Selecionado ── */}
+            {selected ? (
+              <div className="space-y-3.5 min-w-0">
+                {/* Cabeçalho do Torneio com Abas Operacionais */}
+                <CompetitionHeader
+                  competition={selected}
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                  extraStats={{
+                    teamsCount: selectedTeams.length,
+                    matchesCount: selectedMatches.length,
+                    athletesCount: selectedAthletes.length,
+                  }}
+                />
 
-              {/* Tab 1: Visão Geral */}
-              {activeTab === 'overview' && (
-                <div className="space-y-6">
-                  {/* Competition Readiness System */}
-                  {readinessReport && (
-                    <div className="space-y-4">
-                      <CompetitionProgress report={readinessReport} onRefresh={refresh} />
-                      {readinessReport.pendingTasks && readinessReport.pendingTasks.length > 0 && (
-                        <CompetitionPendingTasks tasks={readinessReport.pendingTasks} />
-                      )}
-                    </div>
-                  )}
+                {/* ── Aba 1: Visão Geral (Modularizado) ── */}
+                {activeTab === 'overview' && (
+                  <CompetitionOverviewTab
+                    selected={selected}
+                    selectedTeams={selectedTeams}
+                    selectedMatches={selectedMatches}
+                    teams={teams}
+                    readinessReport={readinessReport}
+                    podium={podium}
+                    canEdit={can('competition:edit')}
+                    onRefresh={refresh}
+                    onRequestStatusTransition={requestStatusTransition}
+                    onNavigateTab={setActiveTab}
+                  />
+                )}
 
-                  {/* Status & Lifecycle Controls */}
-                  <Card className="card-elevated">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base font-display flex items-center justify-between">
-                        <span>Fluxo e Ciclo de Vida da Competição</span>
-                        <Badge variant="default">{COMPETITION_STATUS_LABELS_PT[selected.status] || selected.status}</Badge>
-                      </CardTitle>
-                      <CardDescription>Avance o status conforme o progresso do torneio.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-wrap gap-2 pt-0">
-                      <Button
-                        size="sm"
-                        variant={selected.status === 'registration-open' ? 'default' : 'outline'}
-                        disabled={!can('competition:edit')}
-                        onClick={() => requestStatusTransition('registration-open')}
-                      >
-                        1. Abrir Inscrições
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={selected.status === 'registration-closed' ? 'default' : 'outline'}
-                        disabled={!can('competition:edit')}
-                        onClick={() => requestStatusTransition('registration-closed')}
-                      >
-                        2. Encerrar Inscrições
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={selected.status === 'draw-pending' ? 'default' : 'outline'}
-                        disabled={!can('competition:edit')}
-                        onClick={() => requestStatusTransition('draw-pending')}
-                      >
-                        3. Sorteio de Grupos
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={selected.status === 'in-progress' ? 'default' : 'outline'}
-                        disabled={!can('competition:edit')}
-                        onClick={() => requestStatusTransition('in-progress')}
-                      >
-                        4. Iniciar Jogos
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={selected.status === 'playoffs' ? 'default' : 'outline'}
-                        disabled={!can('competition:edit')}
-                        onClick={() => requestStatusTransition('playoffs')}
-                      >
-                        5. Fase Eliminatória (Playoffs)
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={selected.status === 'completed' ? 'success' : 'outline'}
-                        disabled={!can('competition:edit')}
-                        onClick={() => requestStatusTransition('completed')}
-                      >
-                        6. Finalizar Torneio
-                      </Button>
-                    </CardContent>
-                  </Card>
+                {/* ── Aba 2: Configurações Regulamentares (Modularizado) ── */}
+                {activeTab === 'config' && (
+                  <CompetitionConfigTab
+                    selected={selected}
+                    canEdit={can('competition:edit')}
+                    onOpenEditConfig={() => setEditConfigOpen(true)}
+                  />
+                )}
 
-                  {/* Pódio Final (se apurado) */}
-                  {podium && (podium.championTeamId || podium.runnerUpTeamId) && (
-                    <Card className="card-elevated">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base font-display flex items-center gap-2">
-                          <Award className="w-5 h-5" />
-                          Pódio Oficial da Competição
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-0 text-center">
-                        <div className="p-3 rounded-md border border-border bg-card">
-                          <span className="text-[11px] font-bold text-muted-foreground uppercase block">1º Lugar (Campeão)</span>
-                          <span className="font-display font-bold text-sm text-foreground mt-1 block">
-                            {teams.find(t => t.id === podium.championTeamId)?.name || 'A definir'}
-                          </span>
-                        </div>
-                        <div className="p-3 rounded-md border border-border bg-card">
-                          <span className="text-[11px] font-bold text-muted-foreground uppercase block">2º Lugar (Vice)</span>
-                          <span className="font-display font-bold text-sm text-foreground mt-1 block">
-                            {teams.find(t => t.id === podium.runnerUpTeamId)?.name || 'A definir'}
-                          </span>
-                        </div>
-                        <div className="p-3 rounded-md border border-border bg-card">
-                          <span className="text-[11px] font-bold text-muted-foreground uppercase block">3º Lugar</span>
-                          <span className="font-display font-bold text-sm text-foreground mt-1 block">
-                            {teams.find(t => t.id === podium.thirdPlaceTeamId)?.name || 'A definir'}
-                          </span>
-                        </div>
-                        <div className="p-3 rounded-md border border-border bg-card">
-                          <span className="text-[11px] font-bold text-muted-foreground uppercase block">4º Lugar</span>
-                          <span className="font-display font-bold text-sm text-foreground mt-1 block">
-                            {teams.find(t => t.id === podium.fourthPlaceTeamId)?.name || 'A definir'}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                {/* ── Aba 3: Equipes Participantes (Modularizado) ── */}
+                {activeTab === 'teams' && (
+                  <CompetitionTeamsTab
+                    selected={selected}
+                    selectedTeams={selectedTeams}
+                    selectedAthletes={selectedAthletes}
+                    teams={teams}
+                  />
+                )}
 
-                  {/* Resumo de Equipes e Ações Rápidas */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Card className="card-elevated p-4 space-y-2">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Equipes Inscritas</span>
-                        <Users className="w-4 h-4 text-primary" />
-                      </div>
-                      <p className="text-2xl font-bold font-display">{selectedTeams.length}</p>
-                      <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setActiveTab('teams')}>
-                        Gerenciar Equipes
-                      </Button>
-                    </Card>
+                {/* ── Aba 4: Atletas (Modularizado) ── */}
+                {activeTab === 'athletes' && (
+                  <CompetitionAthletesTab
+                    selectedAthletes={selectedAthletes}
+                  />
+                )}
 
-                    <Card className="card-elevated p-4 space-y-2">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Total de Partidas</span>
-                        <Calendar className="w-4 h-4 text-primary" />
-                      </div>
-                      <p className="text-2xl font-bold font-display">{selectedMatches.length}</p>
-                      <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => navigate('/jogos')}>
-                        Ver na Central de Jogos
-                      </Button>
-                    </Card>
-
-                    <Card className="card-elevated p-4 space-y-2">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Sorteio e Chaves</span>
-                        <Dices className="w-4 h-4 text-primary" />
-                      </div>
-                      <p className="text-2xl font-bold font-display">{selected.groupsCount || 1} Grupos</p>
-                      <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => navigate(`/sorteio/${selected.id}`)}>
-                        Abrir Motor de Sorteio
-                      </Button>
-                    </Card>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 2: Configuração Completa */}
-              {activeTab === 'config' && (
-                <Card className="card-elevated">
-                  <CardHeader className="flex flex-row items-center justify-between pb-3">
-                    <div>
-                      <CardTitle className="text-lg font-display">Configurações Regulamentares</CardTitle>
-                      <CardDescription>Parâmetros de pontuação, desempate, sets por fase e tempos de descanso.</CardDescription>
-                    </div>
-                    {can('competition:edit') && (
-                      <Button variant="outline" size="sm" onClick={() => setEditConfigOpen(true)}>
-                        <Settings className="w-4 h-4 mr-1.5" />
-                        Editar Configurações
-                      </Button>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-4 text-sm">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
-                        <span className="text-xs text-muted-foreground block font-semibold uppercase">Modalidade e Formato</span>
-                        <p className="font-bold mt-1">{selected.modality === 'beach' ? 'Vôlei de Praia' : 'Vôlei de Quadra'} ({selected.playerFormat})</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
-                        <span className="text-xs text-muted-foreground block font-semibold uppercase">Sets Padrão</span>
-                        <p className="font-bold mt-1">{selected.setFormat === '5-sets' ? 'Melhor de 5 sets' : 'Melhor de 3 sets'}</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
-                        <span className="text-xs text-muted-foreground block font-semibold uppercase">Tempo de Jogo / Descanso</span>
-                        <p className="font-bold mt-1">{selected.defaultMatchIntervalMinutes || 75} min / {selected.minTeamRestMinutes || 30} min rest</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 pt-2 border-t border-border/60">
-                      <h4 className="font-semibold text-foreground text-xs uppercase tracking-wider">Sets Diferenciados por Fase</h4>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                        <div className="p-2 rounded bg-muted/40 text-center">
-                          <span className="text-muted-foreground block text-[10px]">Grupos</span>
-                          <span className="font-semibold">{selected.phaseSetRules?.groupStage || selected.setFormat}</span>
-                        </div>
-                        <div className="p-2 rounded bg-muted/40 text-center">
-                          <span className="text-muted-foreground block text-[10px]">Quartas</span>
-                          <span className="font-semibold">{selected.phaseSetRules?.playoffs || selected.setFormat}</span>
-                        </div>
-                        <div className="p-2 rounded bg-muted/40 text-center">
-                          <span className="text-muted-foreground block text-[10px]">Semifinais</span>
-                          <span className="font-semibold">{selected.phaseSetRules?.semifinals || '5-sets'}</span>
-                        </div>
-                        <div className="p-2 rounded bg-muted/40 text-center">
-                          <span className="text-muted-foreground block text-[10px]">Final</span>
-                          <span className="font-semibold">{selected.phaseSetRules?.final || '5-sets'}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                      <div className="space-y-2 pt-2 border-t border-border/60">
-                        <h4 className="font-semibold text-foreground text-xs uppercase tracking-wider">Ordem de Critérios de Desempate</h4>
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          {(selected.tiebreakCriteriaOrder || ['points', 'victories', 'head-to-head', 'sets-ratio', 'points-ratio', 'sets-balance', 'points-balance']).map((crit, idx) => (
-                            <Badge key={crit} variant="secondary" className="gap-1.5 py-1 px-2.5">
-                              <span className="font-bold text-primary">{idx + 1}º</span>
-                              <span className="capitalize">{TIEBREAK_CRITERIA_LABELS_PT[crit] || crit.replace(/-/g, ' ')}</span>
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Tab 3: Equipes */}
-              {activeTab === 'teams' && (
-                <Card className="card-elevated">
-                  <CardHeader className="flex flex-row items-center justify-between pb-3">
-                    <div>
-                      <CardTitle className="text-lg font-display">Equipes Participantes ({selectedTeams.length})</CardTitle>
-                      <CardDescription>Inscrições homologadas e situação dos elencos.</CardDescription>
-                    </div>
-                    <Button variant="accent" size="sm" onClick={() => navigate(`/competicoes/${selected.id}/inscricoes`)}>
-                      <UserPlus className="w-4 h-4 mr-1.5" />
-                      Gerenciar Inscrições
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="space-y-3 pt-0">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {selectedTeams.map(ct => {
-                        const t = teams.find(team => team.id === ct.teamId);
-                        const athCount = selectedAthletes.filter(a => a.competitionTeamId === ct.id).length;
-                        return (
-                          <div key={ct.id} className="p-3 rounded-xl border border-border/60 bg-muted/20 flex items-center justify-between gap-3">
-                            <div>
-                              <p className="font-semibold text-sm text-foreground">{t?.name || 'Equipe'}</p>
-                              <p className="text-xs text-muted-foreground">{athCount} atletas no elenco</p>
-                            </div>
-                            <Badge variant={ct.status === 'approved' ? 'success' : 'outline'} className="text-[10px]">
-                              {ct.status === 'approved' ? 'Confirmada' : ct.status}
-                            </Badge>
-                          </div>
-                        );
-                      })}
-                      {selectedTeams.length === 0 && (
-                        <p className="text-xs text-muted-foreground col-span-3 py-6 text-center">
-                          Nenhuma equipe inscrita nesta competição ainda.
+                {/* ── Aba 5: Sorteio ── */}
+                {activeTab === 'draw' && (
+                  <SectionCard density="loose" className="text-center">
+                    <div className="max-w-md mx-auto space-y-4">
+                      <Dices className="w-10 h-10 text-primary mx-auto" />
+                      <div>
+                        <h3 className="text-base font-bold text-foreground">Motor de Sorteio de Grupos</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Realize sorteio automático ou manual com potes, cabeças de chave e geração de tabela Berger.
                         </p>
-                      )}
+                      </div>
+                      <Button onClick={() => navigate(`/sorteio/${selected.id}`)} className="text-xs gap-1.5">
+                        Acessar Motor de Sorteio
+                      </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  </SectionCard>
+                )}
 
-              {/* Tab 4: Atletas */}
-              {activeTab === 'athletes' && (
-                <Card className="card-elevated">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg font-display">Atletas Confirmados ({selectedAthletes.length})</CardTitle>
-                    <CardDescription>Relação de atletas inscritos por equipe para esta competição.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                      {selectedAthletes.map(ath => (
-                        <div key={ath.id} className="p-2.5 rounded-lg border border-border/60 bg-muted/10 flex items-center justify-between text-xs">
-                          <div>
-                            <span className="font-semibold text-foreground">{ath.name}</span>
-                            {ath.jerseyNumber && (
-                              <span className="ml-1.5 px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold text-[10px]">
-                                #{ath.jerseyNumber}
-                              </span>
-                            )}
-                            <p className="text-[11px] text-muted-foreground capitalize">{ath.position || 'Geral'}</p>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {ath.isCaptain && <Badge variant="secondary" className="text-[9px]">CAP</Badge>}
-                            {ath.isLibero && <Badge variant="outline" className="text-[9px]">LIB</Badge>}
-                          </div>
-                        </div>
-                      ))}
+                {/* ── Aba 6: Jogos ── */}
+                {activeTab === 'matches' && (
+                  <Section
+                    title={`Confrontos da Competição (${selectedMatches.length})`}
+                    description="Partidas agendadas, em andamento e finalizadas deste torneio."
+                    actions={
+                      <Button variant="outline" size="sm" onClick={() => navigate('/jogos')} className="text-xs gap-1.5">
+                        <Calendar className="w-3.5 h-3.5" />
+                        Abrir Central de Jogos
+                      </Button>
+                    }
+                  >
+                    <DataTable
+                      data={selectedMatches}
+                      columns={matchColumns}
+                      emptyTitle="Nenhum confronto gerado"
+                      emptyDescription="Realize o sorteio das chaves para gerar os jogos automaticamente."
+                      emptyAction={
+                        <Button size="sm" onClick={() => navigate(`/sorteio/${selected.id}`)} className="text-xs gap-1.5">
+                          <Dices className="w-3.5 h-3.5" />
+                          Sortear Chaves
+                        </Button>
+                      }
+                      onRowClick={(row) => navigate(`/sumulas/${row.id}`)}
+                    />
+                  </Section>
+                )}
+
+                {/* ── Aba 7: Classificação (Modularizado) ── */}
+                {activeTab === 'standings' && (
+                  <CompetitionStandingsTab
+                    selected={selected}
+                    standings={standings}
+                    bestThirds={bestThirds}
+                    bracketMatches={bracketMatches}
+                    teams={teams}
+                    onExportStandings={handleExportStandings}
+                  />
+                )}
+
+                {/* ── Aba 8: Relatórios ── */}
+                {activeTab === 'reports' && (
+                  <SectionCard density="loose" className="text-center">
+                    <div className="max-w-md mx-auto space-y-4">
+                      <FileSpreadsheet className="w-10 h-10 text-primary mx-auto" />
+                      <div>
+                        <h3 className="text-base font-bold text-foreground">Central de Relatórios e Documentos</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Emita súmulas oficiais, ordens de saque, classificação detalhada e boletins da competição.
+                        </p>
+                      </div>
+                      <Button onClick={() => navigate('/relatorios')} className="text-xs gap-1.5">
+                        Abrir Central de Relatórios
+                      </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Tab 5: Sorteio */}
-              {activeTab === 'draw' && (
-                <Card className="card-elevated p-8 text-center space-y-4">
-                  <Dices className="w-12 h-12 text-primary mx-auto" />
-                  <div>
-                    <h3 className="text-lg font-bold font-display">Motor de Sorteio de Grupos e Tabela de Berger</h3>
-                    <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1">
-                      Realize sorteio automático ou manual com potes, cabeças de chave e geração direta dos confrontos.
-                    </p>
-                  </div>
-                  <Button variant="accent" onClick={() => navigate(`/sorteio/${selected.id}`)}>
-                    Acessar Tela de Sorteio
-                  </Button>
-                </Card>
-              )}
-
-              {/* Tab 6: Jogos */}
-              {activeTab === 'matches' && (
-                <Card className="card-elevated">
-                  <CardHeader className="flex flex-row items-center justify-between pb-3">
-                    <div>
-                      <CardTitle className="text-lg font-display">Confrontos ({selectedMatches.length})</CardTitle>
-                      <CardDescription>Partidas agendadas e realizadas desta competição.</CardDescription>
-                    </div>
-                    <Button variant="accent" size="sm" onClick={() => navigate('/jogos')}>
-                      Abrir Central de Jogos
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="space-y-3 pt-0">
-                    <div className="space-y-2">
-                      {selectedMatches.map(m => (
-                        <div key={m.id} className="p-3 rounded-xl border border-border/60 bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-bold">Jogo #{m.matchNumber}</span>
-                              <Badge variant="outline" className="text-[10px]">{m.phase || m.groupName || 'Geral'}</Badge>
-                              <span>{m.court || m.venue || 'Local a definir'}</span>
-                            </div>
-                            <p className="font-bold text-sm text-foreground">
-                              {m.teamAName} <span className="text-muted-foreground font-normal text-xs">vs</span> {m.teamBName}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 self-end sm:self-center">
-                            <Badge variant={m.status === 'completed' || m.status === 'homologated' ? 'success' : 'outline'}>
-                              {m.status}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Tab 7: Classificação e Mata-mata */}
-              {activeTab === 'standings' && (
-                <div className="space-y-6">
-                  <div className="flex justify-end">
-                    <Button variant="outline" className="gap-2" onClick={handleExportStandings} disabled={standings.length === 0}>
-                      <FileDown className="w-4 h-4" />
-                      Exportar Classificação Oficial (PDF)
-                    </Button>
-                  </div>
-
-                  {standings.map(group => (
-                    <div key={group.groupName} className="space-y-2">
-                      <h3 className="text-sm font-semibold text-muted-foreground">{group.groupName}</h3>
-                      <StandingsTable
-                        standings={group.standings}
-                        title={`Classificação - ${group.groupName}`}
-                        logoUrlById={Object.fromEntries(teams.map(t => [t.id, t.logoUrl ?? '']))}
-                      />
-                    </div>
-                  ))}
-
-                  {/* Melhores Terceiros (se houver) */}
-                  {bestThirds.length > 0 && (
-                    <Card className="card-elevated border-primary/30">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-display flex items-center gap-2 text-primary">
-                          <Sparkles className="w-4 h-4" />
-                          Ranking de Melhores Terceiros Colocados
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <StandingsTable
-                          standings={bestThirds}
-                          title="Ranking Comparativo dos Terceiros"
-                          logoUrlById={Object.fromEntries(teams.map(t => [t.id, t.logoUrl ?? '']))}
-                        />
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Chaveamento Mata-mata */}
-                  {bracketMatches.length > 0 && (
-                    <div className="pt-4 border-t border-border/60">
-                      <h3 className="text-base font-display font-bold mb-3 flex items-center gap-2">
-                        <GitBranch className="w-5 h-5 text-primary" />
-                        Chaveamento Eliminatório (Mata-mata)
-                      </h3>
-                      <TournamentBracket matches={bracketMatches} title={`Fase Final - ${selected.name}`} />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Tab 8: Relatórios */}
-              {activeTab === 'reports' && (
-                <Card className="card-elevated p-8 text-center space-y-4">
-                  <FileSpreadsheet className="w-12 h-12 text-primary mx-auto" />
-                  <div>
-                    <h3 className="text-lg font-bold font-display">Central de Relatórios e Documentos</h3>
-                    <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1">
-                      Emita súmulas oficiais, ordens de saque, classificação detalhada e boletins da competição.
-                    </p>
-                  </div>
-                  <Button variant="accent" onClick={() => navigate('/relatorios')}>
-                    Abrir Central de Relatórios
-                  </Button>
-                </Card>
-              )}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="p-12 text-center text-muted-foreground">
-                Selecione uma competição à esquerda para gerenciar.
-              </CardContent>
-            </Card>
-          )}
-        </div>
+                  </SectionCard>
+                )}
+              </div>
+            ) : (
+              <SectionCard title="Nenhuma competição selecionada" description="Selecione um torneio à esquerda para gerenciar.">
+                <p className="text-xs text-muted-foreground">
+                  Você pode selecionar um campeonato na lista ao lado ou criar um novo torneio pelo botão superior.
+                </p>
+              </SectionCard>
+            )}
+          </div>
+        </StateContainer>
       </div>
 
-      {/* Modal Nova Competição */}
+      {/* ── Modais Auxiliares (Modularizados) ── */}
       <CompetitionFormDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
@@ -822,7 +599,6 @@ export default function CompetitionsPage() {
         venues={venues}
       />
 
-      {/* Modal de Confirmação para Transições Críticas do Ciclo de Vida */}
       <ConfirmActionDialog
         open={pendingStatus !== null}
         onOpenChange={(open) => !open && setPendingStatus(null)}
@@ -857,338 +633,5 @@ export default function CompetitionsPage() {
         />
       )}
     </MainLayout>
-  );
-}
-
-interface CompetitionSettingsEditDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  competition: CompetitionRecord;
-  onSave: (updates: Partial<CompetitionRecord>) => Promise<void>;
-}
-
-function CompetitionSettingsEditDialog({ open, onOpenChange, competition, onSave }: CompetitionSettingsEditDialogProps) {
-  const [setFormat, setSetFormat] = useState(competition.setFormat || '3-sets');
-  const [groupStage, setGroupStage] = useState(competition.phaseSetRules?.groupStage || competition.setFormat || '3-sets');
-  const [playoffs, setPlayoffs] = useState(competition.phaseSetRules?.playoffs || competition.setFormat || '3-sets');
-  const [semifinals, setSemifinals] = useState(competition.phaseSetRules?.semifinals || '5-sets');
-  const [final, setFinal] = useState(competition.phaseSetRules?.final || '5-sets');
-
-  useEffect(() => {
-    if (open) {
-      setSetFormat(competition.setFormat || '3-sets');
-      setGroupStage(competition.phaseSetRules?.groupStage || competition.setFormat || '3-sets');
-      setPlayoffs(competition.phaseSetRules?.playoffs || competition.setFormat || '3-sets');
-      setSemifinals(competition.phaseSetRules?.semifinals || '5-sets');
-      setFinal(competition.phaseSetRules?.final || '5-sets');
-    }
-  }, [open, competition]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave({
-      setFormat: setFormat as '3-sets' | '5-sets',
-      phaseSetRules: {
-        groupStage: groupStage as '3-sets' | '5-sets',
-        playoffs: playoffs as '3-sets' | '5-sets',
-        semifinals: semifinals as '3-sets' | '5-sets',
-        final: final as '3-sets' | '5-sets',
-      },
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-zinc-950 border-border p-5 rounded-xl shadow-none">
-        <DialogHeader>
-          <DialogTitle className="text-sm font-semibold text-foreground">Editar Configurações da Competição</DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">Ajuste o formato de sets por fase.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-3.5 py-1">
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Formato de Sets Padrão</Label>
-            <Select value={setFormat} onValueChange={(v: '3-sets' | '5-sets') => setSetFormat(v)}>
-              <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
-                <SelectValue placeholder="Selecione o formato padrão" />
-              </SelectTrigger>
-              <SelectContent className="bg-zinc-900 border-zinc-800">
-                <SelectItem value="3-sets" className="text-xs">Melhor de 3 sets</SelectItem>
-                <SelectItem value="5-sets" className="text-xs">Melhor de 5 sets</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="space-y-2.5 pt-2 border-t border-border">
-            <Label className="text-muted-foreground uppercase text-[10px] font-semibold tracking-wider">Formatos Específicos por Fase</Label>
-            
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Grupos</Label>
-                <Select value={groupStage} onValueChange={(v: '3-sets' | '5-sets') => setGroupStage(v)}>
-                  <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
-                    <SelectItem value="3-sets" className="text-xs">3 Sets</SelectItem>
-                    <SelectItem value="5-sets" className="text-xs">5 Sets</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Quartas de Final</Label>
-                <Select value={playoffs} onValueChange={(v: '3-sets' | '5-sets') => setPlayoffs(v)}>
-                  <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
-                    <SelectItem value="3-sets" className="text-xs">3 Sets</SelectItem>
-                    <SelectItem value="5-sets" className="text-xs">5 Sets</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Semifinais</Label>
-                <Select value={semifinals} onValueChange={(v: '3-sets' | '5-sets') => setSemifinals(v)}>
-                  <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
-                    <SelectItem value="3-sets" className="text-xs">3 Sets</SelectItem>
-                    <SelectItem value="5-sets" className="text-xs">5 Sets</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Finais</Label>
-                <Select value={final} onValueChange={(v: '3-sets' | '5-sets') => setFinal(v)}>
-                  <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
-                    <SelectItem value="3-sets" className="text-xs">3 Sets</SelectItem>
-                    <SelectItem value="5-sets" className="text-xs">5 Sets</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 pt-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">
-              Cancelar
-            </Button>
-            <Button type="submit" size="sm" className="h-8 text-xs rounded-md font-medium shadow-none">
-              Salvar Alterações
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-interface CompetitionFormDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (input: Omit<CompetitionRecord, 'id'>) => Promise<void>;
-  modalities: ModalityRecord[];
-  venues: VenueRecord[];
-}
-
-function CompetitionFormDialog({ open, onOpenChange, onSubmit, modalities, venues }: CompetitionFormDialogProps) {
-  const [name, setName] = useState('');
-  const [modality, setModality] = useState<'indoor' | 'beach'>('indoor');
-  const [genderCategory, setGenderCategory] = useState<'male' | 'female' | 'mixed'>('female');
-  const [playerFormat, setPlayerFormat] = useState('6x6');
-  const [setsFormat, setSetsFormat] = useState('3-sets');
-  const [format, setFormat] = useState('group-stage-knockout');
-  const [groupsCount, setGroupsCount] = useState(2);
-  const [advancingPerGroup, setAdvancingPerGroup] = useState(2);
-  const [bestThirdsCount, setBestThirdsCount] = useState(0);
-  const [venue, setVenue] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [defaultDeadline, setDefaultDeadline] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setName('');
-      setModality('indoor');
-      setGenderCategory('female');
-      setPlayerFormat('6x6');
-      setSetsFormat('3-sets');
-      setFormat('group-stage-knockout');
-      setGroupsCount(2);
-      setAdvancingPerGroup(2);
-      setBestThirdsCount(0);
-      setVenue(venues[0]?.name || '');
-      setStartDate('');
-      setEndDate('');
-      setDefaultDeadline('');
-    }
-  }, [open, venues]);
-
-  const canSubmit = name.trim().length >= 3;
-
-  const handleSubmit = async () => {
-    if (!canSubmit || submitting) return;
-    setSubmitting(true);
-    try {
-      await onSubmit({
-        name: name.trim(),
-        modality,
-        format,
-        playerFormat,
-        setFormat: setsFormat,
-        genderCategory,
-        status: 'planning',
-        groupsCount,
-        advancingPerGroup,
-        bestThirdsCount,
-        venue: venue.trim() || undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        defaultDeadline: defaultDeadline || undefined,
-        defaultMatchIntervalMinutes: 75,
-        minTeamRestMinutes: 30,
-        tiebreakCriteriaOrder: ['points', 'victories', 'head-to-head', 'sets-ratio', 'points-ratio', 'sets-balance', 'points-balance'],
-        phaseSetRules: {
-          groupStage: setsFormat === '5-sets' ? '5-sets' : '3-sets',
-          playoffs: setsFormat === '5-sets' ? '5-sets' : '3-sets',
-          semifinals: '5-sets',
-          final: '5-sets',
-        },
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto p-5 bg-zinc-950 border-border rounded-xl shadow-none">
-        <DialogHeader>
-          <DialogTitle className="text-sm font-semibold text-foreground">Nova Competição</DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">Defina os parâmetros técnicos e regulamentares da nova competição.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3.5 py-1">
-          <div className="space-y-1">
-            <Label htmlFor="comp-name" className="text-[10px] uppercase font-semibold text-muted-foreground">Nome da Competição</Label>
-            <Input id="comp-name" value={name} onChange={e => setName(e.target.value)} placeholder="Ex.: Superliga Regional 2026" className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Modalidade</Label>
-              <Select value={modality} onValueChange={(v: 'indoor' | 'beach') => setModality(v)}>
-                <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  <SelectItem value="indoor" className="text-xs">Vôlei de Quadra</SelectItem>
-                  <SelectItem value="beach" className="text-xs">Vôlei de Praia</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Categoria / Naipe</Label>
-              <Select value={genderCategory} onValueChange={(v: 'male' | 'female' | 'mixed') => setGenderCategory(v)}>
-                <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  <SelectItem value="female" className="text-xs">Feminino</SelectItem>
-                  <SelectItem value="male" className="text-xs">Masculino</SelectItem>
-                  <SelectItem value="mixed" className="text-xs">Misto</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Formato de Atletas</Label>
-              <Select value={playerFormat} onValueChange={setPlayerFormat}>
-                <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  <SelectItem value="6x6" className="text-xs">6x6 (Quadra)</SelectItem>
-                  <SelectItem value="4x4" className="text-xs">4x4 (Misto / Areia)</SelectItem>
-                  <SelectItem value="2x2" className="text-xs">2x2 (Dupla)</SelectItem>
-                  <SelectItem value="3x3" className="text-xs">3x3 (Trio)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Sets Padrão</Label>
-              <Select value={setsFormat} onValueChange={setSetsFormat}>
-                <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  <SelectItem value="3-sets" className="text-xs">Melhor de 3 sets</SelectItem>
-                  <SelectItem value="5-sets" className="text-xs">Melhor de 5 sets</SelectItem>
-                  <SelectItem value="1-set" className="text-xs">Set Único</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Sistema de Disputa</Label>
-            <Select value={format} onValueChange={setFormat}>
-              <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-zinc-900 border-zinc-800">
-                <SelectItem value="group-stage-knockout" className="text-xs">Fase de Grupos + Mata-mata (Recomendado)</SelectItem>
-                <SelectItem value="round-robin" className="text-xs">Todos contra Todos (Pontos Corridos)</SelectItem>
-                <SelectItem value="single-elimination" className="text-xs">Eliminatória Simples (Mata-mata direto)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {format === 'group-stage-knockout' && (
-            <div className="grid grid-cols-3 gap-2.5 p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Nº Grupos</Label>
-                <Input type="number" min={1} max={8} value={groupsCount} onChange={e => setGroupsCount(Number(e.target.value))} className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Classif./Grupo</Label>
-                <Input type="number" min={1} max={4} value={advancingPerGroup} onChange={e => setAdvancingPerGroup(Number(e.target.value))} className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Melhores 3ºs</Label>
-                <Input type="number" min={0} max={4} value={bestThirdsCount} onChange={e => setBestThirdsCount(Number(e.target.value))} className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md" />
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <Label htmlFor="comp-venue" className="text-[10px] uppercase font-semibold text-muted-foreground">Local Principal / Ginásio</Label>
-            <Input id="comp-venue" value={venue} onChange={e => setVenue(e.target.value)} placeholder="Ex.: Ginásio UNIPAR Toledo" className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
-          </div>
-
-          <div className="grid grid-cols-3 gap-2.5">
-            <div className="space-y-1">
-              <Label htmlFor="comp-start" className="text-[10px] uppercase font-semibold text-muted-foreground">Início</Label>
-              <Input id="comp-start" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="comp-end" className="text-[10px] uppercase font-semibold text-muted-foreground">Fim</Label>
-              <Input id="comp-end" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="comp-deadline" className="text-[10px] uppercase font-semibold text-muted-foreground">Prazo Inscrições</Label>
-              <Input id="comp-deadline" type="date" value={defaultDeadline} onChange={e => setDefaultDeadline(e.target.value)} className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
-            </div>
-          </div>
-        </div>
-        <DialogFooter className="gap-2 pt-2">
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">
-            Cancelar
-          </Button>
-          <Button size="sm" disabled={!canSubmit || submitting} onClick={handleSubmit} className="h-8 text-xs rounded-md font-medium shadow-none">
-            {submitting ? 'Criando...' : 'Criar Competição'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

@@ -72,11 +72,11 @@ export function CompetitionHeader({
   const statusInfo = STATUS_MAP[competition.status] ?? { label: competition.status, variant: 'default' };
 
   return (
-    <div className="bg-card border border-border rounded-xl shadow-none overflow-hidden mb-6">
+    <div className="bg-card border border-border rounded-xl shadow-none overflow-hidden mb-3.5">
       {/* Top Banner with info */}
-      <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="px-4 py-3 sm:px-4 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg bg-zinc-800/80 border border-zinc-700/50 text-zinc-300 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-zinc-800/80 border border-zinc-700/50 text-zinc-300 flex items-center justify-center shrink-0">
             <Trophy className="w-5 h-5" />
           </div>
           <div>
@@ -156,22 +156,31 @@ export function CompetitionHeader({
       </div>
 
       {/* Tabs Navigation */}
-      <div className="px-2 border-t border-border bg-zinc-950/40 overflow-x-auto scrollbar-none flex items-center gap-1">
-        {TABS.map(tab => {
+      <div
+        role="tablist"
+        aria-label="Abas da competição"
+        className="px-2 border-t border-border bg-zinc-950/40 overflow-x-auto scrollbar-none flex items-center gap-1"
+      >
+        {TABS.map((tab) => {
           const active = activeTab === tab.id;
           const Icon = tab.icon;
           return (
             <button
               key={tab.id}
+              role="tab"
+              id={`tab-${tab.id}`}
+              aria-selected={active}
+              aria-controls={`panel-${tab.id}`}
+              tabIndex={active ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap',
+                'flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
                 active
                   ? 'border-primary text-foreground font-medium bg-zinc-800/40'
                   : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-zinc-800/20',
               )}
             >
-              <Icon className={cn('w-3.5 h-3.5', active ? 'text-primary' : 'text-zinc-400')} />
+              <Icon className={cn('w-3.5 h-3.5', active ? 'text-primary' : 'text-zinc-400')} aria-hidden="true" />
               {tab.label}
             </button>
           );

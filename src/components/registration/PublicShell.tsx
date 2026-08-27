@@ -14,17 +14,18 @@ export function PublicShell({ children }: PublicShellProps) {
       <header className="border-b border-border bg-background/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 font-display font-bold text-lg">
-            <span className="p-2 rounded-lg bg-indoor text-indoor-foreground">
+            {/* bg-primary/text-primary-foreground = âmbar sólido (token semântico, sem classe legada) */}
+            <span className="p-2 rounded-md bg-primary text-primary-foreground">
               <Volleyball className="w-5 h-5" />
             </span>
-            VolleyPro
+            BaseOS
           </Link>
           <span className="text-sm text-muted-foreground">Portal de Inscrição de Atletas</span>
         </div>
       </header>
       <main className="max-w-4xl mx-auto px-4 py-8">{children}</main>
       <footer className="py-8 text-center text-xs text-muted-foreground">
-        VolleyPro - Sistema de Gestão de Competições de Voleibol
+        BaseOS — Sistema de Gestão de Competições Esportivas
       </footer>
     </div>
   );

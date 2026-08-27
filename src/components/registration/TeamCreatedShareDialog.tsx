@@ -13,7 +13,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-export function buildWhatsAppMessage(team: TeamRecord, portalUrl: string): string {
+function buildWhatsAppMessage(team: TeamRecord, portalUrl: string): string {
   const manager = team.managerName || 'Responsável';
   const username = team.managerEmail || team.managerName || team.name;
   const password = team.managerPassword || 'Acesso Direto via Link';

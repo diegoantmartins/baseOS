@@ -276,7 +276,8 @@ export function MatchSheetInterface({
         className="flex items-center justify-between"
       >
         <div className="flex items-center gap-4">
-          <div className={`p-3 rounded-xl ${modality === 'indoor' ? 'bg-indoor text-indoor-foreground' : 'bg-beach text-beach-foreground'}`}>
+          {/* indoor → âmbar (marca); beach → zinc-700 (distinção neutra). Tokens semânticos sem classes legadas. */}
+          <div className={`p-3 rounded-xl ${modality === 'indoor' ? 'bg-primary text-primary-foreground' : 'bg-zinc-700 text-zinc-100'}`}>
             {modality === 'indoor' ? (
               <Volleyball className="w-6 h-6" />
             ) : (

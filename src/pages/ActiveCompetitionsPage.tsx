@@ -17,6 +17,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { StateContainer } from '@/components/ui/StateContainer';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -100,36 +102,31 @@ export default function ActiveCompetitionsPage() {
 
   return (
     <MainLayout>
-      <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-        {/* Header */}
-        <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
-              Competições Ativas
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Acompanhe e gerencie as competições em andamento, jogos, classificações e súmulas oficiais.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <ContextualHelpButton
-              articleId="fluxo-completo-competicao"
-              label="Como funciona o sistema"
-            />
+      <div className="space-y-6">
+        {/* Page Header Unificado */}
+        <PageHeader
+          title="Competições Ativas"
+          description="Acompanhe e gerencie as competições em andamento, jogos, classificações e súmulas oficiais."
+          primaryAction={
             <Button
               size="sm"
-              className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none"
+              className="gap-1.5 text-xs h-8 rounded-md font-medium"
               onClick={() => navigate('/competicoes?new=1')}
             >
               <Plus className="w-3.5 h-3.5" />
               Nova Competição
             </Button>
-          </div>
-        </motion.div>
+          }
+          secondaryActions={
+            <ContextualHelpButton
+              articleId="fluxo-completo-competicao"
+              label="Como funciona o sistema"
+            />
+          }
+        />
 
         {/* Filters */}
-        <motion.div variants={item} className="flex flex-col sm:flex-row gap-2.5">
+        <div className="flex flex-col sm:flex-row gap-2.5">
           <div className="relative flex-1">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -175,35 +172,26 @@ export default function ActiveCompetitionsPage() {
               Vôlei de Praia
             </Button>
           </div>
-        </motion.div>
+        </div>
 
-        {/* List of Active Competitions */}
-        {loading ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {[1, 2].map(i => (
-              <div key={i} className="h-48 rounded-xl border border-zinc-800 bg-zinc-900/60 animate-pulse" />
-            ))}
-          </div>
-        ) : activeCompetitions.length === 0 ? (
-          <Card className="p-12 text-center border-border bg-card shadow-none">
-            <div className="mx-auto w-10 h-10 rounded-lg bg-zinc-800 text-zinc-400 flex items-center justify-center mb-3">
-              <Trophy className="w-5 h-5" />
-            </div>
-            <h3 className="font-semibold text-sm text-foreground">Nenhuma competição ativa encontrada</h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-              Crie uma nova competição ou ajuste os filtros para gerenciar os campeonatos de voleibol.
-            </p>
+        {/* List of Active Competitions com StateContainer */}
+        <StateContainer
+          isLoading={loading}
+          isEmpty={activeCompetitions.length === 0}
+          emptyTitle="Nenhuma competição ativa encontrada"
+          emptyDescription="Crie uma nova competição ou ajuste os filtros para gerenciar os campeonatos de voleibol."
+          emptyAction={
             <Button
-              className="mt-4 gap-1.5 text-xs h-8 rounded-md font-medium"
+              className="gap-1.5 text-xs h-8 rounded-md font-medium"
               size="sm"
               onClick={() => navigate('/competicoes?new=1')}
             >
               <Plus className="w-3.5 h-3.5" />
               Criar Primeira Competição
             </Button>
-          </Card>
-        ) : (
-          <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          }
+        >
+          <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {activeCompetitions.map(c => {
               const readiness = evaluateCompetitionReadiness({
                 competition: c,
@@ -340,8 +328,8 @@ export default function ActiveCompetitionsPage() {
               );
             })}
           </motion.div>
-        )}
-      </motion.div>
+        </StateContainer>
+      </div>
     </MainLayout>
   );
 }

@@ -1,60 +1,184 @@
+/**
+ * Sidebar — Navegação lateral principal do BaseOS
+ *
+ * 5 grupos operacionais conforme o Blueprint:
+ * 1. Painel & Competições
+ * 2. Operação de Quadra
+ * 3. Cadastros de Base
+ * 4. Documentos Oficiais
+ * 5. Sistema
+ *
+ * Regras de implementação:
+ * - Item ativo detectado por `startsWith` para suportar subrotas
+ * - RBAC preservado: itens filtrados pela mesma lógica de session.user.role
+ * - Sem ARIA redundante; usa nav semântico + aria-current="page"
+ * - Collapse persiste em memória (sem localStorage nesta fase)
+ * - Tooltip no estado colapsado via title (nativo, zero overhead)
+ */
+
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Trophy,
+  Flame,
+  Calendar,
+  ClipboardList,
+  Dices,
   Users,
   UserCheck,
-  Volleyball,
-  ClipboardList,
-  Calendar,
-  BarChart3,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  Waves,
   Building2,
+  Users2,
+  BarChart3,
+  FileSpreadsheet,
+  FileEdit,
+  Settings,
+  HelpCircle,
   LogOut,
   UserRound,
-  FileSpreadsheet,
-  Dices,
-  HelpCircle,
+  ChevronLeft,
+  ChevronRight,
+  Volleyball,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/components/auth/AuthContext';
+import { useAuth } from '@/components/auth/useAuth';
 import { ROLE_LABELS } from '@/types/auth';
+import { BaseOsLogo } from '@/components/common/BaseOsLogo';
 
-const menuItems = [
-  { icon: LayoutDashboard, label: 'Painel', path: '/competicoes-ativas' },
-  { icon: Trophy, label: 'Competições', path: '/competicoes' },
-  { icon: Calendar, label: 'Partidas', path: '/jogos' },
-  { icon: ClipboardList, label: 'Súmulas', path: '/sumulas' },
-  { icon: Users, label: 'Equipes', path: '/equipes' },
-  { icon: UserCheck, label: 'Atletas', path: '/atletas' },
-  { icon: Building2, label: 'Locais', path: '/locais' },
-  { icon: Dices, label: 'Sorteio', path: '/sorteio' },
-  { icon: Building2, label: 'Pessoas', path: '/pessoas' },
-  { icon: BarChart3, label: 'Estatísticas', path: '/estatisticas' },
-  { icon: FileSpreadsheet, label: 'Relatórios', path: '/relatorios' },
-  { icon: Settings, label: 'Configurações', path: '/configuracoes' },
-  { icon: HelpCircle, label: 'Central de Ajuda', path: '/ajuda' },
+// ─────────────────────────────────────────────────────────────────────────────
+// Definição dos grupos e itens de navegação
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface NavItem {
+  icon: React.ElementType;
+  label: string;
+  path: string;
+  /** Se true, requer session.user.role === 'organizer' */
+  requiresOrganizer?: boolean;
+}
+
+interface NavGroup {
+  id: string;
+  label: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: 'painel',
+    label: 'Painel & Competições',
+    items: [
+      { icon: Flame, label: 'Competições Ativas', path: '/competicoes-ativas' },
+      { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+      { icon: Trophy, label: 'Campeonatos', path: '/competicoes', requiresOrganizer: true },
+    ],
+  },
+  {
+    id: 'operacao',
+    label: 'Operação de Quadra',
+    items: [
+      { icon: Calendar, label: 'Partidas', path: '/jogos' },
+      { icon: Trophy, label: 'Classificação', path: '/classificacao' },
+      { icon: ClipboardList, label: 'Súmulas', path: '/sumulas' },
+      { icon: Dices, label: 'Sorteio', path: '/sorteio', requiresOrganizer: true },
+    ],
+  },
+  {
+    id: 'cadastros',
+    label: 'Cadastros de Base',
+    items: [
+      { icon: Users, label: 'Equipes', path: '/equipes', requiresOrganizer: true },
+      { icon: UserCheck, label: 'Atletas', path: '/atletas', requiresOrganizer: true },
+      { icon: Building2, label: 'Locais', path: '/locais', requiresOrganizer: true },
+      { icon: Users2, label: 'Oficiais', path: '/pessoas', requiresOrganizer: true },
+      { icon: Volleyball, label: 'Modalidades', path: '/modalidades', requiresOrganizer: true },
+    ],
+  },
+  {
+    id: 'documentos',
+    label: 'Documentos Oficiais',
+    items: [
+      { icon: BarChart3, label: 'Estatísticas', path: '/estatisticas', requiresOrganizer: true },
+      { icon: FileSpreadsheet, label: 'Relatórios', path: '/relatorios', requiresOrganizer: true },
+      { icon: FileEdit, label: 'Editor de Súmulas', path: '/documentos/editor', requiresOrganizer: true },
+    ],
+  },
+  {
+    id: 'sistema',
+    label: 'Sistema',
+    items: [
+      { icon: Settings, label: 'Configurações', path: '/configuracoes', requiresOrganizer: true },
+      { icon: HelpCircle, label: 'Central de Ajuda', path: '/ajuda' },
+    ],
+  },
 ];
 
-/** Itens restritos ao perfil de organizador. */
-const ORGANIZER_ONLY = new Set(['/competicoes', '/equipes', '/atletas', '/locais', '/sorteio', '/pessoas', '/estatisticas', '/relatorios', '/configuracoes', '/settings']);
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-componente: Item de navegação
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface NavItemProps {
+  item: NavItem;
+  isActive: boolean;
+  collapsed: boolean;
+}
+
+function SidebarNavItem({ item, isActive, collapsed }: NavItemProps) {
+  const Icon = item.icon;
+  return (
+    <li>
+      <Link
+        to={item.path}
+        title={collapsed ? item.label : undefined}
+        aria-current={isActive ? 'page' : undefined}
+        className={cn(
+          'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar group',
+          isActive
+            ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+            : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
+          collapsed && 'justify-center px-2',
+        )}
+      >
+        <Icon
+          className={cn(
+            'w-4 h-4 shrink-0',
+            isActive
+              ? 'text-sidebar-primary-foreground'
+              : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground',
+          )}
+          aria-hidden="true"
+        />
+        {!collapsed && (
+          <span className="truncate">{item.label}</span>
+        )}
+      </Link>
+    </li>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Componente principal
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { session, signOut } = useAuth();
+  const isOrganizer =
+    session?.user?.role === 'organizer' || session?.user?.role === 'admin';
 
-  const visibleItems = menuItems.filter(item => {
-    if (!session) return true;
-    return session.user.role === 'organizer' || !ORGANIZER_ONLY.has(item.path) || item.path === '/';
-  });
+  /** Determina se um item está ativo — usa startsWith para suportar subrotas */
+  const isItemActive = (path: string): boolean => {
+    if (path === '/competicoes-ativas' || path === '/') {
+      return (
+        location.pathname === '/competicoes-ativas' ||
+        location.pathname === '/'
+      );
+    }
+    return location.pathname.startsWith(path);
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -62,185 +186,140 @@ export function Sidebar() {
   };
 
   return (
-    <motion.aside
-      initial={false}
-      animate={{ width: collapsed ? 80 : 260 }}
-      className="fixed left-0 top-0 h-screen bg-sidebar z-50 flex flex-col border-r border-sidebar-border"
+    <aside
+      className={cn(
+        'hidden lg:flex flex-col fixed left-0 top-0 h-screen bg-sidebar border-r border-sidebar-border z-40 transition-[width] duration-200 ease-out',
+        collapsed ? 'w-[72px]' : 'w-[240px]',
+      )}
+      aria-label="Navegação principal"
     >
-      {/* Logo */}
-      <div className="h-16 flex items-center px-4 border-b border-sidebar-border">
-        <Link to="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
-            <Volleyball className="w-6 h-6 text-sidebar-primary-foreground" />
+      {/* ── Logo / Branding ── */}
+      <div className="h-14 flex items-center px-4 border-b border-sidebar-border shrink-0">
+        <Link
+          to="/competicoes-ativas"
+          className={cn('flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md', collapsed && 'justify-center w-full')}
+          aria-label="BaseOS — Ir para Competições Ativas"
+        >
+          <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
+            <Volleyball className="w-4 h-4 text-sidebar-primary-foreground" aria-hidden="true" />
           </div>
-          <AnimatePresence>
-            {!collapsed && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                className="flex flex-col"
-              >
-                <span className="font-display font-bold text-sidebar-foreground text-lg leading-tight">
-                  VolleyPro
-                </span>
-                <span className="text-xs text-sidebar-foreground/60">
-                  Sistema de Gestão
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {!collapsed && (
+            <div className="flex flex-col min-w-0">
+              <span className="font-bold text-sm text-sidebar-foreground leading-tight tracking-tight">
+                BaseOS
+              </span>
+              <span className="text-[10px] text-sidebar-foreground/50 leading-tight">
+                Gestão Esportiva
+              </span>
+            </div>
+          )}
         </Link>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 overflow-y-auto scrollbar-thin">
-        <ul className="space-y-1">
-          {visibleItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <li key={item.path}>
-                <Link
-                  to={item.path}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group',
-                    isActive
-                      ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                      : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
-                  )}
-                >
-                  <item.icon
-                    className={cn(
-                      'w-5 h-5 flex-shrink-0',
-                      isActive
-                        ? 'text-sidebar-primary-foreground'
-                        : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'
-                    )}
-                  />
-                  <AnimatePresence>
-                    {!collapsed && (
-                      <motion.span
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        className="text-sm font-medium whitespace-nowrap"
-                      >
-                        {item.label}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+      {/* ── Navegação por grupos ── */}
+      <nav className="flex-1 overflow-y-auto scrollbar-thin py-3" aria-label="Menu de navegação">
+        {NAV_GROUPS.map((group) => {
+          // Filtra itens de acordo com o papel do usuário
+          const visibleItems = group.items.filter(
+            (item) => !item.requiresOrganizer || isOrganizer,
+          );
 
-        {/* Quick Access */}
-        <AnimatePresence>
-          {!collapsed && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="mt-6 pt-6 border-t border-sidebar-border"
-            >
-              <p className="px-3 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-3">
-                Acesso Rápido
-              </p>
-              <div className="space-y-2 px-3">
-                <Button variant="indoor" size="sm" className="w-full justify-start gap-2">
-                  <Volleyball className="w-4 h-4" />
-                  Quadra
-                </Button>
-                <Button variant="beach" size="sm" className="w-full justify-start gap-2">
-                  <Waves className="w-4 h-4" />
-                  Praia
-                </Button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={group.id} className="mb-4 px-2">
+              {/* Label do grupo — oculto quando colapsado, visível para leitores de tela */}
+              {!collapsed ? (
+                <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40 select-none">
+                  {group.label}
+                </p>
+              ) : (
+                <div className="mb-1 border-t border-sidebar-border/50 mx-1" aria-hidden="true" />
+              )}
+              <ul className="space-y-0.5" role="list">
+                {visibleItems.map((item) => (
+                  <SidebarNavItem
+                    key={item.path}
+                    item={item}
+                    isActive={isItemActive(item.path)}
+                    collapsed={collapsed}
+                  />
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </nav>
 
-      {/* Usuário e sair */}
-      <div className="p-3 border-t border-sidebar-border">
+      {/* ── Usuário e Logout ── */}
+      <div className="shrink-0 border-t border-sidebar-border p-2">
         {session ? (
-          <div className="space-y-2">
-            <AnimatePresence>
-              {!collapsed && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="px-2"
-                >
-                  <p className="text-sm font-semibold text-sidebar-foreground truncate">{session.user.name}</p>
-                  <p className="text-xs text-sidebar-foreground/60">{ROLE_LABELS[session.user.role]}</p>
-                </motion.div>
+          <div className="space-y-1">
+            {!collapsed && (
+              <div className="px-3 py-1.5">
+                <p className="text-xs font-semibold text-sidebar-foreground truncate leading-tight">
+                  {session.user.name}
+                </p>
+                <p className="text-[10px] text-sidebar-foreground/50 leading-tight mt-0.5">
+                  {ROLE_LABELS[session.user.role]}
+                </p>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size={collapsed ? 'icon' : 'sm'}
+              onClick={handleSignOut}
+              title={collapsed ? 'Sair da conta' : undefined}
+              aria-label="Sair da conta"
+              className={cn(
+                'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent',
+                collapsed ? 'w-full h-9 rounded-lg' : 'w-full justify-start gap-2 h-8 rounded-lg text-xs',
               )}
-            </AnimatePresence>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size={collapsed ? 'icon' : 'default'}
-                onClick={handleSignOut}
-                className="flex-1 justify-start gap-2 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-              >
-                <LogOut className="w-4 h-4" />
-                <AnimatePresence>
-                  {!collapsed && (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="text-sm"
-                    >
-                      Sair
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </Button>
-            </div>
+            >
+              <LogOut className="w-4 h-4 shrink-0" aria-hidden="true" />
+              {!collapsed && <span>Sair</span>}
+            </Button>
           </div>
         ) : (
           <Button
             variant="ghost"
-            size={collapsed ? 'icon' : 'default'}
+            size={collapsed ? 'icon' : 'sm'}
             onClick={() => navigate('/login')}
-            className="w-full justify-start gap-2 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            title={collapsed ? 'Entrar' : undefined}
+            aria-label="Entrar na conta"
+            className={cn(
+              'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent',
+              collapsed ? 'w-full h-9 rounded-lg' : 'w-full justify-start gap-2 h-8 rounded-lg text-xs',
+            )}
           >
-            <UserRound className="w-4 h-4" />
-            <AnimatePresence>
-              {!collapsed && (
-                <motion.span
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="text-sm"
-                >
-                  Entrar
-                </motion.span>
-              )}
-            </AnimatePresence>
+            <UserRound className="w-4 h-4 shrink-0" aria-hidden="true" />
+            {!collapsed && <span>Entrar</span>}
           </Button>
         )}
       </div>
 
-      {/* Collapse Toggle */}
-      <div className="p-3 border-t border-sidebar-border">
+      {/* ── Toggle Collapse ── */}
+      <div className="shrink-0 border-t border-sidebar-border p-2">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setCollapsed(!collapsed)}
-          className="w-full h-9 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+          aria-expanded={!collapsed}
+          className="w-full h-8 rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent"
         >
           {collapsed ? (
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-4 h-4" aria-hidden="true" />
           ) : (
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-4 h-4" aria-hidden="true" />
           )}
         </Button>
       </div>
-    </motion.aside>
+    </aside>
   );
 }
+
+/** Largura da sidebar em estado expandido — usada pelo MainLayout para calcular margin-left */
+export const SIDEBAR_WIDTH = 240;
+/** Largura da sidebar em estado colapsado */
+export const SIDEBAR_COLLAPSED_WIDTH = 72;

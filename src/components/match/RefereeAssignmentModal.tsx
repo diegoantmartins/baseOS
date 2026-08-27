@@ -16,7 +16,7 @@ import { Shield, Plus, Trash2, AlertTriangle, CheckCircle, Volleyball } from 'lu
 import { toast } from 'sonner';
 import { dataAccess } from '@/services/dataAccess';
 import { AuditService } from '@/lib/security';
-import { useAuth } from '@/components/auth/AuthContext';
+import { useAuth } from '@/components/auth/useAuth';
 import {
   RefereeAssignmentService,
   STANDARD_REFEREE_ROLES,

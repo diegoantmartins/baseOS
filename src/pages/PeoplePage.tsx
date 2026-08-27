@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Plus, Users2, Search, Pencil, Trash2, Shield, User, Award, Briefcase, Phone, Mail, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { StateContainer } from '@/components/ui/StateContainer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -167,25 +169,25 @@ export default function PeoplePage() {
 
   return (
     <MainLayout>
-      <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-        <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+      <div className="space-y-3.5">
+        <PageHeader
+          title={
+            <span className="flex items-center gap-2">
               <Users2 className="w-5 h-5 text-primary" />
               Pessoas e Papéis
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Gestão integrada de gestores, técnicos, atletas e árbitros com suporte a múltiplos papéis simultâneos.
-            </p>
-          </div>
-          <Button size="sm" onClick={handleOpenCreate} className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none self-start sm:self-auto">
-            <Plus className="w-3.5 h-3.5" />
-            Nova Pessoa
-          </Button>
-        </motion.div>
+            </span>
+          }
+          description="Gestão integrada de gestores, técnicos, atletas e árbitros com suporte a múltiplos papéis simultâneos."
+          primaryAction={
+            <Button size="sm" onClick={handleOpenCreate} className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none">
+              <Plus className="w-3.5 h-3.5" />
+              Nova Pessoa
+            </Button>
+          }
+        />
 
         {/* Filtros e Busca */}
-        <motion.div variants={item} className="flex flex-col sm:flex-row gap-2.5">
+        <div className="flex flex-col sm:flex-row gap-2.5">
           <div className="relative flex-1">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -208,21 +210,22 @@ export default function PeoplePage() {
               </Button>
             ))}
           </div>
-        </motion.div>
+        </div>
 
-        {/* Lista de Pessoas */}
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-40 rounded-xl border border-zinc-800 bg-zinc-900/60 animate-pulse" />
-            ))}
-          </div>
-        ) : filteredPersons.length === 0 ? (
-          <Card className="card-elevated shadow-none">
-            <CardContent className="p-10 text-center text-xs text-muted-foreground">Nenhuma pessoa encontrada com os filtros selecionados.</CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        {/* Lista de Pessoas com StateContainer */}
+        <StateContainer
+          isLoading={loading}
+          isEmpty={filteredPersons.length === 0}
+          emptyTitle="Nenhuma pessoa cadastrada"
+          emptyDescription="Cadastre gestores, técnicos, atletas ou árbitros para associá-los às equipes e competições."
+          emptyAction={
+            <Button size="sm" onClick={handleOpenCreate} className="gap-1.5 text-xs h-8 rounded-md font-medium">
+              <Plus className="w-3.5 h-3.5" />
+              Cadastrar Primeira Pessoa
+            </Button>
+          }
+        >
+          <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {filteredPersons.map(person => (
               <motion.div key={person.id} variants={item}>
                 <Card className="card-elevated hover-raise shadow-none border border-border bg-card flex flex-col justify-between h-full group">
@@ -300,9 +303,9 @@ export default function PeoplePage() {
                 </Card>
               </motion.div>
             ))}
-          </div>
-        )}
-      </motion.div>
+          </motion.div>
+        </StateContainer>
+      </div>
 
       {/* Modal Criar/Editar Pessoa */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>

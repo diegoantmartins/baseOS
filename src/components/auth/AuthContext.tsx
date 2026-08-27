@@ -1,21 +1,10 @@
 // Contexto de autenticação: sessão reativa compartilhada pela aplicação.
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AuthSession, SignInResult, UserProfile, UserRole } from '@/types/auth';
 import { authService } from '@/services/authService';
-
-interface AuthContextValue {
-  session: AuthSession | null;
-  loading: boolean;
-  isAuthenticated: boolean;
-  hasRole: (roles: UserRole[]) => boolean;
-  signIn: (email: string, password: string) => Promise<SignInResult>;
-  signOut: () => Promise<void>;
-  updateProfile: (updates: Partial<Pick<UserProfile, 'name'>>) => Promise<SignInResult>;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
+import { AuthContext, type AuthContextValue } from './useAuth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -23,7 +12,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    authService.getSession().then(s => {
+    authService.getSession().then((s) => {
       if (!active) return;
       setSession(s);
       setLoading(false);
@@ -56,10 +45,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth deve ser usado dentro de <AuthProvider>');
-  return ctx;
 }

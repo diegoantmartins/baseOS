@@ -1,51 +1,65 @@
+/**
+ * AthletesPage — Gestão Profissional de Atletas e Elencos do BaseOS
+ * Rota: /atletas
+ *
+ * Responsabilidades:
+ * - Listagem tabular de atletas inscritos em todas as competições e equipes
+ * - Resumo operacional com métricas consolidadas (Total, Quadra, Praia, Equipes)
+ * - Filtros rápidos em tempo real: Busca (nome/documento/posição), Equipe, Modalidade, Gênero e Camisa
+ * - Identificação visual refinada para Capitão e Líbero
+ * - Exportação de Relação Nominal Geral em PDF (Relatórios de Delegação)
+ * - Acesso direto ao formulário público de inscrição da equipe
+ * - Transferência de atletas entre agremiações inscritas
+ * - Cadastro de novos atletas com validação
+ * - Tratamento dos 4 estados universais (Loading, Normal, Empty, Error com Retry) via StateContainer
+ *
+ * Design System:
+ * - Enterprise Dark SaaS (Zinc-950/900, Âmbar-500)
+ * - Tipografia tabular mono para camisas, idades e contagens esportivas
+ */
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   User,
   Plus,
   Search,
   MoreVertical,
-  Calendar,
   FileDown,
   ArrowRightLeft,
+  Users,
+  Trophy,
+  ShieldCheck,
+  Award,
+  Filter,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SectionCard } from '@/components/ui/Section';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { StateContainer } from '@/components/ui/StateContainer';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { dataAccess } from '@/services/dataAccess';
 import { generateTeamRosterReportPdf, downloadReportsPdf } from '@/lib/pdf/reportsPdf';
-import type { CompetitionRecord, TeamRecord } from '@/types/entities';
+import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
+import { useCapability } from '@/hooks/useCapability';
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
-import { cn } from '@/lib/utils';
 
-interface AthleteView extends CompetitionAthlete {
+export interface AthleteView extends CompetitionAthlete {
   teamName: string;
   teamShortName: string;
   modality: 'indoor' | 'beach';
   competitionName: string;
   age?: number;
 }
-
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.03 } },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 },
-};
 
 function ageFromBirthDate(birthDate?: string): number | undefined {
   if (!birthDate) return undefined;
@@ -55,66 +69,112 @@ function ageFromBirthDate(birthDate?: string): number | undefined {
   return Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
 }
 
-const AthletesPage = () => {
+export function AthletesPage() {
   const navigate = useNavigate();
+  const { can } = useCapability();
+
+  // Estados de dados
   const [athletes, setAthletes] = useState<AthleteView[]>([]);
+  const [availableTeams, setAvailableTeams] = useState<
+    (CompetitionTeam & { teamName: string; competitionName: string })[]
+  >([]);
   const [loading, setLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Estados de filtros
   const [search, setSearch] = useState('');
+  const [teamFilter, setTeamFilter] = useState<string>('all');
+  const [modalityFilter, setModalityFilter] = useState<'all' | 'indoor' | 'beach'>('all');
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
-  const [availableTeams, setAvailableTeams] = useState<(CompetitionTeam & { teamName: string, competitionName: string })[]>([]);
+
+  // Estados de modais
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [transferAthlete, setTransferAthlete] = useState<AthleteView | null>(null);
 
   const refresh = useCallback(async () => {
-    const [rows, competitionTeams, teams, competitions] = await Promise.all([
-      dataAccess.listCompetitionAthletes(),
-      dataAccess.listCompetitionTeams(),
-      dataAccess.listTeams(),
-      dataAccess.listCompetitions(),
-    ]);
-    const ctById = new Map(competitionTeams.map(ct => [ct.id, ct]));
-    const teamById = new Map(teams.map(t => [t.id, t]));
-    const compById = new Map(competitions.map(c => [c.id, c]));
-    const view: AthleteView[] = rows.map(a => {
-      const ct = ctById.get(a.competitionTeamId);
-      const team = ct ? teamById.get(ct.teamId) : undefined;
-      const comp = ct ? compById.get(ct.competitionId) : undefined;
-      return {
-        ...a,
-        teamName: team?.name ?? 'Equipe não encontrada',
-        teamShortName: team?.shortName ?? '—',
-        modality: team?.modality ?? comp?.modality ?? 'indoor',
-        competitionName: comp?.name ?? 'Competição',
-        age: ageFromBirthDate(a.birthDate),
-      };
-    });
-    
-    setAvailableTeams(competitionTeams.map(ct => ({
-      ...ct,
-      teamName: teamById.get(ct.teamId)?.name ?? 'Equipe Desconhecida',
-      competitionName: compById.get(ct.competitionId)?.name ?? 'Competição',
-    })));
-    setAthletes(view);
-    setLoading(false);
+    try {
+      setLoading(true);
+      setIsError(false);
+      const [rows, competitionTeams, teams, competitions] = await Promise.all([
+        dataAccess.listCompetitionAthletes(),
+        dataAccess.listCompetitionTeams(),
+        dataAccess.listTeams(),
+        dataAccess.listCompetitions(),
+      ]);
+
+      const ctById = new Map(competitionTeams.map((ct) => [ct.id, ct]));
+      const teamById = new Map(teams.map((t) => [t.id, t]));
+      const compById = new Map(competitions.map((c) => [c.id, c]));
+
+      const view: AthleteView[] = rows.map((a) => {
+        const ct = ctById.get(a.competitionTeamId);
+        const team = ct ? teamById.get(ct.teamId) : undefined;
+        const comp = ct ? compById.get(ct.competitionId) : undefined;
+        return {
+          ...a,
+          teamName: team?.name ?? 'Equipe não encontrada',
+          teamShortName: team?.shortName ?? '—',
+          modality: team?.modality ?? comp?.modality ?? 'indoor',
+          competitionName: comp?.name ?? 'Competição',
+          age: ageFromBirthDate(a.birthDate),
+        };
+      });
+
+      setAvailableTeams(
+        competitionTeams.map((ct) => ({
+          ...ct,
+          teamName: teamById.get(ct.teamId)?.name ?? 'Equipe Desconhecida',
+          competitionName: compById.get(ct.competitionId)?.name ?? 'Competição',
+        })),
+      );
+      setAthletes(view);
+    } catch (err: unknown) {
+      setIsError(true);
+      setErrorMessage(err instanceof Error ? err.message : 'Falha ao carregar a lista de atletas.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const filteredAthletes = athletes.filter(athlete => {
-    if (genderFilter !== 'all' && athlete.gender !== genderFilter) return false;
-    if (search && !`${athlete.name} ${athlete.teamName} ${athlete.position}`.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  // Filtragem de atletas
+  const filteredAthletes = useMemo(() => {
+    return athletes.filter((athlete) => {
+      if (modalityFilter !== 'all' && athlete.modality !== modalityFilter) return false;
+      if (genderFilter !== 'all' && athlete.gender !== genderFilter) return false;
+      if (teamFilter !== 'all' && athlete.competitionTeamId !== teamFilter) return false;
+      if (search) {
+        const term = search.toLowerCase();
+        const matchesName = athlete.name.toLowerCase().includes(term);
+        const matchesTeam = athlete.teamName.toLowerCase().includes(term);
+        const matchesShort = athlete.teamShortName.toLowerCase().includes(term);
+        const matchesPosition = athlete.position ? athlete.position.toLowerCase().includes(term) : false;
+        const matchesDoc = athlete.documentNumber ? athlete.documentNumber.toLowerCase().includes(term) : false;
+        const matchesJersey = athlete.jerseyNumber !== undefined ? String(athlete.jerseyNumber) === term : false;
+        if (!matchesName && !matchesTeam && !matchesShort && !matchesPosition && !matchesDoc && !matchesJersey) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [athletes, modalityFilter, genderFilter, teamFilter, search]);
 
-  const femaleCount = athletes.filter(a => a.gender === 'female').length;
-  const maleCount = athletes.filter(a => a.gender === 'male').length;
+  // Métricas do resumo operacional
+  const indoorCount = useMemo(() => athletes.filter((a) => a.modality === 'indoor').length, [athletes]);
+  const beachCount = useMemo(() => athletes.filter((a) => a.modality === 'beach').length, [athletes]);
+  const registeredTeamsCount = useMemo(() => new Set(athletes.map((a) => a.competitionTeamId)).size, [athletes]);
 
   const openTeamRegistration = async (athlete: AthleteView) => {
     const ct = await dataAccess.getCompetitionTeamById(athlete.competitionTeamId);
-    if (ct?.accessToken) navigate(`/equipe/inscricao/${ct.accessToken}`);
+    if (ct?.accessToken) {
+      navigate(`/equipe/inscricao/${ct.accessToken}`);
+    } else {
+      toast.info('Link de inscrição não disponível para esta equipe.');
+    }
   };
 
   const handleRegister = async (data: Omit<CompetitionAthlete, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -126,287 +186,382 @@ const AthletesPage = () => {
 
   const handleTransfer = async (athleteId: string, newCompetitionTeamId: string) => {
     await dataAccess.updateCompetitionAthlete(athleteId, { competitionTeamId: newCompetitionTeamId });
-    toast.success('Atleta transferido com sucesso!');
+    toast.success('Atleta transferido de equipe com sucesso!');
     setTransferAthlete(null);
     refresh();
   };
 
   const handleExportRoster = async () => {
-    const [rows, competitionTeams, teams] = await Promise.all([
-      dataAccess.listCompetitionAthletes(),
-      dataAccess.listCompetitionTeams(),
-      dataAccess.listTeams(),
-    ]);
-    const grouped = new Map<string, AthleteView[]>();
-    for (const row of rows) {
-      const ct = competitionTeams.find(c => c.id === row.competitionTeamId);
-      const team = ct ? teams.find(t => t.id === ct.teamId) : undefined;
-      const view: AthleteView = {
-        ...row,
-        teamName: team?.name ?? 'Equipe não encontrada',
-        teamShortName: team?.shortName ?? '—',
-        modality: team?.modality ?? 'indoor',
-        competitionName: ct?.competitionId ?? 'Competição',
-        age: ageFromBirthDate(row.birthDate),
-      };
-      const key = row.competitionTeamId;
-      grouped.set(key, [...(grouped.get(key) ?? []), view]);
-    }
-    const doc = generateTeamRosterReportPdf(
-      [...grouped.entries()].map(([ctId, list]) => {
-        const ct = competitionTeams.find(c => c.id === ctId);
-        const team = ct ? teams.find(t => t.id === ct.teamId) : undefined;
-        return {
-          name: list[0]?.teamName ?? 'Equipe',
-          shortName: list[0]?.teamShortName ?? '—',
-          coach: team?.coachName,
-          logoUrl: team?.logoUrl,
-          athletes: list.map(a => ({
-            jerseyNumber: a.jerseyNumber,
-            name: a.name,
-            position: a.position,
-            documentNumber: a.documentNumber,
-            isCaptain: a.isCaptain,
-            isLibero: a.isLibero,
-          })),
+    try {
+      const [rows, competitionTeams, teams] = await Promise.all([
+        dataAccess.listCompetitionAthletes(),
+        dataAccess.listCompetitionTeams(),
+        dataAccess.listTeams(),
+      ]);
+      const grouped = new Map<string, AthleteView[]>();
+      for (const row of rows) {
+        const ct = competitionTeams.find((c) => c.id === row.competitionTeamId);
+        const team = ct ? teams.find((t) => t.id === ct.teamId) : undefined;
+        const view: AthleteView = {
+          ...row,
+          teamName: team?.name ?? 'Equipe não encontrada',
+          teamShortName: team?.shortName ?? '—',
+          modality: team?.modality ?? 'indoor',
+          competitionName: ct?.competitionId ?? 'Competição',
+          age: ageFromBirthDate(row.birthDate),
         };
-      }),
-      'Relatório Geral de Atletas',
-    );
-    downloadReportsPdf(doc, 'relacao_nominal_atletas.pdf');
-    toast.success('Relação nominal gerada com sucesso!');
+        const key = row.competitionTeamId;
+        grouped.set(key, [...(grouped.get(key) ?? []), view]);
+      }
+      const doc = generateTeamRosterReportPdf(
+        [...grouped.entries()].map(([ctId, list]) => {
+          const ct = competitionTeams.find((c) => c.id === ctId);
+          const team = ct ? teams.find((t) => t.id === ct.teamId) : undefined;
+          return {
+            name: list[0]?.teamName ?? 'Equipe',
+            shortName: list[0]?.teamShortName ?? '—',
+            coach: team?.coachName,
+            logoUrl: team?.logoUrl,
+            athletes: list.map((a) => ({
+              jerseyNumber: a.jerseyNumber,
+              name: a.name,
+              position: a.position,
+              documentNumber: a.documentNumber,
+              isCaptain: a.isCaptain,
+              isLibero: a.isLibero,
+            })),
+          };
+        }),
+        'Relatório Geral de Atletas',
+      );
+      downloadReportsPdf(doc, 'relacao_nominal_atletas.pdf');
+      toast.success('Relação nominal gerada em PDF com sucesso!');
+    } catch {
+      toast.error('Erro ao gerar relatório em PDF.');
+    }
   };
+
+  // Colunas da DataTable Oficial de Atletas
+  const columns: DataTableColumn<AthleteView>[] = [
+    {
+      id: 'jersey',
+      header: 'Nº',
+      isNumeric: true,
+      cell: ({ row }) => (
+        <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 text-foreground font-mono font-bold text-xs flex items-center justify-center tabular-nums">
+          {row.jerseyNumber ?? '—'}
+        </div>
+      ),
+    },
+    {
+      id: 'name',
+      header: 'Atleta',
+      cell: ({ row }) => (
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-foreground truncate">{row.name}</span>
+            {row.isCaptain && (
+              <Badge
+                variant="outline"
+                className="text-[9px] py-0 px-1 border-amber-500/40 text-amber-400 bg-amber-500/10 font-bold"
+              >
+                CAP
+              </Badge>
+            )}
+            {row.isLibero && (
+              <Badge
+                variant="outline"
+                className="text-[9px] py-0 px-1 border-emerald-500/40 text-emerald-400 bg-emerald-500/10 font-bold"
+              >
+                LÍBERO
+              </Badge>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground truncate">
+            {row.age !== undefined ? `${row.age} anos · ` : ''}
+            {row.documentNumber ? `Doc: ${row.documentNumber}` : 'Documento não informado'}
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: 'team',
+      header: 'Equipe / Torneio',
+      cell: ({ row }) => (
+        <div className="min-w-0 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-foreground truncate">{row.teamName}</span>
+            <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400 font-mono">
+              {row.teamShortName}
+            </Badge>
+          </div>
+          <p className="text-[11px] text-muted-foreground truncate">{row.competitionName}</p>
+        </div>
+      ),
+    },
+    {
+      id: 'position',
+      header: 'Posição',
+      cell: ({ row }) => (
+        <span className="text-xs font-medium text-muted-foreground">{row.position || 'Geral'}</span>
+      ),
+    },
+    {
+      id: 'modality',
+      header: 'Modalidade',
+      cell: ({ row }) => (
+        <StatusBadge
+          status={row.modality === 'indoor' ? 'in-progress' : 'registration-open'}
+          customLabel={row.modality === 'indoor' ? 'Quadra' : 'Praia'}
+          className="text-[10px] h-5"
+        />
+      ),
+    },
+    {
+      id: 'gender',
+      header: 'Gênero',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {row.gender === 'female' ? 'Feminino' : row.gender === 'male' ? 'Masculino' : '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Ações',
+      align: 'right',
+      cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 hover:bg-zinc-800 rounded-md"
+              aria-label={`Ações para o atleta ${row.name}`}
+            >
+              <MoreVertical className="w-3.5 h-3.5 text-zinc-400" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800 text-xs">
+            <DropdownMenuItem
+              className="gap-2 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                openTeamRegistration(row);
+              }}
+            >
+              <User className="w-3.5 h-3.5 text-zinc-400" /> Ver Inscrição da Equipe
+            </DropdownMenuItem>
+            {can('team:edit') && (
+              <DropdownMenuItem
+                className="gap-2 text-xs text-amber-400 hover:text-amber-300"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTransferAthlete(row);
+                }}
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" /> Transferir de Equipe
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
 
   return (
     <MainLayout>
-      <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-        {/* Header */}
-        <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">Atletas</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Atletas inscritos nas competições</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60" onClick={handleExportRoster} disabled={athletes.length === 0}>
-              <FileDown className="w-3.5 h-3.5" />
-              Relação Nominal (PDF)
-            </Button>
-            <Button size="sm" className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={() => setRegistrationOpen(true)}>
-              <Plus className="w-3.5 h-3.5" />
-              Novo Atleta
-            </Button>
-          </div>
-        </motion.div>
+      <div className="space-y-3.5">
+        {/* ── PageHeader Oficial ── */}
+        <PageHeader
+          title="Gestão de Atletas"
+          description="Controle nominal de atletas, numeração de camisas, designação de capitães e líberos e emissão de delegações."
+          primaryAction={
+            can('team:create') && (
+              <Button
+                size="sm"
+                className="gap-1.5 text-xs font-semibold shadow-none"
+                onClick={() => setRegistrationOpen(true)}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Novo Atleta
+              </Button>
+            )
+          }
+          secondaryActions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60"
+                onClick={handleExportRoster}
+                disabled={athletes.length === 0}
+              >
+                <FileDown className="w-3.5 h-3.5" />
+                Relação Nominal (PDF)
+              </Button>
+              <ContextualHelpButton
+                articles={[
+                  { articleId: 'cadastrar-atleta', label: 'Como gerenciar o elenco' },
+                  { articleId: 'definir-capitao-libero', label: 'Definir Capitão e Líberos' },
+                  { articleId: 'cadastrar-equipe', label: 'Como cadastrar uma equipe' },
+                ]}
+                label="Ajuda em atletas"
+              />
+            </div>
+          }
+        />
 
-        {/* Stats */}
-        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Card className="card-elevated shadow-none">
-            <CardContent className="p-3.5">
-              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Total de Atletas</span>
-              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">{athletes.length}</p>
-            </CardContent>
-          </Card>
-          <Card className="card-elevated shadow-none">
-            <CardContent className="p-3.5">
-              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Feminino</span>
-              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">{femaleCount}</p>
-            </CardContent>
-          </Card>
-          <Card className="card-elevated shadow-none">
-            <CardContent className="p-3.5">
-              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Masculino</span>
-              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">{maleCount}</p>
-            </CardContent>
-          </Card>
-          <Card className="card-elevated shadow-none">
-            <CardContent className="p-3.5">
-              <span className="block text-[9px] uppercase tracking-wider font-semibold text-muted-foreground">Equipes Inscritas</span>
-              <p className="text-xl font-semibold tabular-nums text-foreground mt-1">
-                {new Set(athletes.map(a => a.competitionTeamId)).size}
-              </p>
-            </CardContent>
-          </Card>
-        </motion.div>
+        {/* ── Gestão de Estados Universais ── */}
+        <StateContainer
+          isLoading={loading}
+          isError={isError}
+          errorTitle="Não foi possível carregar os atletas"
+          errorDescription={errorMessage}
+          onRetry={refresh}
+          isEmpty={athletes.length === 0}
+          emptyTitle="Nenhum atleta cadastrado"
+          emptyDescription="Cadastre o primeiro atleta ou envie o link de auto-inscrição para as agremiações esportivas preencherem seus elencos."
+          emptyAction={
+            can('team:create') ? (
+              <Button
+                size="sm"
+                className="gap-1.5 text-xs font-semibold shadow-none"
+                onClick={() => setRegistrationOpen(true)}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Cadastrar Primeiro Atleta
+              </Button>
+            ) : undefined
+          }
+        >
+          <div className="space-y-3.5">
+            {/* ── Resumo Operacional ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <SectionCard density="dense" className="bg-card/70 border-border/80">
+                <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground mb-0.5">
+                  <span>Total de Atletas</span>
+                  <Users className="w-3.5 h-3.5 text-primary" />
+                </div>
+                <p className="text-xl font-bold font-mono tabular-nums text-foreground">{athletes.length}</p>
+              </SectionCard>
 
-        {/* Filters */}
-        <motion.div variants={item} className="flex flex-col sm:flex-row gap-2.5">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Buscar atletas, equipes, posições..."
-              className="pl-8 text-xs h-8 bg-zinc-900 border-zinc-800 rounded-md"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
-          <Select value={genderFilter} onValueChange={(v: typeof genderFilter) => setGenderFilter(v)}>
-            <SelectTrigger className="w-full sm:w-[150px] text-xs h-8 bg-zinc-900 border-zinc-800 rounded-md">
-              <SelectValue placeholder="Gênero" />
-            </SelectTrigger>
-            <SelectContent className="bg-zinc-900 border-zinc-800">
-              <SelectItem value="all" className="text-xs">Todos</SelectItem>
-              <SelectItem value="female" className="text-xs">Feminino</SelectItem>
-              <SelectItem value="male" className="text-xs">Masculino</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="flex gap-0.5 bg-zinc-900 p-0.5 rounded-md border border-zinc-800">
-            <Button
-              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-              size="sm"
-              className={cn('text-xs h-7 px-2.5 rounded-sm font-medium transition-colors', viewMode === 'grid' ? 'bg-zinc-800 text-foreground' : 'text-muted-foreground')}
-              onClick={() => setViewMode('grid')}
+              <SectionCard density="dense" className="bg-card/70 border-border/80">
+                <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground mb-0.5">
+                  <span>Atletas de Quadra</span>
+                  <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                </div>
+                <p className="text-xl font-bold font-mono tabular-nums text-foreground">{indoorCount}</p>
+              </SectionCard>
+
+              <SectionCard density="dense" className="bg-card/70 border-border/80">
+                <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground mb-0.5">
+                  <span>Atletas de Praia</span>
+                  <Award className="w-3.5 h-3.5 text-emerald-500" />
+                </div>
+                <p className="text-xl font-bold font-mono tabular-nums text-foreground">{beachCount}</p>
+              </SectionCard>
+
+              <SectionCard density="dense" className="bg-card/70 border-border/80">
+                <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground mb-0.5">
+                  <span>Equipes Inscritas</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-zinc-400" />
+                </div>
+                <p className="text-xl font-bold font-mono tabular-nums text-foreground">
+                  {registeredTeamsCount}
+                </p>
+              </SectionCard>
+            </div>
+
+            {/* ── Controles & Tabela de Atletas ── */}
+            <SectionCard
+              title="Elenco Geral de Atletas"
+              description="Relação consolidada de atletas inscritos, posições táticas e distribuição por equipe."
+              divided
             >
-              Grid
-            </Button>
-            <Button
-              variant={viewMode === 'table' ? 'secondary' : 'ghost'}
-              size="sm"
-              className={cn('text-xs h-7 px-2.5 rounded-sm font-medium transition-colors', viewMode === 'table' ? 'bg-zinc-800 text-foreground' : 'text-muted-foreground')}
-              onClick={() => setViewMode('table')}
-            >
-              Tabela
-            </Button>
-          </div>
-        </motion.div>
+              {/* Barra de Filtros Responsiva */}
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 pb-2">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
+                  <Input
+                    placeholder="Buscar por nome, documento, posição ou camisa..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="h-8 text-xs pl-8 bg-zinc-900 border-zinc-800"
+                  />
+                </div>
 
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-44 rounded-xl border border-zinc-800 bg-zinc-900/60 animate-pulse" />
-            ))}
-          </div>
-        ) : (
-          <>
-            {viewMode === 'grid' ? (
-              <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                {filteredAthletes.map(athlete => (
-                  <Card key={athlete.id} className="card-elevated hover-raise shadow-none border border-border bg-card group overflow-hidden">
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-zinc-800 border border-zinc-700/60 text-zinc-200 flex items-center justify-center font-mono font-bold text-sm shrink-0">
-                          {athlete.jerseyNumber ?? '—'}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-semibold text-xs sm:text-sm text-foreground truncate">{athlete.name}</h3>
-                          <p className="text-[11px] text-muted-foreground truncate">{athlete.position || 'Geral'}</p>
-                          <div className="flex items-center gap-1 mt-1">
-                            {athlete.isCaptain && (
-                              <Badge variant="default" className="text-[9px] py-0 px-1 bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                                CAP
-                              </Badge>
-                            )}
-                            {athlete.isLibero && (
-                              <Badge variant="outline" className="text-[9px] py-0 px-1 border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
-                                LÍBERO
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5 pt-2 border-t border-border text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-muted-foreground">Equipe</span>
-                          <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">{athlete.teamShortName}</Badge>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-muted-foreground">Competição</span>
-                          <span className="text-[11px] font-medium text-foreground truncate max-w-[130px]">{athlete.competitionName}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-muted-foreground">Idade</span>
-                          <span className="text-[11px] font-medium tabular-nums text-foreground">{athlete.age !== undefined ? `${athlete.age} anos` : '—'}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 pt-1 border-t border-border">
-                        <Button variant="ghost" size="sm" className="h-7 text-xs flex-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-zinc-800" onClick={() => openTeamRegistration(athlete)}>
-                          Inscrição
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-7 text-xs flex-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-zinc-800" onClick={() => setTransferAthlete(athlete)}>
-                          Transferir
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </motion.div>
-            ) : (
-              <motion.div variants={item}>
-                <Card className="card-elevated shadow-none overflow-hidden border border-border">
-                  <Table className="text-xs">
-                    <TableHeader className="bg-zinc-900/60">
-                      <TableRow className="border-b border-border">
-                        <TableHead className="font-semibold text-muted-foreground py-2.5">Atleta</TableHead>
-                        <TableHead className="font-semibold text-muted-foreground py-2.5">Posição</TableHead>
-                        <TableHead className="font-semibold text-muted-foreground py-2.5">Equipe</TableHead>
-                        <TableHead className="font-semibold text-muted-foreground py-2.5 text-center">Camisa</TableHead>
-                        <TableHead className="font-semibold text-muted-foreground py-2.5">Função</TableHead>
-                        <TableHead className="py-2.5"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredAthletes.map(athlete => (
-                        <TableRow key={athlete.id} className="border-b border-border/40 hover:bg-zinc-800/30 transition-colors">
-                          <TableCell className="py-2.5">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-7 h-7 rounded bg-zinc-800 border border-zinc-700/60 text-zinc-300 font-mono font-bold text-xs flex items-center justify-center">
-                                {athlete.jerseyNumber ?? '—'}
-                              </div>
-                              <div>
-                                <p className="font-medium text-foreground">{athlete.name}</p>
-                                <p className="text-[10px] text-muted-foreground">
-                                  {athlete.age !== undefined ? `${athlete.age} anos · ` : ''}{athlete.competitionName}
-                                </p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-2.5 text-muted-foreground">{athlete.position}</TableCell>
-                          <TableCell className="py-2.5">
-                            <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">{athlete.teamShortName}</Badge>
-                          </TableCell>
-                          <TableCell className="py-2.5 text-center font-mono font-semibold">{athlete.jerseyNumber ?? '—'}</TableCell>
-                          <TableCell className="py-2.5">
-                            {athlete.isCaptain ? (
-                              <Badge variant="default" className="text-[9px] py-0 px-1 bg-amber-500/20 text-amber-400 border border-amber-500/30">CAP</Badge>
-                            ) : athlete.isLibero ? (
-                              <Badge variant="outline" className="text-[9px] py-0 px-1 border-emerald-500/40 text-emerald-400 bg-emerald-500/10">LÍBERO</Badge>
-                            ) : '—'}
-                          </TableCell>
-                          <TableCell className="py-2.5 text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-zinc-800 rounded-md">
-                                  <MoreVertical className="w-3.5 h-3.5" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800 text-xs">
-                                <DropdownMenuItem className="gap-2 text-xs" onClick={() => openTeamRegistration(athlete)}>
-                                  <User className="w-3.5 h-3.5" /> Ver inscrição
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="gap-2 text-xs" onClick={() => setTransferAthlete(athlete)}>
-                                  <ArrowRightLeft className="w-3.5 h-3.5" /> Transferir
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                  {/* Filtro por Equipe */}
+                  <Select value={teamFilter} onValueChange={setTeamFilter}>
+                    <SelectTrigger className="w-full sm:w-44 h-8 text-xs bg-zinc-900 border-zinc-800">
+                      <SelectValue placeholder="Todas as Equipes" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-zinc-900 border-zinc-800">
+                      <SelectItem value="all" className="text-xs">Todas as Equipes</SelectItem>
+                      {availableTeams.map((t) => (
+                        <SelectItem key={t.id} value={t.id} className="text-xs">
+                          {t.teamName}
+                        </SelectItem>
                       ))}
-                    </TableBody>
-                  </Table>
-                </Card>
-              </motion.div>
-            )}
-            {filteredAthletes.length === 0 && (
-              <Card className="card-elevated shadow-none">
-                <CardContent className="p-10 text-center text-xs text-muted-foreground">Nenhum atleta encontrado.</CardContent>
-              </Card>
-            )}
-          </>
-        )}
-      </motion.div>
+                    </SelectContent>
+                  </Select>
 
-      {/* Modal de Cadastro */}
+                  {/* Filtro por Gênero */}
+                  <Select value={genderFilter} onValueChange={(v: typeof genderFilter) => setGenderFilter(v)}>
+                    <SelectTrigger className="w-full sm:w-32 h-8 text-xs bg-zinc-900 border-zinc-800">
+                      <SelectValue placeholder="Gênero" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-zinc-900 border-zinc-800">
+                      <SelectItem value="all" className="text-xs">Todos os Gêneros</SelectItem>
+                      <SelectItem value="female" className="text-xs">Feminino</SelectItem>
+                      <SelectItem value="male" className="text-xs">Masculino</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Botões de Modalidade */}
+                  <div className="flex items-center gap-1 w-full sm:w-auto">
+                    <Button
+                      variant={modalityFilter === 'all' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-8 text-xs px-2.5 flex-1 sm:flex-initial"
+                      onClick={() => setModalityFilter('all')}
+                    >
+                      Todas ({athletes.length})
+                    </Button>
+                    <Button
+                      variant={modalityFilter === 'indoor' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-8 text-xs px-2.5 flex-1 sm:flex-initial"
+                      onClick={() => setModalityFilter('indoor')}
+                    >
+                      Quadra
+                    </Button>
+                    <Button
+                      variant={modalityFilter === 'beach' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-8 text-xs px-2.5 flex-1 sm:flex-initial"
+                      onClick={() => setModalityFilter('beach')}
+                    >
+                      Praia
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* DataTable Oficial */}
+              <DataTable
+                data={filteredAthletes}
+                columns={columns}
+                emptyTitle="Nenhum atleta encontrado para os filtros selecionados"
+                emptyDescription="Tente buscar por outro termo, alterar a equipe ou remover os filtros aplicados."
+              />
+            </SectionCard>
+          </div>
+        </StateContainer>
+      </div>
+
+      {/* ── Modal de Cadastro de Atleta ── */}
       <AthleteRegistrationDialog
         open={registrationOpen}
         onOpenChange={setRegistrationOpen}
@@ -414,7 +569,7 @@ const AthletesPage = () => {
         onSave={handleRegister}
       />
 
-      {/* Modal de Transferência */}
+      {/* ── Modal de Transferência de Atleta ── */}
       <AthleteTransferDialog
         open={!!transferAthlete}
         onOpenChange={(op) => !op && setTransferAthlete(null)}
@@ -424,12 +579,16 @@ const AthletesPage = () => {
       />
     </MainLayout>
   );
-};
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Modal de Cadastro de Atleta
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface AthleteRegistrationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  teams: (CompetitionTeam & { teamName: string, competitionName: string })[];
+  teams: (CompetitionTeam & { teamName: string; competitionName: string })[];
   onSave: (data: Omit<CompetitionAthlete, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
 }
 
@@ -443,13 +602,13 @@ function AthleteRegistrationDialog({ open, onOpenChange, teams, onSave }: Athlet
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!competitionTeamId) return;
+    if (!competitionTeamId || !name.trim() || !documentNumber.trim()) return;
     onSave({
       competitionTeamId,
-      name,
-      documentNumber,
+      name: name.trim(),
+      documentNumber: documentNumber.trim(),
       gender,
-      position,
+      position: position.trim() || undefined,
       jerseyNumber: jerseyNumber ? parseInt(jerseyNumber, 10) : undefined,
       isCaptain: false,
       isLibero: false,
@@ -461,30 +620,52 @@ function AthleteRegistrationDialog({ open, onOpenChange, teams, onSave }: Athlet
       <DialogContent className="sm:max-w-md bg-zinc-950 border-border p-5 rounded-xl shadow-none">
         <DialogHeader>
           <DialogTitle className="text-sm font-semibold text-foreground">Cadastrar Novo Atleta</DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">Insira os dados do atleta e escolha a equipe de destino.</DialogDescription>
+          <DialogDescription className="text-xs text-muted-foreground">
+            Insira os dados do atleta e vincule-o à equipe inscrita correspondente.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3.5 py-1">
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Equipe Destino</Label>
+            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Equipe Destino *</Label>
             <Select value={competitionTeamId} onValueChange={setCompetitionTeamId} required>
               <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
                 <SelectValue placeholder="Selecione a equipe inscrita" />
               </SelectTrigger>
               <SelectContent className="bg-zinc-900 border-zinc-800">
-                {teams.map(t => (
-                  <SelectItem key={t.id} value={t.id} className="text-xs">{t.teamName} - {t.competitionName}</SelectItem>
+                {teams.map((t) => (
+                  <SelectItem key={t.id} value={t.id} className="text-xs">
+                    {t.teamName} — {t.competitionName}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Nome Completo</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} required className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
+            <Label htmlFor="athlete-name" className="text-[10px] uppercase font-semibold text-muted-foreground">
+              Nome Completo *
+            </Label>
+            <Input
+              id="athlete-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex.: Lucas Saatkamp"
+              required
+              className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
+            />
           </div>
           <div className="grid grid-cols-2 gap-2.5">
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Documento (RG/CPF)</Label>
-              <Input value={documentNumber} onChange={e => setDocumentNumber(e.target.value)} required className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
+              <Label htmlFor="athlete-doc" className="text-[10px] uppercase font-semibold text-muted-foreground">
+                Documento (RG/CPF) *
+              </Label>
+              <Input
+                id="athlete-doc"
+                value={documentNumber}
+                onChange={(e) => setDocumentNumber(e.target.value)}
+                placeholder="Ex.: 12.345.678-9"
+                required
+                className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
+              />
             </div>
             <div className="space-y-1">
               <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Gênero</Label>
@@ -501,17 +682,46 @@ function AthleteRegistrationDialog({ open, onOpenChange, teams, onSave }: Athlet
           </div>
           <div className="grid grid-cols-2 gap-2.5">
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Posição Principal</Label>
-              <Input value={position} onChange={e => setPosition(e.target.value)} placeholder="Ex: Ponteiro" className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
+              <Label htmlFor="athlete-pos" className="text-[10px] uppercase font-semibold text-muted-foreground">
+                Posição Principal
+              </Label>
+              <Input
+                id="athlete-pos"
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+                placeholder="Ex.: Ponteiro, Central, Levantador"
+                className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
+              />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Nº da Camisa</Label>
-              <Input value={jerseyNumber} onChange={e => setJerseyNumber(e.target.value)} type="number" min={1} max={99} className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md" />
+              <Label htmlFor="athlete-jersey" className="text-[10px] uppercase font-semibold text-muted-foreground">
+                Nº da Camisa (1-99)
+              </Label>
+              <Input
+                id="athlete-jersey"
+                value={jerseyNumber}
+                onChange={(e) => setJerseyNumber(e.target.value)}
+                type="number"
+                min={1}
+                max={99}
+                placeholder="Opcional"
+                className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md font-mono"
+              />
             </div>
           </div>
           <DialogFooter className="gap-2 pt-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">Cancelar</Button>
-            <Button type="submit" size="sm" className="h-8 text-xs rounded-md font-medium shadow-none">Cadastrar</Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60"
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" size="sm" className="h-8 text-xs rounded-md font-medium shadow-none">
+              Cadastrar Atleta
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -519,11 +729,15 @@ function AthleteRegistrationDialog({ open, onOpenChange, teams, onSave }: Athlet
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Modal de Transferência de Atleta
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface AthleteTransferDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   athlete: AthleteView | null;
-  teams: (CompetitionTeam & { teamName: string, competitionName: string })[];
+  teams: (CompetitionTeam & { teamName: string; competitionName: string })[];
   onTransfer: (athleteId: string, newCompetitionTeamId: string) => Promise<void>;
 }
 
@@ -551,25 +765,46 @@ function AthleteTransferDialog({ open, onOpenChange, athlete, teams, onTransfer 
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3.5 py-1">
           <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-lg text-xs">
-            <p className="text-muted-foreground text-[10px] uppercase font-semibold">Equipe atual:</p>
-            <p className="font-medium text-foreground mt-0.5">{athlete?.teamName} - {athlete?.competitionName}</p>
+            <p className="text-muted-foreground text-[10px] uppercase font-semibold">Equipe Atual:</p>
+            <p className="font-medium text-foreground mt-0.5">
+              {athlete?.teamName} — {athlete?.competitionName}
+            </p>
           </div>
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Nova Equipe</Label>
+            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Nova Equipe Destino *</Label>
             <Select value={newTeamId} onValueChange={setNewTeamId} required>
               <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
-                <SelectValue placeholder="Selecione a nova equipe" />
+                <SelectValue placeholder="Selecione a nova agremiação" />
               </SelectTrigger>
               <SelectContent className="bg-zinc-900 border-zinc-800">
-                {teams.filter(t => t.id !== athlete?.competitionTeamId).map(t => (
-                  <SelectItem key={t.id} value={t.id} className="text-xs">{t.teamName} - {t.competitionName}</SelectItem>
-                ))}
+                {teams
+                  .filter((t) => t.id !== athlete?.competitionTeamId)
+                  .map((t) => (
+                    <SelectItem key={t.id} value={t.id} className="text-xs">
+                      {t.teamName} — {t.competitionName}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
           <DialogFooter className="gap-2 pt-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60">Cancelar</Button>
-            <Button type="submit" size="sm" className="h-8 text-xs rounded-md font-medium shadow-none">Confirmar Transferência</Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!newTeamId}
+              className="h-8 text-xs rounded-md font-medium shadow-none"
+            >
+              Confirmar Transferência
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
