@@ -1,11 +1,15 @@
-// Motor de sorteio do VolleyPro.
+// Motor de sorteio do BASEOS.
 //
 // Algoritmos:
 //  1. PRNG determinístico (mulberry32) — mesmo seed, mesmo sorteio.
-//  2. Distribuição serpentina balanceada em grupos (modo 'seeded') ou
-//     distribuição totalmente aleatória (modo 'random').
+//  2. Distribuição gulosa por capacidade: equipes são distribuídas nos
+//     grupos com mais vagas disponíveis (modo 'seeded' ou 'random').
 //  3. Tabela de jogos pelo método do círculo (Berger table): turno único,
 //     todas as duplas se enfrentam uma vez.
+//
+// Nota sobre cabeças de chave (headSeeds):
+//  - No modo 'seeded': cabeças são distribuídas uma por grupo na ordem de prioridade.
+//  - No modo 'random': cabeças são ignoradas e todas as equipes competem igualmente.
 
 import type { CompetitionRecord, TeamRecord } from '@/types/entities';
 import type {

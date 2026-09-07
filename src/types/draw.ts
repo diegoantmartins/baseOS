@@ -1,9 +1,10 @@
-// Tipos do Módulo de Sorteio (VolleyPro)
+// Tipos do Módulo de Sorteio (BASEOS)
 //
 // O sorteio distribui as equipes inscritas de uma competição em grupos
 // (fase classificatória) e gera a tabela de jogos (turno único) de cada
 // grupo. Suporta dois modos:
 //  - 'random':  distribuição aleatória com semente determinística (reproduzível);
+//               cabeças de chave são ignoradas neste modo.
 //  - 'seeded':  sorteio dirigido — cabeças de chave (headSeeds) ficam uma por
 //               grupo e as demais são distribuídas aleatoriamente de forma
 //               balanceada (padrão FIVB/CBV).
@@ -49,12 +50,16 @@ export type DrawMatchProposal = {
   phase: string;
 };
 
+export type DrawStatus = 'preview' | 'official' | 'locked';
+
 /** Resultado do sorteio (cálculo puro, sem persistência). */
 export type DrawResult = {
   competitionId: string;
   config: DrawConfig;
   groups: DrawGroup[];
   matches: DrawMatchProposal[];
+  /** Status do sorteio: 'preview' (rascunho), 'official' (oficial), 'locked' (bloqueado) */
+  status?: DrawStatus;
 };
 
 /** Sorteio persistido (um por competição). */
@@ -62,6 +67,8 @@ export type DrawRecord = DrawResult & {
   id: string;
   createdAt: string;
   updatedAt: string;
+  /** Status do sorteio: 'preview' (rascunho), 'official' (oficial), 'locked' (bloqueado) */
+  status?: DrawStatus;
 };
 
 /** Sugere o número ideal de grupos a partir da quantidade de equipes. */

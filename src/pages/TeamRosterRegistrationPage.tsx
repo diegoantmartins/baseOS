@@ -49,6 +49,7 @@ import {
   updateAthlete,
   validateRosterMinimum,
 } from '@/services/registrationService';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
 import { dataAccess } from '@/services/dataAccess';
 import { notificationService } from '@/services/notificationService';
 import { computeStandingsByGroup } from '@/services/standingsService';
@@ -59,7 +60,6 @@ import {
   generateTeamRosterReportPdf,
   downloadReportsPdf,
 } from '@/lib/pdf/reportsPdf';
-import { generateBlankServeOrderSheet } from '@/document-engine/generators/ordemSaque.generator';
 import type { CompetitionAthlete, CompetitionAthleteInput, CompetitionTeam } from '@/types/registration';
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
 
@@ -131,8 +131,10 @@ export function TeamRosterRegistrationPage() {
   }, []);
 
   const playerFormat = competition?.playerFormat || '6x6';
-  const limits = ROSTER_LIMITS[playerFormat] ?? ROSTER_LIMITS['6x6'];
-  const locked = team ? isRegistrationLocked(team, new Date(now)) : true;
+  const limits = competition
+    ? CompetitionRulesService.getRosterLimits(competition)
+    : (ROSTER_LIMITS[playerFormat] ?? ROSTER_LIMITS['6x6']);
+  const locked = team ? isRegistrationLocked(team, competition, new Date(now)) : true;
   const countdown = useMemo(() => (team ? countdownText(team.registrationDeadline, now) : null), [team, now]);
   const genderCategory = competition?.genderCategory || 'mixed';
   const genderForForm: 'male' | 'female' = genderCategory === 'male' ? 'male' : 'female';
@@ -144,7 +146,7 @@ export function TeamRosterRegistrationPage() {
 
   const handleAdd = async (input: CompetitionAthleteInput): Promise<{ ok: boolean; errors: string[] }> => {
     if (!team) return { ok: false, errors: ['Equipe não encontrada.'] };
-    const result = await addAthlete(team.id, input, playerFormat);
+    const result = await addAthlete(team.id, input, playerFormat, competition ?? undefined);
     if (result.ok) {
       toast.success('Atleta adicionado!');
       await refresh();
@@ -156,7 +158,7 @@ export function TeamRosterRegistrationPage() {
 
   const handleUpdate = async (input: CompetitionAthleteInput): Promise<{ ok: boolean; errors: string[] }> => {
     if (!editingAthlete) return { ok: false, errors: ['Atleta não selecionado.'] };
-    const result = await updateAthlete(editingAthlete.id, input, playerFormat);
+    const result = await updateAthlete(editingAthlete.id, input, playerFormat, competition ?? undefined);
     if (result.ok) {
       toast.success('Atleta atualizado!');
       await refresh();
@@ -168,7 +170,7 @@ export function TeamRosterRegistrationPage() {
 
   const handleRemove = async (athlete: CompetitionAthlete) => {
     if (!window.confirm(`Remover ${athlete.name} do elenco?`)) return;
-    const result = await removeAthlete(athlete.id);
+    const result = await removeAthlete(athlete.id, competition ?? undefined);
     if (result.ok) {
       toast.success('Atleta removido.');
       await refresh();
@@ -252,30 +254,15 @@ export function TeamRosterRegistrationPage() {
     toast.success('Boletim de jogos gerado em PDF!');
   };
 
-  const handleExportPositionSheets = async () => {
-    try {
-      const bytes = await generateBlankServeOrderSheet();
-      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'fichas_ordem_de_saque.pdf';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success('Fichas de posição (ordem de saque) geradas!');
-    } catch (e) {
-      console.error(e);
-      toast.error('Erro ao gerar fichas de ordem de saque.');
-    }
-  };
 
   // Cálculo da Classificação
   const standingsGroups = useMemo(() => {
     if (!competition) return [];
     const compTeams = allTeams.map(t => ({ team: t, groupName: competition.groupName || 'Geral' }));
-    return computeStandingsByGroup(compTeams, matches, { criteria: competition.tiebreakCriteriaOrder });
+    return computeStandingsByGroup(compTeams, matches, {
+      criteria: competition.tiebreakCriteriaOrder,
+      competition,
+    });
   }, [competition, allTeams, matches]);
 
   if (loading) {
@@ -357,7 +344,9 @@ export function TeamRosterRegistrationPage() {
             <Lock className="w-4 h-4 text-red-400" />
             <AlertTitle className="text-xs font-semibold text-red-300">Inscrições de Atletas Encerradas</AlertTitle>
             <AlertDescription className="text-xs text-red-400/90 mt-0.5">
-              {team.isLocked
+              {competition && competition.status !== 'registration-open' && competition.status !== 'registration'
+                ? 'As inscrições da competição foram formalmente encerradas pela organização.'
+                : team.isLocked
                 ? 'O organizador bloqueou edições no elenco.'
                 : 'O prazo limite para entrega da lista de atletas expirou.'}{' '}
               Você ainda pode consultar os jogos, classificação e baixar súmulas oficiais.
@@ -681,10 +670,10 @@ export function TeamRosterRegistrationPage() {
                 <FileText className="w-4 h-4 text-primary" />
                 Documentos e Boletins Oficiais
               </h2>
-              <p className="text-xs text-muted-foreground">Baixe tabelas, fichas de ordem de saque e relatórios padronizados.</p>
+              <p className="text-xs text-muted-foreground">Baixe tabelas e relatórios oficiais padronizados.</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <Card className="p-4 space-y-3 border border-border bg-card shadow-none hover-raise">
                 <div className="w-9 h-9 rounded-lg bg-zinc-800 text-zinc-300 flex items-center justify-center font-bold">
                   <ClipboardList className="w-4 h-4" />
@@ -708,19 +697,6 @@ export function TeamRosterRegistrationPage() {
                 </div>
                 <Button size="sm" variant="outline" onClick={handleExportRoster} className="w-full text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 gap-1.5">
                   <FileDown className="w-3.5 h-3.5 text-zinc-400" /> Baixar Elenco PDF
-                </Button>
-              </Card>
-
-              <Card className="p-4 space-y-3 border border-border bg-card shadow-none hover-raise">
-                <div className="w-9 h-9 rounded-lg bg-zinc-800 text-zinc-300 flex items-center justify-center font-bold">
-                  <Volleyball className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-xs sm:text-sm text-foreground">Fichas de Posição / Saque</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">8 filipetas A4 com quadrículas de rotação I a VI para jogos.</p>
-                </div>
-                <Button size="sm" variant="outline" onClick={handleExportPositionSheets} className="w-full text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 gap-1.5">
-                  <FileDown className="w-3.5 h-3.5 text-zinc-400" /> Baixar Fichas PDF
                 </Button>
               </Card>
             </div>

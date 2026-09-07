@@ -7,7 +7,8 @@
 // Toda a aplicação consome apenas este módulo, então a troca de backend
 // é transparente.
 
-import type { CompetitionRecord, MatchAuditEntry, MatchRecord, ModalityRecord, PersonRecord, RefereeRecord, SettingsRecord, TeamRecord, VenueRecord } from '@/types/entities';
+import type { CompetitionRecord, MatchAuditEntry, MatchRecord, ModalityRecord, PersonRecord, RefereeRecord, SettingsRecord, TeamRecord, VenueRecord, StageRecord, RoundRecord, MatchSlotRecord, StageRuntimeStatus, RoundRuntimeStatus, SlotParticipantStatus } from '@/types/entities';
+import type { ParticipantReference, ProgressionRoute } from '@/types/competitionConfig';
 import type { CompetitionAthlete, CompetitionAthleteInput, CompetitionTeam } from '@/types/registration';
 import type { DrawRecord, DrawResult } from '@/types/draw';
 import type { DocumentEdit, DocumentEditKey, TemplateLayout } from '@/types/documentEdit';
@@ -16,7 +17,173 @@ import { getSupabaseClient, isSupabaseConfigured, SUPABASE_TABLES } from '@/lib/
 import { notificationService } from '@/services/notificationService';
 type CompetitionAthleteCreate = CompetitionAthleteInput & { competitionTeamId: string };
 
+export interface SaveStageDrawAndSlotsParams {
+  competitionId: string;
+  stage: {
+    id?: string;
+    competitionId?: string;
+    stageId: string;
+    name: string;
+    stageOrder: number;
+    stageType: string;
+    status?: StageRuntimeStatus;
+    isLocked?: boolean;
+    metadata?: Record<string, unknown>;
+  };
+  rounds: Array<{
+    id?: string;
+    roundId: string;
+    name: string;
+    roundOrder: number;
+    slotsCount?: number;
+    status?: RoundRuntimeStatus;
+  }>;
+  slots: Array<{
+    id?: string;
+    slotId: string;
+    roundId: string;
+    position: number;
+    label?: string;
+    participantAReference: ParticipantReference;
+    participantAStatus?: SlotParticipantStatus;
+    resolvedTeamAId?: string | null;
+    participantBReference: ParticipantReference;
+    participantBStatus?: SlotParticipantStatus;
+    resolvedTeamBId?: string | null;
+    matchId?: string | null;
+    progressionRoute?: ProgressionRoute | Record<string, unknown> | null;
+  }>;
+}
+
+export interface SaveStageDrawAndSlotsResult {
+  ok: boolean;
+  stageRowId: string;
+  roundsCount: number;
+  slotsCount: number;
+}
+
+export interface PropagateSlotOutcomeParams {
+  competitionId: string;
+  slotId: string;
+  winnerTeamId?: string | null;
+  loserTeamId?: string | null;
+  matchId?: string | null;
+}
+
+export interface PropagateSlotOutcomeResult {
+  ok: boolean;
+  sourceSlotId: string;
+  idempotent?: boolean;
+  updatedCount: number;
+  message?: string;
+}
+
+export interface MaterializeSlotMatchParams {
+  competitionId: string;
+  slotId: string;
+  scheduledTime?: string;
+  venue?: string;
+  court?: string;
+  phase?: string;
+}
+
+export interface MaterializeSlotMatchResult {
+  ok: boolean;
+  matchId: string;
+  alreadyMaterialized: boolean;
+  matchNumber?: number;
+  message?: string;
+}
+
 const STORAGE_PREFIX = 'voleipro.v1';
+
+/**
+ * Identifica se um identificador de equipe é fictício / artificial (ex.: TBD, __BYE__, UNKNOWN).
+ * É terminantemente proibido persistir equipes fictícias na nova arquitetura.
+ */
+export function isArtificialTeamId(teamId: string | null | undefined): boolean {
+  if (!teamId) return false;
+  const trimmed = teamId.trim().toUpperCase();
+  return (
+    trimmed.startsWith('TBD') ||
+    trimmed.startsWith('__BYE') ||
+    trimmed === 'UNKNOWN' ||
+    trimmed.startsWith('PLACEHOLDER') ||
+    trimmed.startsWith('__')
+  );
+}
+
+/**
+ * Validação estrutural profunda de ParticipantReference no nível TypeScript / dataAccess.
+ * Garante conformidade com os 8 tipos canônicos aprovados na Fase 4.4.1 / 4.5.
+ */
+export function validateParticipantReference(ref: unknown): ParticipantReference {
+  if (!ref || typeof ref !== 'object') {
+    throw new Error('ParticipantReference deve ser um objeto válido');
+  }
+  const r = ref as Record<string, unknown>;
+  const validTypes = [
+    'resolved-team',
+    'group-position',
+    'overall-ranking',
+    'stage-position',
+    'match-winner',
+    'match-loser',
+    'seed',
+    'bye'
+  ];
+  if (!r.type || typeof r.type !== 'string' || !validTypes.includes(r.type)) {
+    throw new Error(`ParticipantReference type inválido: ${String(r.type)}`);
+  }
+
+  if (r.type === 'resolved-team') {
+    if (!r.teamId || typeof r.teamId !== 'string' || !r.teamId.trim()) {
+      throw new Error('ParticipantReference resolved-team exige teamId não vazio');
+    }
+    if (isArtificialTeamId(r.teamId)) {
+      throw new Error(`Equipe fictícia não permitida como resolved-team: ${r.teamId}`);
+    }
+  } else if (r.type === 'group-position') {
+    if (!r.stageId || typeof r.stageId !== 'string') {
+      throw new Error('ParticipantReference group-position exige stageId não vazio');
+    }
+    if (typeof r.groupIndex !== 'number' || !Number.isInteger(r.groupIndex) || r.groupIndex < 0) {
+      throw new Error('ParticipantReference group-position exige groupIndex inteiro >= 0');
+    }
+    if (typeof r.position !== 'number' || !Number.isInteger(r.position) || r.position < 1) {
+      throw new Error('ParticipantReference group-position exige position inteiro >= 1');
+    }
+  } else if (r.type === 'overall-ranking') {
+    if (!r.stageId || typeof r.stageId !== 'string') {
+      throw new Error('ParticipantReference overall-ranking exige stageId não vazio');
+    }
+    if (typeof r.position !== 'number' || !Number.isInteger(r.position) || r.position < 1) {
+      throw new Error('ParticipantReference overall-ranking exige position inteiro >= 1');
+    }
+    if (r.filter && !['group-winners-only', 'group-runners-up-only', 'non-winners', 'all'].includes(r.filter as string)) {
+      throw new Error(`ParticipantReference overall-ranking filtro inválido: ${String(r.filter)}`);
+    }
+  } else if (r.type === 'stage-position') {
+    if (!r.stageId || typeof r.stageId !== 'string') {
+      throw new Error('ParticipantReference stage-position exige stageId não vazio');
+    }
+    if (typeof r.position !== 'number' || !Number.isInteger(r.position) || r.position < 1) {
+      throw new Error('ParticipantReference stage-position exige position inteiro >= 1');
+    }
+  } else if (r.type === 'match-winner' || r.type === 'match-loser') {
+    if (!r.slotId || typeof r.slotId !== 'string' || !r.slotId.trim()) {
+      throw new Error(`ParticipantReference ${r.type} exige slotId não vazio`);
+    }
+  } else if (r.type === 'seed') {
+    if (typeof r.seedNumber !== 'number' || !Number.isInteger(r.seedNumber) || r.seedNumber < 1) {
+      throw new Error('ParticipantReference seed exige seedNumber inteiro >= 1');
+    }
+  } else if (r.type === 'bye') {
+    // bye is valid as { type: 'bye' }
+  }
+
+  return ref as ParticipantReference;
+}
 
 export const DEFAULT_SETTINGS: SettingsRecord = {
   id: 'main',
@@ -64,13 +231,17 @@ type CollectionName =
   | 'template_layouts'
   | 'modalities'
   | 'persons'
-  | 'audit_logs';
+  | 'audit_logs'
+  | 'competition_stages'
+  | 'competition_rounds'
+  | 'competition_match_slots';
 
 function storageKey(collection: CollectionName): string {
   return `${STORAGE_PREFIX}.${collection}`;
 }
 
 function readCollection<T>(collection: CollectionName): T[] {
+  ensureSeeded();
   try {
     const raw = localStorage.getItem(storageKey(collection));
     if (!raw) return [];
@@ -100,6 +271,9 @@ function ensureSeeded(): void {
     writeCollection('draws', []);
     writeCollection('modalities', seedModalities);
     writeCollection('persons', seedPersons);
+    writeCollection('competition_stages', []);
+    writeCollection('competition_rounds', []);
+    writeCollection('competition_match_slots', []);
     localStorage.setItem(SEED_VERSION, 'clean');
     return;
   }
@@ -114,6 +288,9 @@ function ensureSeeded(): void {
   writeCollection('draws', seedDraws);
   writeCollection('modalities', seedModalities);
   writeCollection('persons', seedPersons);
+  writeCollection('competition_stages', []);
+  writeCollection('competition_rounds', []);
+  writeCollection('competition_match_slots', []);
   localStorage.setItem(SEED_VERSION, '1');
 }
 
@@ -136,6 +313,34 @@ function patch<T extends { id: string }>(item: T, updates: Partial<T>): T {
   return { ...item, ...updates, updatedAt: new Date().toISOString() };
 }
 
+function generateSlug(text?: string): string {
+  if (!text) return 'competicao';
+  const clean = text
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return clean || 'competicao';
+}
+
+function normalizeCompetitionRecord(comp: CompetitionRecord): CompetitionRecord {
+  const rawStatus = comp.status as string;
+  let normalizedStatus = comp.status;
+  if (rawStatus === 'draft') {
+    normalizedStatus = 'planning';
+  } else if (rawStatus === 'registration') {
+    normalizedStatus = 'registration-open';
+  }
+  return {
+    ...comp,
+    slug: comp.slug || generateSlug(comp.name),
+    status: normalizedStatus,
+  };
+}
+
 // ============================================================================
 // Adaptador LocalStorage
 // ============================================================================
@@ -143,26 +348,49 @@ function patch<T extends { id: string }>(item: T, updates: Partial<T>): T {
 const localStorageAdapter = {
   async listCompetitions(): Promise<CompetitionRecord[]> {
     ensureSeeded();
-    return readCollection<CompetitionRecord>('competitions');
+    const raw = readCollection<CompetitionRecord>('competitions');
+    return raw.map(normalizeCompetitionRecord);
   },
 
   async getCompetition(id: string): Promise<CompetitionRecord | null> {
     const all = await this.listCompetitions();
-    return all.find(c => c.id === id) ?? null;
+    const comp = all.find(c => c.id === id) ?? null;
+    return comp ? normalizeCompetitionRecord(comp) : null;
+  },
+
+  async getCompetitionBySlug(slug: string): Promise<CompetitionRecord | null> {
+    const all = await this.listCompetitions();
+    const comp = all.find(c => c.slug === slug) ?? null;
+    return comp ? normalizeCompetitionRecord(comp) : null;
   },
 
   async updateCompetition(id: string, updates: Partial<CompetitionRecord>): Promise<CompetitionRecord | null> {
     const all = readCollection<CompetitionRecord>('competitions');
     const idx = all.findIndex(c => c.id === id);
     if (idx === -1) return null;
-    all[idx] = { ...all[idx], ...updates };
+    const safeUpdates = { ...updates };
+    if (all[idx].rulesSnapshot && 'rulesSnapshot' in safeUpdates && safeUpdates.rulesSnapshot !== all[idx].rulesSnapshot) {
+      safeUpdates.rulesSnapshot = all[idx].rulesSnapshot;
+    }
+    // IMUTABILIDADE DO SLUG: Se a competição já possui slug, nunca sobrescreve nem altera
+    if (all[idx].slug) {
+      safeUpdates.slug = all[idx].slug;
+    }
+    all[idx] = { ...all[idx], ...safeUpdates };
     writeCollection('competitions', all);
     return all[idx];
   },
 
-  async createCompetition(input: Omit<CompetitionRecord, 'id'>): Promise<CompetitionRecord> {
-    const record: CompetitionRecord = { ...input, id: generateId('comp') };
+  async createCompetition(input: Omit<CompetitionRecord, 'id'> & { id?: string }): Promise<CompetitionRecord> {
     const all = readCollection<CompetitionRecord>('competitions');
+    const baseSlug = input.slug || generateSlug(input.name);
+    let uniqueSlug = baseSlug;
+    let counter = 2;
+    while (all.some(c => c.slug === uniqueSlug)) {
+      uniqueSlug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+    const record: CompetitionRecord = { ...input, slug: uniqueSlug, id: (input as { id?: string }).id || generateId('comp') };
     all.push(record);
     writeCollection('competitions', all);
     return record;
@@ -170,6 +398,11 @@ const localStorageAdapter = {
 
   async deleteCompetition(id: string): Promise<void> {
     writeCollection('competitions', readCollection<CompetitionRecord>('competitions').filter(c => c.id !== id));
+    writeCollection('matches', readCollection<MatchRecord>('matches').filter(m => m.competitionId !== id));
+    writeCollection('competition_teams', readCollection<CompetitionTeam>('competition_teams').filter(ct => ct.competitionId !== id));
+    writeCollection('competition_stages', readCollection<StageRecord>('competition_stages').filter(s => s.competitionId !== id));
+    writeCollection('competition_rounds', readCollection<RoundRecord>('competition_rounds').filter(r => r.competitionId !== id));
+    writeCollection('competition_match_slots', readCollection<MatchSlotRecord>('competition_match_slots').filter(s => s.competitionId !== id));
   },
 
   async listTeams(): Promise<TeamRecord[]> {
@@ -177,8 +410,8 @@ const localStorageAdapter = {
     return readCollection<TeamRecord>('teams');
   },
 
-  async createTeam(input: Omit<TeamRecord, 'id'>): Promise<TeamRecord> {
-    const record: TeamRecord = { ...input, id: generateId('team') };
+  async createTeam(input: Omit<TeamRecord, 'id'> & { id?: string }): Promise<TeamRecord> {
+    const record: TeamRecord = { ...input, id: input.id || generateId('team') };
     const all = readCollection<TeamRecord>('teams');
     all.push(record);
     writeCollection('teams', all);
@@ -195,6 +428,16 @@ const localStorageAdapter = {
   },
 
   async deleteTeam(id: string): Promise<void> {
+    const allMatches = readCollection<MatchRecord>('matches');
+    const allCt = readCollection<CompetitionTeam>('competition_teams');
+    const hasMatches = allMatches.some(m => m.teamAId === id || m.teamBId === id);
+    if (hasMatches) {
+      throw new Error('Não é possível excluir a equipe pois ela possui partidas vinculadas no histórico.');
+    }
+    const hasActiveReg = allCt.some(ct => ct.teamId === id);
+    if (hasActiveReg) {
+      throw new Error('Não é possível excluir a equipe pois ela possui inscrições ativas em competições.');
+    }
     writeCollection('teams', readCollection<TeamRecord>('teams').filter(t => t.id !== id));
   },
 
@@ -352,6 +595,101 @@ const localStorageAdapter = {
     }
     writeCollection('draws', all);
     return record;
+  },
+
+  async saveDrawWithMatches(
+    result: DrawResult,
+    matches: Array<{
+      round: number;
+      matchNumber: number;
+      teamAId: string;
+      teamBId: string;
+      teamAName: string;
+      teamBName: string;
+      teamAShortName: string;
+      teamBShortName: string;
+      groupName: string;
+      phase: string;
+      scheduledTime: string;
+      venue: string;
+    }>
+  ): Promise<{ draw: DrawRecord; matches: MatchRecord[] }> {
+    const allMatches = readCollection<MatchRecord>('matches');
+    const allDraws = readCollection<DrawRecord>('draws');
+    const now = new Date().toISOString();
+
+    const oldMatches = allMatches.filter(
+      m => m.competitionId === result.competitionId &&
+           (m.phase === 'classificatória' || m.phase === 'classificatoria')
+    );
+
+    const hasStartedOrPlayed = oldMatches.some(
+      m => m.status === 'in-progress' || m.status === 'completed' || m.status === 'homologated' || (m.sets && m.sets.length > 0)
+    );
+    if (hasStartedOrPlayed) {
+      throw new Error('Não é possível substituir as partidas da fase classificatória pois já existem jogos iniciados ou finalizados.');
+    }
+
+    const oldMatchIds = oldMatches.map(m => m.id);
+    const remainingMatches = allMatches.filter(m => !oldMatchIds.includes(m.id));
+
+    const newMatches: MatchRecord[] = matches.map((proposal) => ({
+      id: generateId('match'),
+      competitionId: result.competitionId,
+      round: proposal.round,
+      matchNumber: proposal.matchNumber,
+      teamAId: proposal.teamAId,
+      teamBId: proposal.teamBId,
+      teamAName: proposal.teamAName,
+      teamBName: proposal.teamBName,
+      teamAShortName: proposal.teamAShortName,
+      teamBShortName: proposal.teamBShortName,
+      venue: proposal.venue,
+      court: undefined,
+      phase: proposal.phase,
+      groupName: proposal.groupName,
+      scheduledTime: proposal.scheduledTime,
+      status: 'scheduled' as const,
+      sets: [],
+      referees: [],
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    const existing = allDraws.find(d => d.competitionId === result.competitionId);
+    let record: DrawRecord;
+    if (existing) {
+      if (existing.status === 'locked') {
+        throw new Error('Sorteio bloqueado. Não é possível modificar sorteio oficializado.');
+      }
+      record = { ...existing, ...result, updatedAt: now };
+      const idx = allDraws.findIndex(d => d.id === existing.id);
+      allDraws[idx] = record;
+    } else {
+      record = {
+        ...result,
+        id: generateId('draw'),
+        createdAt: now,
+        updatedAt: now,
+        status: 'preview',
+      };
+      allDraws.push(record);
+    }
+
+    writeCollection('matches', [...remainingMatches, ...newMatches]);
+    writeCollection('draws', allDraws);
+
+    return { draw: record, matches: newMatches };
+  },
+
+  async updateDrawStatus(competitionId: string, status: 'preview' | 'official' | 'locked'): Promise<DrawRecord | null> {
+    const all = readCollection<DrawRecord>('draws');
+    const idx = all.findIndex(d => d.competitionId === competitionId);
+    if (idx === -1) return null;
+    const now = new Date().toISOString();
+    all[idx] = { ...all[idx], status, updatedAt: now };
+    writeCollection('draws', all);
+    return all[idx];
   },
 
   async listCompetitionTeams(competitionId?: string): Promise<CompetitionTeam[]> {
@@ -564,9 +902,19 @@ const localStorageAdapter = {
     writeCollection('persons', readCollection<PersonRecord>('persons').filter(p => p.id !== id));
   },
 
-  async listAuditLogs(): Promise<MatchAuditEntry[]> {
+  async listAuditLogs(filters?: { competitionId?: string; entityType?: string; entityId?: string }): Promise<MatchAuditEntry[]> {
     ensureSeeded();
-    return readCollection<MatchAuditEntry>('audit_logs');
+    let logs = readCollection<MatchAuditEntry>('audit_logs');
+    if (filters?.competitionId) {
+      logs = logs.filter(l => l.competitionId === filters.competitionId);
+    }
+    if (filters?.entityType) {
+      logs = logs.filter(l => l.entityType === filters.entityType);
+    }
+    if (filters?.entityId) {
+      logs = logs.filter(l => l.entityId === filters.entityId);
+    }
+    return logs;
   },
 
   async addAuditLog(entry: Omit<MatchAuditEntry, 'id' | 'timestamp'>): Promise<MatchAuditEntry> {
@@ -579,6 +927,890 @@ const localStorageAdapter = {
     all.unshift(record);
     writeCollection('audit_logs', all.slice(0, 500)); // Limita a 500 mais recentes
     return record;
+  },
+
+  // ============================================================================
+  // Competition Format Runtime: Stages, Rounds e MatchSlots
+  // ============================================================================
+
+  // Stages
+  async listStages(competitionId: string): Promise<StageRecord[]> {
+    ensureSeeded();
+    const all = readCollection<StageRecord>('competition_stages');
+    return all
+      .filter(s => s.competitionId === competitionId)
+      .sort((a, b) => a.stageOrder - b.stageOrder);
+  },
+
+  async getStage(id: string): Promise<StageRecord | null> {
+    ensureSeeded();
+    const all = readCollection<StageRecord>('competition_stages');
+    return all.find(s => s.id === id) ?? null;
+  },
+
+  async getStageByLogicalId(competitionId: string, stageId: string): Promise<StageRecord | null> {
+    ensureSeeded();
+    const all = readCollection<StageRecord>('competition_stages');
+    return all.find(s => s.competitionId === competitionId && s.stageId === stageId) ?? null;
+  },
+
+  async createStage(stage: Omit<StageRecord, 'id' | 'createdAt' | 'updatedAt' | 'status'> & { id?: string; status?: StageRuntimeStatus }): Promise<StageRecord> {
+    ensureSeeded();
+    if (!stage.competitionId?.trim()) {
+      throw new Error('createStage: competitionId é obrigatório');
+    }
+    if (!stage.stageId?.trim()) {
+      throw new Error('createStage: stageId é obrigatório');
+    }
+    const comps = readCollection<CompetitionRecord>('competitions');
+    if (comps.length > 0 && !comps.some(c => c.id === stage.competitionId)) {
+      throw new Error(`createStage: Competição associada não encontrada: ${stage.competitionId}`);
+    }
+
+    const all = readCollection<StageRecord>('competition_stages');
+    if (all.some(s => s.competitionId === stage.competitionId && s.stageId === stage.stageId)) {
+      throw new Error(`createStage: Já existe um estágio com stageId '${stage.stageId}' na competição ${stage.competitionId}`);
+    }
+    if (all.some(s => s.competitionId === stage.competitionId && s.stageOrder === stage.stageOrder)) {
+      throw new Error(`createStage: Já existe um estágio com ordem ${stage.stageOrder} na competição ${stage.competitionId}`);
+    }
+
+    const validStatuses = ['pending', 'in-progress', 'completed', 'cancelled'];
+    if (stage.status && !validStatuses.includes(stage.status)) {
+      throw new Error(`createStage: status inválido: ${stage.status}`);
+    }
+
+    const record: StageRecord = {
+      ...stage,
+      id: stage.id || generateId('stage'),
+      status: stage.status || 'pending',
+      isLocked: stage.isLocked ?? false,
+      metadata: stage.metadata ?? {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    all.push(record);
+    writeCollection('competition_stages', all);
+    return record;
+  },
+
+  async updateStage(id: string, updates: Partial<StageRecord>): Promise<StageRecord | null> {
+    ensureSeeded();
+    const all = readCollection<StageRecord>('competition_stages');
+    const idx = all.findIndex(s => s.id === id);
+    if (idx === -1) return null;
+
+    const current = all[idx];
+    const targetCompId = updates.competitionId || current.competitionId;
+
+    if (updates.stageId && updates.stageId !== current.stageId) {
+      if (all.some(s => s.id !== id && s.competitionId === targetCompId && s.stageId === updates.stageId)) {
+        throw new Error(`updateStage: Colisão de unicidade (competitionId, stageId): ${updates.stageId}`);
+      }
+    }
+    if (updates.stageOrder !== undefined && updates.stageOrder !== current.stageOrder) {
+      if (all.some(s => s.id !== id && s.competitionId === targetCompId && s.stageOrder === updates.stageOrder)) {
+        throw new Error(`updateStage: Colisão de unicidade (competitionId, stageOrder): ${updates.stageOrder}`);
+      }
+    }
+    if (updates.status) {
+      const validStatuses = ['pending', 'in-progress', 'completed', 'cancelled'];
+      if (!validStatuses.includes(updates.status)) {
+        throw new Error(`updateStage: status inválido: ${updates.status}`);
+      }
+    }
+
+    const updated = {
+      ...current,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    all[idx] = updated;
+    writeCollection('competition_stages', all);
+    return updated;
+  },
+
+  async deleteStage(id: string): Promise<void> {
+    ensureSeeded();
+    const stages = readCollection<StageRecord>('competition_stages');
+    writeCollection('competition_stages', stages.filter(s => s.id !== id));
+
+    const rounds = readCollection<RoundRecord>('competition_rounds');
+    const roundsToDelete = rounds.filter(r => r.stageRowId === id);
+    const roundIdsToDelete = new Set(roundsToDelete.map(r => r.id));
+    writeCollection('competition_rounds', rounds.filter(r => r.stageRowId !== id));
+
+    const slots = readCollection<MatchSlotRecord>('competition_match_slots');
+    writeCollection('competition_match_slots', slots.filter(s => s.stageRowId !== id && !roundIdsToDelete.has(s.roundRowId)));
+  },
+
+  // Rounds
+  async listRounds(stageRowId: string): Promise<RoundRecord[]> {
+    ensureSeeded();
+    const all = readCollection<RoundRecord>('competition_rounds');
+    return all
+      .filter(r => r.stageRowId === stageRowId)
+      .sort((a, b) => a.roundOrder - b.roundOrder);
+  },
+
+  async getRound(id: string): Promise<RoundRecord | null> {
+    ensureSeeded();
+    const all = readCollection<RoundRecord>('competition_rounds');
+    return all.find(r => r.id === id) ?? null;
+  },
+
+  async getRoundByLogicalId(stageRowId: string, roundId: string): Promise<RoundRecord | null> {
+    ensureSeeded();
+    const all = readCollection<RoundRecord>('competition_rounds');
+    return all.find(r => r.stageRowId === stageRowId && r.roundId === roundId) ?? null;
+  },
+
+  async createRound(round: Omit<RoundRecord, 'id' | 'createdAt' | 'updatedAt' | 'status'> & { id?: string; status?: RoundRuntimeStatus }): Promise<RoundRecord> {
+    ensureSeeded();
+    if (!round.stageRowId?.trim()) {
+      throw new Error('createRound: stageRowId é obrigatório');
+    }
+    if (!round.roundId?.trim()) {
+      throw new Error('createRound: roundId é obrigatório');
+    }
+    const stages = readCollection<StageRecord>('competition_stages');
+    const stage = stages.find(s => s.id === round.stageRowId);
+    if (!stage) {
+      throw new Error(`createRound: Estágio associado não encontrado: ${round.stageRowId}`);
+    }
+
+    const all = readCollection<RoundRecord>('competition_rounds');
+    if (all.some(r => r.stageRowId === round.stageRowId && r.roundId === round.roundId)) {
+      throw new Error(`createRound: Já existe uma rodada com roundId '${round.roundId}' no estágio ${round.stageRowId}`);
+    }
+    if (all.some(r => r.stageRowId === round.stageRowId && r.roundOrder === round.roundOrder)) {
+      throw new Error(`createRound: Já existe uma rodada com ordem ${round.roundOrder} no estágio ${round.stageRowId}`);
+    }
+
+    const validStatuses = ['pending', 'in-progress', 'completed'];
+    if (round.status && !validStatuses.includes(round.status)) {
+      throw new Error(`createRound: status inválido: ${round.status}`);
+    }
+
+    const record: RoundRecord = {
+      ...round,
+      competitionId: round.competitionId || stage.competitionId,
+      id: round.id || generateId('round'),
+      status: round.status || 'pending',
+      slotsCount: round.slotsCount ?? 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    all.push(record);
+    writeCollection('competition_rounds', all);
+    return record;
+  },
+
+  async updateRound(id: string, updates: Partial<RoundRecord>): Promise<RoundRecord | null> {
+    ensureSeeded();
+    const all = readCollection<RoundRecord>('competition_rounds');
+    const idx = all.findIndex(r => r.id === id);
+    if (idx === -1) return null;
+
+    const current = all[idx];
+    const targetStageRowId = updates.stageRowId || current.stageRowId;
+
+    if (updates.roundId && updates.roundId !== current.roundId) {
+      if (all.some(r => r.id !== id && r.stageRowId === targetStageRowId && r.roundId === updates.roundId)) {
+        throw new Error(`updateRound: Colisão de unicidade (stageRowId, roundId): ${updates.roundId}`);
+      }
+    }
+    if (updates.roundOrder !== undefined && updates.roundOrder !== current.roundOrder) {
+      if (all.some(r => r.id !== id && r.stageRowId === targetStageRowId && r.roundOrder === updates.roundOrder)) {
+        throw new Error(`updateRound: Colisão de unicidade (stageRowId, roundOrder): ${updates.roundOrder}`);
+      }
+    }
+    if (updates.status) {
+      const validStatuses = ['pending', 'in-progress', 'completed'];
+      if (!validStatuses.includes(updates.status)) {
+        throw new Error(`updateRound: status inválido: ${updates.status}`);
+      }
+    }
+
+    const updated = {
+      ...current,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    all[idx] = updated;
+    writeCollection('competition_rounds', all);
+    return updated;
+  },
+
+  async deleteRound(id: string): Promise<void> {
+    ensureSeeded();
+    const rounds = readCollection<RoundRecord>('competition_rounds');
+    writeCollection('competition_rounds', rounds.filter(r => r.id !== id));
+
+    const slots = readCollection<MatchSlotRecord>('competition_match_slots');
+    writeCollection('competition_match_slots', slots.filter(s => s.roundRowId !== id));
+  },
+
+  // MatchSlots
+  async listMatchSlots(competitionId: string): Promise<MatchSlotRecord[]> {
+    ensureSeeded();
+    const all = readCollection<MatchSlotRecord>('competition_match_slots');
+    return all
+      .filter(s => s.competitionId === competitionId)
+      .sort((a, b) => a.position - b.position);
+  },
+
+  async listMatchSlotsByRound(roundRowId: string): Promise<MatchSlotRecord[]> {
+    ensureSeeded();
+    const all = readCollection<MatchSlotRecord>('competition_match_slots');
+    return all
+      .filter(s => s.roundRowId === roundRowId)
+      .sort((a, b) => a.position - b.position);
+  },
+
+  async getMatchSlot(id: string): Promise<MatchSlotRecord | null> {
+    ensureSeeded();
+    const all = readCollection<MatchSlotRecord>('competition_match_slots');
+    return all.find(s => s.id === id) ?? null;
+  },
+
+  async getMatchSlotByLogicalId(competitionId: string, slotId: string): Promise<MatchSlotRecord | null> {
+    ensureSeeded();
+    const all = readCollection<MatchSlotRecord>('competition_match_slots');
+    return all.find(s => s.competitionId === competitionId && s.slotId === slotId) ?? null;
+  },
+
+  async createMatchSlot(slot: Omit<MatchSlotRecord, 'id' | 'createdAt' | 'updatedAt' | 'participantAStatus' | 'participantBStatus' | 'resolvedTeamAId' | 'resolvedTeamBId' | 'matchId'> & { id?: string; participantAStatus?: SlotParticipantStatus; participantBStatus?: SlotParticipantStatus; resolvedTeamAId?: string | null; resolvedTeamBId?: string | null; matchId?: string | null }): Promise<MatchSlotRecord> {
+    ensureSeeded();
+    if (!slot.roundRowId?.trim()) {
+      throw new Error('createMatchSlot: roundRowId é obrigatório');
+    }
+    if (!slot.slotId?.trim()) {
+      throw new Error('createMatchSlot: slotId é obrigatório');
+    }
+
+    const rounds = readCollection<RoundRecord>('competition_rounds');
+    const round = rounds.find(r => r.id === slot.roundRowId);
+    if (!round) {
+      throw new Error(`createMatchSlot: Rodada associada não encontrada: ${slot.roundRowId}`);
+    }
+
+    const competitionId = slot.competitionId || round.competitionId;
+    const stageRowId = slot.stageRowId || round.stageRowId;
+
+    // Validações de ParticipantReference e Proibições de Equipes Artificiais
+    validateParticipantReference(slot.participantAReference);
+    validateParticipantReference(slot.participantBReference);
+
+    if (slot.resolvedTeamAId) {
+      if (isArtificialTeamId(slot.resolvedTeamAId)) {
+        throw new Error(`createMatchSlot: resolvedTeamAId não pode ser equipe artificial/TBD: ${slot.resolvedTeamAId}`);
+      }
+      const teams = readCollection<TeamRecord>('teams');
+      if (teams.length > 0 && !teams.some(t => t.id === slot.resolvedTeamAId)) {
+        throw new Error(`createMatchSlot: Equipe resolvedTeamAId inexistente no banco: ${slot.resolvedTeamAId}`);
+      }
+    }
+
+    if (slot.resolvedTeamBId) {
+      if (isArtificialTeamId(slot.resolvedTeamBId)) {
+        throw new Error(`createMatchSlot: resolvedTeamBId não pode ser equipe artificial/TBD: ${slot.resolvedTeamBId}`);
+      }
+      const teams = readCollection<TeamRecord>('teams');
+      if (teams.length > 0 && !teams.some(t => t.id === slot.resolvedTeamBId)) {
+        throw new Error(`createMatchSlot: Equipe resolvedTeamBId inexistente no banco: ${slot.resolvedTeamBId}`);
+      }
+    }
+
+    if (slot.matchId) {
+      const matches = readCollection<MatchRecord>('matches');
+      if (matches.length > 0 && !matches.some(m => m.id === slot.matchId)) {
+        throw new Error(`createMatchSlot: Partida matchId inexistente no banco: ${slot.matchId}`);
+      }
+    }
+
+    const all = readCollection<MatchSlotRecord>('competition_match_slots');
+    if (all.some(s => s.competitionId === competitionId && s.slotId === slot.slotId)) {
+      throw new Error(`createMatchSlot: Já existe um slot com slotId '${slot.slotId}' na competição ${competitionId}`);
+    }
+    if (all.some(s => s.roundRowId === slot.roundRowId && s.position === slot.position)) {
+      throw new Error(`createMatchSlot: Já existe um slot na posição ${slot.position} na rodada ${slot.roundRowId}`);
+    }
+
+    const defaultAStatus = slot.participantAReference.type === 'bye' ? 'bye' : slot.resolvedTeamAId ? 'resolved' : 'unresolved';
+    const defaultBStatus = slot.participantBReference.type === 'bye' ? 'bye' : slot.resolvedTeamBId ? 'resolved' : 'unresolved';
+
+    const record: MatchSlotRecord = {
+      ...slot,
+      competitionId,
+      stageRowId,
+      id: slot.id || generateId('slot'),
+      resolvedTeamAId: slot.resolvedTeamAId ?? null,
+      resolvedTeamBId: slot.resolvedTeamBId ?? null,
+      matchId: slot.matchId ?? null,
+      participantAStatus: slot.participantAStatus || defaultAStatus,
+      participantBStatus: slot.participantBStatus || defaultBStatus,
+      progressionRoute: slot.progressionRoute ?? null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    all.push(record);
+    writeCollection('competition_match_slots', all);
+    return record;
+  },
+
+  async updateMatchSlot(id: string, updates: Partial<MatchSlotRecord>): Promise<MatchSlotRecord | null> {
+    ensureSeeded();
+    const all = readCollection<MatchSlotRecord>('competition_match_slots');
+    const idx = all.findIndex(s => s.id === id);
+    if (idx === -1) return null;
+
+    const current = all[idx];
+    const targetCompId = updates.competitionId || current.competitionId;
+    const targetRoundRowId = updates.roundRowId || current.roundRowId;
+
+    if (updates.participantAReference) {
+      validateParticipantReference(updates.participantAReference);
+    }
+    if (updates.participantBReference) {
+      validateParticipantReference(updates.participantBReference);
+    }
+
+    if (updates.resolvedTeamAId !== undefined && updates.resolvedTeamAId !== null) {
+      if (isArtificialTeamId(updates.resolvedTeamAId)) {
+        throw new Error(`updateMatchSlot: resolvedTeamAId não pode ser equipe artificial/TBD: ${updates.resolvedTeamAId}`);
+      }
+      const teams = readCollection<TeamRecord>('teams');
+      if (teams.length > 0 && !teams.some(t => t.id === updates.resolvedTeamAId)) {
+        throw new Error(`updateMatchSlot: Equipe resolvedTeamAId inexistente no banco: ${updates.resolvedTeamAId}`);
+      }
+    }
+
+    if (updates.resolvedTeamBId !== undefined && updates.resolvedTeamBId !== null) {
+      if (isArtificialTeamId(updates.resolvedTeamBId)) {
+        throw new Error(`updateMatchSlot: resolvedTeamBId não pode ser equipe artificial/TBD: ${updates.resolvedTeamBId}`);
+      }
+      const teams = readCollection<TeamRecord>('teams');
+      if (teams.length > 0 && !teams.some(t => t.id === updates.resolvedTeamBId)) {
+        throw new Error(`updateMatchSlot: Equipe resolvedTeamBId inexistente no banco: ${updates.resolvedTeamBId}`);
+      }
+    }
+
+    if (updates.matchId !== undefined && updates.matchId !== null) {
+      const matches = readCollection<MatchRecord>('matches');
+      if (matches.length > 0 && !matches.some(m => m.id === updates.matchId)) {
+        throw new Error(`updateMatchSlot: Partida matchId inexistente no banco: ${updates.matchId}`);
+      }
+    }
+
+    if (updates.slotId && updates.slotId !== current.slotId) {
+      if (all.some(s => s.id !== id && s.competitionId === targetCompId && s.slotId === updates.slotId)) {
+        throw new Error(`updateMatchSlot: Colisão de unicidade (competitionId, slotId): ${updates.slotId}`);
+      }
+    }
+    if (updates.position !== undefined && updates.position !== current.position) {
+      if (all.some(s => s.id !== id && s.roundRowId === targetRoundRowId && s.position === updates.position)) {
+        throw new Error(`updateMatchSlot: Colisão de unicidade (roundRowId, position): ${updates.position}`);
+      }
+    }
+
+    const updated = {
+      ...current,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    all[idx] = updated;
+    writeCollection('competition_match_slots', all);
+    return updated;
+  },
+
+  async deleteMatchSlot(id: string): Promise<void> {
+    ensureSeeded();
+    const slots = readCollection<MatchSlotRecord>('competition_match_slots');
+    writeCollection('competition_match_slots', slots.filter(s => s.id !== id));
+  },
+
+  // ============================================================================
+  // Operações Transacionais de Runtime (Fase 4.7)
+  // NOTA: Emulação in-memory para testes/desenvolvimento. Não reivindica transação ACID no LocalStorage.
+  // A transação real com isolamento ACID executa no PostgreSQL através da RPC save_stage_draw_and_slots.
+  // ============================================================================
+  async saveStageDrawAndSlots(params: SaveStageDrawAndSlotsParams): Promise<SaveStageDrawAndSlotsResult> {
+    ensureSeeded();
+    const { competitionId, stage, rounds, slots } = params;
+
+    // 1. Validação de competição
+    if (!competitionId?.trim()) {
+      throw new Error('saveStageDrawAndSlots: competitionId é obrigatório');
+    }
+    const comps = readCollection<CompetitionRecord>('competitions');
+    if (comps.length > 0 && !comps.some(c => c.id === competitionId)) {
+      throw new Error(`saveStageDrawAndSlots: Competição ${competitionId} não encontrada`);
+    }
+
+    // 2. Validação de Stage
+    if (!stage.stageId?.trim()) {
+      throw new Error('saveStageDrawAndSlots: stageId é obrigatório');
+    }
+    if (!stage.name?.trim()) {
+      throw new Error('saveStageDrawAndSlots: name do estágio é obrigatório');
+    }
+    if (typeof stage.stageOrder !== 'number' || stage.stageOrder < 1) {
+      throw new Error('saveStageDrawAndSlots: stageOrder deve ser inteiro >= 1');
+    }
+
+    // Cópias de trabalho para garantir atomicidade in-memory (staging)
+    const existingStages = [...readCollection<StageRecord>('competition_stages')];
+    const existingRounds = [...readCollection<RoundRecord>('competition_rounds')];
+    const existingSlots = [...readCollection<MatchSlotRecord>('competition_match_slots')];
+
+    // Verifica colisões de ordem com outros estágios
+    let stageRowId = stage.id;
+    const stageIdx = existingStages.findIndex(s => s.competitionId === competitionId && s.stageId === stage.stageId);
+    if (stageIdx !== -1) {
+      stageRowId = existingStages[stageIdx].id;
+    } else {
+      stageRowId = stageRowId || generateId('stage');
+    }
+
+    if (existingStages.some(s => s.id !== stageRowId && s.competitionId === competitionId && s.stageOrder === stage.stageOrder)) {
+      throw new Error(`saveStageDrawAndSlots: Colisão de ordem do estágio (${stage.stageOrder})`);
+    }
+
+    const stagedStage: StageRecord = {
+      id: stageRowId,
+      competitionId,
+      stageId: stage.stageId,
+      name: stage.name,
+      stageOrder: stage.stageOrder,
+      stageType: stage.stageType || 'knockout',
+      status: stage.status || 'pending',
+      isLocked: stage.isLocked ?? false,
+      metadata: stage.metadata ?? {},
+      createdAt: stageIdx !== -1 ? existingStages[stageIdx].createdAt : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 3. Validação e Staging das Rodadas
+    const roundMapping = new Map<string, string>(); // roundId -> rowId
+    const stagedRounds: RoundRecord[] = [];
+
+    for (const r of rounds) {
+      if (!r.roundId?.trim()) {
+        throw new Error('saveStageDrawAndSlots: roundId é obrigatório na rodada');
+      }
+      if (!r.name?.trim()) {
+        throw new Error('saveStageDrawAndSlots: name da rodada é obrigatório');
+      }
+      if (typeof r.roundOrder !== 'number' || r.roundOrder < 1) {
+        throw new Error('saveStageDrawAndSlots: roundOrder deve ser inteiro >= 1');
+      }
+
+      let roundRowId = r.id;
+      const roundIdx = existingRounds.findIndex(er => er.stageRowId === stageRowId && er.roundId === r.roundId);
+      if (roundIdx !== -1) {
+        roundRowId = existingRounds[roundIdx].id;
+      } else {
+        roundRowId = roundRowId || generateId('round');
+      }
+
+      const stagedRound: RoundRecord = {
+        id: roundRowId,
+        competitionId,
+        stageRowId,
+        roundId: r.roundId,
+        name: r.name,
+        roundOrder: r.roundOrder,
+        slotsCount: r.slotsCount ?? 0,
+        status: r.status || 'pending',
+        createdAt: roundIdx !== -1 ? existingRounds[roundIdx].createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      stagedRounds.push(stagedRound);
+      roundMapping.set(r.roundId, roundRowId);
+    }
+
+    // 4. Validação e Staging dos MatchSlots
+    const stagedSlots: MatchSlotRecord[] = [];
+    const allTeams = readCollection<TeamRecord>('teams');
+    const allMatches = readCollection<MatchRecord>('matches');
+
+    for (const s of slots) {
+      if (!s.slotId?.trim()) {
+        throw new Error('saveStageDrawAndSlots: slotId é obrigatório no slot');
+      }
+      if (typeof s.position !== 'number' || s.position < 1) {
+        throw new Error(`saveStageDrawAndSlots: position no slot ${s.slotId} deve ser inteiro >= 1`);
+      }
+
+      // Validação de vinculação da rodada (cross-stage / cross-competition isolation)
+      const targetRoundRowId = roundMapping.get(s.roundId) ??
+        existingRounds.find(er => er.stageRowId === stageRowId && er.roundId === s.roundId)?.id;
+
+      if (!targetRoundRowId) {
+        throw new Error(`saveStageDrawAndSlots: Rodada '${s.roundId}' associada ao slot '${s.slotId}' não existe no estágio`);
+      }
+
+      // Validação profunda de ParticipantReference (8 tipos canônicos)
+      validateParticipantReference(s.participantAReference);
+      validateParticipantReference(s.participantBReference);
+
+      // Defesa Anti-Fake Team
+      if (s.resolvedTeamAId) {
+        if (isArtificialTeamId(s.resolvedTeamAId)) {
+          throw new Error(`saveStageDrawAndSlots: Equipe artificial '${s.resolvedTeamAId}' rejeitada no slot '${s.slotId}'`);
+        }
+        if (allTeams.length > 0 && !allTeams.some(t => t.id === s.resolvedTeamAId)) {
+          throw new Error(`saveStageDrawAndSlots: Equipe '${s.resolvedTeamAId}' não encontrada no sistema`);
+        }
+      }
+
+      if (s.resolvedTeamBId) {
+        if (isArtificialTeamId(s.resolvedTeamBId)) {
+          throw new Error(`saveStageDrawAndSlots: Equipe artificial '${s.resolvedTeamBId}' rejeitada no slot '${s.slotId}'`);
+        }
+        if (allTeams.length > 0 && !allTeams.some(t => t.id === s.resolvedTeamBId)) {
+          throw new Error(`saveStageDrawAndSlots: Equipe '${s.resolvedTeamBId}' não encontrada no sistema`);
+        }
+      }
+
+      // Validação de matchId
+      if (s.matchId) {
+        const match = allMatches.find(m => m.id === s.matchId);
+        if (allMatches.length > 0 && (!match || match.competitionId !== competitionId)) {
+          throw new Error(`saveStageDrawAndSlots: Partida '${s.matchId}' não encontrada na competição ${competitionId}`);
+        }
+      }
+
+      let slotRowId = s.id;
+      const slotIdx = existingSlots.findIndex(es => es.competitionId === competitionId && es.slotId === s.slotId);
+      if (slotIdx !== -1) {
+        slotRowId = existingSlots[slotIdx].id;
+      } else {
+        slotRowId = slotRowId || generateId('slot');
+      }
+
+      const stagedSlot: MatchSlotRecord = {
+        id: slotRowId,
+        competitionId,
+        stageRowId,
+        roundRowId: targetRoundRowId,
+        slotId: s.slotId,
+        position: s.position,
+        label: s.label,
+        participantAReference: s.participantAReference,
+        participantAStatus: s.participantAStatus || 'unresolved',
+        resolvedTeamAId: s.resolvedTeamAId ?? null,
+        participantBReference: s.participantBReference,
+        participantBStatus: s.participantBStatus || 'unresolved',
+        resolvedTeamBId: s.resolvedTeamBId ?? null,
+        matchId: s.matchId ?? null,
+        progressionRoute: (s.progressionRoute as ProgressionRoute | null) ?? null,
+        createdAt: slotIdx !== -1 ? existingSlots[slotIdx].createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      stagedSlots.push(stagedSlot);
+    }
+
+    // 5. Commit atômico final das coleções (só ocorre após 100% de sucesso nas validações)
+    if (stageIdx !== -1) {
+      existingStages[stageIdx] = stagedStage;
+    } else {
+      existingStages.push(stagedStage);
+    }
+    writeCollection('competition_stages', existingStages);
+
+    for (const sr of stagedRounds) {
+      const idx = existingRounds.findIndex(r => r.id === sr.id);
+      if (idx !== -1) existingRounds[idx] = sr;
+      else existingRounds.push(sr);
+    }
+    writeCollection('competition_rounds', existingRounds);
+
+    for (const ss of stagedSlots) {
+      const idx = existingSlots.findIndex(s => s.id === ss.id);
+      if (idx !== -1) existingSlots[idx] = ss;
+      else existingSlots.push(ss);
+    }
+    writeCollection('competition_match_slots', existingSlots);
+
+    return {
+      ok: true,
+      stageRowId,
+      roundsCount: stagedRounds.length,
+      slotsCount: stagedSlots.length,
+    };
+  },
+
+  async propagateSlotOutcome(params: PropagateSlotOutcomeParams): Promise<PropagateSlotOutcomeResult> {
+    ensureSeeded();
+    const { competitionId, slotId, winnerTeamId, loserTeamId, matchId } = params;
+
+    // 1. Defesa Anti-Fake Team
+    if (winnerTeamId && isArtificialTeamId(winnerTeamId)) {
+      throw new Error(`propagateSlotOutcome: Equipe artificial '${winnerTeamId}' rejeitada como vencedor`);
+    }
+    if (loserTeamId && isArtificialTeamId(loserTeamId)) {
+      throw new Error(`propagateSlotOutcome: Equipe artificial '${loserTeamId}' rejeitada como perdedor`);
+    }
+
+    const allSlots = readCollection<MatchSlotRecord>('competition_match_slots');
+    const sourceSlot = allSlots.find(s => s.competitionId === competitionId && s.slotId === slotId);
+    if (!sourceSlot) {
+      throw new Error(`propagateSlotOutcome: Slot '${slotId}' não encontrado na competição ${competitionId}`);
+    }
+
+    // Se fornecido matchId, associa ao slot de origem
+    if (matchId && sourceSlot.matchId !== matchId) {
+      sourceSlot.matchId = matchId;
+      sourceSlot.updatedAt = new Date().toISOString();
+    }
+
+    const route = sourceSlot.progressionRoute;
+    let updatedCount = 0;
+    let alreadyPropagated = true;
+
+    // Identifica e atualiza slots de destino via rota explícita
+    if (route) {
+      if (route.onWinner && winnerTeamId) {
+        const target = allSlots.find(s => s.competitionId === competitionId && s.slotId === route.onWinner!.targetSlotId);
+        if (target) {
+          if (route.onWinner.targetSide === 'A') {
+            if (target.resolvedTeamAId !== winnerTeamId || target.participantAStatus !== 'resolved') {
+              target.resolvedTeamAId = winnerTeamId;
+              target.participantAStatus = 'resolved';
+              target.updatedAt = new Date().toISOString();
+              updatedCount++;
+              alreadyPropagated = false;
+            }
+          } else {
+            if (target.resolvedTeamBId !== winnerTeamId || target.participantBStatus !== 'resolved') {
+              target.resolvedTeamBId = winnerTeamId;
+              target.participantBStatus = 'resolved';
+              target.updatedAt = new Date().toISOString();
+              updatedCount++;
+              alreadyPropagated = false;
+            }
+          }
+        }
+      }
+
+      if (route.onLoser && loserTeamId) {
+        const target = allSlots.find(s => s.competitionId === competitionId && s.slotId === route.onLoser!.targetSlotId);
+        if (target) {
+          if (route.onLoser.targetSide === 'A') {
+            if (target.resolvedTeamAId !== loserTeamId || target.participantAStatus !== 'resolved') {
+              target.resolvedTeamAId = loserTeamId;
+              target.participantAStatus = 'resolved';
+              target.updatedAt = new Date().toISOString();
+              updatedCount++;
+              alreadyPropagated = false;
+            }
+          } else {
+            if (target.resolvedTeamBId !== loserTeamId || target.participantBStatus !== 'resolved') {
+              target.resolvedTeamBId = loserTeamId;
+              target.participantBStatus = 'resolved';
+              target.updatedAt = new Date().toISOString();
+              updatedCount++;
+              alreadyPropagated = false;
+            }
+          }
+        }
+      }
+    }
+
+    // Também propaga para slots que referenciam match-winner/match-loser diretamente
+    for (const slot of allSlots) {
+      if (slot.competitionId !== competitionId) continue;
+
+      if (winnerTeamId) {
+        const partA = slot.participantAReference as Record<string, unknown>;
+        if (partA.type === 'match-winner' && (partA.slotId === slotId || partA.slot_id === slotId)) {
+          if (slot.resolvedTeamAId !== winnerTeamId || slot.participantAStatus !== 'resolved') {
+            slot.resolvedTeamAId = winnerTeamId;
+            slot.participantAStatus = 'resolved';
+            slot.updatedAt = new Date().toISOString();
+            updatedCount++;
+            alreadyPropagated = false;
+          }
+        }
+        const partB = slot.participantBReference as Record<string, unknown>;
+        if (partB.type === 'match-winner' && (partB.slotId === slotId || partB.slot_id === slotId)) {
+          if (slot.resolvedTeamBId !== winnerTeamId || slot.participantBStatus !== 'resolved') {
+            slot.resolvedTeamBId = winnerTeamId;
+            slot.participantBStatus = 'resolved';
+            slot.updatedAt = new Date().toISOString();
+            updatedCount++;
+            alreadyPropagated = false;
+          }
+        }
+      }
+
+      if (loserTeamId) {
+        const partA = slot.participantAReference as Record<string, unknown>;
+        if (partA.type === 'match-loser' && (partA.slotId === slotId || partA.slot_id === slotId)) {
+          if (slot.resolvedTeamAId !== loserTeamId || slot.participantAStatus !== 'resolved') {
+            slot.resolvedTeamAId = loserTeamId;
+            slot.participantAStatus = 'resolved';
+            slot.updatedAt = new Date().toISOString();
+            updatedCount++;
+            alreadyPropagated = false;
+          }
+        }
+        const partB = slot.participantBReference as Record<string, unknown>;
+        if (partB.type === 'match-loser' && (partB.slotId === slotId || partB.slot_id === slotId)) {
+          if (slot.resolvedTeamBId !== loserTeamId || slot.participantBStatus !== 'resolved') {
+            slot.resolvedTeamBId = loserTeamId;
+            slot.participantBStatus = 'resolved';
+            slot.updatedAt = new Date().toISOString();
+            updatedCount++;
+            alreadyPropagated = false;
+          }
+        }
+      }
+    }
+
+    writeCollection('competition_match_slots', allSlots);
+
+    return {
+      ok: true,
+      sourceSlotId: slotId,
+      idempotent: alreadyPropagated,
+      updatedCount,
+    };
+  },
+
+  async materializeSlotMatch(params: MaterializeSlotMatchParams): Promise<MaterializeSlotMatchResult> {
+    ensureSeeded();
+    const { competitionId, slotId, scheduledTime, venue, court, phase } = params;
+
+    const allSlots = readCollection<MatchSlotRecord>('competition_match_slots');
+    const slot = allSlots.find(s => s.competitionId === competitionId && s.slotId === slotId);
+    if (!slot) {
+      throw new Error(`materializeSlotMatch: Slot '${slotId}' não encontrado na competição ${competitionId}`);
+    }
+
+    const allMatches = readCollection<MatchRecord>('matches');
+
+    // 1. Idempotência Nível 1: Slot já possui matchId associado
+    if (slot.matchId) {
+      const existing = allMatches.find(m => m.id === slot.matchId);
+      if (existing) {
+        return {
+          ok: true,
+          matchId: slot.matchId,
+          alreadyMaterialized: true,
+          matchNumber: existing.matchNumber,
+          message: 'Partida já materializada e vinculada ao slot',
+        };
+      }
+    }
+
+    // 2. Idempotência Nível 2: Já existe Match com slotId nesta competição
+    const existingBySlot = allMatches.find(m => m.competitionId === competitionId && m.slotId === slotId);
+    if (existingBySlot) {
+      slot.matchId = existingBySlot.id;
+      slot.updatedAt = new Date().toISOString();
+      writeCollection('competition_match_slots', allSlots);
+      return {
+        ok: true,
+        matchId: existingBySlot.id,
+        alreadyMaterialized: true,
+        matchNumber: existingBySlot.matchNumber,
+        message: 'Partida pré-existente vinculada ao slot',
+      };
+    }
+
+    // 3. Validação de Elegibilidade
+    if (slot.participantAStatus !== 'resolved' || !slot.resolvedTeamAId) {
+      throw new Error(`materializeSlotMatch: Participante A do slot '${slotId}' não está resolvido`);
+    }
+    if (slot.participantBStatus !== 'resolved' || !slot.resolvedTeamBId) {
+      throw new Error(`materializeSlotMatch: Participante B do slot '${slotId}' não está resolvido`);
+    }
+
+    // Defesa Anti-Fake Team
+    if (isArtificialTeamId(slot.resolvedTeamAId)) {
+      throw new Error(`materializeSlotMatch: Equipe artificial '${slot.resolvedTeamAId}' rejeitada como participante A`);
+    }
+    if (isArtificialTeamId(slot.resolvedTeamBId)) {
+      throw new Error(`materializeSlotMatch: Equipe artificial '${slot.resolvedTeamBId}' rejeitada como participante B`);
+    }
+
+    // Validação de Existência das Equipes
+    const allTeams = readCollection<TeamRecord>('teams');
+    const teamA = allTeams.find(t => t.id === slot.resolvedTeamAId);
+    if (!teamA) {
+      throw new Error(`materializeSlotMatch: Equipe A '${slot.resolvedTeamAId}' não encontrada no banco`);
+    }
+    const teamB = allTeams.find(t => t.id === slot.resolvedTeamBId);
+    if (!teamB) {
+      throw new Error(`materializeSlotMatch: Equipe B '${slot.resolvedTeamBId}' não encontrada no banco`);
+    }
+
+    // Validação de Inscrição (pertencimento à competição) se houver tabela de inscrições
+    const compTeams = readCollection<{ competitionId: string; teamId: string }>('competition_teams');
+    if (compTeams.length > 0 && compTeams.some(ct => ct.competitionId === competitionId)) {
+      if (!compTeams.some(ct => ct.competitionId === competitionId && ct.teamId === slot.resolvedTeamAId)) {
+        throw new Error(`materializeSlotMatch: Equipe A '${slot.resolvedTeamAId}' não inscrita na competição ${competitionId}`);
+      }
+      if (!compTeams.some(ct => ct.competitionId === competitionId && ct.teamId === slot.resolvedTeamBId)) {
+        throw new Error(`materializeSlotMatch: Equipe B '${slot.resolvedTeamBId}' não inscrita na competição ${competitionId}`);
+      }
+    }
+
+    // 4. Metadados do Match
+    const rounds = readCollection<RoundRecord>('competition_rounds');
+    const round = rounds.find(r => r.id === slot.roundRowId);
+    const stages = readCollection<StageRecord>('competition_stages');
+    const stage = stages.find(s => s.id === slot.stageRowId);
+
+    const compMatches = allMatches.filter(m => m.competitionId === competitionId);
+    const nextMatchNumber = compMatches.reduce((max, m) => Math.max(max, m.matchNumber || 0), 0) + 1;
+
+    const matchPhase = phase || slot.label || stage?.stageType || 'playoffs';
+    const matchVenue = venue || 'Arena Principal';
+    const matchTime = scheduledTime || new Date().toISOString();
+    const matchId = generateId('match');
+    const now = new Date().toISOString();
+
+    const newMatch: MatchRecord = {
+      id: matchId,
+      competitionId,
+      slotId,
+      round: round?.roundOrder ?? 1,
+      matchNumber: nextMatchNumber,
+      teamAId: slot.resolvedTeamAId,
+      teamBId: slot.resolvedTeamBId,
+      teamAName: teamA.name,
+      teamBName: teamB.name,
+      teamAShortName: teamA.shortName || teamA.name.substring(0, 3).toUpperCase(),
+      teamBShortName: teamB.shortName || teamB.name.substring(0, 3).toUpperCase(),
+      venue: matchVenue,
+      court,
+      scheduledTime: matchTime,
+      status: 'scheduled',
+      sets: [],
+      referees: [],
+      phase: matchPhase,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    allMatches.push(newMatch);
+    writeCollection('matches', allMatches);
+
+    // Vincula matchId ao slot
+    slot.matchId = matchId;
+    slot.updatedAt = now;
+    writeCollection('competition_match_slots', allSlots);
+
+    return {
+      ok: true,
+      matchId,
+      alreadyMaterialized: false,
+      matchNumber: nextMatchNumber,
+    };
   },
 };
 
@@ -616,27 +1848,47 @@ const supabaseAdapter = {
     const supabase = await getSupabaseClient();
     if (!supabase) return [];
     const { data } = await supabase.from(SUPABASE_TABLES.competitions).select('*');
-    return mapRows<CompetitionRecord>(data ?? []);
+    return mapRows<CompetitionRecord>(data ?? []).map(normalizeCompetitionRecord);
   },
 
   async getCompetition(id: string): Promise<CompetitionRecord | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
     const { data } = await supabase.from(SUPABASE_TABLES.competitions).select('*').eq('id', id).maybeSingle();
-    return mapRow<CompetitionRecord>(data);
+    const comp = mapRow<CompetitionRecord>(data);
+    return comp ? normalizeCompetitionRecord(comp) : null;
+  },
+
+  async getCompetitionBySlug(slug: string): Promise<CompetitionRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data } = await supabase.from(SUPABASE_TABLES.competitions).select('*').eq('slug', slug).maybeSingle();
+    const comp = mapRow<CompetitionRecord>(data);
+    return comp ? normalizeCompetitionRecord(comp) : null;
   },
 
   async updateCompetition(id: string, updates: Partial<CompetitionRecord>): Promise<CompetitionRecord | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.competitions).update(toSnake(updates)).eq('id', id).select().maybeSingle();
+    const existing = await this.getCompetition(id);
+    const safeUpdates = { ...updates };
+    if (existing?.rulesSnapshot && 'rulesSnapshot' in safeUpdates && safeUpdates.rulesSnapshot !== existing.rulesSnapshot) {
+      safeUpdates.rulesSnapshot = existing.rulesSnapshot;
+    }
+    // IMUTABILIDADE DO SLUG: Se a competição já possui slug, nunca sobrescreve nem altera
+    if (existing?.slug) {
+      safeUpdates.slug = existing.slug;
+    }
+    const { data } = await supabase.from(SUPABASE_TABLES.competitions).update(toSnake(safeUpdates)).eq('id', id).select().maybeSingle();
     return mapRow<CompetitionRecord>(data);
   },
 
-  async createCompetition(input: Omit<CompetitionRecord, 'id'>): Promise<CompetitionRecord> {
+  async createCompetition(input: Omit<CompetitionRecord, 'id'> & { id?: string }): Promise<CompetitionRecord> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
-    const { data } = await supabase.from(SUPABASE_TABLES.competitions).insert(toSnake(input)).select().single();
+    const slug = input.slug || generateSlug(input.name);
+    const payload = { ...input, slug };
+    const { data } = await supabase.from(SUPABASE_TABLES.competitions).insert(toSnake(payload)).select().single();
     return mapRow<CompetitionRecord>(data) ?? (data as unknown as CompetitionRecord);
   },
 
@@ -653,7 +1905,7 @@ const supabaseAdapter = {
     return mapRows<TeamRecord>(data ?? []);
   },
 
-  async createTeam(input: Omit<TeamRecord, 'id'>): Promise<TeamRecord> {
+  async createTeam(input: Omit<TeamRecord, 'id'> & { id?: string }): Promise<TeamRecord> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
     const { data } = await supabase.from(SUPABASE_TABLES.teams).insert(toSnake(input)).select().single();
@@ -816,6 +2068,99 @@ const supabaseAdapter = {
       ? await supabase.from(SUPABASE_TABLES.draws).update({ ...payload, updated_at: now }).eq('id', existing.id).select().maybeSingle()
       : await supabase.from(SUPABASE_TABLES.draws).insert({ ...payload, created_at: now, updated_at: now }).select().single();
     return mapRow<DrawRecord>(data) ?? (data as unknown as DrawRecord);
+  },
+
+  async saveDrawWithMatches(
+    result: DrawResult,
+    matches: Array<{
+      round: number;
+      matchNumber: number;
+      teamAId: string;
+      teamBId: string;
+      teamAName: string;
+      teamBName: string;
+      teamAShortName: string;
+      teamBShortName: string;
+      groupName: string;
+      phase: string;
+      scheduledTime: string;
+      venue: string;
+    }>
+  ): Promise<{ draw: DrawRecord; matches: MatchRecord[] }> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const now = new Date().toISOString();
+
+    const existingDraw = await this.getDrawByCompetition(result.competitionId);
+    if (existingDraw?.status === 'locked') {
+      throw new Error('Sorteio bloqueado. Não é possível modificar sorteio oficializado.');
+    }
+
+    const existingMatches = await this.listMatches(result.competitionId);
+    const hasStartedOrPlayed = existingMatches.some(
+      m =>
+        (m.phase === 'classificatória' || m.phase === 'classificatoria') &&
+        (m.status === 'in-progress' || m.status === 'completed' || m.status === 'homologated' || (m.sets && m.sets.length > 0))
+    );
+    if (hasStartedOrPlayed) {
+      throw new Error('Não é possível substituir as partidas da fase classificatória pois já existem jogos iniciados ou finalizados.');
+    }
+
+    const { data: deletedData } = await supabase
+      .from(SUPABASE_TABLES.matches)
+      .delete()
+      .in('phase', ['classificatória', 'classificatoria'])
+      .eq('competition_id', result.competitionId);
+
+    const newMatches: Partial<MatchRecord>[] = matches.map((proposal) => ({
+      id: generateId('match'),
+      competitionId: result.competitionId,
+      round: proposal.round,
+      matchNumber: proposal.matchNumber,
+      teamAId: proposal.teamAId,
+      teamBId: proposal.teamBId,
+      teamAName: proposal.teamAName,
+      teamBName: proposal.teamBName,
+      teamAShortName: proposal.teamAShortName,
+      teamBShortName: proposal.teamBShortName,
+      venue: proposal.venue,
+      phase: proposal.phase,
+      groupName: proposal.groupName,
+      scheduledTime: proposal.scheduledTime,
+      status: 'scheduled' as const,
+      sets: [],
+      referees: [],
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    const { data: insertedMatches } = await supabase
+      .from(SUPABASE_TABLES.matches)
+      .insert(newMatches.map(m => toSnake(m)))
+      .select();
+
+    const payload = toSnake({ ...result, id: existingDraw?.id ?? undefined });
+    const { data: drawData } = existingDraw
+      ? await supabase.from(SUPABASE_TABLES.draws).update({ ...payload, updated_at: now }).eq('id', existingDraw.id).select().maybeSingle()
+      : await supabase.from(SUPABASE_TABLES.draws).insert({ ...payload, created_at: now, updated_at: now }).select().single();
+
+    const draw = mapRow<DrawRecord>(drawData) ?? (drawData as unknown as DrawRecord);
+    return { draw, matches: (insertedMatches ?? []).map(m => mapRow<MatchRecord>(m) ?? m as MatchRecord) };
+  },
+
+  async updateDrawStatus(competitionId: string, status: 'preview' | 'official' | 'locked'): Promise<DrawRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const now = new Date().toISOString();
+    const existing = await this.getDrawByCompetition(competitionId);
+    if (!existing) return null;
+    const { data } = await supabase
+      .from(SUPABASE_TABLES.draws)
+      .update({ status, updated_at: now })
+      .eq('id', existing.id)
+      .select()
+      .maybeSingle();
+    return mapRow<DrawRecord>(data);
   },
 
   async listCompetitionTeams(competitionId?: string): Promise<CompetitionTeam[]> {
@@ -1039,10 +2384,20 @@ const supabaseAdapter = {
     await supabase.from(SUPABASE_TABLES.persons).delete().eq('id', id);
   },
 
-  async listAuditLogs(): Promise<MatchAuditEntry[]> {
+  async listAuditLogs(filters?: { competitionId?: string; entityType?: string; entityId?: string }): Promise<MatchAuditEntry[]> {
     const supabase = await getSupabaseClient();
     if (!supabase) return [];
-    const { data } = await supabase.from(SUPABASE_TABLES.auditLogs).select('*').order('timestamp', { ascending: false }).limit(500);
+    let query = supabase.from(SUPABASE_TABLES.auditLogs).select('*');
+    if (filters?.competitionId) {
+      query = query.eq('competition_id', filters.competitionId);
+    }
+    if (filters?.entityType) {
+      query = query.eq('entity_type', filters.entityType);
+    }
+    if (filters?.entityId) {
+      query = query.eq('entity_id', filters.entityId);
+    }
+    const { data } = await query.order('timestamp', { ascending: false }).limit(500);
     return mapRows<MatchAuditEntry>(data ?? []);
   },
 
@@ -1052,6 +2407,374 @@ const supabaseAdapter = {
     const now = new Date().toISOString();
     const { data } = await supabase.from(SUPABASE_TABLES.auditLogs).insert(toSnake({ ...entry, timestamp: now })).select().single();
     return mapRow<MatchAuditEntry>(data) ?? (data as unknown as MatchAuditEntry);
+  },
+
+  // ============================================================================
+  // Competition Format Runtime: Stages, Rounds e MatchSlots
+  // ============================================================================
+
+  // Stages
+  async listStages(competitionId: string): Promise<StageRecord[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionStages)
+      .select('*')
+      .eq('competition_id', competitionId)
+      .order('stage_order', { ascending: true });
+    if (error) throw new Error(`Falha ao listar estágios: ${error.message}`);
+    return mapRows<StageRecord>(data ?? []);
+  },
+
+  async getStage(id: string): Promise<StageRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionStages)
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(`Falha ao buscar estágio: ${error.message}`);
+    return mapRow<StageRecord>(data);
+  },
+
+  async getStageByLogicalId(competitionId: string, stageId: string): Promise<StageRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionStages)
+      .select('*')
+      .eq('competition_id', competitionId)
+      .eq('stage_id', stageId)
+      .maybeSingle();
+    if (error) throw new Error(`Falha ao buscar estágio por ID lógico: ${error.message}`);
+    return mapRow<StageRecord>(data);
+  },
+
+  async createStage(stage: Omit<StageRecord, 'id' | 'createdAt' | 'updatedAt' | 'status'> & { id?: string; status?: StageRuntimeStatus }): Promise<StageRecord> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const recordId = stage.id || generateId('stage');
+    const payload = {
+      ...stage,
+      id: recordId,
+      status: stage.status || 'pending',
+      isLocked: stage.isLocked ?? false,
+      metadata: stage.metadata ?? {},
+    };
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionStages)
+      .insert(toSnake(payload as Record<string, unknown>))
+      .select()
+      .single();
+    if (error) throw new Error(`Falha ao criar estágio: ${error.message}`);
+    return mapRow<StageRecord>(data) ?? (data as unknown as StageRecord);
+  },
+
+  async updateStage(id: string, updates: Partial<StageRecord>): Promise<StageRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const payload = toSnake({ ...updates, updatedAt: new Date().toISOString() });
+    delete payload.id;
+    delete payload.created_at;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionStages)
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+    if (error) throw new Error(`Falha ao atualizar estágio: ${error.message}`);
+    return mapRow<StageRecord>(data);
+  },
+
+  async deleteStage(id: string): Promise<void> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return;
+    const { error } = await supabase
+      .from(SUPABASE_TABLES.competitionStages)
+      .delete()
+      .eq('id', id);
+    if (error) throw new Error(`Falha ao excluir estágio: ${error.message}`);
+  },
+
+  // Rounds
+  async listRounds(stageRowId: string): Promise<RoundRecord[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionRounds)
+      .select('*')
+      .eq('stage_row_id', stageRowId)
+      .order('round_order', { ascending: true });
+    if (error) throw new Error(`Falha ao listar rodadas: ${error.message}`);
+    return mapRows<RoundRecord>(data ?? []);
+  },
+
+  async getRound(id: string): Promise<RoundRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionRounds)
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(`Falha ao buscar rodada: ${error.message}`);
+    return mapRow<RoundRecord>(data);
+  },
+
+  async getRoundByLogicalId(stageRowId: string, roundId: string): Promise<RoundRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionRounds)
+      .select('*')
+      .eq('stage_row_id', stageRowId)
+      .eq('round_id', roundId)
+      .maybeSingle();
+    if (error) throw new Error(`Falha ao buscar rodada por ID lógico: ${error.message}`);
+    return mapRow<RoundRecord>(data);
+  },
+
+  async createRound(round: Omit<RoundRecord, 'id' | 'createdAt' | 'updatedAt' | 'status'> & { id?: string; status?: RoundRuntimeStatus }): Promise<RoundRecord> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const recordId = round.id || generateId('round');
+    const payload = {
+      ...round,
+      id: recordId,
+      status: round.status || 'pending',
+      slotsCount: round.slotsCount ?? 0,
+    };
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionRounds)
+      .insert(toSnake(payload as Record<string, unknown>))
+      .select()
+      .single();
+    if (error) throw new Error(`Falha ao criar rodada: ${error.message}`);
+    return mapRow<RoundRecord>(data) ?? (data as unknown as RoundRecord);
+  },
+
+  async updateRound(id: string, updates: Partial<RoundRecord>): Promise<RoundRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const payload = toSnake({ ...updates, updatedAt: new Date().toISOString() });
+    delete payload.id;
+    delete payload.created_at;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionRounds)
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+    if (error) throw new Error(`Falha ao atualizar rodada: ${error.message}`);
+    return mapRow<RoundRecord>(data);
+  },
+
+  async deleteRound(id: string): Promise<void> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return;
+    const { error } = await supabase
+      .from(SUPABASE_TABLES.competitionRounds)
+      .delete()
+      .eq('id', id);
+    if (error) throw new Error(`Falha ao excluir rodada: ${error.message}`);
+  },
+
+  // MatchSlots
+  async listMatchSlots(competitionId: string): Promise<MatchSlotRecord[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionMatchSlots)
+      .select('*')
+      .eq('competition_id', competitionId)
+      .order('position', { ascending: true });
+    if (error) throw new Error(`Falha ao listar match slots da competição: ${error.message}`);
+    return mapRows<MatchSlotRecord>(data ?? []);
+  },
+
+  async listMatchSlotsByRound(roundRowId: string): Promise<MatchSlotRecord[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionMatchSlots)
+      .select('*')
+      .eq('round_row_id', roundRowId)
+      .order('position', { ascending: true });
+    if (error) throw new Error(`Falha ao listar match slots da rodada: ${error.message}`);
+    return mapRows<MatchSlotRecord>(data ?? []);
+  },
+
+  async getMatchSlot(id: string): Promise<MatchSlotRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionMatchSlots)
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(`Falha ao buscar match slot: ${error.message}`);
+    return mapRow<MatchSlotRecord>(data);
+  },
+
+  async getMatchSlotByLogicalId(competitionId: string, slotId: string): Promise<MatchSlotRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionMatchSlots)
+      .select('*')
+      .eq('competition_id', competitionId)
+      .eq('slot_id', slotId)
+      .maybeSingle();
+    if (error) throw new Error(`Falha ao buscar match slot por ID lógico: ${error.message}`);
+    return mapRow<MatchSlotRecord>(data);
+  },
+
+  async createMatchSlot(slot: Omit<MatchSlotRecord, 'id' | 'createdAt' | 'updatedAt' | 'participantAStatus' | 'participantBStatus' | 'resolvedTeamAId' | 'resolvedTeamBId' | 'matchId'> & { id?: string; participantAStatus?: SlotParticipantStatus; participantBStatus?: SlotParticipantStatus; resolvedTeamAId?: string | null; resolvedTeamBId?: string | null; matchId?: string | null }): Promise<MatchSlotRecord> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+
+    validateParticipantReference(slot.participantAReference);
+    validateParticipantReference(slot.participantBReference);
+    if (slot.resolvedTeamAId && isArtificialTeamId(slot.resolvedTeamAId)) {
+      throw new Error(`resolvedTeamAId não pode ser equipe artificial/TBD: ${slot.resolvedTeamAId}`);
+    }
+    if (slot.resolvedTeamBId && isArtificialTeamId(slot.resolvedTeamBId)) {
+      throw new Error(`resolvedTeamBId não pode ser equipe artificial/TBD: ${slot.resolvedTeamBId}`);
+    }
+
+    const recordId = slot.id || generateId('slot');
+    const payload = {
+      ...slot,
+      id: recordId,
+      resolvedTeamAId: slot.resolvedTeamAId ?? null,
+      resolvedTeamBId: slot.resolvedTeamBId ?? null,
+      matchId: slot.matchId ?? null,
+      participantAStatus: slot.participantAStatus || (slot.participantAReference.type === 'bye' ? 'bye' : slot.resolvedTeamAId ? 'resolved' : 'unresolved'),
+      participantBStatus: slot.participantBStatus || (slot.participantBReference.type === 'bye' ? 'bye' : slot.resolvedTeamBId ? 'resolved' : 'unresolved'),
+      progressionRoute: slot.progressionRoute ?? null,
+    };
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionMatchSlots)
+      .insert(toSnake(payload as Record<string, unknown>))
+      .select()
+      .single();
+    if (error) throw new Error(`Falha ao criar match slot: ${error.message}`);
+    return mapRow<MatchSlotRecord>(data) ?? (data as unknown as MatchSlotRecord);
+  },
+
+  async updateMatchSlot(id: string, updates: Partial<MatchSlotRecord>): Promise<MatchSlotRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+
+    if (updates.participantAReference) {
+      validateParticipantReference(updates.participantAReference);
+    }
+    if (updates.participantBReference) {
+      validateParticipantReference(updates.participantBReference);
+    }
+    if (updates.resolvedTeamAId && isArtificialTeamId(updates.resolvedTeamAId)) {
+      throw new Error(`resolvedTeamAId não pode ser equipe artificial/TBD: ${updates.resolvedTeamAId}`);
+    }
+    if (updates.resolvedTeamBId && isArtificialTeamId(updates.resolvedTeamBId)) {
+      throw new Error(`resolvedTeamBId não pode ser equipe artificial/TBD: ${updates.resolvedTeamBId}`);
+    }
+
+    const payload = toSnake({ ...updates, updatedAt: new Date().toISOString() });
+    delete payload.id;
+    delete payload.created_at;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionMatchSlots)
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+    if (error) throw new Error(`Falha ao atualizar match slot: ${error.message}`);
+    return mapRow<MatchSlotRecord>(data);
+  },
+
+  async deleteMatchSlot(id: string): Promise<void> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return;
+    const { error } = await supabase
+      .from(SUPABASE_TABLES.competitionMatchSlots)
+      .delete()
+      .eq('id', id);
+    if (error) throw new Error(`Falha ao excluir match slot: ${error.message}`);
+  },
+
+  async saveStageDrawAndSlots(params: SaveStageDrawAndSlotsParams): Promise<SaveStageDrawAndSlotsResult> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('saveStageDrawAndSlots: Supabase client não configurado');
+
+    const { data, error } = await supabase.rpc('save_stage_draw_and_slots', {
+      p_competition_id: params.competitionId,
+      p_stage: params.stage,
+      p_rounds: params.rounds,
+      p_slots: params.slots,
+    });
+
+    if (error) {
+      throw new Error(`Falha ao persistir sorteio de estágio via RPC: ${error.message}`);
+    }
+    const res = data as Record<string, unknown>;
+    return {
+      ok: Boolean(res?.ok),
+      stageRowId: String(res?.stageRowId || res?.stage_row_id || ''),
+      roundsCount: Number(res?.roundsCount || res?.rounds_count || 0),
+      slotsCount: Number(res?.slotsCount || res?.slots_count || 0),
+    };
+  },
+
+  async propagateSlotOutcome(params: PropagateSlotOutcomeParams): Promise<PropagateSlotOutcomeResult> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('propagateSlotOutcome: Supabase client não configurado');
+
+    const { data, error } = await supabase.rpc('rpc_propagate_slot_outcome', {
+      p_competition_id: params.competitionId,
+      p_slot_id: params.slotId,
+      p_winner_team_id: params.winnerTeamId ?? null,
+      p_loser_team_id: params.loserTeamId ?? null,
+      p_match_id: params.matchId ?? null,
+    });
+
+    if (error) {
+      throw new Error(`Falha ao propagar resultado via RPC: ${error.message}`);
+    }
+    const res = data as Record<string, unknown>;
+    return {
+      ok: Boolean(res?.ok),
+      sourceSlotId: String(res?.sourceSlotId || res?.source_slot_id || params.slotId),
+      idempotent: Boolean(res?.idempotent),
+      updatedCount: Number(res?.updatedCount || res?.updated_count || 0),
+      message: res?.message ? String(res.message) : undefined,
+    };
+  },
+
+  async materializeSlotMatch(params: MaterializeSlotMatchParams): Promise<MaterializeSlotMatchResult> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('materializeSlotMatch: Supabase client não configurado');
+
+    const { data, error } = await supabase.rpc('rpc_materialize_slot_match', {
+      p_competition_id: params.competitionId,
+      p_slot_id: params.slotId,
+      p_scheduled_time: params.scheduledTime || null,
+      p_venue: params.venue || 'Arena Principal',
+      p_court: params.court || null,
+      p_phase: params.phase || null,
+    });
+
+    if (error) {
+      throw new Error(`Falha ao materializar partida via RPC: ${error.message}`);
+    }
+    const res = data as Record<string, unknown>;
+    return {
+      ok: Boolean(res?.ok),
+      matchId: String(res?.matchId || res?.match_id),
+      alreadyMaterialized: Boolean(res?.alreadyMaterialized || res?.already_materialized),
+      matchNumber: res?.matchNumber ? Number(res.matchNumber) : undefined,
+      message: res?.message ? String(res.message) : undefined,
+    };
   },
 };
 
@@ -1070,6 +2793,9 @@ export function clearAllCompetitionData(): void {
   writeCollection('competition_athletes', []);
   writeCollection('draws', []);
   writeCollection('audit_logs', []);
+  writeCollection('competition_stages', []);
+  writeCollection('competition_rounds', []);
+  writeCollection('competition_match_slots', []);
   localStorage.setItem(SEED_VERSION, 'clean');
 }
 
@@ -1083,6 +2809,9 @@ export function clearEntireDatabase(): void {
   writeCollection('draws', []);
   writeCollection('audit_logs', []);
   writeCollection('persons', []);
+  writeCollection('competition_stages', []);
+  writeCollection('competition_rounds', []);
+  writeCollection('competition_match_slots', []);
   localStorage.setItem(SEED_VERSION, 'clean');
 }
 

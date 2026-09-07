@@ -1,9 +1,10 @@
-import React from 'react';
-import { Settings } from 'lucide-react';
+import { Settings, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SectionCard } from '@/components/ui/Section';
 import type { CompetitionRecord } from '@/types/entities';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
+import { formatSetsToWinLabel, getStageId } from '@/types/competitionConfig';
 
 const TIEBREAK_CRITERIA_LABELS_PT: Record<string, string> = {
   'points': 'Pontos',
@@ -20,23 +21,35 @@ export interface CompetitionConfigTabProps {
   selected: CompetitionRecord;
   canEdit: boolean;
   onOpenEditConfig: () => void;
+  onOpenFormatBuilder?: () => void;
 }
 
 export function CompetitionConfigTab({
   selected,
   canEdit,
   onOpenEditConfig,
+  onOpenFormatBuilder,
 }: CompetitionConfigTabProps) {
+  const stages = selected.config?.format?.stages || [];
+
   return (
     <SectionCard
       title="Configurações Regulamentares"
       description="Parâmetros de pontuação, desempate, sets por fase e tempos de descanso."
       actions={
         canEdit && (
-          <Button variant="outline" size="sm" onClick={onOpenEditConfig} className="gap-1.5 text-xs">
-            <Settings className="w-3.5 h-3.5" />
-            Editar Configurações
-          </Button>
+          <div className="flex items-center gap-2">
+            {onOpenFormatBuilder && (
+              <Button size="sm" onClick={onOpenFormatBuilder} className="gap-1.5 text-xs">
+                <Layers className="w-3.5 h-3.5" />
+                Format Builder & Fases
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={onOpenEditConfig} className="gap-1.5 text-xs">
+              <Settings className="w-3.5 h-3.5" />
+              Editar Parâmetros
+            </Button>
+          </div>
         )
       }
       divided
@@ -68,19 +81,19 @@ export function CompetitionConfigTab({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
             <div className="p-2.5 rounded-lg bg-zinc-900/40 border border-border text-center">
               <span className="text-muted-foreground block text-[10px]">Grupos</span>
-              <span className="font-semibold">{selected.phaseSetRules?.groupStage || selected.setFormat}</span>
+              <span className="font-semibold">{formatSetsToWinLabel(CompetitionRulesService.resolveMatchFormat(selected, 'fase_grupos').setsToWin)}</span>
             </div>
             <div className="p-2.5 rounded-lg bg-zinc-900/40 border border-border text-center">
               <span className="text-muted-foreground block text-[10px]">Quartas</span>
-              <span className="font-semibold">{selected.phaseSetRules?.playoffs || selected.setFormat}</span>
+              <span className="font-semibold">{formatSetsToWinLabel(CompetitionRulesService.resolveMatchFormat(selected, 'quartas').setsToWin)}</span>
             </div>
             <div className="p-2.5 rounded-lg bg-zinc-900/40 border border-border text-center">
               <span className="text-muted-foreground block text-[10px]">Semifinais</span>
-              <span className="font-semibold">{selected.phaseSetRules?.semifinals || '5-sets'}</span>
+              <span className="font-semibold">{formatSetsToWinLabel(CompetitionRulesService.resolveMatchFormat(selected, 'semifinal').setsToWin)}</span>
             </div>
             <div className="p-2.5 rounded-lg bg-zinc-900/40 border border-border text-center">
               <span className="text-muted-foreground block text-[10px]">Final</span>
-              <span className="font-semibold">{selected.phaseSetRules?.final || '5-sets'}</span>
+              <span className="font-semibold">{formatSetsToWinLabel(CompetitionRulesService.resolveMatchFormat(selected, 'final').setsToWin)}</span>
             </div>
           </div>
         </div>

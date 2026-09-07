@@ -25,6 +25,10 @@ import {
   Clock,
   MapPin,
   CheckCircle,
+  CheckCircle2,
+  CheckCheck,
+  RotateCcw,
+  Award,
   Volleyball,
   FileText,
   Pencil,
@@ -36,6 +40,7 @@ import {
   UserCheck,
   Shield,
   MoreHorizontal,
+  Table,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -51,16 +56,18 @@ import { dataAccess } from '@/services/dataAccess';
 import { generateMatchesBoletimPdf, downloadReportsPdf, type MatchBoletimRow } from '@/lib/pdf/reportsPdf';
 import { MatchSheetEmitDialog } from '@/components/match/MatchSheetEmitDialog';
 import { BlankSheetEmitDialog } from '@/components/match/BlankSheetEmitDialog';
+import { CompetitionBracketService } from '@/services/competitionBracketService';
+import { GenericTournamentBracket } from '@/components/competition/bracket';
+import { useCompetitionBracket } from '@/hooks/useCompetitionBracket';
 import {
   advancePlayoffMatches,
   buildPlayoffMatches,
-  generateFourGroupPlayoffs,
-  generateTwoGroupPlayoffs,
   type PlayoffMatchSlot,
 } from '@/services/playoffsService';
 import { computeStandingsByGroup } from '@/services/standingsService';
 import type { CompetitionRecord, MatchRecord, TeamRecord, VenueRecord } from '@/types/entities';
 import { useCapability } from '@/hooks/useCapability';
+import { useAuth } from '@/components/auth/useAuth';
 import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
 import { LiveScorerDeskModal } from '@/components/match/LiveScorerDeskModal';
 import { LiveScoreboardModal } from '@/components/match/LiveScoreboardModal';
@@ -75,6 +82,10 @@ import { MatchFiltersBar } from '@/components/match/MatchFiltersBar';
 import { MatchTabsNav, type MatchesSubTab } from '@/components/match/MatchTabsNav';
 import { ScheduleMatchDialog } from '@/components/match/dialogs/ScheduleMatchDialog';
 import { ResultValidationDialog } from '@/components/match/dialogs/ResultValidationDialog';
+import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
+import { OperationalAuditService } from '@/services/operationalAuditService';
+import { CompetitionRuntimeService } from '@/services/competitionRuntimeService';
 
 export interface MatchView {
   id: string;
@@ -135,6 +146,7 @@ function toMatchView(
 
 export function MatchesPage() {
   const navigate = useNavigate();
+  const { session } = useAuth();
   const { can, canSubmitMatchScore } = useCapability();
 
   // Estados de dados
@@ -165,6 +177,10 @@ export function MatchesPage() {
   const [checkinMatch, setCheckinMatch] = useState<MatchRecord | null>(null);
   const [refereeMatch, setRefereeMatch] = useState<MatchRecord | null>(null);
   const [pendingSyncPlayoffs, setPendingSyncPlayoffs] = useState(false);
+  const [playoffViewMode, setPlayoffViewMode] = useState<'bracket' | 'table'>('bracket');
+
+  const activeCompId = competitionFilter !== 'all' ? competitionFilter : (competitions[0]?.id || null);
+  const { viewModel: bracketViewModel, reprocessRuntime, refetch: refetchBracket } = useCompetitionBracket(activeCompId);
 
   const refresh = useCallback(async () => {
     try {
@@ -232,8 +248,12 @@ export function MatchesPage() {
     () => matches.filter((m) => m.status === 'completed' || m.status === 'homologated').length,
     [matches],
   );
+  const pendingHomologationCount = useMemo(
+    () => matches.filter((m) => m.status === 'completed').length,
+    [matches],
+  );
 
-  // Homologar resultado
+  // Homologar resultado individual
   const handleHomologate = async (matchId: string) => {
     if (!can('match:finalize')) {
       toast.error('Você não possui permissão para homologar resultados de partidas.');
@@ -243,13 +263,47 @@ export function MatchesPage() {
     const currentMatch = matches.find((m) => m.id === matchId);
     if (!currentMatch) return;
 
-    await dataAccess.updateMatch(matchId, { status: 'homologated' });
+    // Validação canônica do resultado antes de oficializar
+    const comp = compById.get(currentMatch.competitionId);
+    const canonical = CompetitionRulesService.getCanonicalMatchResult(comp, currentMatch);
+    if (!canonical.isValid) {
+      toast.error(canonical.inconsistencyReason || 'Não é possível homologar resultado matematicamente inválido ou incompleto.');
+      return;
+    }
 
-    // Avançar playoffs automaticamente se for eliminatória
-    if (currentMatch.round && currentMatch.winnerId) {
+    const now = new Date().toISOString();
+    const operator = session?.user?.name || 'Administrador';
+
+    await dataAccess.updateMatch(matchId, {
+      status: 'homologated',
+      homologatedAt: now,
+      homologatedBy: operator,
+      winnerId: canonical.winnerId ?? currentMatch.winnerId,
+    });
+
+    // Avançar chaveamento e progressão
+    const compSlots = await dataAccess.listMatchSlots(currentMatch.competitionId);
+    if (compSlots.length > 0) {
+      // Motor novo: Single Progression Engine via CompetitionRuntimeService
+      await CompetitionRuntimeService.handleMatchCompleted(currentMatch.competitionId, matchId);
+    } else if (currentMatch.round && (canonical.winnerId || currentMatch.winnerId)) {
+      // Fallback legado exclusivo para competições antigas sem MatchSlots relacionais
+      const comp = competitions.find((c) => c.id === currentMatch.competitionId);
       const compMatches = matches.filter((m) => m.competitionId === currentMatch.competitionId);
-      const updatedList = compMatches.map((m) => (m.id === matchId ? { ...m, status: 'homologated' as const } : m));
-      const { updatedMatches, changed } = advancePlayoffMatches(updatedList, teams);
+      const updatedList = compMatches.map((m) =>
+        m.id === matchId
+          ? {
+              ...m,
+              status: 'homologated' as const,
+              winnerId: canonical.winnerId ?? currentMatch.winnerId,
+            }
+          : m,
+      );
+      const { updatedMatches, changed } = CompetitionBracketService.advancePlayoffBrackets(
+        comp!,
+        updatedList,
+        teams,
+      );
       if (changed) {
         for (const adv of updatedMatches) {
           if (adv.id !== currentMatch.id) {
@@ -266,7 +320,57 @@ export function MatchesPage() {
       }
     }
 
-    toast.success('Resultado homologado com sucesso! Chaveamento e classificação atualizados.');
+    const winnerTeam = teams.find((t) => t.id === (canonical.winnerId ?? currentMatch.winnerId));
+    await OperationalAuditService.recordMatchHomologation({
+      match: currentMatch,
+      competition: competitions.find((c) => c.id === currentMatch.competitionId),
+      operator,
+      winnerName: winnerTeam?.name,
+    });
+
+    toast.success('Resultado homologado com sucesso! Chaveamento e classificação oficializados.');
+    await refresh();
+    await refetchBracket();
+  };
+
+  // Reabrir partida homologada
+  const handleReopenMatch = async (match: MatchRecord) => {
+    if (!can('match:reopen') && !can('match:finalize')) {
+      toast.error('Permissão insuficiente para reabrir partidas.');
+      return;
+    }
+    const operator = session?.user?.name || session?.user?.email || 'Administrador';
+    await dataAccess.updateMatch(match.id, {
+      status: 'completed',
+      homologatedAt: undefined,
+      homologatedBy: undefined,
+    });
+    await OperationalAuditService.recordMatchReopen({
+      match,
+      competition: competitions.find((c) => c.id === match.competitionId),
+      operator,
+    });
+    toast.info(`Jogo #${match.matchNumber} reaberto para status 'Realizado' (pendente de homologação).`);
+    await refresh();
+  };
+
+  // Homologar todas as partidas pendentes da visão atual
+  const handleHomologateAllCompleted = async () => {
+    if (!can('match:finalize')) {
+      toast.error('Permissão insuficiente para homologar partidas.');
+      return;
+    }
+    const pending = matches.filter(
+      (m) => m.status === 'completed' && (competitionFilter === 'all' || m.competitionId === competitionFilter),
+    );
+    if (pending.length === 0) {
+      toast.info('Nenhuma partida aguardando homologação.');
+      return;
+    }
+    for (const m of pending) {
+      await handleHomologate(m.id);
+    }
+    toast.success(`${pending.length} partida(s) homologada(s) oficialmente com sucesso!`);
     await refresh();
   };
 
@@ -302,23 +406,27 @@ export function MatchesPage() {
 
       const groupStandings = computeStandingsByGroup(registrations, compMatches, {
         criteria: comp.tiebreakCriteriaOrder,
+        competition: comp,
       });
 
-      const playoffGenerators: Record<string, () => PlayoffMatchSlot[]> = {
-        '2': () => generateTwoGroupPlayoffs(groupStandings),
-        '4': () => generateFourGroupPlayoffs(groupStandings),
-      };
-
-      const groupsKey = String(comp.groupsCount || 2);
-      const generator = playoffGenerators[groupsKey];
-
-      if (!generator) {
-        toast.info(`Geração automática disponível para 2 ou 4 grupos. Torneio configurado com ${comp.groupsCount} grupos.`);
+      const check = CompetitionBracketService.canModifyPlayoffs(comp, compMatches);
+      if (!check.ok) {
+        check.errors.forEach((err) => toast.error(err));
         return;
       }
 
-      const slots = generator();
-      const generatedMatches = buildPlayoffMatches(comp, slots, teams, compMatches.length + 1);
+      const slots = CompetitionBracketService.generatePlayoffSlots(comp, groupStandings);
+      if (slots.length === 0) {
+        toast.info(`Geração automática disponível para 1, 2 ou 4 grupos. Torneio configurado com ${comp.groupsCount} grupos.`);
+        return;
+      }
+
+      const generatedMatches = CompetitionBracketService.buildPlayoffMatchRecords(
+        comp,
+        slots,
+        teams,
+        compMatches.length + 1,
+      );
       let createdCount = 0;
 
       for (const m of generatedMatches) {
@@ -337,6 +445,13 @@ export function MatchesPage() {
           });
         }
       }
+
+      await OperationalAuditService.recordPlayoffSync({
+        competition: comp,
+        operator: session?.user?.name || session?.user?.email || 'Administrador',
+        createdCount,
+        updatedCount: generatedMatches.length - createdCount,
+      });
 
       toast.success(
         createdCount > 0
@@ -378,44 +493,45 @@ export function MatchesPage() {
     toast.success('Boletim oficial de jogos gerado com sucesso!');
   };
 
-  // Configuração das colunas da DataTable Oficial
+  // Configuração das colunas da DataTable Oficial com larguras balanceadas
   const columns: DataTableColumn<MatchView>[] = [
     {
       id: 'matchNumber',
       header: 'Nº Jogo',
       isNumeric: true,
+      headerClassName: 'w-14 text-center',
+      className: 'w-14 text-center font-mono font-semibold text-foreground',
       cell: ({ row }) => (
-        <span className="font-semibold text-foreground font-mono">
-          #{row.record.matchNumber}
-        </span>
+        <span>#{row.record.matchNumber}</span>
       ),
     },
     {
       id: 'match',
       header: 'Confronto',
+      className: 'min-w-[160px]',
       cell: ({ row }) => {
         const isWinnerA = row.record.winnerId === row.record.teamAId;
         const isWinnerB = row.record.winnerId === row.record.teamBId;
 
         return (
-          <div className="space-y-1 min-w-[200px]">
-            <div className="flex items-center gap-1.5 text-xs font-semibold">
-              <span className={cn('truncate max-w-[140px]', isWinnerA ? 'text-primary font-bold' : 'text-foreground')}>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1 text-xs font-semibold">
+              <span className={cn('truncate max-w-[120px]', isWinnerA ? 'text-primary font-bold' : 'text-foreground')}>
                 {row.teamA.name}
               </span>
-              <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400 font-mono">
+              <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400 font-mono shrink-0">
                 {row.teamA.shortName}
               </Badge>
               <span className="text-[10px] text-muted-foreground font-normal px-0.5">vs</span>
-              <span className={cn('truncate max-w-[140px]', isWinnerB ? 'text-primary font-bold' : 'text-foreground')}>
+              <span className={cn('truncate max-w-[120px]', isWinnerB ? 'text-primary font-bold' : 'text-foreground')}>
                 {row.teamB.name}
               </span>
-              <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400 font-mono">
+              <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400 font-mono shrink-0">
                 {row.teamB.shortName}
               </Badge>
             </div>
             <p className="text-[11px] text-muted-foreground truncate">
-              {row.competition} {row.phase ? `· ${row.phase}` : ''} {row.groupName ? `(Chave ${row.groupName})` : ''}
+              {row.competition} {row.phase ? `· ${row.phase}` : ''} {row.groupName ? `(${row.groupName})` : ''}
             </p>
           </div>
         );
@@ -425,18 +541,20 @@ export function MatchesPage() {
       id: 'score',
       header: 'Placar',
       align: 'center',
+      headerClassName: 'w-28 text-center',
+      className: 'w-28 text-center',
       cell: ({ row }) => {
         const isFinished = row.status === 'completed' || row.status === 'homologated';
         if (isFinished && row.teamA.score !== undefined && row.teamB.score !== undefined) {
           return (
-            <div className="text-center">
-              <span className="font-bold font-mono text-sm tabular-nums text-foreground bg-zinc-900/90 px-2 py-0.5 rounded border border-zinc-800">
+            <div className="inline-flex flex-col items-center">
+              <span className="font-bold font-mono text-xs tabular-nums text-foreground bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
                 {row.teamA.score} - {row.teamB.score}
               </span>
               {row.sets && row.sets.length > 0 && (
-                <div className="flex items-center justify-center gap-1 mt-1 text-[10px] text-muted-foreground font-mono tabular-nums">
+                <div className="flex items-center justify-center gap-0.5 mt-0.5 text-[9px] text-muted-foreground font-mono tabular-nums">
                   {row.sets.map((s, idx) => (
-                    <span key={idx} className="px-1 py-0.2 rounded bg-zinc-800/80">
+                    <span key={idx} className="px-0.5 py-0.2 rounded bg-zinc-800/80">
                       {s.a}-{s.b}
                     </span>
                   ))}
@@ -451,15 +569,17 @@ export function MatchesPage() {
     {
       id: 'schedule',
       header: 'Data & Local',
+      headerClassName: 'w-36',
+      className: 'w-36',
       cell: ({ row }) => (
         <div className="text-xs min-w-0">
-          <p className="font-medium text-foreground flex items-center gap-1 font-mono tabular-nums">
-            <Clock className="w-3 h-3 text-zinc-400" />
-            {new Date(row.date).toLocaleDateString('pt-BR')} às {row.time}
+          <p className="font-medium text-foreground flex items-center gap-1 font-mono tabular-nums text-[11px]">
+            <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
+            {new Date(row.date).toLocaleDateString('pt-BR')} {row.time}
           </p>
           <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5">
-            <MapPin className="w-3 h-3 text-zinc-400" />
-            {row.venue} {row.court ? `· ${row.court}` : ''}
+            <MapPin className="w-3 h-3 text-zinc-400 shrink-0" />
+            {row.court || row.venue}
           </p>
         </div>
       ),
@@ -467,38 +587,47 @@ export function MatchesPage() {
     {
       id: 'status',
       header: 'Status',
+      headerClassName: 'w-24 text-center',
+      className: 'w-24 text-center',
       cell: ({ row }) => (
         <StatusBadge status={row.status} className="text-[10px] h-5" />
       ),
     },
     {
       id: 'actions',
-      header: 'Ações',
+      header: 'Ações / Homologar',
       align: 'right',
+      headerClassName: 'w-44 text-right',
+      className: 'w-44 text-right',
       cell: ({ row }) => {
         const isFinished = row.status === 'completed' || row.status === 'homologated';
         const isHomologated = row.status === 'homologated';
 
         return (
-          <div className="flex items-center justify-end gap-1">
-            {/* Ação Primária Contextual */}
-            {isFinished && !isHomologated && can('match:finalize') ? (
+          <div className="flex items-center justify-end gap-1.5">
+            {/* Ação Primária em Destaque */}
+            {row.status === 'completed' && can('match:finalize') ? (
               <Button
                 variant="default"
                 size="sm"
-                className="h-7 px-2 text-xs gap-1 font-medium bg-emerald-600 hover:bg-emerald-500 text-white shadow-none"
+                className="h-7 px-2.5 text-xs gap-1 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm border border-emerald-500/30 shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   setPendingHomologateMatch(row.record);
                 }}
               >
-                <CheckCircle className="w-3 h-3" />
+                <CheckCircle2 className="w-3.5 h-3.5" />
                 Homologar
               </Button>
+            ) : isHomologated ? (
+              <Badge variant="outline" className="h-6 px-1.5 text-[10px] font-medium border-emerald-800/60 bg-emerald-950/40 text-emerald-400 gap-1 shrink-0">
+                <Award className="w-3 h-3 text-emerald-400" />
+                Homologado
+              </Badge>
             ) : canSubmitMatchScore(row.record) ? (
               <Button
                 size="sm"
-                className="h-7 px-2 text-xs gap-1 font-medium shadow-none"
+                className="h-7 px-2 text-xs gap-1 font-medium shadow-none shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   setLiveScorerMatch(row.record);
@@ -509,19 +638,40 @@ export function MatchesPage() {
               </Button>
             ) : null}
 
-            {/* Ações Secundárias em Dropdown */}
+            {/* Menu Dropdown Completo */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0 hover:bg-zinc-800 rounded-md"
+                  className="h-7 w-7 p-0 hover:bg-zinc-800 rounded-md shrink-0"
                   aria-label={`Ações para o jogo #${row.record.matchNumber}`}
                 >
                   <MoreHorizontal className="w-3.5 h-3.5 text-zinc-400" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 bg-zinc-900 border-zinc-800 text-xs">
+              <DropdownMenuContent align="end" className="w-52 bg-zinc-900 border-zinc-800 text-xs">
+                {/* Opção de Homologação no Menu */}
+                {row.status === 'completed' && can('match:finalize') && (
+                  <DropdownMenuItem
+                    className="gap-2 cursor-pointer text-emerald-400 focus:text-emerald-300 font-semibold bg-emerald-950/30"
+                    onClick={() => setPendingHomologateMatch(row.record)}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    Homologar Resultado Oficial
+                  </DropdownMenuItem>
+                )}
+
+                {isHomologated && (can('match:reopen') || can('match:finalize')) && (
+                  <DropdownMenuItem
+                    className="gap-2 cursor-pointer text-amber-400 focus:text-amber-300"
+                    onClick={() => handleReopenMatch(row.record)}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Reabrir / Desomologar Jogo
+                  </DropdownMenuItem>
+                )}
+
                 {canSubmitMatchScore(row.record) && (
                   <DropdownMenuItem
                     className="gap-2 cursor-pointer text-primary focus:text-primary"
@@ -538,6 +688,14 @@ export function MatchesPage() {
                 >
                   <Maximize2 className="w-3.5 h-3.5" />
                   Telão ao Vivo
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  className="gap-2 cursor-pointer"
+                  onClick={() => setSheetMatch(row)}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  Emitir Súmula Oficial
                 </DropdownMenuItem>
 
                 {can('match:edit') && (
@@ -579,14 +737,6 @@ export function MatchesPage() {
                     Lançar Placar Rápido
                   </DropdownMenuItem>
                 )}
-
-                <DropdownMenuItem
-                  className="gap-2 cursor-pointer"
-                  onClick={() => setSheetMatch(row)}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  Emitir Súmula Oficial
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -686,7 +836,7 @@ export function MatchesPage() {
               onTabChange={setActiveSubTab}
             />
 
-            {/* Banners Contextuais */}
+            {/* Banners Contextuais e Seletor de Modo na Aba Mata-mata */}
             {activeSubTab === 'mata-mata' && (
               <div className="p-3.5 rounded-xl bg-card border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-none">
                 <div className="space-y-0.5">
@@ -695,42 +845,118 @@ export function MatchesPage() {
                     Chaveamento Eliminatório e Mata-mata
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Após o término da fase de grupos, sincronize os classificados para preencher os confrontos eliminatórios automaticamente.
+                    Visualize a árvore estrutural do chaveamento ou opere as partidas em formato de tabela.
                   </p>
                 </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Segmented Control: Chaveamento Visual vs Tabela */}
+                  <div className="inline-flex p-1 rounded-lg bg-zinc-900 border border-zinc-800 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setPlayoffViewMode('bracket')}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                        playoffViewMode === 'bracket'
+                          ? 'bg-zinc-800 text-foreground font-semibold shadow-sm'
+                          : 'text-zinc-400 hover:text-foreground'
+                      )}
+                    >
+                      <GitBranch className="w-3.5 h-3.5 text-primary" />
+                      Chaveamento Visual
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPlayoffViewMode('table')}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                        playoffViewMode === 'table'
+                          ? 'bg-zinc-800 text-foreground font-semibold shadow-sm'
+                          : 'text-zinc-400 hover:text-foreground'
+                      )}
+                    >
+                      <Table className="w-3.5 h-3.5" />
+                      Tabela de Jogos
+                    </button>
+                  </div>
+
+                  {/* Fallback de sincronização se a competição não possuir MatchSlots relacionais */}
+                  {(!bracketViewModel || !bracketViewModel.hasMatchSlots) && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="gap-1.5 text-xs h-8 rounded-md shrink-0 bg-zinc-800 hover:bg-zinc-700 text-foreground border border-zinc-700/60 font-medium"
+                      onClick={handleSyncPlayoffsFromGroups}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-primary" />
+                      Sincronizar Grupos
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Banner de Homologação Pendente */}
+            {pendingHomologationCount > 0 && can('match:finalize') && (
+              <div className="p-3 px-4 rounded-xl bg-emerald-950/40 border border-emerald-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-none">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-900/50 border border-emerald-700/50 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-emerald-300">
+                      {pendingHomologationCount} partida(s) finalizada(s) aguardando homologação oficial
+                    </h4>
+                    <p className="text-[11px] text-emerald-400/80 leading-tight">
+                      A homologação confirma os resultados para a classificação e avança o chaveamento de mata-mata.
+                    </p>
+                  </div>
+                </div>
                 <Button
-                  variant="secondary"
                   size="sm"
-                  className="gap-1.5 text-xs h-8 rounded-md shrink-0 bg-zinc-800 hover:bg-zinc-700 text-foreground border border-zinc-700/60 font-medium"
-                  onClick={handleSyncPlayoffsFromGroups}
+                  className="gap-1.5 text-xs h-8 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm shrink-0 border border-emerald-500/40"
+                  onClick={handleHomologateAllCompleted}
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-primary" />
-                  Sincronizar com Fase de Grupos
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  Homologar Todos os Resultados ({pendingHomologationCount})
                 </Button>
               </div>
             )}
 
-            {/* ── Tabela Principal e Filtros ── */}
-            <SectionCard density="dense">
-              {/* Barra de Filtros (Modularizado) */}
-              <MatchFiltersBar
-                query={query}
-                onQueryChange={setQuery}
-                competitionFilter={competitionFilter}
-                onCompetitionFilterChange={setCompetitionFilter}
-                statusFilter={statusFilter}
-                onStatusFilterChange={setStatusFilter}
-                competitions={competitions}
-              />
+            {/* ── Exibição em Chaveamento Visual ou Tabela Principal ── */}
+            {activeSubTab === 'mata-mata' && playoffViewMode === 'bracket' && bracketViewModel && bracketViewModel.stages.length > 0 ? (
+              <SectionCard density="default">
+                <GenericTournamentBracket
+                  viewModel={bracketViewModel}
+                  onOpenMatch={(matchId) => {
+                    const found = matches.find((m) => m.id === matchId);
+                    if (found) setLiveScorerMatch(found);
+                  }}
+                  onReprocessRuntime={reprocessRuntime}
+                />
+              </SectionCard>
+            ) : (
+              <SectionCard density="dense">
+                {/* Barra de Filtros (Modularizado) */}
+                <MatchFiltersBar
+                  query={query}
+                  onQueryChange={setQuery}
+                  competitionFilter={competitionFilter}
+                  onCompetitionFilterChange={setCompetitionFilter}
+                  statusFilter={statusFilter}
+                  onStatusFilterChange={setStatusFilter}
+                  competitions={competitions}
+                />
 
-              {/* DataTable Oficial */}
-              <DataTable
-                data={filteredMatches}
-                columns={columns}
-                emptyTitle="Nenhum confronto encontrado para os filtros selecionados"
-                emptyDescription="Tente alterar os termos de busca, selecionar outra competição ou alternar a aba operacional."
-              />
-            </SectionCard>
+                {/* DataTable Oficial */}
+                <DataTable
+                  data={filteredMatches}
+                  columns={columns}
+                  emptyTitle="Nenhum confronto encontrado para os filtros selecionados"
+                  emptyDescription="Tente alterar os termos de busca, selecionar outra competição ou alternar a aba operacional."
+                />
+              </SectionCard>
+            )}
           </div>
         </StateContainer>
       </div>
@@ -746,6 +972,12 @@ export function MatchesPage() {
           onClose={() => setEditMatch(null)}
           onSaved={async (updates) => {
             await dataAccess.updateMatch(editMatch.id, updates);
+            await OperationalAuditService.recordMatchEdit({
+              match: editMatch,
+              competition: compById.get(editMatch.competitionId),
+              operator: session?.user?.name || session?.user?.email || 'Administrador',
+              updates,
+            });
             toast.success('Confronto e agendamento salvos com sucesso!');
             setEditMatch(null);
             await refresh();
@@ -759,11 +991,32 @@ export function MatchesPage() {
           competition={compById.get(resultMatch.competitionId) || null}
           onClose={() => setResultMatch(null)}
           onSaved={async (sets, winnerId) => {
+            const comp = compById.get(resultMatch.competitionId);
+            if (comp && !CompetitionLifecycleService.canRecordResult(comp, resultMatch)) {
+              toast.error('Não é possível registrar resultado em competição encerrada ou cancelada.');
+              return;
+            }
             await dataAccess.updateMatch(resultMatch.id, {
               sets,
               winnerId,
               status: 'completed',
             });
+            const winnerTeam = teams.find((t) => t.id === winnerId);
+            await OperationalAuditService.recordMatchResult({
+              match: resultMatch,
+              competition: comp,
+              operator: session?.user?.name || session?.user?.email || 'Administrador',
+              newSets: sets,
+              winnerId,
+              winnerName: winnerTeam?.name,
+            });
+            // Se a competição ainda não possui snapshot congelado, congela no primeiro resultado
+            if (comp && !comp.rulesSnapshot) {
+              const frozen = CompetitionLifecycleService.freezeRulesSnapshot(comp);
+              if (frozen.rulesSnapshot) {
+                await dataAccess.updateCompetition(comp.id, { rulesSnapshot: frozen.rulesSnapshot });
+              }
+            }
             toast.success('Resultado lançado com sucesso! Partida aguardando homologação.');
             setResultMatch(null);
             await refresh();
@@ -821,7 +1074,10 @@ export function MatchesPage() {
         competition={
           liveScorerMatch ? competitions.find((c) => c.id === liveScorerMatch.competitionId) || null : null
         }
-        onMatchUpdated={refresh}
+        onMatchUpdated={async () => {
+          await refresh();
+          await refetchBracket();
+        }}
       />
 
       <LiveScoreboardModal

@@ -15,7 +15,12 @@ import {
   ArrowRight,
   GripVertical,
   MonitorPlay,
+  AlertTriangle,
+  Lock,
 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { CompetitionDrawEligibilityService } from '@/services/competitionDrawEligibilityService';
+import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
 import {
   DndContext,
   useDraggable,
@@ -42,12 +47,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { dataAccess } from '@/services/dataAccess';
+import { CompetitionBracketService } from '@/services/competitionBracketService';
 import { runDraw, roundRobinMatchCount, roundRobinRoundCount, generateDrawMatches } from '@/services/drawService';
+import { validateDrawConfig, formatValidationErrors, getValidationSummary } from '@/services/drawValidator';
 import { suggestGroupsCount } from '@/types/draw';
-import type { DrawConfig, DrawGroup, DrawMatchProposal, DrawRecord } from '@/types/draw';
+import type { DrawConfig, DrawGroup, DrawMatchProposal, DrawRecord, DrawResult } from '@/types/draw';
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
-import type { CompetitionTeam } from '@/types/registration';
+import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
+import { useAuth } from '@/components/auth/useAuth';
+import { OperationalAuditService } from '@/services/operationalAuditService';
 import { cn } from '@/lib/utils';
+
+type DrawOperationState = 'idle' | 'running' | 'saving';
 
 const container = {
   hidden: { opacity: 0 },
@@ -60,26 +71,29 @@ const item = {
 };
 
 const DrawPage = () => {
+  const { session } = useAuth();
   const { competitionId: routeCompetitionId } = useParams<{ competitionId: string }>();
   const navigate = useNavigate();
 
   const [competitions, setCompetitions] = useState<CompetitionRecord[]>([]);
   const [teams, setTeams] = useState<TeamRecord[]>([]);
   const [competitionTeams, setCompetitionTeams] = useState<CompetitionTeam[]>([]);
+  const [competitionAthletes, setCompetitionAthletes] = useState<CompetitionAthlete[]>([]);
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [existingDraw, setExistingDraw] = useState<DrawRecord | null>(null);
   const [selectedId, setSelectedId] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [isClosingRegs, setIsClosingRegs] = useState(false);
   const [isLiveModalOpen, setIsLiveModalOpen] = useState(false);
 
   const [groupsCount, setGroupsCount] = useState(2);
   const [seedingMode, setSeedingMode] = useState<DrawConfig['seedingMode']>('seeded');
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 100000));
   const [headSeeds, setHeadSeeds] = useState<string[]>([]);
+  const [operationState, setOperationState] = useState<DrawOperationState>('idle');
+  const [drawStatus, setDrawStatus] = useState<'preview' | 'official' | 'locked'>('preview');
 
   const [preview, setPreview] = useState<{ groups: DrawGroup[]; matches: DrawMatchProposal[] } | null>(null);
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
@@ -115,21 +129,26 @@ const DrawPage = () => {
   };
 
   const refresh = useCallback(async () => {
-    const [comps, teams, cts, ms, draws] = await Promise.all([
+    const [comps, teams, cts, ms, draws, athletes] = await Promise.all([
       dataAccess.listCompetitions(),
       dataAccess.listTeams(),
       dataAccess.listCompetitionTeams(),
       dataAccess.listMatches(),
       dataAccess.listDraws(),
+      typeof dataAccess.listCompetitionAthletes === 'function'
+        ? dataAccess.listCompetitionAthletes()
+        : Promise.resolve([]),
     ]);
     setCompetitions(comps);
     setTeams(teams);
     setCompetitionTeams(cts);
     setMatches(ms);
+    setCompetitionAthletes(athletes);
     const firstId = routeCompetitionId ?? comps[0]?.id ?? '';
     setSelectedId(firstId);
     const draw = draws.find(d => d.competitionId === firstId) ?? null;
     setExistingDraw(draw);
+    setDrawStatus(draw?.status ?? 'preview');
     setLoading(false);
   }, [routeCompetitionId]);
 
@@ -138,14 +157,25 @@ const DrawPage = () => {
   }, [refresh]);
 
   const selected = competitions.find(c => c.id === selectedId) ?? null;
+  const selectedCompetitionName = selected?.name ?? 'Nenhuma competição selecionada';
 
+  // Avaliação Canônica de Elegibilidade Oficial para Sorteio (Fase 3)
+  const eligibilityReport = useMemo(() => {
+    if (!selected) return null;
+    return CompetitionDrawEligibilityService.evaluateCompetitionDrawEligibility({
+      competition: selected,
+      competitionTeams,
+      athletes: competitionAthletes,
+      groupsCount,
+    });
+  }, [selected, competitionTeams, competitionAthletes, groupsCount]);
+
+  // Apenas equipes oficialmente elegíveis chegam ao motor de sorteio
   const registeredTeams = useMemo(() => {
-    if (!selected) return [];
-    const cts = competitionTeams.filter(ct => ct.competitionId === selected.id && ct.status !== 'rejected');
-    return cts
-      .map(ct => teams.find(t => t.id === ct.teamId))
-      .filter((t): t is TeamRecord => Boolean(t));
-  }, [selected, competitionTeams, teams]);
+    if (!eligibilityReport) return [];
+    const eligibleTeamIds = new Set(eligibilityReport.eligibleTeams.map(e => e.teamId));
+    return teams.filter(t => eligibleTeamIds.has(t.id));
+  }, [eligibilityReport, teams]);
 
   const registeredMatchCount = useMemo(() => {
     if (!selected || registeredTeams.length < 2) return 0;
@@ -153,7 +183,33 @@ const DrawPage = () => {
     return roundRobinMatchCount(perGroup) * Math.min(groupsCount, registeredTeams.length);
   }, [selected, registeredTeams, groupsCount]);
 
-  const canDraw = (registeredTeams.length >= 2 && groupsCount >= 1 && groupsCount <= registeredTeams.length);
+  const canDraw = Boolean(
+    eligibilityReport?.canExecuteDraw &&
+    registeredTeams.length >= 2 &&
+    groupsCount >= 1 &&
+    groupsCount <= registeredTeams.length
+  );
+
+  const handleCloseRegistrations = async () => {
+    if (!selected) return;
+    setIsClosingRegs(true);
+    try {
+      const operator = session?.user?.name || session?.user?.email || 'Organizador';
+      const result = await CompetitionLifecycleService.closeRegistrations(selected.id, operator);
+      if (result.ok) {
+        toast.success(`Inscrições da competição "${selected.name}" encerradas com sucesso!`);
+        await refresh();
+      } else {
+        toast.error('Não foi possível encerrar as inscrições:', {
+          description: result.errors.join(' • '),
+        });
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao encerrar inscrições.');
+    } finally {
+      setIsClosingRegs(false);
+    }
+  };
 
   const handleSelectCompetition = (id: string) => {
     setSelectedId(id);
@@ -164,45 +220,77 @@ const DrawPage = () => {
   };
 
   const handleRunDraw = () => {
+    if (operationState !== 'idle') return;
     if (!selected || !canDraw) return;
-    const result = runDraw(selected, registeredTeams, {
+
+    const config: DrawConfig = {
       groupsCount,
       seedingMode,
       seed,
       headSeeds: seedingMode === 'seeded' ? headSeeds : [],
-    });
-    setPreview({ groups: result.groups, matches: result.matches });
+    };
+
+    const validation = validateDrawConfig(config, registeredTeams);
+    if (!validation.valid) {
+      toast.error(formatValidationErrors(validation), {
+        duration: 8000,
+      });
+      return;
+    }
+
+    if (validation.warnings.length > 0) {
+      validation.warnings.forEach(w => toast.warning(w, { duration: 5000 }));
+    }
+
+    setOperationState('running');
+    try {
+      const result = runDraw(selected, registeredTeams, config);
+      setPreview({ groups: result.groups, matches: result.matches });
+      setIsLiveModalOpen(true);
+    } finally {
+      setOperationState('idle');
+    }
   };
 
   const handleSaveDraw = async () => {
+    if (operationState !== 'idle') return;
     if (!selected || !preview) return;
-    setSaving(true);
-    try {
-      await dataAccess.saveDraw({
-        competitionId: selected.id,
-        config: { groupsCount, seedingMode, seed, headSeeds: seedingMode === 'seeded' ? headSeeds : [] },
-        groups: preview.groups,
-        matches: preview.matches,
-      });
 
-      // Remove os jogos antigos da fase classificatória e gera a nova tabela.
-      const oldMatches = matches.filter(
-        m => m.competitionId === selected.id && (m.phase === 'classificatória' || m.phase === 'classificatoria'),
-      );
-      if (oldMatches.length > 0) {
-        await dataAccess.deleteMatches(oldMatches.map(m => m.id));
+    setOperationState('saving');
+    try {
+      const config: DrawConfig = {
+        groupsCount,
+        seedingMode,
+        seed,
+        headSeeds: seedingMode === 'seeded' ? headSeeds : [],
+      };
+
+      const groupCheck = CompetitionBracketService.canModifyGroupStage(selected, matches);
+      if (!groupCheck.ok) {
+        groupCheck.errors.forEach((err) => toast.error(err, { duration: 6000 }));
+        return;
+      }
+
+      const validation = validateDrawConfig(config, registeredTeams);
+      if (!validation.valid) {
+        toast.error(formatValidationErrors(validation), { duration: 8000 });
+        return;
+      }
+
+      if (validation.warnings.length > 0) {
+        validation.warnings.forEach(w => toast.warning(w, { duration: 5000 }));
       }
 
       const baseDate = selected.startDate ?? new Date().toISOString().slice(0, 10);
       const venueName = selected.venue ?? 'Ginásio Municipal';
       const savedMatches = preview.matches;
-      for (let i = 0; i < savedMatches.length; i++) {
-        const proposal = savedMatches[i];
+
+      const matchProposals = savedMatches.map((proposal) => {
         const teamA = teams.find(t => t.id === proposal.teamAId);
         const teamB = teams.find(t => t.id === proposal.teamBId);
-        const hour = 9 + (i % 8);
-        await dataAccess.createMatch({
-          competitionId: selected.id,
+        const idx = savedMatches.indexOf(proposal);
+        const hour = 9 + (idx % 8);
+        return {
           round: proposal.round,
           matchNumber: proposal.matchNumber,
           teamAId: proposal.teamAId,
@@ -211,31 +299,76 @@ const DrawPage = () => {
           teamBName: teamB?.name ?? '',
           teamAShortName: teamA?.shortName ?? '',
           teamBShortName: teamB?.shortName ?? '',
-          venue: venueName,
-          court: undefined,
-          phase: proposal.phase,
           groupName: proposal.groupName,
+          phase: proposal.phase,
           scheduledTime: `${baseDate}T${String(hour).padStart(2, '0')}:00:00`,
-          status: 'scheduled',
-          sets: [],
-          referees: [],
-        });
+          venue: venueName,
+        };
+      });
+
+      const saveResult = await dataAccess.saveDrawWithMatches(
+        {
+          competitionId: selected.id,
+          config,
+          groups: preview.groups,
+          matches: preview.matches,
+          status: 'preview',
+        },
+        matchProposals
+      );
+
+      // Guarda real de integridade: validar confirmação da persistência antes de avançar o lifecycle
+      if (!saveResult || !saveResult.draw || !saveResult.matches || saveResult.matches.length === 0) {
+        throw new Error('Falha na persistência do sorteio: nenhuma partida foi salva no banco de dados. O ciclo de vida não foi avançado.');
       }
 
-      setSaving(false);
+      setDrawStatus('preview');
+      await OperationalAuditService.recordDrawExecution({
+        competition: selected,
+        operator: session?.user?.name || session?.user?.email || 'Organizador',
+        mode: seedingMode,
+        groupsCount,
+        matchesCount: saveResult.matches.length,
+      });
+
+      // Transição canônica de ciclo de vida para 'groups-defined' (Fase 3.2)
+      const advanceResult = await CompetitionLifecycleService.advanceToGroupsDefinedAfterDraw(
+        selected.id,
+        session?.user?.name || session?.user?.email || 'Organizador',
+      );
+
+      if (!advanceResult.ok) {
+        throw new Error(advanceResult.errors.join(' '));
+      }
+
       toast.success('Sorteio salvo e jogos gerados!', {
-        description: `${savedMatches.length} jogos criados na fase classificatória.`,
+        description: `${saveResult.matches.length} jogos criados na fase classificatória.`,
       });
       await refresh();
     } catch (error) {
       console.error(error);
-      setSaving(false);
-      toast.error('Erro ao salvar o sorteio.');
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar o sorteio.');
+    } finally {
+      setOperationState('idle');
     }
   };
 
   const groupsToShow = preview?.groups ?? existingDraw?.groups ?? null;
   const matchesToShow = preview?.matches ?? existingDraw?.matches ?? null;
+  const drawnResultForModal: DrawRecord | DrawResult | null = preview
+    ? {
+        competitionId: selected?.id ?? '',
+        config: {
+          groupsCount: groupsCount,
+          seedingMode,
+          seed,
+          headSeeds: seedingMode === 'seeded' ? headSeeds : [],
+        },
+        groups: preview.groups,
+        matches: preview.matches,
+        status: 'preview',
+      }
+    : existingDraw ?? null;
 
   return (
     <MainLayout>
@@ -282,7 +415,95 @@ const DrawPage = () => {
           emptyTitle="Nenhuma competição selecionada"
           emptyDescription="Cadastre ou selecione uma competição para configurar o chaveamento e realizar o sorteio dos grupos."
         >
-          <div className="grid grid-cols-1 lg:grid-cols-[340px,1fr] gap-5 items-start">
+          <div className="space-y-5">
+            {/* Painel de Diagnóstico de Elegibilidade para o Sorteio (Fase 3) */}
+            {eligibilityReport && (
+              <Card className="card-elevated shadow-none border border-border bg-card">
+                <CardHeader className="p-3.5 pb-2 border-b border-border bg-zinc-900/60">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <CardTitle className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <ClipboardList className="w-3.5 h-3.5 text-primary" />
+                      Preparação do Sorteio & Diagnóstico de Elegibilidade
+                    </CardTitle>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge variant="outline" className="text-[10px] py-0 px-2 h-5 font-mono">
+                        Inscritas: {eligibilityReport.totalTeams}
+                      </Badge>
+                      <Badge variant="default" className="text-[10px] py-0 px-2 h-5 font-mono bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                        Elegíveis: {eligibilityReport.eligibleCount}
+                      </Badge>
+                      {eligibilityReport.blockedCount > 0 && (
+                        <Badge variant="destructive" className="text-[10px] py-0 px-2 h-5 font-mono">
+                          Bloqueadas: {eligibilityReport.blockedCount}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-3.5 space-y-3">
+                  {/* Bloqueios impeditivos do torneio */}
+                  {eligibilityReport.drawBlockers.length > 0 && (
+                    <Alert variant="destructive" className="bg-destructive/10 border-destructive/25 text-red-300 p-3 rounded-md">
+                      <AlertTriangle className="w-4 h-4 text-red-400" />
+                      <AlertTitle className="text-xs font-semibold text-red-200">Sorteio Bloqueado</AlertTitle>
+                      <AlertDescription className="text-xs text-red-300/90 mt-1 space-y-1.5">
+                        {eligibilityReport.drawBlockers.map((blocker, bIdx) => (
+                          <div key={bIdx} className="flex items-start gap-1">
+                            <span>•</span>
+                            <span>{blocker}</span>
+                          </div>
+                        ))}
+                        {(selected?.status === 'registration-open' || selected?.status === 'registration') && (
+                          <div className="pt-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs border-red-500/40 text-red-200 hover:bg-red-500/20 gap-1.5"
+                              onClick={handleCloseRegistrations}
+                              disabled={isClosingRegs}
+                            >
+                              <Lock className="w-3 h-3" />
+                              {isClosingRegs ? 'Encerrando...' : 'Encerrar Inscrições da Competição Agora'}
+                            </Button>
+                          </div>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Detalhamento das Equipes Inelegíveis */}
+                  {eligibilityReport.ineligibleTeams.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                        Equipes Bloqueadas ({eligibilityReport.blockedCount}):
+                      </span>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {eligibilityReport.ineligibleTeams.map(ineligible => (
+                          <div
+                            key={ineligible.competitionTeamId}
+                            className="p-2.5 rounded-md border border-red-500/20 bg-red-950/20 text-xs space-y-1"
+                          >
+                            <div className="flex items-center justify-between font-semibold text-foreground">
+                              <span>{ineligible.teamName}</span>
+                              <Badge variant="outline" className="text-[9px] py-0 px-1 border-red-500/30 text-red-400">
+                                {ineligible.athleteCount}/{ineligible.minAthletes} atletas
+                              </Badge>
+                            </div>
+                            {ineligible.blockers.map((blocker, bIdx) => (
+                              <p key={bIdx} className="text-[11px] text-red-400/90 leading-tight">
+                                • {blocker}
+                              </p>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-[340px,1fr] gap-5 items-start">
             {/* Configuração do sorteio */}
             <Card className="card-elevated shadow-none border border-border bg-card">
               <CardHeader className="p-3.5 pb-2 border-b border-border bg-zinc-900/60">
@@ -291,7 +512,7 @@ const DrawPage = () => {
                   Configuração
                 </CardTitle>
                 <CardDescription className="text-[11px] text-muted-foreground mt-0.5">
-                  {registeredTeams.length} equipe(s) inscrita(s) · {selected.name}
+                  {registeredTeams.length} equipe(s) inscrita(s) · {selectedCompetitionName}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3.5 p-3.5">
@@ -327,22 +548,24 @@ const DrawPage = () => {
                 <div className="space-y-1">
                   <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Tipo de sorteio</Label>
                   <RadioGroup value={seedingMode} onValueChange={v => { setSeedingMode(v as DrawConfig['seedingMode']); setPreview(null); }} className="space-y-1.5">
-                    <div className="flex items-start space-x-2 rounded-md border border-zinc-800 bg-zinc-900/60 p-2.5">
-                      <RadioGroupItem value="seeded" id="mode-seeded" className="mt-0.5" />
-                      <div>
-                        <Label htmlFor="mode-seeded" className="font-medium text-xs text-foreground cursor-pointer">Sorteio dirigido</Label>
-                        <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
-                          Cabeças de chave ficam uma por grupo; demais sorteadas (padrão CBV/FIVB).
-                        </p>
+<div className="flex items-start space-x-2 rounded-md border border-zinc-800 bg-zinc-900/60 p-2.5">
+                        <RadioGroupItem value="seeded" id="mode-seeded" className="mt-0.5" />
+                        <div>
+                          <Label htmlFor="mode-seeded" className="font-medium text-xs text-foreground cursor-pointer">Sorteio Dirigido</Label>
+                          <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                            Cabeças de chave são distribuídas uma por grupo e as demais são sorteadas aleatoriamente (padrão FIVB/CBV).
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-start space-x-2 rounded-md border border-zinc-800 bg-zinc-900/60 p-2.5">
-                      <RadioGroupItem value="random" id="mode-random" className="mt-0.5" />
-                      <div>
-                        <Label htmlFor="mode-random" className="font-medium text-xs text-foreground cursor-pointer">Sorteio puro</Label>
-                        <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">Todas as equipes são distribuídas aleatoriamente.</p>
+<div className="flex items-start space-x-2 rounded-md border border-zinc-800 bg-zinc-900/60 p-2.5">
+                        <RadioGroupItem value="random" id="mode-random" className="mt-0.5" />
+                        <div>
+                          <Label htmlFor="mode-random" className="font-medium text-xs text-foreground cursor-pointer">Sorteio Puro</Label>
+                          <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                            Todas as equipes participam do sorteio em condições iguais. Cabeças de chave não serão consideradas neste modo.
+                          </p>
+                        </div>
                       </div>
-                    </div>
                   </RadioGroup>
                 </div>
 
@@ -414,19 +637,19 @@ const DrawPage = () => {
                 </div>
 
                 <div className="pt-2 border-t border-border/40 space-y-1.5">
-                  <Button size="sm" className="w-full gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={handleRunDraw} disabled={!canDraw}>
-                    <Shuffle className="w-3.5 h-3.5" />
-                    Realizar Sorteio
-                  </Button>
+<Button size="sm" className="w-full gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={handleRunDraw} disabled={!canDraw || operationState !== 'idle'}>
+                     <Shuffle className="w-3.5 h-3.5" />
+                     Realizar Sorteio
+                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     className="w-full gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60"
                     onClick={handleSaveDraw}
-                    disabled={!preview || saving}
+                    disabled={!preview || operationState !== 'idle'}
                   >
                     <Save className="w-3.5 h-3.5" />
-                    {saving ? 'Salvando...' : 'Salvar Sorteio e Gerar Jogos'}
+                    {operationState === 'saving' ? 'Salvando...' : 'Salvar Sorteio e Gerar Jogos'}
                   </Button>
                   {existingDraw && !preview && (
                     <p className="text-[10px] text-center text-muted-foreground pt-1">
@@ -555,16 +778,19 @@ const DrawPage = () => {
               )}
             </div>
           </div>
-        </StateContainer>
+        </div>
+      </StateContainer>
       </div>
 
       {selected && groupsToShow && (
         <LiveDrawModal
           isOpen={isLiveModalOpen}
           onClose={() => setIsLiveModalOpen(false)}
+          result={drawnResultForModal}
           groups={groupsToShow}
           teams={teams}
           competition={selected}
+          drawId={existingDraw?.id}
         />
       )}
     </MainLayout>

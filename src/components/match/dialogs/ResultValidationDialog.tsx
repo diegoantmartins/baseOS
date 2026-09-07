@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { validateMatchResult, DEFAULT_INDOOR_CONFIG, DEFAULT_BEACH_CONFIG } from '@/services/matchValidationService';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
+import { formatSetsToWinLabel } from '@/types/competitionConfig';
 import type { CompetitionRecord, MatchRecord } from '@/types/entities';
 
 export interface ResultValidationDialogProps {
@@ -16,12 +18,20 @@ export interface ResultValidationDialogProps {
 
 export function ResultValidationDialog({ match, competition, onClose, onSaved }: ResultValidationDialogProps) {
   const isBeach = competition?.modality === 'beach';
-  const setFormat =
-    match.phase === 'semifinal' || match.phase === 'final'
-      ? competition?.phaseSetRules?.final || competition?.setFormat || '3-sets'
-      : competition?.setFormat || '3-sets';
+  const formatConfig = useMemo(() => {
+    if (competition) {
+      return CompetitionRulesService.resolveMatchFormat(competition, match.phase, match.customSetFormat);
+    }
+    return {
+      setsToWin: 2 as const,
+      maxSets: 3,
+      regularSetPoints: isBeach ? 21 : 25,
+      tiebreakPoints: 15,
+      minAdvantage: 2,
+    };
+  }, [competition, match.phase, match.customSetFormat, isBeach]);
 
-  const maxSets = setFormat === '5-sets' ? 5 : setFormat === '1-set' ? 1 : 3;
+  const maxSets = formatConfig.maxSets;
 
   const [setScores, setSetScores] = useState<{ a: string; b: string }[]>(() => {
     const existing = match.sets.map((s) => ({ a: String(s.scoreA), b: String(s.scoreB) }));
@@ -41,10 +51,18 @@ export function ResultValidationDialog({ match, competition, onClose, onSaved }:
     }));
 
   const validation = useMemo(() => {
+    if (competition) {
+      return CompetitionRulesService.validateMatchScore(
+        competition,
+        filledSets,
+        match.phase,
+        match.isWo,
+        match.customSetFormat,
+      );
+    }
     const config = isBeach ? DEFAULT_BEACH_CONFIG : DEFAULT_INDOOR_CONFIG;
-    const typedFormat = setFormat === '5-sets' ? '5-sets' : setFormat === '1-set' ? '1-set' : '3-sets';
-    return validateMatchResult(filledSets, { ...config, setFormat: typedFormat });
-  }, [filledSets, isBeach, setFormat]);
+    return validateMatchResult(filledSets, { ...config, setFormat: '3-sets' }, match.isWo);
+  }, [filledSets, competition, match.phase, match.isWo, match.customSetFormat, isBeach]);
 
   const handleSave = async () => {
     if (!validation.valid || !validation.winner) {
@@ -66,7 +84,7 @@ export function ResultValidationDialog({ match, competition, onClose, onSaved }:
         <DialogHeader>
           <DialogTitle className="text-sm font-semibold text-foreground">Lançar Placar da Partida</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            {match.teamAName} vs {match.teamBName} ({setFormat === '5-sets' ? 'Melhor de 5 sets' : 'Melhor de 3 sets'})
+            {match.teamAName} vs {match.teamBName} ({formatSetsToWinLabel(formatConfig.setsToWin)})
           </DialogDescription>
         </DialogHeader>
 

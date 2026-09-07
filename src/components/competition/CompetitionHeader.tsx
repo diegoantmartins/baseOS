@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Trophy,
   LayoutDashboard,
@@ -11,11 +12,19 @@ import {
   CalendarDays,
   MapPin,
   Tag,
+  ExternalLink,
+  QrCode,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { CompetitionRecord } from '@/types/entities';
 import { cn } from '@/lib/utils';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
+import { CompetitionQRCodeModal } from '@/components/public/CompetitionQRCodeModal';
+import { generateCompetitionSlug } from '@/services/publicCompetitionService';
+import { toast } from 'sonner';
 
 export type CompetitionTab =
   | 'overview'
@@ -69,7 +78,23 @@ export function CompetitionHeader({
   onTabChange,
   extraStats,
 }: CompetitionHeaderProps) {
+  const [isQrOpen, setIsQrOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
   const statusInfo = STATUS_MAP[competition.status] ?? { label: competition.status, variant: 'default' };
+  const slug = competition.slug || generateCompetitionSlug(competition.name);
+  const publicPortalUrl = typeof window !== 'undefined' ? `${window.location.origin}/c/${slug}` : `/c/${slug}`;
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(publicPortalUrl);
+      setIsCopied(true);
+      toast.success('Link do portal público copiado!');
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch {
+      toast.error('Erro ao copiar link.');
+    }
+  };
 
   return (
     <div className="bg-card border border-border rounded-xl shadow-none overflow-hidden mb-3.5">
@@ -117,8 +142,46 @@ export function CompetitionHeader({
           </div>
         </div>
 
-        {/* Quick metrics & Contextual Help */}
-        <div className="flex items-center gap-2.5 self-end md:self-center">
+        {/* Quick metrics, Contextual Help & Public Portal Actions */}
+        <div className="flex flex-wrap items-center gap-2 self-end md:self-center">
+          {/* Ações do Portal Público e QR Code */}
+          <div className="flex items-center gap-1.5 bg-zinc-900/60 p-1 rounded-lg border border-zinc-800">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs px-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white"
+              title="Abrir Portal Público em nova aba"
+            >
+              <a href={`/c/${slug}`} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="w-3 h-3 mr-1 text-amber-400" />
+                <span className="hidden sm:inline">Ver Portal</span>
+              </a>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopyLink}
+              className="h-7 text-xs px-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white"
+              title="Copiar link público oficial"
+            >
+              {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-zinc-400" />}
+              <span className="hidden sm:inline ml-1">{isCopied ? 'Copiado' : 'Copiar Link'}</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsQrOpen(true)}
+              className="h-7 text-xs px-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white"
+              title="Exibir e baixar QR Code oficial"
+            >
+              <QrCode className="w-3 h-3 text-amber-400 mr-1" />
+              <span className="hidden sm:inline">QR Code</span>
+            </Button>
+          </div>
+
           <ContextualHelpButton
             articles={[
               { articleId: 'criar-competicao', label: 'Como gerenciar esta competição' },
@@ -186,6 +249,13 @@ export function CompetitionHeader({
           );
         })}
       </div>
+
+      <CompetitionQRCodeModal
+        open={isQrOpen}
+        onOpenChange={setIsQrOpen}
+        competitionName={competition.name}
+        slug={slug}
+      />
     </div>
   );
 }

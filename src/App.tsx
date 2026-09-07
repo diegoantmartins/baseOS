@@ -34,6 +34,7 @@ const CompetitionRegistrationsPage = lazy(() =>
 const TeamRosterRegistrationPage = lazy(() => import("./pages/TeamRosterRegistrationPage"));
 const HelpCenterPage = lazy(() => import("./pages/HelpCenterPage"));
 const DocumentEditorPage = lazy(() => import("./pages/DocumentEditorPage"));
+const PublicCompetitionPage = lazy(() => import("./pages/PublicCompetitionPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -49,6 +50,7 @@ const App = () => (
             <Suspense fallback={<RouteLoadingFallback />}>
               <Routes>
                 {/* Públicas */}
+                <Route path="/c/:slug" element={<PublicCompetitionPage />} />
                 <Route path="/" element={<ActiveCompetitionsPage />} />
                 <Route path="/competicoes-ativas" element={<ActiveCompetitionsPage />} />
                 <Route path="/dashboard" element={<Index />} />

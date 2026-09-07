@@ -10,7 +10,11 @@
 //  - 'points-average': Pontos Average = pontos marcados ÷ pontos sofridos (maior índice)
 //  - 'draw': Sorteio / Ordem estável determinística
 
-import type { MatchRecord, TeamRecord, TiebreakCriterionId } from '@/types/entities';
+import type { CompetitionRecord, MatchRecord, TeamRecord, TiebreakCriterionId } from '@/types/entities';
+import { CompetitionRulesService } from './competitionRulesService';
+import { TieBreakEngine } from './tieBreakEngine';
+import { OverallStandingsEngine } from './overallStandingsEngine';
+import type { OverallStandingResult, OverallStandingsOptions } from './overallStandingsEngine';
 
 export type StandingInput = {
   team: TeamRecord;
@@ -39,6 +43,10 @@ export type TeamStandingResult = {
   tiebreakReason?: string;
   /** Se a classificação inclui jogos ainda não homologados */
   isProvisional?: boolean;
+  /** Se a equipe está em situação de empate em sua posição */
+  isTied?: boolean;
+  /** Se o empate não pôde ser resolvido pelos critérios configurados */
+  unresolvedTie?: boolean;
 };
 
 export const DEFAULT_TIEBREAK_CRITERIA: TiebreakCriterionId[] = [
@@ -58,6 +66,7 @@ export const TIEBREAK_CRITERIA_LABELS: Record<TiebreakCriterionId, string> = {
   'sets-balance': '3. Saldo de Sets',
   'points-balance': '4. Saldo de Pontos',
   'head-to-head': '5. Confronto Direto',
+  'head-to-head-mini-table': '5. Confronto Direto (Mini-Tabela)',
   'set-average': '6. Set Average (Razão de Sets)',
   'sets-ratio': '6. Razão de Sets (Set Average)',
   'points-average': '7. Pontos Average (Razão de Pontos)',
@@ -83,20 +92,17 @@ export function isMatchCompleted(match: MatchRecord, onlyHomologated = false): b
   return match.status === 'completed' || match.status === 'homologated';
 }
 
-export function matchWinner(match: MatchRecord): string | null {
-  if (match.winnerId) return match.winnerId;
-  if (!isMatchCompleted(match)) return null;
-  const setsA = match.sets.filter(s => s.scoreA > s.scoreB).length;
-  const setsB = match.sets.filter(s => s.scoreB > s.scoreA).length;
-  if (setsA === setsB) return null;
-  return setsA > setsB ? match.teamAId : match.teamBId;
+export function matchWinner(match: MatchRecord, competition?: CompetitionRecord): string | null {
+  const canonical = CompetitionRulesService.getCanonicalMatchResult(competition, match);
+  return canonical.winnerId;
 }
 
-/** Agrega as estatísticas de uma equipe em uma lista de partidas. */
+/** Agrega as estatísticas de uma equipe em uma lista de partidas com base no resultado canônico. */
 export function accumulateStats(
   matches: MatchRecord[],
   teamId: string,
   onlyHomologated = false,
+  competition?: CompetitionRecord,
 ): Omit<TeamStandingResult, 'teamId' | 'teamName' | 'teamShortName' | 'groupName' | 'position' | 'tiebreakReason' | 'isProvisional'> {
   const stats = {
     matchesPlayed: 0,
@@ -118,27 +124,27 @@ export function accumulateStats(
     const isA = match.teamAId === teamId;
     if (!isA && match.teamBId !== teamId) continue;
 
-    const setsWon = isA
-      ? match.sets.filter(s => s.scoreA > s.scoreB).length
-      : match.sets.filter(s => s.scoreB > s.scoreA).length;
-    const setsLost = isA
-      ? match.sets.filter(s => s.scoreB > s.scoreA).length
-      : match.sets.filter(s => s.scoreA > s.scoreB).length;
-    const pointsScored = isA
-      ? match.sets.reduce((acc, s) => acc + s.scoreA, 0)
-      : match.sets.reduce((acc, s) => acc + s.scoreB, 0);
-    const pointsConceded = isA
-      ? match.sets.reduce((acc, s) => acc + s.scoreB, 0)
-      : match.sets.reduce((acc, s) => acc + s.scoreA, 0);
+    const canonical = CompetitionRulesService.getCanonicalMatchResult(competition, match);
+    if (!canonical.isCompleted) continue;
+
+    const setsWon = isA ? canonical.setsWonA : canonical.setsWonB;
+    const setsLost = isA ? canonical.setsWonB : canonical.setsWonA;
+    const pointsScored = isA ? canonical.pointsScoredA : canonical.pointsScoredB;
+    const pointsConceded = isA ? canonical.pointsScoredB : canonical.pointsScoredA;
 
     stats.matchesPlayed += 1;
-    if (setsWon > setsLost) stats.matchesWon += 1;
+    if (canonical.winnerId === teamId) stats.matchesWon += 1;
     else stats.matchesLost += 1;
+
     stats.setsWon += setsWon;
     stats.setsLost += setsLost;
     stats.pointsWon += pointsScored;
     stats.pointsLost += pointsConceded;
-    stats.competitionPoints += competitionPointsFromSets(setsWon, setsLost);
+
+    const points = competition
+      ? CompetitionRulesService.calculateCompetitionPoints(competition, setsWon, setsLost, canonical.isWo)
+      : competitionPointsFromSets(setsWon, setsLost);
+    stats.competitionPoints += points;
   }
 
   stats.setsBalance = stats.setsWon - stats.setsLost;
@@ -265,17 +271,31 @@ function evaluateSingleCriterion(
 export type StandingsOptions = {
   criteria?: TiebreakCriterionId[];
   onlyHomologated?: boolean;
+  competition?: CompetitionRecord;
+  /** Se true, utiliza o TieBreakEngine com algoritmo canônico de Mini-Tabela para desempates 3+ */
+  useMiniTable?: boolean;
 };
 
 /**
  * Calcula a classificação de uma lista de equipes com critérios customizáveis.
+ * Suporta o algoritmo clássico e o novo TieBreakEngine com Mini-Tabela.
  */
 export function computeStandings(
   teams: StandingInput[],
   matches: MatchRecord[],
   options?: StandingsOptions,
 ): TeamStandingResult[] {
-  const criteria = options?.criteria?.length ? options.criteria : DEFAULT_TIEBREAK_CRITERIA;
+  const competition = options?.competition;
+  const configCriteria = competition
+    ? CompetitionRulesService.getConfig(competition).standings?.tiebreakCriteriaOrder
+    : undefined;
+  const criteria = options?.criteria?.length
+    ? options.criteria
+    : configCriteria?.length
+      ? configCriteria
+      : competition?.tiebreakCriteriaOrder?.length
+        ? competition.tiebreakCriteriaOrder
+        : DEFAULT_TIEBREAK_CRITERIA;
   const onlyHomologated = options?.onlyHomologated ?? false;
 
   const rows: TeamStandingResult[] = teams.map(({ team, groupName }) => ({
@@ -284,10 +304,17 @@ export function computeStandings(
     teamShortName: team.shortName,
     groupName,
     position: 0,
-    ...accumulateStats(matches, team.id, onlyHomologated),
+    ...accumulateStats(matches, team.id, onlyHomologated, competition),
     isProvisional: !onlyHomologated && matches.some(m => m.status === 'completed' && !m.homologatedAt),
   }));
 
+  // Se solicitado explicitamente ou se o critério 'head-to-head-mini-table' estiver presente,
+  // utiliza o novo motor de particionamento e mini-tabela.
+  if (options?.useMiniTable || criteria.includes('head-to-head-mini-table')) {
+    return TieBreakEngine.resolveStandings(rows, matches, criteria, { onlyHomologated, competition });
+  }
+
+  // Comportamento canônico pairwise original
   rows.sort((a, b) => {
     for (const criterion of criteria) {
       const { diff, reason } = evaluateSingleCriterion(criterion, a, b, matches, onlyHomologated);
@@ -307,6 +334,18 @@ export function computeStandings(
   });
 
   return rows;
+}
+
+/**
+ * Função canônica do novo Competition Format Engine que calcula a classificação
+ * garantindo resolução determinística por Mini-Tabela para 2, 3 ou mais equipes.
+ */
+export function computeStandingsWithMiniTable(
+  teams: StandingInput[],
+  matches: MatchRecord[],
+  options?: Omit<StandingsOptions, 'useMiniTable'>,
+): TeamStandingResult[] {
+  return computeStandings(teams, matches, { ...options, useMiniTable: true });
 }
 
 export type StandingsByGroup = {
@@ -396,4 +435,36 @@ export function computeBestThirds(
 
   return thirdPlaces;
 }
+
+// Re-exporta o motor de classificação intergrupos e seletores de ranking geral
+export { OverallStandingsEngine } from './overallStandingsEngine';
+export type { OverallStandingResult, OverallStandingsOptions } from './overallStandingsEngine';
+
+export function computeOverallStandings(
+  groupStandings: StandingsByGroup,
+  options?: OverallStandingsOptions,
+): OverallStandingResult[] {
+  return OverallStandingsEngine.computeOverallStandings(groupStandings, options);
+}
+
+export function getGroupWinners(overall: OverallStandingResult[]): OverallStandingResult[] {
+  return OverallStandingsEngine.getGroupWinners(overall);
+}
+
+export function getSecondPlaced(overall: OverallStandingResult[]): OverallStandingResult[] {
+  return OverallStandingsEngine.getSecondPlaced(overall);
+}
+
+export function getThirdPlaced(overall: OverallStandingResult[]): OverallStandingResult[] {
+  return OverallStandingsEngine.getThirdPlaced(overall);
+}
+
+export function getPositionsRange(
+  overall: OverallStandingResult[],
+  startRank: number,
+  endRank: number,
+): OverallStandingResult[] {
+  return OverallStandingsEngine.getPositionsRange(overall, startRank, endRank);
+}
+
 

@@ -3,7 +3,8 @@ import { FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SectionCard } from '@/components/ui/Section';
 import { StandingsTable } from '@/components/competition/StandingsTable';
-import { TournamentBracket } from '@/components/competition/TournamentBracket';
+import { GenericTournamentBracket } from '@/components/competition/bracket';
+import { useCompetitionBracket } from '@/hooks/useCompetitionBracket';
 import type { CompetitionRecord, TeamRecord } from '@/types/entities';
 import type { computeStandingsByGroup, computeBestThirds } from '@/services/standingsService';
 
@@ -14,19 +15,22 @@ export interface CompetitionStandingsTabProps {
   selected: CompetitionRecord;
   standings: GroupStandingsList;
   bestThirds: BestThirdsList;
-  bracketMatches: React.ComponentProps<typeof TournamentBracket>['matches'];
+  bracketMatches?: unknown; // Compatibilidade legada opcional
   teams: TeamRecord[];
   onExportStandings: () => void;
+  onOpenMatch?: (matchId: string) => void;
 }
 
 export function CompetitionStandingsTab({
   selected,
   standings,
   bestThirds,
-  bracketMatches,
   teams,
   onExportStandings,
+  onOpenMatch,
 }: CompetitionStandingsTabProps) {
+  const { viewModel, reprocessRuntime } = useCompetitionBracket(selected?.id);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
@@ -66,12 +70,16 @@ export function CompetitionStandingsTab({
         </SectionCard>
       )}
 
-      {bracketMatches && bracketMatches.length > 0 && (
+      {viewModel && viewModel.stages.length > 0 && (
         <SectionCard
           title="Chaveamento Eliminatório (Mata-mata)"
           description={`Fase final de ${selected.name}`}
         >
-          <TournamentBracket matches={bracketMatches} title={`Fase Final - ${selected.name}`} />
+          <GenericTournamentBracket
+            viewModel={viewModel}
+            onOpenMatch={onOpenMatch}
+            onReprocessRuntime={reprocessRuntime}
+          />
         </SectionCard>
       )}
     </div>

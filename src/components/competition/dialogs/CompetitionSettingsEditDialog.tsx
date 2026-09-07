@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { CompetitionRecord } from '@/types/entities';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
 
 export interface CompetitionSettingsEditDialogProps {
   open: boolean;
@@ -30,6 +31,8 @@ export function CompetitionSettingsEditDialog({
   );
   const [final, setFinal] = useState(competition.phaseSetRules?.final || '5-sets');
 
+  const isLocked = CompetitionRulesService.areRulesLocked(competition);
+
   useEffect(() => {
     if (open) {
       setSetFormat(competition.setFormat || '3-sets');
@@ -42,14 +45,25 @@ export function CompetitionSettingsEditDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLocked) return;
+
+    const updatedPhaseRules = {
+      groupStage: groupStage as '3-sets' | '5-sets',
+      playoffs: playoffs as '3-sets' | '5-sets',
+      semifinals: semifinals as '3-sets' | '5-sets',
+      final: final as '3-sets' | '5-sets',
+    };
+
+    const updatedConfig = CompetitionRulesService.normalizeLegacyToConfig({
+      ...competition,
+      setFormat: setFormat as '3-sets' | '5-sets',
+      phaseSetRules: updatedPhaseRules,
+    });
+
     onSave({
       setFormat: setFormat as '3-sets' | '5-sets',
-      phaseSetRules: {
-        groupStage: groupStage as '3-sets' | '5-sets',
-        playoffs: playoffs as '3-sets' | '5-sets',
-        semifinals: semifinals as '3-sets' | '5-sets',
-        final: final as '3-sets' | '5-sets',
-      },
+      phaseSetRules: updatedPhaseRules,
+      config: updatedConfig,
     });
   };
 
@@ -58,7 +72,11 @@ export function CompetitionSettingsEditDialog({
       <DialogContent className="sm:max-w-md bg-zinc-950 border-border p-5 rounded-xl shadow-none">
         <DialogHeader>
           <DialogTitle className="text-sm font-semibold text-foreground">Editar Configurações da Competição</DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">Ajuste o formato de sets por fase.</DialogDescription>
+          <DialogDescription className="text-xs text-muted-foreground">
+            {isLocked
+              ? 'As regras esportivas estão congeladas pois a competição já possui partidas ou está em andamento.'
+              : 'Ajuste o formato de sets por fase.'}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3.5 py-1">
           <div className="space-y-1">
@@ -142,8 +160,13 @@ export function CompetitionSettingsEditDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" size="sm" className="h-8 text-xs rounded-md font-medium shadow-none">
-              Salvar Alterações
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isLocked}
+              className="h-8 text-xs rounded-md font-medium shadow-none"
+            >
+              {isLocked ? 'Regras Bloqueadas' : 'Salvar Alterações'}
             </Button>
           </DialogFooter>
         </form>

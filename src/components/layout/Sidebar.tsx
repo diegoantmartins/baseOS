@@ -197,22 +197,10 @@ export function Sidebar() {
       <div className="h-14 flex items-center px-4 border-b border-sidebar-border shrink-0">
         <Link
           to="/competicoes-ativas"
-          className={cn('flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md', collapsed && 'justify-center w-full')}
+          className={cn('flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md', collapsed && 'justify-center w-full')}
           aria-label="BaseOS — Ir para Competições Ativas"
         >
-          <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
-            <Volleyball className="w-4 h-4 text-sidebar-primary-foreground" aria-hidden="true" />
-          </div>
-          {!collapsed && (
-            <div className="flex flex-col min-w-0">
-              <span className="font-bold text-sm text-sidebar-foreground leading-tight tracking-tight">
-                BaseOS
-              </span>
-              <span className="text-[10px] text-sidebar-foreground/50 leading-tight">
-                Gestão Esportiva
-              </span>
-            </div>
-          )}
+          <BaseOsLogo size="md" showText={!collapsed} showSubtitle={!collapsed} />
         </Link>
       </div>
 

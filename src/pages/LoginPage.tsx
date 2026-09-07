@@ -14,6 +14,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { isSupabaseConfigured } from '@/lib/supabaseClient';
 
+import { BaseOsLogo } from '@/components/common/BaseOsLogo';
+
 const DEMO_ROLE_ICONS = {
   organizer: UserRound,
   referee: ShieldCheck,
@@ -60,14 +62,8 @@ export default function LoginPage() {
         transition={{ duration: 0.2 }}
         className="w-full max-w-sm"
       >
-        <div className="flex items-center justify-center gap-2.5 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 text-foreground flex items-center justify-center shadow-none">
-            <Volleyball className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="font-semibold text-lg text-foreground tracking-tight leading-tight">VolleyPro</h1>
-            <p className="text-[11px] text-muted-foreground">Sistema de Gestão de Competições</p>
-          </div>
+        <div className="flex items-center justify-center mb-5">
+          <BaseOsLogo size="lg" showSubtitle />
         </div>
 
         <Card className="card-elevated shadow-none border border-border bg-card">

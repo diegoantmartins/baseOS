@@ -149,6 +149,7 @@ export function StandingsPage() {
     if (!selectedCompetition || compRegistrations.length === 0) return [];
     return computeStandingsByGroup(compRegistrations, compMatches, {
       criteria: selectedCompetition.tiebreakCriteriaOrder,
+      competition: selectedCompetition,
     });
   }, [selectedCompetition, compRegistrations, compMatches]);
 

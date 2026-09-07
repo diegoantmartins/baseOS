@@ -28,7 +28,11 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { dataAccess } from '@/services/dataAccess';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
+import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
 import { AuditService } from '@/lib/security';
+import { OperationalAuditService } from '@/services/operationalAuditService';
+import { CompetitionRuntimeService } from '@/services/competitionRuntimeService';
 import { useAuth } from '@/components/auth/useAuth';
 import { useCapability } from '@/hooks/useCapability';
 import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
@@ -111,10 +115,25 @@ export const LiveScorerDeskModal: React.FC<LiveScorerDeskModalProps> = ({
     };
   }, [timeoutTimer]);
 
+  const formatConfig = useMemo(() => {
+    if (competition && match) {
+      return CompetitionRulesService.resolveMatchFormat(competition, match.phase, match.customSetFormat);
+    }
+    return {
+      setsToWin: 2 as const,
+      maxSets: 3,
+      regularSetPoints: 25,
+      tiebreakPoints: 15,
+      minAdvantage: 2,
+    };
+  }, [competition, match]);
+
   if (!match) return null;
 
-  const setPointsTarget = currentSetNumber === 5 || (competition?.modality === 'beach' && currentSetNumber === 3) ? 15 : 25;
-  const maxSetsToWin = competition?.setFormat === 'best-of-5' || match.customSetFormat === '5-sets' ? 3 : 2;
+  const maxSetsToWin = formatConfig.setsToWin;
+  const isTiebreakSet = currentSetNumber === formatConfig.maxSets;
+  const setPointsTarget = isTiebreakSet ? formatConfig.tiebreakPoints : formatConfig.regularSetPoints;
+  const minAdvantage = formatConfig.minAdvantage;
 
   // Contagem de sets ganhos
   const setsWonA = setsHistory.filter(s => s.scoreA > s.scoreB).length;
@@ -125,7 +144,7 @@ export const LiveScorerDeskModal: React.FC<LiveScorerDeskModalProps> = ({
   const isSetPointA = !isMatchPointA && scoreA >= setPointsTarget - 1 && scoreA - scoreB >= 1;
   const isSetPointB = !isMatchPointB && scoreB >= setPointsTarget - 1 && scoreB - scoreA >= 1;
 
-  const isSetFinished = (scoreA >= setPointsTarget || scoreB >= setPointsTarget) && Math.abs(scoreA - scoreB) >= 2;
+  const isSetFinished = (scoreA >= setPointsTarget || scoreB >= setPointsTarget) && Math.abs(scoreA - scoreB) >= minAdvantage;
   const setWinner = isSetFinished ? (scoreA > scoreB ? 'A' : 'B') : null;
 
   const handleAddPoint = (team: 'A' | 'B') => {
@@ -209,17 +228,23 @@ export const LiveScorerDeskModal: React.FC<LiveScorerDeskModalProps> = ({
 
     if (matchEnded) {
       const winnerId = newSetsWonA > newSetsWonB ? match.teamAId : match.teamBId;
+      const winnerName = newSetsWonA > newSetsWonB ? match.teamAName : match.teamBName;
       await dataAccess.updateMatch(match.id, {
         sets: updatedSets,
         winnerId,
         status: 'completed',
       });
-      AuditService.logEvent(
-        'Partida Finalizada na Mesa de Jogo',
-        session?.user?.email || 'apontador',
-        'success',
-        `Jogo #${match.matchNumber} finalizado na mesa: ${match.teamAName} (${newSetsWonA}) x (${newSetsWonB}) ${match.teamBName}.`
-      );
+      await OperationalAuditService.recordMatchResult({
+        match,
+        competition,
+        operator: session?.user?.name || session?.user?.email || 'Apontador',
+        newSets: updatedSets,
+        winnerId,
+        winnerName,
+      });
+      if (competition) {
+        await CompetitionRuntimeService.handleMatchCompleted(competition.id, match.id);
+      }
       toast.success('Partida concluída com sucesso!');
       onMatchUpdated?.();
       onOpenChange(false);
@@ -241,12 +266,35 @@ export const LiveScorerDeskModal: React.FC<LiveScorerDeskModalProps> = ({
   };
 
   const handleQuickFinalize = async () => {
+    if (competition && !CompetitionLifecycleService.canRecordResult(competition, match)) {
+      toast.error('Não é possível registrar resultado em competição encerrada ou cancelada.');
+      return;
+    }
     const winnerId = setsWonA > setsWonB ? match.teamAId : match.teamBId;
+    const winnerName = setsWonA > setsWonB ? match.teamAName : match.teamBName;
     await dataAccess.updateMatch(match.id, {
       sets: setsHistory,
       winnerId,
       status: 'completed',
     });
+    await OperationalAuditService.recordMatchResult({
+      match,
+      competition,
+      operator: session?.user?.name || session?.user?.email || 'Apontador',
+      newSets: setsHistory,
+      winnerId,
+      winnerName,
+      isQuickFinalize: true,
+    });
+    if (competition && !competition.rulesSnapshot) {
+      const frozen = CompetitionLifecycleService.freezeRulesSnapshot(competition);
+      if (frozen.rulesSnapshot) {
+        await dataAccess.updateCompetition(competition.id, { rulesSnapshot: frozen.rulesSnapshot });
+      }
+    }
+    if (competition) {
+      await CompetitionRuntimeService.handleMatchCompleted(competition.id, match.id);
+    }
     toast.success('Partida encerrada e salva!');
     onMatchUpdated?.();
     onOpenChange(false);

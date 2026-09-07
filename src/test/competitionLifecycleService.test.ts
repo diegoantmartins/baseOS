@@ -83,15 +83,14 @@ describe('Fase 2 — CompetitionLifecycleService (Travas e Ciclo de Vida)', () =
   });
 
   describe('Validação: Encerramento de Inscrições (registration-closed)', () => {
-    it('deve bloquear se não houver o número mínimo de equipes para os grupos', () => {
-      // 2 grupos * 2 = 4 equipes necessárias, passando apenas 2 equipes
+    it('deve permitir fechamento administrativo mesmo sem o número mínimo de equipes para os grupos (Blocker 07: Fechamento ≠ Draw)', () => {
+      // 2 grupos * 2 = 4 equipes para sorteio, mas o fechamento de inscrições é administrativo
       const result = CompetitionLifecycleService.validateTransition(
         { ...baseCompetition, status: 'registration-open' },
         'registration-closed',
         { teams: sampleTeams.slice(0, 2) }
       );
-      expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('mínimo de 4 equipes');
+      expect(result.valid).toBe(true);
     });
 
     it('deve permitir encerramento quando houver equipes suficientes', () => {
@@ -102,6 +101,16 @@ describe('Fase 2 — CompetitionLifecycleService (Travas e Ciclo de Vida)', () =
       );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
+    });
+
+    it('emite aviso ao fechar com zero equipes', () => {
+      const result = CompetitionLifecycleService.validateTransition(
+        { ...baseCompetition, status: 'registration-open' },
+        'registration-closed',
+        { teams: [] }
+      );
+      expect(result.valid).toBe(true);
+      expect(result.warnings.some(w => w.toLowerCase().includes('nenhuma equipe'))).toBe(true);
     });
   });
 
@@ -184,6 +193,7 @@ describe('Fase 2 — CompetitionLifecycleService (Travas e Ciclo de Vida)', () =
   describe('Próximos Status Recomendados', () => {
     it('deve encadear o ciclo natural de forma sequencial', () => {
       expect(CompetitionLifecycleService.getNextRecommendedStatus('draft')).toBe('registration-open');
+      expect(CompetitionLifecycleService.getNextRecommendedStatus('planning')).toBe('registration-open');
       expect(CompetitionLifecycleService.getNextRecommendedStatus('registration-open')).toBe('registration-closed');
       expect(CompetitionLifecycleService.getNextRecommendedStatus('registration-closed')).toBe('draw-pending');
       expect(CompetitionLifecycleService.getNextRecommendedStatus('draw-pending')).toBe('in-progress');
@@ -191,4 +201,103 @@ describe('Fase 2 — CompetitionLifecycleService (Travas e Ciclo de Vida)', () =
       expect(CompetitionLifecycleService.getNextRecommendedStatus('playoffs')).toBe('completed');
     });
   });
+
+  describe('Fase 4.4 — Decisões Canônicas de Ciclo de Vida', () => {
+    it('canEditCompetition: bloqueia apenas torneios finalizados ou cancelados', () => {
+      expect(CompetitionLifecycleService.canEditCompetition({ ...baseCompetition, status: 'planning' })).toBe(true);
+      expect(CompetitionLifecycleService.canEditCompetition({ ...baseCompetition, status: 'in-progress' })).toBe(true);
+      expect(CompetitionLifecycleService.canEditCompetition({ ...baseCompetition, status: 'completed' })).toBe(false);
+      expect(CompetitionLifecycleService.canEditCompetition({ ...baseCompetition, status: 'cancelled' })).toBe(false);
+    });
+
+    it('canEditRules: permite em planning sem partidas e bloqueia após início ou congelamento', () => {
+      // 1. Permitido em planning com 0 partidas
+      expect(CompetitionLifecycleService.canEditRules({ ...baseCompetition, status: 'planning' }, 0)).toBe(true);
+
+      // 2. Bloqueado se status for in-progress, playoffs, completed ou cancelled
+      expect(CompetitionLifecycleService.canEditRules({ ...baseCompetition, status: 'in-progress' }, 0)).toBe(false);
+      expect(CompetitionLifecycleService.canEditRules({ ...baseCompetition, status: 'playoffs' }, 0)).toBe(false);
+      expect(CompetitionLifecycleService.canEditRules({ ...baseCompetition, status: 'completed' }, 0)).toBe(false);
+      expect(CompetitionLifecycleService.canEditRules({ ...baseCompetition, status: 'cancelled' }, 0)).toBe(false);
+
+      // 3. Bloqueado se já possuir partidas jogadas mesmo em planning
+      expect(CompetitionLifecycleService.canEditRules({ ...baseCompetition, status: 'planning' }, 1)).toBe(false);
+      expect(CompetitionLifecycleService.canEditRules({ ...baseCompetition, status: 'planning' }, groupMatches)).toBe(false);
+
+      // 4. Bloqueado incondicionalmente se já possuir rulesSnapshot
+      const compWithSnapshot: CompetitionRecord = {
+        ...baseCompetition,
+        status: 'planning',
+        rulesSnapshot: {
+          version: 1,
+          format: { defaultSetsToWin: 2, setRules: { regularSetPoints: 25, tiebreakPoints: 15, minAdvantage: 2 } },
+          scoring: { systemType: 'fivb-standard', pointsWinClear: 3, pointsWinNarrow: 2, pointsLossNarrow: 1, pointsLossClear: 0, pointsWoWin: 3, pointsWoLoss: 0 },
+          standings: { tiebreakCriteriaOrder: ['points'], advancingPerGroup: 2 },
+          registration: { minAthletes: 6, maxAthletes: 14, maxCaptains: 1, maxLiberos: 2, requireJerseyNumberOnRegistration: false },
+        },
+      };
+      expect(CompetitionLifecycleService.canEditRules(compWithSnapshot, 0)).toBe(false);
+    });
+
+    it('canCreateMatch: permite agendar partidas apenas antes de finalizado ou cancelado', () => {
+      expect(CompetitionLifecycleService.canCreateMatch({ ...baseCompetition, status: 'planning' })).toBe(true);
+      expect(CompetitionLifecycleService.canCreateMatch({ ...baseCompetition, status: 'in-progress' })).toBe(true);
+      expect(CompetitionLifecycleService.canCreateMatch({ ...baseCompetition, status: 'completed' })).toBe(false);
+      expect(CompetitionLifecycleService.canCreateMatch({ ...baseCompetition, status: 'cancelled' })).toBe(false);
+    });
+
+    it('canRecordResult: bloqueia resultados em competições finalizadas ou canceladas', () => {
+      expect(CompetitionLifecycleService.canRecordResult({ ...baseCompetition, status: 'in-progress' }, groupMatches[0])).toBe(true);
+      expect(CompetitionLifecycleService.canRecordResult({ ...baseCompetition, status: 'completed' }, groupMatches[0])).toBe(false);
+      expect(CompetitionLifecycleService.canRecordResult({ ...baseCompetition, status: 'cancelled' }, groupMatches[0])).toBe(false);
+
+      // Bloqueia se a partida em si já estiver homologada ou cancelada
+      const homologatedMatch = { ...groupMatches[0], status: 'homologated' as const };
+      expect(CompetitionLifecycleService.canRecordResult({ ...baseCompetition, status: 'in-progress' }, homologatedMatch)).toBe(false);
+    });
+
+    it('canCancelCompetition: permite cancelamento de competições ativas e impede em finalizadas', () => {
+      expect(CompetitionLifecycleService.canCancelCompetition({ ...baseCompetition, status: 'planning' })).toBe(true);
+      expect(CompetitionLifecycleService.canCancelCompetition({ ...baseCompetition, status: 'in-progress' })).toBe(true);
+      expect(CompetitionLifecycleService.canCancelCompetition({ ...baseCompetition, status: 'completed' })).toBe(false);
+      expect(CompetitionLifecycleService.canCancelCompetition({ ...baseCompetition, status: 'cancelled' })).toBe(false);
+    });
+  });
+
+  describe('Fase 4.4 — Idempotência e Imutabilidade de rulesSnapshot', () => {
+    it('cria rulesSnapshot imutável quando a competição ainda não possui', () => {
+      const comp: CompetitionRecord = {
+        ...baseCompetition,
+        setFormat: '3-sets',
+        rulesSnapshot: undefined,
+      };
+
+      const frozen = CompetitionLifecycleService.freezeRulesSnapshot(comp);
+      expect(frozen.rulesSnapshot).toBeDefined();
+      expect(frozen.rulesSnapshot?.format.defaultSetsToWin).toBe(2);
+      expect(frozen.rulesSnapshot?.format.setRules.regularSetPoints).toBe(25);
+    });
+
+    it('preserva incondicionalmente snapshot preexistente sem sobrescrever (idempotência)', () => {
+      const originalSnapshot = {
+        version: 1 as const,
+        format: { defaultSetsToWin: 3 as const, maxSets: 5, setRules: { regularSetPoints: 25, tiebreakPoints: 15, minAdvantage: 2 } },
+        scoring: { systemType: 'fivb-standard' as const, pointsWinClear: 3, pointsWinNarrow: 2, pointsLossNarrow: 1, pointsLossClear: 0, pointsWoWin: 3, pointsWoLoss: 0 },
+        standings: { tiebreakCriteriaOrder: ['points' as const], advancingPerGroup: 2 },
+        registration: { minAthletes: 6, maxAthletes: 14, maxCaptains: 1, maxLiberos: 2, requireJerseyNumberOnRegistration: false },
+      };
+
+      const compWithExistingSnapshot: CompetitionRecord = {
+        ...baseCompetition,
+        setFormat: '1-set', // Alteração na prop externa não afeta o snapshot existente
+        rulesSnapshot: originalSnapshot,
+      };
+
+      const frozenAgain = CompetitionLifecycleService.freezeRulesSnapshot(compWithExistingSnapshot);
+      // O snapshot deve ser exatamente o original de 3 sets (melhor de 5), e não o novo de 1 set
+      expect(frozenAgain.rulesSnapshot).toBe(originalSnapshot);
+      expect(frozenAgain.rulesSnapshot?.format.defaultSetsToWin).toBe(3);
+    });
+  });
 });
+

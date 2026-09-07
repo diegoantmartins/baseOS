@@ -28,6 +28,7 @@ import {
   Cell,
 } from 'recharts';
 import { dataAccess } from '@/services/dataAccess';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
 
 type RankingRow = {
@@ -104,21 +105,24 @@ const StatisticsPage = () => {
       current[key] = current[key] + 1;
       stats.set(teamId, current);
     };
+    const compMap = new Map(competitions.map((c) => [c.id, c]));
     for (const m of completedMatches) {
+      const comp = compMap.get(m.competitionId);
+      const res = CompetitionRulesService.getCanonicalMatchResult(comp, m);
+      if (!res.isCompleted) continue;
+
       add(m.teamAId, 'played');
       add(m.teamBId, 'played');
-      const setPointsA = m.sets.reduce((sum, s) => sum + s.scoreA, 0);
-      const setPointsB = m.sets.reduce((sum, s) => sum + s.scoreB, 0);
       const curA = stats.get(m.teamAId)!;
       const curB = stats.get(m.teamBId)!;
-      curA.points += setPointsA;
-      curB.points += setPointsB;
+      curA.points += res.pointsScoredA;
+      curB.points += res.pointsScoredB;
       stats.set(m.teamAId, curA);
       stats.set(m.teamBId, curB);
-      if (m.winnerId === m.teamAId) add(m.teamAId, 'wins');
-      else if (m.winnerId === m.teamBId) add(m.teamBId, 'wins');
+      if (res.winnerId === m.teamAId) add(m.teamAId, 'wins');
+      else if (res.winnerId === m.teamBId) add(m.teamBId, 'wins');
     }
-    const nameOf = (id: string) => teams.find(t => t.id === id)?.shortName ?? id;
+    const nameOf = (id: string) => teams.find((t) => t.id === id)?.shortName ?? id;
     const wins: RankingRow[] = [...stats.entries()]
       .map(([id, s]) => ({ id, name: nameOf(id), team: nameOf(id), value: s.wins }))
       .sort((a, b) => b.value - a.value)
@@ -128,7 +132,7 @@ const StatisticsPage = () => {
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
     return { wins, points };
-  }, [completedMatches, teams]);
+  }, [completedMatches, teams, competitions]);
 
   return (
     <MainLayout>

@@ -90,6 +90,7 @@ import { ROLE_LABELS, type SystemUser, type UserRole } from '@/types/auth';
 import {
   AuditService,
   SecurityConfigService,
+  type AuditEventType,
   type AuditLogEntry,
   type SecurityPreferences,
 } from '@/lib/security';
@@ -189,13 +190,53 @@ export function SettingsPage() {
     SecurityConfigService.getPreferences(),
   );
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [auditFilter, setAuditFilter] = useState('');
   const [clearAuditOpen, setClearAuditOpen] = useState(false);
   const [clearCompOpen, setClearCompOpen] = useState(false);
   const [restoreSeedOpen, setRestoreSeedOpen] = useState(false);
 
-  const loadAuditLogs = useCallback(() => {
+  const loadAuditLogs = useCallback(async () => {
+    try {
+      const persisted = await dataAccess.listAuditLogs();
+      if (persisted && persisted.length > 0) {
+        setAuditLogs(
+          persisted.map((p) => ({
+            id: p.id,
+            event: p.action,
+            user: p.user,
+            ip: p.entityType ? `${p.entityType}:${p.entityId || ''}` : 'Local',
+            time: new Date(p.timestamp).toLocaleString('pt-BR'),
+            type: (p.action.includes('CANCEL') || p.action.includes('ERROR')
+              ? 'error'
+              : p.action.includes('HOMOLOGAT') || p.action.includes('CREATED')
+              ? 'success'
+              : 'info') as AuditEventType,
+            details:
+              p.details ||
+              (p.note
+                ? `${p.note} | De: ${p.previousValue || '—'} Para: ${p.newValue || '—'}`
+                : `De: ${p.previousValue || '—'} Para: ${p.newValue || '—'}`),
+          }))
+        );
+        return;
+      }
+    } catch {
+      // fallback
+    }
     setAuditLogs(AuditService.getLogs());
   }, []);
+
+  const filteredAuditLogs = useMemo(() => {
+    if (!auditFilter.trim()) return auditLogs;
+    const q = auditFilter.toLowerCase();
+    return auditLogs.filter(
+      (l) =>
+        l.event.toLowerCase().includes(q) ||
+        l.user.toLowerCase().includes(q) ||
+        (l.details && l.details.toLowerCase().includes(q)) ||
+        l.ip.toLowerCase().includes(q)
+    );
+  }, [auditLogs, auditFilter]);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -841,8 +882,16 @@ export function SettingsPage() {
                   }
                   divided
                 >
+                  <div className="flex items-center gap-2 pb-3">
+                    <Input
+                      placeholder="Filtrar por ação, operador ou partida..."
+                      value={auditFilter}
+                      onChange={(e) => setAuditFilter(e.target.value)}
+                      className="max-w-sm h-8 text-xs bg-zinc-900 border-zinc-800"
+                    />
+                  </div>
                   <DataTable
-                    data={auditLogs}
+                    data={filteredAuditLogs}
                     columns={auditColumns}
                     emptyTitle="Nenhum registro de auditoria"
                     emptyDescription="Os eventos operacionais registrados pelo sistema aparecerão aqui."

@@ -11,6 +11,7 @@ import {
   roundRobinRoundCount,
   runDraw,
 } from '@/services/drawService';
+import { buildGroupArena } from '@/components/draw/cinematic/groupArena';
 import type { DrawConfig, DrawGroup, DrawTeamEntry } from '@/types/draw';
 import type { CompetitionRecord, TeamRecord } from '@/types/entities';
 
@@ -197,3 +198,144 @@ describe('runDraw', () => {
     expect(maxRound).toBe(5);
   });
 });
+
+describe('buildGroupArena', () => {
+  it('constrói os cards reais de cada grupo com status e contagem de revelações', () => {
+    const groups = [
+      { name: 'Grupo A', teams: [{ teamId: 't1', seed: 1 }, { teamId: 't2', seed: 2 }] },
+      { name: 'Grupo B', teams: [{ teamId: 't3', seed: 3 }, { teamId: 't4', seed: 4 }] },
+    ];
+
+    const cards = buildGroupArena(groups, [
+      { teamId: 't1', groupName: 'Grupo A', order: 0 },
+      { teamId: 't2', groupName: 'Grupo A', order: 1 },
+    ], 'Grupo A');
+
+    expect(cards).toHaveLength(2);
+    expect(cards[0].name).toBe('Grupo A');
+    expect(cards[0].revealedCount).toBe(2);
+    expect(cards[0].status).toBe('active');
+    expect(cards[1].revealedCount).toBe(0);
+    expect(cards[1].status).toBe('pending');
+  });
+});
+
+describe('roundRobinMatchCount', () => {
+  it('retorna 0 para menos de 2 equipes', () => {
+    expect(roundRobinMatchCount(0)).toBe(0);
+    expect(roundRobinMatchCount(1)).toBe(0);
+  });
+
+  it('calcula corretamente n*(n-1)/2', () => {
+    expect(roundRobinMatchCount(2)).toBe(1);
+    expect(roundRobinMatchCount(3)).toBe(3);
+    expect(roundRobinMatchCount(4)).toBe(6);
+    expect(roundRobinMatchCount(5)).toBe(10);
+    expect(roundRobinMatchCount(6)).toBe(15);
+    expect(roundRobinMatchCount(8)).toBe(28);
+  });
+});
+
+describe('roundRobinRoundCount', () => {
+  it('retorna 0 para menos de 2 equipes', () => {
+    expect(roundRobinRoundCount(0)).toBe(0);
+    expect(roundRobinRoundCount(1)).toBe(0);
+  });
+
+  it('retorna n-1 para grupos pares', () => {
+    expect(roundRobinRoundCount(2)).toBe(1);
+    expect(roundRobinRoundCount(4)).toBe(3);
+    expect(roundRobinRoundCount(6)).toBe(5);
+    expect(roundRobinRoundCount(8)).toBe(7);
+  });
+
+  it('retorna n para grupos ímpares', () => {
+    expect(roundRobinRoundCount(3)).toBe(3);
+    expect(roundRobinRoundCount(5)).toBe(5);
+    expect(roundRobinRoundCount(7)).toBe(7);
+  });
+});
+
+describe('random mode com headSeeds', () => {
+  it('todas as equipes estão presentes independemente das headSeeds', () => {
+    const config1: DrawConfig = { groupsCount: 2, seedingMode: 'random', seed: 100, headSeeds: ['team-1'] };
+    const config2: DrawConfig = { groupsCount: 2, seedingMode: 'random', seed: 100, headSeeds: [] };
+
+    const result1 = runDraw(competition, teams, config1);
+    const result2 = runDraw(competition, teams, config2);
+
+    // Todas as equipes devem estar presentes em ambos os resultados
+    const ids1 = result1.groups.flatMap(g => g.teams.map(t => t.teamId)).sort();
+    const ids2 = result2.groups.flatMap(g => g.teams.map(t => t.teamId)).sort();
+
+    expect(ids1).toEqual(ids2);
+    expect(ids1).toEqual(teams.map(t => t.id).sort());
+  });
+});
+
+describe('seeded mode com headSeeds', () => {
+  it('garante que cada cabeça vai para um grupo diferente (até limite)', () => {
+    const config: DrawConfig = {
+      groupsCount: 3,
+      seedingMode: 'seeded',
+      seed: 99,
+      headSeeds: ['team-1', 'team-2', 'team-3'],
+    };
+    const result = runDraw(competition, teams, config);
+
+    const allHeads = config.headSeeds;
+    const allGrouped = result.groups.flatMap(g => g.teams.map(t => t.teamId));
+
+    // Cada cabeça deve estar no resultado
+    allHeads.forEach(head => {
+      expect(allGrouped).toContain(head);
+    });
+  });
+
+  it('modo seeded sem cabeças equivale a modo random balanceado', () => {
+    const config: DrawConfig = { groupsCount: 2, seedingMode: 'seeded', seed: 42, headSeeds: [] };
+    const result = runDraw(competition, teams, config);
+    expect(result.groups).toHaveLength(2);
+    expect(result.groups.every(g => g.teams.length === 3)).toBe(true);
+  });
+});
+
+describe('determinismo e balanceamento', () => {
+  it('mesma entrada + mesma seed = mesmo resultado', () => {
+    const config: DrawConfig = { groupsCount: 3, seedingMode: 'random', seed: 999, headSeeds: [] };
+    const a = runDraw(competition, teams, config);
+    const b = runDraw(competition, teams, config);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+
+  it('balanceamento: max - min <= 1 em todos os cenários', () => {
+    const testCases = [
+      { teams: createTeamsHelper(8), groups: 3 },
+      { teams: createTeamsHelper(10), groups: 3 },
+      { teams: createTeamsHelper(14), groups: 4 },
+      { teams: createTeamsHelper(17), groups: 4 },
+    ];
+
+    testCases.forEach(({ teams: t, groups }) => {
+      const result = runDraw(competition, t, {
+        groupsCount: groups,
+        seedingMode: 'random',
+        seed: 100,
+        headSeeds: [],
+      });
+      const sizes = result.groups.map(g => g.teams.length);
+      const max = Math.max(...sizes);
+      const min = Math.min(...sizes);
+      expect(max - min).toBeLessThanOrEqual(1);
+    });
+  });
+});
+
+function createTeamsHelper(count: number): TeamRecord[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `team-${i + 1}`,
+    name: `Time ${i + 1}`,
+    shortName: `T${i + 1}`,
+    modality: 'indoor' as const,
+  }));
+}

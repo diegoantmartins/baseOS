@@ -48,6 +48,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { dataAccess } from '@/services/dataAccess';
+import { CompetitionRegistrationService } from '@/services/competitionRegistrationService';
 import { generateTeamRosterReportPdf, downloadReportsPdf } from '@/lib/pdf/reportsPdf';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import { useCapability } from '@/hooks/useCapability';
@@ -178,6 +179,33 @@ export function AthletesPage() {
   };
 
   const handleRegister = async (data: Omit<CompetitionAthlete, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const targetCt = availableTeams.find((t) => t.id === data.competitionTeamId);
+    if (!targetCt) {
+      toast.error('Equipe selecionada não encontrada.');
+      return;
+    }
+    const comp = await dataAccess.getCompetition(targetCt.competitionId);
+    if (!comp) {
+      toast.error('Competição não encontrada.');
+      return;
+    }
+    const [existingRoster, allAthletes] = await Promise.all([
+      dataAccess.listCompetitionAthletes(data.competitionTeamId),
+      dataAccess.listCompetitionAthletes(),
+    ]);
+
+    const check = CompetitionRegistrationService.validateAthleteRegistration(
+      comp,
+      targetCt,
+      data,
+      existingRoster,
+      allAthletes,
+    );
+    if (!check.valid) {
+      check.errors.forEach((e) => toast.error(e));
+      return;
+    }
+
     await dataAccess.createCompetitionAthlete(data);
     toast.success('Atleta cadastrado com sucesso!');
     setRegistrationOpen(false);
@@ -185,6 +213,40 @@ export function AthletesPage() {
   };
 
   const handleTransfer = async (athleteId: string, newCompetitionTeamId: string) => {
+    const athlete = athletes.find((a) => a.id === athleteId);
+    if (!athlete) {
+      toast.error('Atleta não encontrado.');
+      return;
+    }
+    const [sourceCt, targetCt, targetRoster, allMatches] = await Promise.all([
+      dataAccess.getCompetitionTeamById(athlete.competitionTeamId),
+      dataAccess.getCompetitionTeamById(newCompetitionTeamId),
+      dataAccess.listCompetitionAthletes(newCompetitionTeamId),
+      dataAccess.listMatches(),
+    ]);
+    if (!sourceCt || !targetCt) {
+      toast.error('Equipe de origem ou destino não encontrada.');
+      return;
+    }
+    const comp = await dataAccess.getCompetition(targetCt.competitionId);
+    if (!comp) {
+      toast.error('Competição de destino não encontrada.');
+      return;
+    }
+
+    const check = CompetitionRegistrationService.canTransferAthlete(
+      athlete,
+      sourceCt,
+      targetCt,
+      comp,
+      targetRoster,
+      allMatches,
+    );
+    if (!check.ok) {
+      check.errors.forEach((e) => toast.error(e));
+      return;
+    }
+
     await dataAccess.updateCompetitionAthlete(athleteId, { competitionTeamId: newCompetitionTeamId });
     toast.success('Atleta transferido de equipe com sucesso!');
     setTransferAthlete(null);

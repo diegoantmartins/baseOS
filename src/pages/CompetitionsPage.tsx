@@ -41,6 +41,7 @@ import { useAuth } from '@/components/auth/useAuth';
 import { useCapability } from '@/hooks/useCapability';
 import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
 import { AuditService } from '@/lib/security';
+import { OperationalAuditService } from '@/services/operationalAuditService';
 import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 
@@ -53,6 +54,7 @@ import { CompetitionAthletesTab } from '@/components/competition/tabs/Competitio
 import { CompetitionStandingsTab } from '@/components/competition/tabs/CompetitionStandingsTab';
 import { CompetitionFormDialog } from '@/components/competition/dialogs/CompetitionFormDialog';
 import { CompetitionSettingsEditDialog } from '@/components/competition/dialogs/CompetitionSettingsEditDialog';
+import { CompetitionFormatBuilder } from '@/components/competition/format-builder';
 
 export default function CompetitionsPage() {
   const navigate = useNavigate();
@@ -77,6 +79,7 @@ export default function CompetitionsPage() {
   const [activeTab, setActiveTab] = useState<CompetitionTab>('overview');
   const [createOpen, setCreateOpen] = useState(false);
   const [editConfigOpen, setEditConfigOpen] = useState(false);
+  const [formatBuilderOpen, setFormatBuilderOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<CompetitionLifecycleStatus | null>(null);
 
   // Estados de filtros da lista
@@ -165,6 +168,7 @@ export default function CompetitionsPage() {
     }
     return computeStandingsByGroup(registrations, selectedMatches, {
       criteria: selected.tiebreakCriteriaOrder,
+      competition: selected,
     });
   }, [selected, selectedTeams, teams, selectedMatches]);
 
@@ -243,13 +247,23 @@ export default function CompetitionsPage() {
 
     const operatorName = session?.user?.name || 'Organizador';
 
-    await dataAccess.updateCompetition(selected.id, { status: newStatus });
-    AuditService.logEvent(
-      'Alteração de Ciclo de Competição',
-      session?.user?.email || 'organizador',
-      'info',
-      `Competição "${selected.name}" avançou para status "${newStatus}" por ${operatorName}.`,
-    );
+    const updates: Partial<CompetitionRecord> = { status: newStatus };
+
+    // Ao iniciar jogos ou mata-mata, congela as regras esportivas criando rulesSnapshot (idempotente)
+    if (newStatus === 'in-progress' || newStatus === 'playoffs') {
+      const frozen = CompetitionLifecycleService.freezeRulesSnapshot(selected);
+      if (frozen.rulesSnapshot) {
+        updates.rulesSnapshot = frozen.rulesSnapshot;
+      }
+    }
+
+    await dataAccess.updateCompetition(selected.id, updates);
+    await OperationalAuditService.recordCompetitionTransition({
+      competition: { ...selected, ...updates },
+      operator: operatorName,
+      previousStatus: selected.status,
+      newStatus,
+    });
     toast.success(`Status da competição alterado para "${newStatus}".`);
     await refresh();
   };
@@ -290,12 +304,10 @@ export default function CompetitionsPage() {
       return;
     }
     const created = await dataAccess.createCompetition(input);
-    AuditService.logEvent(
-      'Criação de Competição',
-      session?.user?.email || 'organizador',
-      'success',
-      `Nova competição "${created.name}" criada por ${session?.user?.name || 'Organizador'}.`,
-    );
+    await OperationalAuditService.recordCompetitionCreation({
+      competition: created,
+      operator: session?.user?.name || session?.user?.email || 'Organizador',
+    });
     toast.success(`Competição "${created.name}" criada com sucesso!`);
     setCreateOpen(false);
     await refresh();
@@ -309,7 +321,31 @@ export default function CompetitionsPage() {
     }
     if (!selected) return;
 
+    const isRulesChange = Boolean(
+      updates.config ||
+      updates.setFormat ||
+      updates.phaseSetRules ||
+      updates.tiebreakCriteriaOrder ||
+      updates.advancingPerGroup,
+    );
+    if (isRulesChange && !CompetitionLifecycleService.canEditRules(selected, selectedMatches)) {
+      toast.error('As regras esportivas desta competição estão congeladas e não podem ser alteradas.');
+      return;
+    }
+
     await dataAccess.updateCompetition(selected.id, updates);
+    await OperationalAuditService.recordEvent({
+      user: session?.user?.name || session?.user?.email || 'Organizador',
+      action: 'COMPETITION_CONFIG_UPDATED',
+      entityType: 'competition',
+      entityId: selected.id,
+      competitionId: selected.id,
+      competitionName: selected.name,
+      previousValue: selected,
+      newValue: updates,
+      details: `Configurações da competição "${selected.name}" atualizadas por ${session?.user?.name || 'Organizador'}.`,
+      type: 'info',
+    });
     toast.success('Configurações da competição atualizadas com sucesso!');
     setEditConfigOpen(false);
     await refresh();
@@ -483,6 +519,7 @@ export default function CompetitionsPage() {
                     selected={selected}
                     canEdit={can('competition:edit')}
                     onOpenEditConfig={() => setEditConfigOpen(true)}
+                    onOpenFormatBuilder={() => setFormatBuilderOpen(true)}
                   />
                 )}
 
@@ -558,6 +595,7 @@ export default function CompetitionsPage() {
                     bracketMatches={bracketMatches}
                     teams={teams}
                     onExportStandings={handleExportStandings}
+                    onOpenMatch={(matchId) => navigate(`/sumulas/${matchId}`)}
                   />
                 )}
 
@@ -625,12 +663,20 @@ export default function CompetitionsPage() {
       />
 
       {selected && (
-        <CompetitionSettingsEditDialog
-          open={editConfigOpen}
-          onOpenChange={setEditConfigOpen}
-          competition={selected}
-          onSave={handleUpdateConfig}
-        />
+        <>
+          <CompetitionSettingsEditDialog
+            open={editConfigOpen}
+            onOpenChange={setEditConfigOpen}
+            competition={selected}
+            onSave={handleUpdateConfig}
+          />
+          <CompetitionFormatBuilder
+            open={formatBuilderOpen}
+            onOpenChange={setFormatBuilderOpen}
+            competition={selected}
+            onSaved={refresh}
+          />
+        </>
       )}
     </MainLayout>
   );

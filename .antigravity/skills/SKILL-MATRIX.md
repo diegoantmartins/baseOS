@@ -16,6 +16,7 @@ Este documento orienta os agentes e desenvolvedores sobre **qual Skill acionar p
 | **Otimizar Performance / Re-renderizações** | `react-best-practices` | `baseos-frontend` | `npm run build` |
 | **Definir Cores, Fontes ou Temas** | `baseos-design-system` | `baseos-uiux`, `ui-ux-pro-max` | `baseos-audit` |
 | **Desenvolver Funcionalidade com Súmula ou PDF** | `baseos-frontend` | `baseos-audit` | `npm test` |
+| **Validação Pré-Release e Homologação E2E** | `baseos-qa-master` | `baseos-audit` | `baseos-qa-master` |
 
 ---
 

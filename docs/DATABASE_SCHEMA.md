@@ -21,16 +21,17 @@ Migrações em `supabase/migrations/20260818000000_initial_schema.sql` (schema) 
 | Tabela | Colunas principais | Observações |
 |--------|-------------------|-------------|
 | `profiles` | id (ref `auth.users`), email, full_name, role (`organizer`/`referee`/`team`), competition_team_id | Criada por trigger `handle_new_user` ao cadastrar; consultada para login/autorização |
-| `competitions` | name, description, modality, format, player_format, set_format, start_date, end_date, venue, status, registration_deadline, rules JSONB | |
+| `competitions` | name, description, modality, format, player_format, set_format, start_date, end_date, venue, status, registration_deadline, rules JSONB, config JSONB, rules_snapshot JSONB | Suporta motor de regras canônicas (Fase 4.2/4.4) e snapshot imutável |
 | `teams` | name, short_name, logo_url, coach_name | |
 | `referees` | full_name, level | |
 | `competition_teams` | competition_id, team_id, access_token (convite), registration_status (`not_started`/`in_progress`/`completed`), is_locked, registration_info JSONB (capitão, líbero 1, líbero 2, observações), created_at, updated_at | UNIQUE (competition_id, team_id) e UNIQUE access_token |
 | `competition_athletes` | competition_team_id, name, jersey_number (opcional, UNIQUE parcial por equipe quando presente), position, document_number, birth_date, gender, is_captain, is_libero, created_at | Máx. 14 por equipe (validado na RPC `register_athlete`) |
-| `matches` | competition_id, round, match_number, team_a_id, team_b_id, scheduled_time, status, score_a, score_b, winner_id, sets JSONB, referees JSONB | Equipes referenciadas via `competition_teams.id` |
+| `matches` | competition_id, round, match_number, team_a_id, team_b_id, scheduled_time, status, score_a, score_b, winner_id, sets JSONB, referees JSONB, phase, bracket_stage | Equipes referenciadas via `competition_teams.id` |
+| `draws` | id, competition_id, phase_id, groups JSONB, brackets JSONB, schedule JSONB, status (`preview`/`official`/`locked`), created_at, updated_at | Gerenciamento e bloqueio de sorteios (Fases 4.8/4.9) |
 
 ### Enums
 
-`user_role`, `competition_status`, `modality`, `gender_category`, `registration_status`, `match_status`.
+`user_role`, `competition_status`, `modality`, `gender_category`, `registration_status`, `match_status`, `draw_status` (`preview`, `official`, `locked`).
 
 ### Row Level Security
 

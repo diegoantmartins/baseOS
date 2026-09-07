@@ -5,6 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { CompetitionRecord, ModalityRecord, VenueRecord } from '@/types/entities';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
+import { CompetitionTemplateService } from '@/services/competitionTemplateService';
 
 export interface CompetitionFormDialogProps {
   open: boolean;
@@ -58,39 +60,62 @@ export function CompetitionFormDialog({
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
     setSubmitting(true);
+    const baseRecord: Omit<CompetitionRecord, 'id'> = {
+      name: name.trim(),
+      modality,
+      format,
+      playerFormat,
+      setFormat: setsFormat,
+      genderCategory,
+      status: 'planning',
+      groupsCount,
+      advancingPerGroup,
+      bestThirdsCount,
+      venue: venue.trim() || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      defaultDeadline: defaultDeadline || undefined,
+      defaultMatchIntervalMinutes: 75,
+      minTeamRestMinutes: 30,
+      tiebreakCriteriaOrder: [
+        'points',
+        'head-to-head',
+        'set-average',
+        'points-average',
+        'sets-balance',
+        'points-balance',
+        'victories',
+        'draw',
+      ],
+      phaseSetRules: {
+        groupStage: setsFormat === '5-sets' ? '5-sets' : '3-sets',
+        playoffs: setsFormat === '5-sets' ? '5-sets' : '3-sets',
+        semifinals: '5-sets',
+        final: '5-sets',
+      },
+    };
+
+    const templateId = format === 'group-stage-knockout' ? 'groups-knockout-standard'
+      : format === 'round-robin' ? 'round-robin-standard'
+      : format === 'single-elimination' ? 'knockout-pure-standard'
+      : format;
+
+    let canonicalConfig = CompetitionTemplateService.createConfigFromTemplate(templateId, {
+      modality,
+      setsToWin: setsFormat === '5-sets' ? 3 : 2,
+    });
+
+    if (!canonicalConfig) {
+      canonicalConfig = CompetitionRulesService.normalizeLegacyToConfig({
+        id: 'initial',
+        ...baseRecord,
+      });
+    }
+
     try {
       await onSubmit({
-        name: name.trim(),
-        modality,
-        format,
-        playerFormat,
-        setFormat: setsFormat,
-        genderCategory,
-        status: 'planning',
-        groupsCount,
-        advancingPerGroup,
-        bestThirdsCount,
-        venue: venue.trim() || undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        defaultDeadline: defaultDeadline || undefined,
-        defaultMatchIntervalMinutes: 75,
-        minTeamRestMinutes: 30,
-        tiebreakCriteriaOrder: [
-          'points',
-          'victories',
-          'head-to-head',
-          'sets-ratio',
-          'points-ratio',
-          'sets-balance',
-          'points-balance',
-        ],
-        phaseSetRules: {
-          groupStage: setsFormat === '5-sets' ? '5-sets' : '3-sets',
-          playoffs: setsFormat === '5-sets' ? '5-sets' : '3-sets',
-          semifinals: '5-sets',
-          final: '5-sets',
-        },
+        ...baseRecord,
+        config: canonicalConfig,
       });
     } finally {
       setSubmitting(false);

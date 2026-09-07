@@ -5,6 +5,7 @@ import type { MatchRecord, CompetitionRecord, TeamRecord } from '@/types/entitie
 import type { CompetitionAthlete } from '@/types/registration';
 import type { MatchSheetData, PdfAthlete, TeamInfo, SetResult } from './types';
 import { dataAccess } from '@/services/dataAccess';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
 
 export type { MatchSheetData };
 
@@ -16,15 +17,6 @@ const GENDER_LABEL: Record<NonNullable<CompetitionRecord['genderCategory']>, str
   mixed: 'Misto',
 };
 
-// Mapeamento de formatos
-function toSetFormat(setFormat: string | undefined): '3-sets' | '5-sets' | '1-set' | '2-sets' {
-  switch (setFormat) {
-    case '5-sets': return '5-sets';
-    case '2-sets': return '2-sets';
-    case '1-set': return '1-set';
-    default: return '3-sets';
-  }
-}
 
 function toPlayerFormat(playerFormat: string | undefined): '6x6' | '4x4' | '2x2' | '3x3' {
   switch (playerFormat) {
@@ -59,30 +51,27 @@ function athleteToPdf(athlete: CompetitionAthlete): PdfAthlete {
 }
 
 /** Calcula placares finais a partir dos sets */
-function calculateFinalScore(sets: SetResult[]): { finalA: number; finalB: number } {
+function calculateFinalScore(match: MatchRecord, sets: SetResult[], competition?: CompetitionRecord | null): { finalA: number; finalB: number } {
+  const canonical = CompetitionRulesService.getCanonicalMatchResult(competition, match);
+  if (canonical.isCompleted || match.status === 'completed' || match.status === 'homologated') {
+    return { finalA: canonical.setsWonA, finalB: canonical.setsWonB };
+  }
   let setsA = 0;
   let setsB = 0;
-  
   sets.forEach(set => {
-    if (set.scoreA > set.scoreB) {
-      setsA++;
-    } else if (set.scoreB > set.scoreA) {
-      setsB++;
-    }
+    if (set.scoreA > set.scoreB) setsA++;
+    else if (set.scoreB > set.scoreA) setsB++;
   });
-  
   return { finalA: setsA, finalB: setsB };
 }
 
 /** Determina o vencedor da partida */
-function determineWinner(match: MatchRecord, sets: SetResult[], finalA: number, finalB: number): 'A' | 'B' | undefined {
+function determineWinner(match: MatchRecord, competition?: CompetitionRecord | null): 'A' | 'B' | undefined {
+  const canonical = CompetitionRulesService.getCanonicalMatchResult(competition, match);
+  if (canonical.winnerSide) return canonical.winnerSide;
   if (match.winnerId) {
     return match.winnerId === match.teamAId ? 'A' : 'B';
   }
-  
-  if (finalA > finalB) return 'A';
-  if (finalB > finalA) return 'B';
-  
   return undefined;
 }
 
@@ -124,19 +113,23 @@ export async function buildMatchSheetData(
     scoreB: s.scoreB,
   }));
   
-  const { finalA, finalB } = calculateFinalScore(sets);
+  const { finalA, finalB } = calculateFinalScore(match, sets, competition);
   
   const isPreGame = options.sheetMode === 'pre' || 
     (match.status !== 'completed' && sets.length === 0);
   
-  const winner = determineWinner(match, sets, finalA, finalB);
+  const winner = determineWinner(match, competition);
   
   const category = competition?.genderCategory
     ? GENDER_LABEL[competition.genderCategory]
     : 'Adulto';
   
   const modality = competition?.modality === 'beach' ? 'beach' : 'indoor';
-  const format = toSetFormat(competition?.setFormat);
+  const formatConfig = competition
+    ? CompetitionRulesService.resolveMatchFormat(competition, match.phase, match.customSetFormat)
+    : { setsToWin: 2 as const, maxSets: 3 };
+  const format =
+    formatConfig.setsToWin === 3 ? '5-sets' : formatConfig.setsToWin === 1 ? '1-set' : '3-sets';
   const playerFormat = toPlayerFormat(competition?.playerFormat);
   const city = match.venue.includes(',') 
     ? match.venue.split(',').pop()?.trim() 

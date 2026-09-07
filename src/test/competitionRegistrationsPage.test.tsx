@@ -40,6 +40,7 @@ vi.mock('@/services/dataAccess', () => ({
     createCompetitionTeam: vi.fn(),
     updateCompetitionTeam: vi.fn(),
     listMatches: vi.fn(),
+    listCompetitionAthletes: vi.fn(),
   },
 }));
 
@@ -116,17 +117,18 @@ describe('CompetitionRegistrationsPage Component (Fase 4.2)', () => {
     vi.mocked(dataAccess.getCompetition).mockResolvedValue(mockCompetition);
     vi.mocked(dataAccess.listCompetitionTeams).mockResolvedValue(mockRegistrations);
     vi.mocked(dataAccess.listTeams).mockResolvedValue(mockTeams);
+    vi.mocked(dataAccess.listCompetitionAthletes).mockResolvedValue([]);
   });
 
   it('renderiza o BreadcrumbNav e o PageHeader com dados da competição', async () => {
     renderComponent();
 
-    await waitFor(() => {
+    await waitFor(async () => {
       expect(screen.getByRole('heading', { level: 1, name: /Gestão de Inscrições/i })).toBeDefined();
+      // Breadcrumb depende de dados assíncronos (getCompetition) — aguardar o load real
+      expect(screen.getByText('Copa dos Campeões 2026')).toBeDefined();
     });
 
-    // Breadcrumb
-    expect(screen.getByText('Copa dos Campeões 2026')).toBeDefined();
     // Botão de Convidar
     expect(screen.getByRole('button', { name: /Convidar Equipe/i })).toBeDefined();
   });

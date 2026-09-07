@@ -46,21 +46,21 @@ const styles = StyleSheet.create({
   logoBarTop: {
     height: 2.5,
     width: 10,
-    backgroundColor: '#1E293B',
-    borderRadius: 0.8,
+    backgroundColor: '#CBD5E1',
+    borderRadius: 1.2,
   },
   logoBarMid: {
     height: 2.5,
     width: 14,
-    marginLeft: 2.5,
+    marginLeft: 3,
     backgroundColor: '#F59E0B',
-    borderRadius: 0.8,
+    borderRadius: 1.2,
   },
   logoBarBot: {
     height: 2.5,
     width: 10,
-    backgroundColor: '#334155',
-    borderRadius: 0.8,
+    backgroundColor: '#CBD5E1',
+    borderRadius: 1.2,
   },
   brandTitle: {
     fontSize: 9,
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   },
   brandSubtitle: {
     fontSize: 4.5,
-    color: '#555555',
+    color: '#71717A',
     fontWeight: 'bold',
     letterSpacing: 0.2,
   },

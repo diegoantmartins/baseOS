@@ -54,11 +54,11 @@ export function MatchFiltersBar({
           </SelectTrigger>
           <SelectContent className="bg-zinc-900 border-zinc-800">
             <SelectItem value="all" className="text-xs">Todos os Status</SelectItem>
-            <SelectItem value="awaiting_schedule" className="text-xs">Sem Horário</SelectItem>
+            <SelectItem value="completed" className="text-xs text-emerald-400 font-medium">Aguardando Homologação</SelectItem>
+            <SelectItem value="homologated" className="text-xs text-blue-400">Homologados</SelectItem>
+            <SelectItem value="in-progress" className="text-xs text-amber-400">Em Andamento (Ao Vivo)</SelectItem>
             <SelectItem value="scheduled" className="text-xs">Agendados</SelectItem>
-            <SelectItem value="in-progress" className="text-xs">Em Andamento</SelectItem>
-            <SelectItem value="completed" className="text-xs">Realizados</SelectItem>
-            <SelectItem value="homologated" className="text-xs">Homologados</SelectItem>
+            <SelectItem value="awaiting_schedule" className="text-xs">Sem Horário Definido</SelectItem>
           </SelectContent>
         </Select>
       </div>

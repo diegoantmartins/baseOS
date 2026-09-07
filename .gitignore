@@ -40,5 +40,15 @@ backups
 # Temporary and local test files
 sumulas exemplo - /
 modelos de sumulas/
+scratch/
+vgpu/
+supabase/.temp/
+marketing-assets/
+Dockerfile.screenshot
+scripts/capture-marketing-screens.js
+docs/marketing/
+/*.png
 *.pdf
 !public/**/*.pdf
+
+

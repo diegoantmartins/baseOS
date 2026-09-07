@@ -59,6 +59,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { dataAccess, generateToken } from '@/services/dataAccess';
+import { CompetitionRegistrationService } from '@/services/competitionRegistrationService';
 import { compressImageToDataUrl } from '@/lib/imageUtils';
 import { TeamCreatedShareDialog } from '@/components/registration/TeamCreatedShareDialog';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
@@ -194,6 +195,17 @@ export function TeamsPage() {
   };
 
   const handleDelete = async (id: string) => {
+    const [allMatches, allCt] = await Promise.all([
+      dataAccess.listMatches(),
+      dataAccess.listCompetitionTeams(),
+    ]);
+    const check = CompetitionRegistrationService.canDeleteTeam(id, allMatches, allCt);
+    if (!check.ok) {
+      check.errors.forEach((err) => toast.error(err));
+      setDeleting(null);
+      return;
+    }
+
     await dataAccess.deleteTeam(id);
     toast.success('Equipe excluída permanentemente.');
     setDeleting(null);

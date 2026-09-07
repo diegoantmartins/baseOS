@@ -1,6 +1,13 @@
 // Entidades persistidas pela camada de dados (LocalStorage/Supabase)
 // São formas "leves" usadas no repositório, com referências por id.
 
+import type {
+  CompetitionConfig,
+  ParticipantReference,
+  ProgressionRoute,
+  ParticipantResolutionStatus,
+} from './competitionConfig';
+
 export type CompetitionLifecycleStatus =
   | 'planning'
   | 'registration-open'
@@ -14,12 +21,16 @@ export type CompetitionLifecycleStatus =
   | 'draft' // legados
   | 'registration';
 
+/** Status do sorteio no módulo de Sorteio */
+export type DrawStatus = 'preview' | 'official' | 'locked';
+
 export type TiebreakCriterionId =
   | 'victories'
   | 'points'
   | 'sets-balance'
   | 'points-balance'
   | 'head-to-head'
+  | 'head-to-head-mini-table'
   | 'set-average'
   | 'sets-ratio'
   | 'points-average'
@@ -47,6 +58,7 @@ export type ModalityRecord = {
 export type CompetitionRecord = {
   id: string;
   name: string;
+  slug?: string;
   modality: 'indoor' | 'beach';
   modalityId?: string;
   format: string;
@@ -84,6 +96,10 @@ export type CompetitionRecord = {
   woRules?: string;
   /** Status do ciclo de vida */
   status: CompetitionLifecycleStatus;
+  /** Configuração canônica de regras esportivas (Fonte Única da Verdade - Fase 4) */
+  config?: CompetitionConfig;
+  /** Snapshot imutável de regras congelado no início/homologação dos jogos */
+  rulesSnapshot?: CompetitionConfig;
   /** Pódios finais */
   championTeamId?: string;
   runnerUpTeamId?: string;
@@ -186,6 +202,11 @@ export type MatchAuditEntry = {
   previousValue?: string;
   newValue?: string;
   note?: string;
+  entityType?: 'match' | 'competition' | 'team' | 'athlete' | 'draw' | 'system' | string;
+  entityId?: string;
+  competitionId?: string;
+  competitionName?: string;
+  details?: string;
 };
 
 export type MatchLifecycleStatus =
@@ -218,6 +239,8 @@ export type MatchRecord = {
   teamBShortName: string;
   venue: string;
   court?: string;
+  /** Slot estrutural de origem (se materializado a partir de um competition_match_slot). */
+  slotId?: string;
   /** Fase do jogo: 'classificatória' | 'oitavas' | 'quartas' | 'semifinal' | 'terceiro_lugar' | 'final' | nome livre. */
   phase?: string;
   /** Grupo/chave na fase classificatória (ex.: 'Grupo A'). */
@@ -278,3 +301,61 @@ export type SettingsRecord = {
   theme: 'light' | 'dark' | 'system';
   language: 'pt-BR' | 'en' | 'es';
 };
+
+// ============================================================================
+// Entidades de Runtime do Competition Format Engine (Fase 4.6)
+// ============================================================================
+
+export type StageRuntimeStatus = 'pending' | 'in-progress' | 'completed' | 'cancelled';
+
+export type RoundRuntimeStatus = 'pending' | 'in-progress' | 'completed';
+
+export type SlotParticipantStatus = ParticipantResolutionStatus;
+
+export type StageRecord = {
+  id: string;
+  competitionId: string;
+  stageId: string;
+  name: string;
+  stageOrder: number;
+  stageType: string;
+  status: StageRuntimeStatus;
+  isLocked: boolean;
+  metadata?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type RoundRecord = {
+  id: string;
+  competitionId: string;
+  stageRowId: string;
+  roundId: string;
+  name: string;
+  roundOrder: number;
+  slotsCount: number;
+  status: RoundRuntimeStatus;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type MatchSlotRecord = {
+  id: string;
+  competitionId: string;
+  stageRowId: string;
+  roundRowId: string;
+  slotId: string;
+  position: number;
+  label?: string;
+  participantAReference: ParticipantReference;
+  participantAStatus: SlotParticipantStatus;
+  resolvedTeamAId: string | null;
+  participantBReference: ParticipantReference;
+  participantBStatus: SlotParticipantStatus;
+  resolvedTeamBId: string | null;
+  matchId: string | null;
+  progressionRoute?: ProgressionRoute | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+

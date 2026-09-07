@@ -36,15 +36,15 @@ describe('QA Master Suite - VolleyPro System End-to-End Validation', () => {
     resetLocalData();
 
     mainMatch = await dataAccess.createMatch({
-      competitionId: 'comp-toledo-2026',
+      competitionId: 'comp-masculino-2026',
       round: 1,
       matchNumber: 1,
-      teamAId: 'team-1',
-      teamBId: 'team-2',
-      teamAName: 'Osasco Voleibol',
-      teamBName: 'Minas Tênis Clube',
-      teamAShortName: 'OSA',
-      teamBShortName: 'MIN',
+      teamAId: 'team-m-1',
+      teamBId: 'team-m-2',
+      teamAName: 'Vortex Vôlei Clube',
+      teamBName: 'Titanium Voleibol',
+      teamAShortName: 'VVC',
+      teamBShortName: 'TIT',
       venue: 'Ginásio Municipal',
       court: 'Quadra 1',
       phase: 'classificatória',

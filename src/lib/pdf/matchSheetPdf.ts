@@ -136,28 +136,28 @@ function drawHeader(doc: jsPDF, data: MatchSheetData, y: number): number {
   // 1. BRANDING BASEOS (ESQUERDA)
   const logoX = MARGIN + 3;
   const logoY = y + 3.5;
-  // Barra 1 (Topo - Slate)
-  doc.setFillColor(30, 41, 59);
-  doc.roundedRect(logoX, logoY, 7, 2, 0.5, 0.5, 'F');
+  // Barra 1 (Topo - Cinza Suave)
+  doc.setFillColor(203, 213, 225);
+  doc.roundedRect(logoX, logoY, 7.5, 2, 0.8, 0.8, 'F');
   // Barra 2 (Meio - Amber/Gold)
   doc.setFillColor(245, 158, 11);
-  doc.roundedRect(logoX + 2, logoY + 3, 9, 2, 0.5, 0.5, 'F');
-  // Barra 3 (Base - Slate)
-  doc.setFillColor(51, 65, 85);
-  doc.roundedRect(logoX, logoY + 6, 7, 2, 0.5, 0.5, 'F');
+  doc.roundedRect(logoX + 2.5, logoY + 3, 10, 2, 0.8, 0.8, 'F');
+  // Barra 3 (Base - Cinza Suave)
+  doc.setFillColor(203, 213, 225);
+  doc.roundedRect(logoX, logoY + 6, 7.5, 2, 0.8, 0.8, 'F');
 
   // Texto BaseOS Colorido
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  doc.text('Base', logoX + 13, logoY + 4);
+  doc.text('Base', logoX + 14, logoY + 4);
   doc.setTextColor(245, 158, 11);
-  doc.text('OS', logoX + 23.5, logoY + 4);
+  doc.text('OS', logoX + 24.5, logoY + 4);
 
-  doc.setFontSize(5);
+  doc.setFontSize(4.8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(GRAY_MEDIUM);
-  doc.text('GESTÃO DE COMPETIÇÕES', logoX + 13, logoY + 7.5);
+  doc.text('GESTÃO ESPORTIVA', logoX + 14, logoY + 7.5);
 
   // Divisória vertical esquerda
   doc.setDrawColor(210, 210, 210);

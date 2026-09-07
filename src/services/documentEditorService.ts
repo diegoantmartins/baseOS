@@ -223,7 +223,9 @@ export function buildMatchDocument(ctx: MatchContext): MatchDocument {
   };
 
   const format: '3-sets' | '5-sets' =
-    ctx.competitionSetFormat === '5-sets' || match.sets.length > 3 ? '5-sets' : '3-sets';
+    ctx.competitionSetFormat === '5-sets' || match.customSetFormat === '5-sets' || match.sets.length > 3
+      ? '5-sets'
+      : '3-sets';
 
   const lineups = buildLineups(match, teamA, teamB);
 

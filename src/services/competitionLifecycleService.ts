@@ -6,10 +6,15 @@
  *  - Impede sorteio/início de jogos com inscrições abertas ou sem tabela.
  *  - Impede avanço para playoffs sem conclusão/homologação da fase de grupos.
  *  - Impede finalização do torneio com jogos pendentes ou sem pódio apurado.
+ *  - Centraliza decisões de integridade (edição de regras, partidas e resultados).
+ *  - Controla o congelamento idempotente e imutável de rulesSnapshot.
  */
 
 import type { CompetitionLifecycleStatus, CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
 import type { CompetitionTeam } from '@/types/registration';
+import { CompetitionRulesService } from './competitionRulesService';
+import { dataAccess } from './dataAccess';
+import { OperationalAuditService } from './operationalAuditService';
 
 export type LifecycleChecklistItem = {
   label: string;
@@ -35,6 +40,103 @@ export type LifecycleValidationContext = {
 
 export class CompetitionLifecycleService {
   /**
+   * Avalia se a competição em geral permite edição de dados operacionais/metadados.
+   * Competições finalizadas ou canceladas são arquivadas como somente-leitura.
+   */
+  public static canEditCompetition(competition: CompetitionRecord): boolean {
+    return competition.status !== 'completed' && competition.status !== 'cancelled';
+  }
+
+  /**
+   * Avalia se as regras esportivas (formato de sets, pontuação, critérios de desempate, limites) podem ser alteradas.
+   * Regras congelam definitivamente se a competição estiver em andamento, playoffs, concluída, cancelada,
+   * ou se já houver qualquer partida iniciada ou jogada.
+   */
+  public static canEditRules(
+    competition: CompetitionRecord,
+    matchesOrCount: number | MatchRecord[] = 0
+  ): boolean {
+    const lockedStatuses: CompetitionLifecycleStatus[] = ['in-progress', 'playoffs', 'completed', 'cancelled'];
+    if (lockedStatuses.includes(competition.status)) {
+      return false;
+    }
+
+    if (competition.rulesSnapshot) {
+      return false;
+    }
+
+    if (typeof matchesOrCount === 'number') {
+      if (matchesOrCount > 0) return false;
+    } else if (Array.isArray(matchesOrCount)) {
+      if (matchesOrCount.length > 0) return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Avalia se novas partidas podem ser criadas e agendadas na competição.
+   * Proibido apenas se a competição estiver concluída ou cancelada.
+   */
+  public static canCreateMatch(competition: CompetitionRecord): boolean {
+    return competition.status !== 'completed' && competition.status !== 'cancelled';
+  }
+
+  /**
+   * Avalia se um resultado pode ser registrado para uma partida.
+   * Bloqueia se a competição estiver finalizada ou cancelada, ou se a partida já estiver homologada.
+   */
+  public static canRecordResult(competition: CompetitionRecord, match?: MatchRecord): boolean {
+    if (competition.status === 'completed' || competition.status === 'cancelled') {
+      return false;
+    }
+    if (match) {
+      if (match.status === 'homologated' || match.status === 'cancelled') {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Avalia se um resultado já registrado pode ser corrigido/editado.
+   * Partidas homologadas exigem reabertura formal.
+   */
+  public static canEditResult(competition: CompetitionRecord, match: MatchRecord): boolean {
+    if (competition.status === 'completed' || competition.status === 'cancelled') {
+      return false;
+    }
+    if (match.status === 'cancelled') {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Avalia se a competição pode ser cancelada.
+   */
+  public static canCancelCompetition(competition: CompetitionRecord): boolean {
+    return competition.status !== 'completed' && competition.status !== 'cancelled';
+  }
+
+  /**
+   * Congela as regras esportivas criando o snapshot canônico de forma puramente idempotente.
+   * Se a competição já possuir rulesSnapshot, preserva incondicionalmente o snapshot original,
+   * garantindo que nenhuma alteração posterior de config contamine os dados históricos.
+   */
+  public static freezeRulesSnapshot(competition: CompetitionRecord): CompetitionRecord {
+    if (competition.rulesSnapshot) {
+      return competition;
+    }
+
+    const snapshot = CompetitionRulesService.createRulesSnapshot(competition);
+    return {
+      ...competition,
+      rulesSnapshot: snapshot,
+    };
+  }
+
+  /**
    * Valida se a competição está apta a transitar para um novo status do ciclo de vida.
    */
   public static validateTransition(
@@ -50,7 +152,30 @@ export class CompetitionLifecycleService {
     const teams = context.teams || [];
     const matches = context.matches || [];
 
-    // 1. DRAFT -> REGISTRATION-OPEN
+    // 0. Proteção de estados terminais
+    if (currentStatus === 'completed' && targetStatus !== 'completed') {
+      errors.push('Competição finalizada não pode ser revertida para status anterior.');
+      return {
+        valid: false,
+        targetStatus,
+        errors,
+        warnings,
+        checklist: [{ label: 'Competição já encerrada', passed: false, critical: true }],
+      };
+    }
+
+    if (currentStatus === 'cancelled') {
+      errors.push('Competição cancelada não permite reativação automática.');
+      return {
+        valid: false,
+        targetStatus,
+        errors,
+        warnings,
+        checklist: [{ label: 'Competição cancelada', passed: false, critical: true }],
+      };
+    }
+
+    // 1. DRAFT / PLANNING -> REGISTRATION-OPEN
     if (targetStatus === 'registration-open') {
       const hasName = !!competition.name?.trim();
       checklist.push({
@@ -71,21 +196,22 @@ export class CompetitionLifecycleService {
 
     // 2. REGISTRATION-OPEN -> REGISTRATION-CLOSED
     else if (targetStatus === 'registration-closed') {
-      const minTeams = (competition.groupsCount ?? 1) * 2;
-      const hasMinTeams = teams.length >= minTeams;
+      // O encerramento das inscrições é uma decisão administrativa do organizador.
+      // A quantidade mínima de equipes para o algoritmo de sorteio (ex: round-robin / Berger)
+      // é uma restrição técnica avaliada exclusivamente no contexto da prontidão do sorteio (Draw Readiness).
       checklist.push({
-        label: `Mínimo de equipes inscritas (${teams.length}/${minTeams})`,
-        passed: hasMinTeams,
-        critical: true,
-        detail: hasMinTeams ? undefined : `Requer ao menos ${minTeams} equipes para comportar os grupos.`,
+        label: `Equipes inscritas: ${teams.length}`,
+        passed: true,
+        critical: false,
+        detail: teams.length === 0 ? 'Aviso: nenhuma equipe foi inscrita antes do encerramento.' : undefined,
       });
-      if (!hasMinTeams) {
-        errors.push(`Não é possível encerrar inscrições: mínimo de ${minTeams} equipes necessárias (atual: ${teams.length}).`);
+      if (teams.length === 0) {
+        warnings.push('Atenção: a competição foi encerrada sem nenhuma equipe inscrita.');
       }
     }
 
-    // 3. REGISTRATION-CLOSED -> DRAW-PENDING
-    else if (targetStatus === 'draw-pending') {
+    // 3. REGISTRATION-CLOSED -> DRAW-PENDING / GROUPS-DEFINED
+    else if (targetStatus === 'draw-pending' || targetStatus === 'groups-defined') {
       const isRegClosed = currentStatus === 'registration-closed' || currentStatus === 'registration-open';
       checklist.push({
         label: 'Período de inscrições concluído',
@@ -103,7 +229,7 @@ export class CompetitionLifecycleService {
       if (!hasTeams) errors.push('Pelo menos 2 equipes confirmadas são necessárias para o sorteio de chaves.');
     }
 
-    // 4. DRAW-PENDING -> IN-PROGRESS
+    // 4. DRAW-PENDING / GROUPS-DEFINED -> IN-PROGRESS
     else if (targetStatus === 'in-progress') {
       const hasMatches = matches.length > 0;
       checklist.push({
@@ -214,12 +340,15 @@ export class CompetitionLifecycleService {
   public static getNextRecommendedStatus(current: CompetitionLifecycleStatus): CompetitionLifecycleStatus | null {
     switch (current) {
       case 'draft':
+      case 'planning':
         return 'registration-open';
       case 'registration-open':
+      case 'registration':
         return 'registration-closed';
       case 'registration-closed':
         return 'draw-pending';
       case 'draw-pending':
+      case 'groups-defined':
         return 'in-progress';
       case 'in-progress':
         return 'playoffs';
@@ -229,4 +358,144 @@ export class CompetitionLifecycleService {
         return null;
     }
   }
+
+  /**
+   * Realiza o fechamento formal e canônico das inscrições da competição (Fase 3).
+   * Valida transição, garante idempotência e audita via OperationalAuditService.
+   */
+  public static async closeRegistrations(
+    competitionId: string,
+    operator: string,
+  ): Promise<{ ok: boolean; competition?: CompetitionRecord; errors: string[] }> {
+    const competition = await dataAccess.getCompetition(competitionId);
+    if (!competition) {
+      return { ok: false, errors: ['Competição não encontrada.'] };
+    }
+
+    // Idempotência: se já estiver com inscrições encerradas
+    if (competition.status === 'registration-closed') {
+      return { ok: true, competition, errors: [] };
+    }
+
+    if (competition.status !== 'registration-open' && competition.status !== 'registration') {
+      return {
+        ok: false,
+        errors: [`Não é possível encerrar inscrições a partir do status "${competition.status}".`],
+      };
+    }
+
+    const teams = await dataAccess.listCompetitionTeams(competitionId);
+    const validation = this.validateTransition(competition, 'registration-closed', { teams });
+    if (!validation.valid) {
+      return { ok: false, errors: validation.errors };
+    }
+
+    const previousStatus = competition.status;
+    const updated: CompetitionRecord = {
+      ...competition,
+      status: 'registration-closed',
+    };
+
+    await dataAccess.updateCompetition(competition.id, { status: 'registration-closed' });
+
+    await OperationalAuditService.recordCompetitionTransition({
+      competition: updated,
+      operator,
+      previousStatus,
+      newStatus: 'registration-closed',
+    });
+
+    return { ok: true, competition: updated, errors: [] };
+  }
+
+  /**
+   * Realiza a transição canônica de ciclo de vida para 'groups-defined' após o sorteio oficial ser persistido.
+   * Trava formalmente as equipes da competição e audita a transição.
+   */
+  public static async advanceToGroupsDefinedAfterDraw(
+    competitionId: string,
+    operator: string,
+  ): Promise<{ ok: boolean; competition?: CompetitionRecord; errors: string[] }> {
+    const competition = await dataAccess.getCompetition(competitionId);
+    if (!competition) {
+      return { ok: false, errors: ['Competição não encontrada.'] };
+    }
+
+    // Se já estiver em 'groups-defined' ou além, retorno idempotente
+    if (competition.status === 'groups-defined') {
+      return { ok: true, competition, errors: [] };
+    }
+
+    // Guarda de integridade robusta (Fase 3.2 Homologação):
+    // 1. Confirmar se o registro do sorteio existe e possui grupos definidos com equipes
+    const draw = await dataAccess.getDrawByCompetition(competitionId);
+    if (!draw || !draw.groups || draw.groups.length === 0) {
+      return {
+        ok: false,
+        errors: [
+          'Não é possível avançar para "groups-defined": nenhuma partida foi encontrada ou persistida para esta competição (sorteio oficial ausente ou sem grupos).',
+        ],
+      };
+    }
+
+    // 2. Confirmar que existem partidas salvas correspondentes à fase de grupos
+    const matches = await dataAccess.listMatches(competitionId);
+    const groupMatches = (matches || []).filter(
+      m => m.groupName || m.phase === 'Fase de Grupos' || m.phase?.toLowerCase().includes('classificat') || m.phase?.toLowerCase().includes('grupo')
+    );
+
+    if (groupMatches.length === 0) {
+      return {
+        ok: false,
+        errors: [
+          'Não é possível avançar para "groups-defined": nenhuma partida foi encontrada ou persistida para esta competição.',
+        ],
+      };
+    }
+
+    // 3. Confirmar que as equipes sorteadas nos grupos possuem partidas cadastradas
+    const drawnTeamIds = new Set(
+      draw.groups.flatMap(g => (g.teams || []).map(t => (typeof t === 'string' ? t : t.teamId)))
+    );
+
+    if (drawnTeamIds.size >= 2) {
+      const matchTeamIds = new Set(groupMatches.flatMap(m => [m.teamAId, m.teamBId]));
+      const missingTeams = [...drawnTeamIds].filter(teamId => !matchTeamIds.has(teamId));
+
+      if (missingTeams.length > 0) {
+        return {
+          ok: false,
+          errors: [
+            `Inconsistência no sorteio: ${missingTeams.length} equipe(s) sorteadas em grupos não possuem partidas cadastradas na tabela de jogos.`,
+          ],
+        };
+      }
+    }
+
+    const previousStatus = competition.status;
+    const updated: CompetitionRecord = {
+      ...competition,
+      status: 'groups-defined',
+    };
+
+    await dataAccess.updateCompetition(competition.id, { status: 'groups-defined' });
+
+    // Tranca formalmente todas as inscrições da competição
+    const teams = await dataAccess.listCompetitionTeams(competitionId);
+    for (const t of teams) {
+      if (!t.isLocked) {
+        await dataAccess.updateCompetitionTeam(t.id, { isLocked: true });
+      }
+    }
+
+    await OperationalAuditService.recordCompetitionTransition({
+      competition: updated,
+      operator,
+      previousStatus,
+      newStatus: 'groups-defined',
+    });
+
+    return { ok: true, competition: updated, errors: [] };
+  }
 }
+

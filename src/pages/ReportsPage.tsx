@@ -284,6 +284,7 @@ export function ReportsPage() {
         }
         const standings = computeStandingsByGroup(registrations, filteredMatches, {
           criteria: competition.tiebreakCriteriaOrder,
+          competition,
         });
         return generateStandingsReportPdf(
           standings.map((group) => ({ groupName: group.groupName, standings: group.standings })),

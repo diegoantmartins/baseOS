@@ -53,4 +53,9 @@ export const SUPABASE_TABLES = {
   modalities: 'modalities',
   persons: 'persons',
   auditLogs: 'audit_logs',
+  publicCompetitions: 'public_competitions',
+  publicCompetitionTeams: 'public_competition_teams',
+  competitionStages: 'competition_stages',
+  competitionRounds: 'competition_rounds',
+  competitionMatchSlots: 'competition_match_slots',
 } as const;

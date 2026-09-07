@@ -15,6 +15,7 @@
 
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
 import type { StandingsByGroup, BestThirdResult } from '@/services/standingsService';
+import { CompetitionRulesService } from './competitionRulesService';
 
 export type PlayoffPhase = 'oitavas' | 'quartas' | 'semifinal' | 'terceiro_lugar' | 'final';
 
@@ -209,10 +210,9 @@ export function buildPlayoffMatches(
     const teamA = slot.sourceTeamA.teamId ? teamById.get(slot.sourceTeamA.teamId) : null;
     const teamB = slot.sourceTeamB.teamId ? teamById.get(slot.sourceTeamB.teamId) : null;
 
-    const customSetFormat =
-      slot.phase === 'final' || slot.phase === 'semifinal'
-        ? competition.phaseSetRules?.semifinals ?? competition.phaseSetRules?.final ?? (competition.setFormat as '3-sets' | '5-sets')
-        : competition.phaseSetRules?.playoffs ?? (competition.setFormat as '3-sets' | '5-sets');
+    const resolvedFormat = CompetitionRulesService.resolveMatchFormat(competition, slot.phase);
+    const customSetFormat: '3-sets' | '5-sets' =
+      resolvedFormat.setsToWin === 3 ? '5-sets' : '3-sets';
 
     return {
       competitionId: competition.id,
@@ -240,15 +240,30 @@ export function buildPlayoffMatches(
 
 /**
  * Propaga automaticamente os vencedores e perdedores de partidas eliminatórias
- * para os próximos confrontos do chaveamento.
+ * para os próximos confrontos do chaveamento usando o Resultado Canônico Oficial.
  */
 export function advancePlayoffMatches(
   matches: MatchRecord[],
   teams: TeamRecord[],
+  competition?: CompetitionRecord,
 ): { updatedMatches: MatchRecord[]; changed: boolean } {
   const teamById = new Map(teams.map(t => [t.id, t]));
   const updated = [...matches];
   let changed = false;
+
+  const getCanonicalWinnerAndLoser = (match: MatchRecord) => {
+    const isFinished = match.status === 'completed' || match.status === 'homologated';
+    if (!isFinished) return { winnerId: null, loserId: null };
+
+    const canonical = CompetitionRulesService.getCanonicalMatchResult(competition, match);
+    if (canonical.isCompleted && canonical.isValid) {
+      return { winnerId: canonical.winnerId, loserId: canonical.loserId };
+    }
+
+    const winnerId = match.winnerId ?? null;
+    const loserId = winnerId ? (winnerId === match.teamAId ? match.teamBId : match.teamAId) : null;
+    return { winnerId, loserId };
+  };
 
   // Localiza semifinais, disputa de 3º e final
   const semis = updated.filter(m => m.phase === 'semifinal');
@@ -259,8 +274,9 @@ export function advancePlayoffMatches(
   const quartas = updated.filter(m => m.phase === 'quartas');
   if (quartas.length === 4 && semis.length === 2) {
     // Q1 -> Semi1 Team A, Q2 -> Semi1 Team B
-    const q1Winner = quartas[0].status === 'completed' || quartas[0].status === 'homologated' ? quartas[0].winnerId : null;
-    const q2Winner = quartas[1].status === 'completed' || quartas[1].status === 'homologated' ? quartas[1].winnerId : null;
+    const { winnerId: q1Winner } = getCanonicalWinnerAndLoser(quartas[0]);
+    const { winnerId: q2Winner } = getCanonicalWinnerAndLoser(quartas[1]);
+
     if (q1Winner && semis[0].teamAId !== q1Winner) {
       const team = teamById.get(q1Winner);
       if (team) {
@@ -281,8 +297,9 @@ export function advancePlayoffMatches(
     }
 
     // Q3 -> Semi2 Team A, Q4 -> Semi2 Team B
-    const q3Winner = quartas[2].status === 'completed' || quartas[2].status === 'homologated' ? quartas[2].winnerId : null;
-    const q4Winner = quartas[3].status === 'completed' || quartas[3].status === 'homologated' ? quartas[3].winnerId : null;
+    const { winnerId: q3Winner } = getCanonicalWinnerAndLoser(quartas[2]);
+    const { winnerId: q4Winner } = getCanonicalWinnerAndLoser(quartas[3]);
+
     if (q3Winner && semis[1].teamAId !== q3Winner) {
       const team = teamById.get(q3Winner);
       if (team) {
@@ -308,16 +325,11 @@ export function advancePlayoffMatches(
     const semi1 = semis[0];
     const semi2 = semis[1];
 
-    const getLoserId = (match: MatchRecord): string | null => {
-      if (!match.winnerId) return null;
-      return match.winnerId === match.teamAId ? match.teamBId : match.teamAId;
-    };
+    const { winnerId: semi1Winner, loserId: semi1Loser } = getCanonicalWinnerAndLoser(semi1);
+    const { winnerId: semi2Winner, loserId: semi2Loser } = getCanonicalWinnerAndLoser(semi2);
 
     // Vencedores -> Final
     if (finalMatch) {
-      const semi1Winner = (semi1.status === 'completed' || semi1.status === 'homologated') ? semi1.winnerId : null;
-      const semi2Winner = (semi2.status === 'completed' || semi2.status === 'homologated') ? semi2.winnerId : null;
-
       if (semi1Winner && finalMatch.teamAId !== semi1Winner) {
         const team = teamById.get(semi1Winner);
         if (team) {
@@ -340,9 +352,6 @@ export function advancePlayoffMatches(
 
     // Perdedores -> 3º Lugar
     if (thirdPlace) {
-      const semi1Loser = (semi1.status === 'completed' || semi1.status === 'homologated') ? getLoserId(semi1) : null;
-      const semi2Loser = (semi2.status === 'completed' || semi2.status === 'homologated') ? getLoserId(semi2) : null;
-
       if (semi1Loser && thirdPlace.teamAId !== semi1Loser) {
         const team = teamById.get(semi1Loser);
         if (team) {
@@ -368,9 +377,13 @@ export function advancePlayoffMatches(
 }
 
 /**
- * Calcula o pódio final da competição (Campeão, Vice, 3º lugar e 4º lugar).
+ * Calcula o pódio final da competição (Campeão, Vice, 3º lugar e 4º lugar)
+ * com base no Resultado Canônico Oficial.
  */
-export function computePodium(matches: MatchRecord[]): {
+export function computePodium(
+  matches: MatchRecord[],
+  competition?: CompetitionRecord,
+): {
   championTeamId?: string;
   runnerUpTeamId?: string;
   thirdPlaceTeamId?: string;
@@ -384,14 +397,16 @@ export function computePodium(matches: MatchRecord[]): {
   let thirdPlaceTeamId: string | undefined;
   let fourthPlaceTeamId: string | undefined;
 
-  if (finalMatch?.winnerId) {
-    championTeamId = finalMatch.winnerId;
-    runnerUpTeamId = finalMatch.winnerId === finalMatch.teamAId ? finalMatch.teamBId : finalMatch.teamAId;
+  if (finalMatch) {
+    const canonical = CompetitionRulesService.getCanonicalMatchResult(competition, finalMatch);
+    championTeamId = canonical.winnerId ?? finalMatch.winnerId;
+    runnerUpTeamId = canonical.loserId ?? (finalMatch.winnerId === finalMatch.teamAId ? finalMatch.teamBId : finalMatch.teamAId);
   }
 
-  if (thirdMatch?.winnerId) {
-    thirdPlaceTeamId = thirdMatch.winnerId;
-    fourthPlaceTeamId = thirdMatch.winnerId === thirdMatch.teamAId ? thirdMatch.teamBId : thirdMatch.teamAId;
+  if (thirdMatch) {
+    const canonical = CompetitionRulesService.getCanonicalMatchResult(competition, thirdMatch);
+    thirdPlaceTeamId = canonical.winnerId ?? thirdMatch.winnerId;
+    fourthPlaceTeamId = canonical.loserId ?? (thirdMatch.winnerId === thirdMatch.teamAId ? thirdMatch.teamBId : thirdMatch.teamAId);
   }
 
   return { championTeamId, runnerUpTeamId, thirdPlaceTeamId, fourthPlaceTeamId };
