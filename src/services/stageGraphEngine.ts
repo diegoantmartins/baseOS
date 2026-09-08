@@ -273,7 +273,9 @@ export class StageGraph {
             stageId: t.targetStageId,
           });
         } else {
-          forwardAdj.get(sourceStageId)?.add(t.targetStageId);
+          if (sourceStageId !== t.targetStageId) {
+            forwardAdj.get(sourceStageId)?.add(t.targetStageId);
+          }
 
           // Valida rodada de destino se o estágio tiver rodadas cadastradas
           const targetStage = stagesById.get(t.targetStageId);

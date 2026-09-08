@@ -94,6 +94,7 @@ export type CompetitionFormatType =
   | 'groups-knockout'
   | 'groups-play-in-knockout'
   | 'knockout'
+  | 'double-elimination'
   | 'custom';
 
 /**

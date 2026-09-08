@@ -15,6 +15,7 @@
 import type {
   CompetitionConfig,
   CompetitionFormatType,
+  ProgressionRoute,
   SetsToWin,
   StageDefinition,
 } from '@/types/competitionConfig';
@@ -22,6 +23,7 @@ import {
   DEFAULT_BEACH_COMPETITION_CONFIG,
   DEFAULT_INDOOR_COMPETITION_CONFIG,
 } from '@/types/competitionConfig';
+import { GenericPairingEngine } from './genericPairingEngine';
 
 export interface CompetitionTemplateMetadata {
   id: string;
@@ -91,6 +93,17 @@ export class CompetitionTemplateService {
         defaultSetsToWin: 2,
         tags: ['Mata-Mata', 'Chaveamento Simples', 'Tiro Curto'],
       },
+      {
+        id: 'double-elimination-standard',
+        formatType: 'double-elimination',
+        name: 'Eliminatória Dupla (Double Elimination)',
+        description: 'Chaveamento com chave principal (Winners) e repescagem (Losers). Uma equipe só é eliminada após sofrer duas derrotas. Os campeões de cada chave disputam a Grande Final.',
+        category: 'all',
+        recommendedTeamsMin: 4,
+        recommendedTeamsMax: 16,
+        defaultSetsToWin: 2,
+        tags: ['Dupla Eliminação', 'Winners/Losers', 'Oficial'],
+      },
     ];
   }
 
@@ -128,6 +141,9 @@ export class CompetitionTemplateService {
 
       case 'knockout-pure-standard':
         return this.buildKnockoutConfig(baseConfig, options);
+
+      case 'double-elimination-standard':
+        return this.buildDoubleEliminationConfig(baseConfig, options);
 
       default:
         // Fallback seguro: grupos + mata-mata
@@ -406,6 +422,118 @@ export class CompetitionTemplateService {
           final: 3,
         },
         stages: [stage],
+      },
+      standings: {
+        ...base.standings,
+        advancingPerGroup: 1,
+      },
+    };
+  }
+
+  private static buildDoubleEliminationConfig(
+    base: CompetitionConfig,
+    options: CreateConfigOptions,
+  ): CompetitionConfig {
+    const rawCount = options.teamsCount ?? 8;
+    // Determina potência de 2 no bracketSize (4, 8, 16)
+    let bracketSize = 4;
+    if (rawCount > 8) {
+      bracketSize = 16;
+    } else if (rawCount > 4) {
+      bracketSize = 8;
+    }
+
+    const doubleElim = GenericPairingEngine.pairDoubleElimination({
+      bracketSize,
+      stageWinnersId: 'stage-winners',
+      stageLosersId: 'stage-losers',
+      stageGrandFinalId: 'stage-grand-final',
+    });
+
+    const stageWinners: StageDefinition = {
+      id: 'stage-winners',
+      stageId: 'stage-winners',
+      order: 1,
+      name: 'Chave Principal (Winners Bracket)',
+      type: 'knockout',
+      eliminationConfig: {
+        bracketSize,
+        hasThirdPlaceMatch: false,
+      },
+      pairingConfig: {
+        strategy: 'seeded-bracket',
+        bracketSize,
+      },
+      participantFeeds: Array.from({ length: bracketSize }, (_, i) => ({
+        type: 'seed' as const,
+        seedNumber: i + 1,
+      })),
+      rounds: doubleElim.roundsWinners.map(r => ({
+        roundId: r.roundId,
+        stageId: 'stage-winners',
+        order: r.order,
+        name: r.name,
+        slotsCount: r.slotsCount,
+      })),
+      progressionRoutes: doubleElim.winnersSlots
+        .map(s => s.progressionRoute)
+        .filter(Boolean) as ProgressionRoute[],
+    };
+
+    const stageLosers: StageDefinition = {
+      id: 'stage-losers',
+      stageId: 'stage-losers',
+      order: 2,
+      name: 'Chave de Repescagem (Losers Bracket)',
+      type: 'knockout',
+      dependsOnStageIds: ['stage-winners'],
+      eliminationConfig: {
+        bracketSize,
+        hasThirdPlaceMatch: false,
+      },
+      rounds: doubleElim.roundsLosers.map(r => ({
+        roundId: r.roundId,
+        stageId: 'stage-losers',
+        order: r.order,
+        name: r.name,
+        slotsCount: r.slotsCount,
+      })),
+      progressionRoutes: doubleElim.losersSlots
+        .map(s => s.progressionRoute)
+        .filter(Boolean) as ProgressionRoute[],
+    };
+
+    const stageGrandFinal: StageDefinition = {
+      id: 'stage-grand-final',
+      stageId: 'stage-grand-final',
+      order: 3,
+      name: 'Grande Final',
+      type: 'knockout',
+      dependsOnStageIds: ['stage-winners', 'stage-losers'],
+      eliminationConfig: {
+        bracketSize: 2,
+        hasThirdPlaceMatch: false,
+      },
+      rounds: doubleElim.roundsGrandFinal.map(r => ({
+        roundId: r.roundId,
+        stageId: 'stage-grand-final',
+        order: r.order,
+        name: r.name,
+        slotsCount: r.slotsCount,
+      })),
+      progressionRoutes: [],
+    };
+
+    return {
+      ...base,
+      format: {
+        ...base.format,
+        formatType: 'double-elimination',
+        phaseOverrides: {
+          semifinals: 3,
+          final: 3,
+        },
+        stages: [stageWinners, stageLosers, stageGrandFinal],
       },
       standings: {
         ...base.standings,

@@ -4,6 +4,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { CompetitionRecord } from '@/types/entities';
+import type { CompetitionConfig, SetsToWin } from '@/types/competitionConfig';
+import { parseLegacySetFormat } from '@/types/competitionConfig';
 import { CompetitionRulesService } from '@/services/competitionRulesService';
 
 export interface CompetitionSettingsEditDialogProps {
@@ -13,33 +15,67 @@ export interface CompetitionSettingsEditDialogProps {
   onSave: (updates: Partial<CompetitionRecord>) => Promise<void>;
 }
 
+function setsToWinToLegacy(sets?: SetsToWin | number): '3-sets' | '5-sets' {
+  return sets === 3 ? '5-sets' : '3-sets';
+}
+
+function resolveInitialSetFormat(competition: CompetitionRecord): '3-sets' | '5-sets' {
+  if (competition.config?.format?.defaultSetsToWin) {
+    return setsToWinToLegacy(competition.config.format.defaultSetsToWin);
+  }
+  return (competition.setFormat as '3-sets' | '5-sets') || '3-sets';
+}
+
+function resolveInitialGroupStage(competition: CompetitionRecord): '3-sets' | '5-sets' {
+  if (competition.config?.format?.phaseOverrides?.groupStage) {
+    return setsToWinToLegacy(competition.config.format.phaseOverrides.groupStage);
+  }
+  return (competition.phaseSetRules?.groupStage as '3-sets' | '5-sets') || resolveInitialSetFormat(competition);
+}
+
+function resolveInitialPlayoffs(competition: CompetitionRecord): '3-sets' | '5-sets' {
+  const override = competition.config?.format?.phaseOverrides?.quarterfinals ?? competition.config?.format?.phaseOverrides?.playoffs;
+  if (override) {
+    return setsToWinToLegacy(override);
+  }
+  return (competition.phaseSetRules?.playoffs as '3-sets' | '5-sets') || resolveInitialSetFormat(competition);
+}
+
+function resolveInitialSemifinals(competition: CompetitionRecord): '3-sets' | '5-sets' {
+  if (competition.config?.format?.phaseOverrides?.semifinals) {
+    return setsToWinToLegacy(competition.config.format.phaseOverrides.semifinals);
+  }
+  return (competition.phaseSetRules?.semifinals as '3-sets' | '5-sets') || '5-sets';
+}
+
+function resolveInitialFinal(competition: CompetitionRecord): '3-sets' | '5-sets' {
+  if (competition.config?.format?.phaseOverrides?.final) {
+    return setsToWinToLegacy(competition.config.format.phaseOverrides.final);
+  }
+  return (competition.phaseSetRules?.final as '3-sets' | '5-sets') || '5-sets';
+}
+
 export function CompetitionSettingsEditDialog({
   open,
   onOpenChange,
   competition,
   onSave,
 }: CompetitionSettingsEditDialogProps) {
-  const [setFormat, setSetFormat] = useState(competition.setFormat || '3-sets');
-  const [groupStage, setGroupStage] = useState(
-    competition.phaseSetRules?.groupStage || competition.setFormat || '3-sets',
-  );
-  const [playoffs, setPlayoffs] = useState(
-    competition.phaseSetRules?.playoffs || competition.setFormat || '3-sets',
-  );
-  const [semifinals, setSemifinals] = useState(
-    competition.phaseSetRules?.semifinals || '5-sets',
-  );
-  const [final, setFinal] = useState(competition.phaseSetRules?.final || '5-sets');
+  const [setFormat, setSetFormat] = useState(() => resolveInitialSetFormat(competition));
+  const [groupStage, setGroupStage] = useState(() => resolveInitialGroupStage(competition));
+  const [playoffs, setPlayoffs] = useState(() => resolveInitialPlayoffs(competition));
+  const [semifinals, setSemifinals] = useState(() => resolveInitialSemifinals(competition));
+  const [final, setFinal] = useState(() => resolveInitialFinal(competition));
 
   const isLocked = CompetitionRulesService.areRulesLocked(competition);
 
   useEffect(() => {
     if (open) {
-      setSetFormat(competition.setFormat || '3-sets');
-      setGroupStage(competition.phaseSetRules?.groupStage || competition.setFormat || '3-sets');
-      setPlayoffs(competition.phaseSetRules?.playoffs || competition.setFormat || '3-sets');
-      setSemifinals(competition.phaseSetRules?.semifinals || '5-sets');
-      setFinal(competition.phaseSetRules?.final || '5-sets');
+      setSetFormat(resolveInitialSetFormat(competition));
+      setGroupStage(resolveInitialGroupStage(competition));
+      setPlayoffs(resolveInitialPlayoffs(competition));
+      setSemifinals(resolveInitialSemifinals(competition));
+      setFinal(resolveInitialFinal(competition));
     }
   }, [open, competition]);
 
@@ -54,11 +90,31 @@ export function CompetitionSettingsEditDialog({
       final: final as '3-sets' | '5-sets',
     };
 
-    const updatedConfig = CompetitionRulesService.normalizeLegacyToConfig({
-      ...competition,
-      setFormat: setFormat as '3-sets' | '5-sets',
-      phaseSetRules: updatedPhaseRules,
-    });
+    let updatedConfig: CompetitionConfig;
+    if (competition.config) {
+      const baseConfig: CompetitionConfig = JSON.parse(JSON.stringify(competition.config));
+      updatedConfig = {
+        ...baseConfig,
+        format: {
+          ...baseConfig.format,
+          defaultSetsToWin: parseLegacySetFormat(setFormat),
+          phaseOverrides: {
+            ...baseConfig.format.phaseOverrides,
+            groupStage: parseLegacySetFormat(groupStage),
+            playoffs: parseLegacySetFormat(playoffs),
+            quarterfinals: parseLegacySetFormat(playoffs),
+            semifinals: parseLegacySetFormat(semifinals),
+            final: parseLegacySetFormat(final),
+          },
+        },
+      };
+    } else {
+      updatedConfig = CompetitionRulesService.normalizeLegacyToConfig({
+        ...competition,
+        setFormat: setFormat as '3-sets' | '5-sets',
+        phaseSetRules: updatedPhaseRules,
+      });
+    }
 
     onSave({
       setFormat: setFormat as '3-sets' | '5-sets',

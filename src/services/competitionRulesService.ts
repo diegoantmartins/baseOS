@@ -139,17 +139,17 @@ export class CompetitionRulesService {
       const overrides = config.format.phaseOverrides;
 
       if (overrides) {
-        if (p === 'final' && overrides.final) {
+        if ((p === 'final' || p === 'finais') && overrides.final) {
           setsToWin = overrides.final;
-        } else if ((p === 'semifinal' || p === 'semifinais') && overrides.semifinals) {
+        } else if ((p === 'semifinal' || p === 'semifinais' || p === 'semifinals') && overrides.semifinals) {
           setsToWin = overrides.semifinals;
-        } else if (p === 'terceiro_lugar' && (overrides.thirdPlace || overrides.semifinals)) {
+        } else if ((p === 'terceiro_lugar' || p === 'thirdplace' || p === 'third-place' || p === 'third_place') && (overrides.thirdPlace || overrides.semifinals)) {
           setsToWin = overrides.thirdPlace ?? overrides.semifinals!;
-        } else if ((p === 'quartas' || p === 'playoffs') && (overrides.quarterfinals || overrides.playoffs)) {
+        } else if ((p === 'quartas' || p === 'quarterfinals' || p === 'playoffs') && (overrides.quarterfinals || overrides.playoffs)) {
           setsToWin = overrides.quarterfinals ?? overrides.playoffs!;
-        } else if (p === 'oitavas' && overrides.roundOf16) {
+        } else if ((p === 'oitavas' || p === 'roundof16' || p === 'round-of-16') && overrides.roundOf16) {
           setsToWin = overrides.roundOf16;
-        } else if ((p === 'group-stage' || p === 'classificatória' || p === 'classificatoria') && overrides.groupStage) {
+        } else if ((p === 'group-stage' || p === 'groupstage' || p === 'groups' || p === 'classificatória' || p === 'classificatoria') && overrides.groupStage) {
           setsToWin = overrides.groupStage;
         }
       }
