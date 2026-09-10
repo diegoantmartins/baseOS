@@ -167,7 +167,6 @@ export default function CompetitionsPage() {
       registrations.push({ team, groupName: groupMatch?.groupName ?? selected.groupName });
     }
     return computeStandingsByGroup(registrations, selectedMatches, {
-      criteria: selected.tiebreakCriteriaOrder,
       competition: selected,
     });
   }, [selected, selectedTeams, teams, selectedMatches]);

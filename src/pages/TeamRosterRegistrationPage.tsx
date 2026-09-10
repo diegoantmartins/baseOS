@@ -260,7 +260,6 @@ export function TeamRosterRegistrationPage() {
     if (!competition) return [];
     const compTeams = allTeams.map(t => ({ team: t, groupName: competition.groupName || 'Geral' }));
     return computeStandingsByGroup(compTeams, matches, {
-      criteria: competition.tiebreakCriteriaOrder,
       competition,
     });
   }, [competition, allTeams, matches]);

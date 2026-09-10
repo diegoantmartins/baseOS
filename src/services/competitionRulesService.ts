@@ -28,6 +28,7 @@ import {
   parseLegacySetFormat,
 } from '@/types/competitionConfig';
 import { DEFAULT_TIEBREAK_CRITERIA } from './standingsService';
+import { ScoringEngine, type MatchPointsResult } from './scoringEngine';
 
 export type RuleValidationResult = {
   valid: boolean;
@@ -166,6 +167,8 @@ export class CompetitionRulesService {
 
   /**
    * Calcula a pontuação na tabela de classificação de acordo com o regulamento da competição.
+   * Atua como fachada normativa (SSOT), resolvendo o ScoringSystemConfig oficial da competição
+   * e delegando o cálculo aritmético puro ao ScoringEngine.
    */
   public static calculateCompetitionPoints(
     competition: CompetitionRecord,
@@ -174,33 +177,19 @@ export class CompetitionRulesService {
     isWo = false,
   ): number {
     const config = this.getConfig(competition);
-    const scoring = config.scoring;
+    return ScoringEngine.calculateTeamPoints(setsWon, setsLost, isWo, config.scoring);
+  }
 
-    if (isWo) {
-      return setsWon > setsLost ? scoring.pointsWoWin : scoring.pointsWoLoss;
-    }
-
-    if (setsWon === setsLost) return 0;
-
-    // Vitória
-    if (setsWon > setsLost) {
-      const diff = setsWon - setsLost;
-      // Vitória com placar apertado / tiebreak (diferença de 1 set: 3x2 ou 2x1)
-      if (diff === 1) {
-        return scoring.pointsWinNarrow;
-      }
-      // Vitória limpa (diferença >= 2 sets: 3x0, 3x1, 2x0)
-      return scoring.pointsWinClear;
-    }
-
-    // Derrota
-    const diff = setsLost - setsWon;
-    // Derrota no tiebreak (diferença de 1 set: 2x3 ou 1x2)
-    if (diff === 1) {
-      return scoring.pointsLossNarrow;
-    }
-    // Derrota limpa (diferença >= 2 sets: 0x3, 1x3, 0x2)
-    return scoring.pointsLossClear;
+  /**
+   * Calcula a distribuição de pontos da partida para ambas as equipes de acordo com
+   * o regulamento da competição e o resultado canônico oficial.
+   */
+  public static calculateMatchPoints(
+    competition: CompetitionRecord,
+    canonical: CanonicalMatchResult,
+  ): MatchPointsResult {
+    const config = this.getConfig(competition);
+    return ScoringEngine.calculatePoints(canonical, config.scoring);
   }
 
   /**

@@ -151,18 +151,18 @@ export function getPublicStatusLabel(status: CompetitionLifecycleStatus): string
  * Projeta estritamente os campos públicos e as regras esportivas de uma competição.
  */
 export function sanitizePublicCompetition(comp: CompetitionRecord): PublicCompetitionDTO {
-  const cfg = comp.config;
-  const setsToWin = cfg?.format?.defaultSetsToWin ?? (comp.setFormat === '3-sets' ? 2 : 3);
-  const regularSetPoints = cfg?.format?.setRules?.regularSetPoints ?? 25;
-  const tiebreakPoints = cfg?.format?.setRules?.tiebreakPoints ?? 15;
+  const cfg = CompetitionRulesService.getConfig(comp);
+  const setsToWin = cfg.format.defaultSetsToWin;
+  const regularSetPoints = cfg.format.setRules.regularSetPoints;
+  const tiebreakPoints = cfg.format.setRules.tiebreakPoints;
   const maxSets = (setsToWin * 2) - 1;
 
-  const pointsWinClear = cfg?.scoring?.pointsWinClear ?? 3;
-  const pointsWinNarrow = cfg?.scoring?.pointsWinNarrow ?? 2;
-  const pointsLossNarrow = cfg?.scoring?.pointsLossNarrow ?? 1;
-  const pointsLossClear = cfg?.scoring?.pointsLossClear ?? 0;
-  const pointsWoWin = cfg?.scoring?.pointsWoWin ?? 3;
-  const pointsWoLoss = cfg?.scoring?.pointsWoLoss ?? 0;
+  const pointsWinClear = cfg.scoring.pointsWinClear;
+  const pointsWinNarrow = cfg.scoring.pointsWinNarrow;
+  const pointsLossNarrow = cfg.scoring.pointsLossNarrow;
+  const pointsLossClear = cfg.scoring.pointsLossClear;
+  const pointsWoWin = cfg.scoring.pointsWoWin;
+  const pointsWoLoss = cfg.scoring.pointsWoLoss;
 
   return {
     id: comp.id,
@@ -318,7 +318,6 @@ export const publicCompetitionService = {
     }
 
     const standings = computeStandingsByGroup(standingInputs, matches, {
-      criteria: rawComp.tiebreakCriteriaOrder ?? rawComp.config?.standings?.tiebreakCriteriaOrder,
       competition: rawComp,
     });
 
@@ -416,7 +415,6 @@ export const publicCompetitionService = {
     }
 
     return computeStandingsByGroup(standingInputs, matches, {
-      criteria: rawComp?.tiebreakCriteriaOrder ?? rawComp?.config?.standings?.tiebreakCriteriaOrder,
       competition: rawComp ?? undefined,
     });
   },

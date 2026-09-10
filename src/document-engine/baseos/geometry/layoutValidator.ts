@@ -39,6 +39,10 @@ export function flattenLayoutRects(layout: ScoresheetLayout): Array<{ id: string
     { id: 'result', rect: layout.cards.result },
   ];
 
+  if (layout.cards.remarks) {
+    rects.push({ id: 'remarks', rect: layout.cards.remarks });
+  }
+
   ([1, 2, 3, 4, 5] as const).forEach(setNumber => {
     const rect = layout.cards.sets[setNumber];
     if (rect) rects.push({ id: `set${setNumber}`, rect });

@@ -37,60 +37,66 @@ function cardStyle(rect: Rect) {
   ];
 }
 
-interface BaseosThreeSetScoresheetProps {
+export interface BaseosThreeSetScoresheetProps {
   data: BaseosScoresheetData;
 }
 
-export const BaseosThreeSetScoresheet: React.FC<BaseosThreeSetScoresheetProps> = ({ data }) => {
+export const BaseosThreeSetPage: React.FC<BaseosThreeSetScoresheetProps> = ({ data }) => {
   const layout = getScoresheetLayout('3-sets', data.document.output);
 
   return (
+    <Page size={layout.page.name} orientation={layout.page.orientation} style={styles.page}>
+      <View style={cardStyle(layout.cards.header)}>
+        <BaseosHeader
+          competition={data.competition}
+          match={data.match}
+          teamAName={data.teams.A.name}
+          teamBName={data.teams.B.name}
+        />
+      </View>
+
+      <View style={cardStyle(layout.cards.sets[1]!)}>
+        <BaseosSetBlock setData={data.sets.set1} teamA={data.teams.A} teamB={data.teams.B} height={layout.cards.sets[1]!.height} />
+      </View>
+      <View style={cardStyle(layout.cards.sets[2]!)}>
+        <BaseosSetBlock setData={data.sets.set2} teamA={data.teams.A} teamB={data.teams.B} height={layout.cards.sets[2]!.height} />
+      </View>
+      <View style={cardStyle(layout.cards.sets[3]!)}>
+        <BaseosSetBlock setData={data.sets.set3} teamA={data.teams.A} teamB={data.teams.B} isDecidingSet height={layout.cards.sets[3]!.height} />
+      </View>
+
+      <View style={cardStyle(layout.cards.rosters)}>
+        <BaseosRosters teamA={data.teams.A} teamB={data.teams.B} height={layout.cards.rosters.height} />
+      </View>
+      <View style={cardStyle(layout.cards.sanctions)}>
+        <BaseosSanctions sanctions={data.sanctions} improperRequests={data.improperRequests} height={layout.cards.sanctions.height} />
+      </View>
+      <View style={cardStyle(layout.cards.signatures)}>
+        <BaseosSignatures officials={data.officials} signatures={data.signatures} observations={data.observations} height={layout.cards.signatures.height} />
+      </View>
+      <View style={cardStyle(layout.cards.result)}>
+        <BaseosResult result={data.result} teamA={data.teams.A} teamB={data.teams.B} maxSets={3} height={layout.cards.result.height} />
+      </View>
+
+      {layout.cards.remarks && (
+        <View style={cardStyle(layout.cards.remarks)}>
+          <BaseosRemarks layout={layout.cards.remarks} observations={data.observations} />
+        </View>
+      )}
+      
+      <View style={{ position: 'absolute', bottom: 3.5, left: 0, right: 0, alignItems: 'center' }}>
+        <Text style={{ fontFamily: 'Helvetica', fontSize: 4.5, color: '#666' }}>
+          Súmula Oficial processada e gerada pelo sistema Base OS
+        </Text>
+      </View>
+    </Page>
+  );
+};
+
+export const BaseosThreeSetScoresheet: React.FC<BaseosThreeSetScoresheetProps> = ({ data }) => {
+  return (
     <Document title={`Sumula_Oficial_3Sets_Jogo_${data.match.number || '1'}`}>
-      <Page size={layout.page.name} orientation={layout.page.orientation} style={styles.page}>
-        <View style={cardStyle(layout.cards.header)}>
-          <BaseosHeader
-            competition={data.competition}
-            match={data.match}
-            teamAName={data.teams.A.name}
-            teamBName={data.teams.B.name}
-          />
-        </View>
-
-        <View style={cardStyle(layout.cards.sets[1]!)}>
-          <BaseosSetBlock setData={data.sets.set1} teamA={data.teams.A} teamB={data.teams.B} height={layout.cards.sets[1]!.height} />
-        </View>
-        <View style={cardStyle(layout.cards.sets[2]!)}>
-          <BaseosSetBlock setData={data.sets.set2} teamA={data.teams.A} teamB={data.teams.B} height={layout.cards.sets[2]!.height} />
-        </View>
-        <View style={cardStyle(layout.cards.sets[3]!)}>
-          <BaseosSetBlock setData={data.sets.set3} teamA={data.teams.A} teamB={data.teams.B} isDecidingSet height={layout.cards.sets[3]!.height} />
-        </View>
-
-        <View style={cardStyle(layout.cards.rosters)}>
-          <BaseosRosters teamA={data.teams.A} teamB={data.teams.B} height={layout.cards.rosters.height} />
-        </View>
-        <View style={cardStyle(layout.cards.sanctions)}>
-          <BaseosSanctions sanctions={data.sanctions} improperRequests={data.improperRequests} height={layout.cards.sanctions.height} />
-        </View>
-        <View style={cardStyle(layout.cards.signatures)}>
-          <BaseosSignatures officials={data.officials} signatures={data.signatures} observations={data.observations} height={layout.cards.signatures.height} />
-        </View>
-        <View style={cardStyle(layout.cards.result)}>
-          <BaseosResult result={data.result} teamA={data.teams.A} teamB={data.teams.B} maxSets={3} height={layout.cards.result.height} />
-        </View>
-
-        {layout.cards.remarks && (
-          <View style={cardStyle(layout.cards.remarks)}>
-            <BaseosRemarks layout={layout.cards.remarks} observations={data.observations} />
-          </View>
-        )}
-        
-        <View style={{ position: 'absolute', bottom: 5, left: 0, right: 0, alignItems: 'center' }}>
-          <Text style={{ fontFamily: 'Helvetica', fontSize: 5.0, color: '#666' }}>
-            Súmula Oficial processada e gerada pelo sistema Base OS
-          </Text>
-        </View>
-      </Page>
+      <BaseosThreeSetPage data={data} />
     </Document>
   );
 };

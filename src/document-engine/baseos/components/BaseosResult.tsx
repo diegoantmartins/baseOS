@@ -286,7 +286,9 @@ export const BaseosResult: React.FC<BaseosResultProps> = ({
           VENCEDOR: {result?.winnerTeamName ? result.winnerTeamName.toUpperCase() : '________________________'}
         </Text>
         <Text style={styles.winnerText}>
-          {maxSets === 5 ? '3' : '2'} : {result?.finalScoreSetsB !== undefined ? String(result.finalScoreSetsB) : '....'}
+          {result?.finalScoreSetsA !== undefined && result?.finalScoreSetsB !== undefined
+            ? `${result.finalScoreSetsA} : ${result.finalScoreSetsB}`
+            : '.. : ..'}
         </Text>
       </View>
     </View>

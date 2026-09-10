@@ -1,7 +1,11 @@
 // =====================================================================
-// Súmula Oficial de Voleibol — Reprodução Fiel e Idêntica ao Padrão
-// Oficial da Federação (CBV / FPV) em A4 Paisagem (297 × 210 mm).
-// VISUAL PREMIUM
+// Súmula Oficial de Voleibol — Reprodução Fiel ao Padrão da Federação
+//
+// @deprecated LEGADO / REFERÊNCIA / DEPRECADO
+// Este gerador baseado em jsPDF A4 Paisagem é mantido como referência técnica.
+// O motor canônico ativo para emissão e download de súmulas é o Motor BaseOS
+// localizado em src/document-engine/baseos/ (@react-pdf/renderer).
+// NÃO utilizar em novos fluxos. Preservado para referência e validação.
 // =====================================================================
 
 import jsPDF from 'jspdf';

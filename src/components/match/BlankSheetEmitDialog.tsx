@@ -9,8 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { generateBlankBaseosPdfBlob } from '@/document-engine/baseos';
-import { generateBlankServeOrderSheet } from '@/document-engine/generators/ordemSaque.generator';
+import { generateBlankBaseosPdfBlob, generateBlankServeOrderPdfBlob } from '@/document-engine/baseos';
 
 interface Props {
   open: boolean;
@@ -38,8 +37,7 @@ export function BlankSheetEmitDialog({ open, onOpenChange, defaultFormat = '3-se
     } else if (docType === 'sumula-5') {
       return generateBlankBaseosPdfBlob('5-sets');
     } else {
-      const bytes = await generateBlankServeOrderSheet();
-      return new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      return generateBlankServeOrderPdfBlob(defaultFormat);
     }
   };
 

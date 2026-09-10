@@ -30,6 +30,7 @@ export interface SubstitutionEntry {
 export interface BaseosSetData {
   setNumber: 1 | 2 | 3 | 4 | 5;
   status: 'not-started' | 'in-progress' | 'completed';
+  targetPoints?: number;
   startTime?: string;
   endTime?: string;
   durationMinutes?: number;

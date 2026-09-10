@@ -405,7 +405,6 @@ export function MatchesPage() {
         .filter(Boolean) as { team: TeamRecord; groupName: string }[];
 
       const groupStandings = computeStandingsByGroup(registrations, compMatches, {
-        criteria: comp.tiebreakCriteriaOrder,
         competition: comp,
       });
 

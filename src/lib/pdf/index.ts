@@ -24,14 +24,7 @@ export {
   buildMultipleMatchSheetData,
 } from './matchSheetDataBuilder';
 
-export {
-  OfficialScoresheetDocument,
-} from './officialScoresheetPdf';
 
-export {
-  generateOfficialScoresheetPdfBlob,
-  downloadOfficialScoresheetPdf,
-} from './officialScoresheetPdfGenerator';
 
 export {
   generateMatchSheetPdf,

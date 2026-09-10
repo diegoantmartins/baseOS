@@ -51,6 +51,7 @@ import {
   type TeamStandingResult,
   type StandingInput,
 } from '@/services/standingsService';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
 import { generateStandingsReportPdf, downloadReportsPdf, type StandingsReportGroup } from '@/lib/pdf/reportsPdf';
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
 import type { CompetitionTeam } from '@/types/registration';
@@ -148,7 +149,6 @@ export function StandingsPage() {
   const groupStandings = useMemo(() => {
     if (!selectedCompetition || compRegistrations.length === 0) return [];
     return computeStandingsByGroup(compRegistrations, compMatches, {
-      criteria: selectedCompetition.tiebreakCriteriaOrder,
       competition: selectedCompetition,
     });
   }, [selectedCompetition, compRegistrations, compMatches]);
@@ -435,7 +435,7 @@ export function StandingsPage() {
             >
               <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
-                  {(selectedCompetition?.tiebreakCriteriaOrder || [
+                  {((selectedCompetition && CompetitionRulesService.getConfig(selectedCompetition).standings?.tiebreakCriteriaOrder) || [
                     'points',
                     'head-to-head',
                     'set-average',

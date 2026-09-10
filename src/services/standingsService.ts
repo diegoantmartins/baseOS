@@ -79,10 +79,21 @@ export const TIEBREAK_CRITERIA_LABELS: Record<TiebreakCriterionId, string> = {
  * vitória 3-0 ou 3-1 = 3 pts; vitória 3-2 = 2 pts;
  * derrota 2-3 = 1 pt; derrota 0-3 ou 1-3 = 0 pts.
  */
-export function competitionPointsFromSets(setsWon: number, setsLost: number): number {
-  if (setsWon === setsLost) return 0;
-  if (setsWon > setsLost) return setsWon - setsLost === 1 ? 2 : 3;
-  return setsLost - setsWon === 1 ? 1 : 0;
+export function competitionPointsFromSets(
+  setsWon: number,
+  setsLost: number,
+  isWo = false,
+  competition?: CompetitionRecord,
+): number {
+  if (competition) {
+    return CompetitionRulesService.calculateCompetitionPoints(competition, setsWon, setsLost, isWo);
+  }
+  return CompetitionRulesService.calculateCompetitionPoints(
+    { modality: 'indoor' } as CompetitionRecord,
+    setsWon,
+    setsLost,
+    isWo,
+  );
 }
 
 export function isMatchCompleted(match: MatchRecord, onlyHomologated = false): boolean {
@@ -141,9 +152,7 @@ export function accumulateStats(
     stats.pointsWon += pointsScored;
     stats.pointsLost += pointsConceded;
 
-    const points = competition
-      ? CompetitionRulesService.calculateCompetitionPoints(competition, setsWon, setsLost, canonical.isWo)
-      : competitionPointsFromSets(setsWon, setsLost);
+    const points = competitionPointsFromSets(setsWon, setsLost, canonical.isWo, competition);
     stats.competitionPoints += points;
   }
 
@@ -161,6 +170,7 @@ export function headToHeadWinner(
   teamAId: string,
   teamBId: string,
   onlyHomologated = false,
+  competition?: CompetitionRecord,
 ): string | null {
   let winsA = 0;
   let winsB = 0;
@@ -170,7 +180,7 @@ export function headToHeadWinner(
       (match.teamAId === teamAId && match.teamBId === teamBId) ||
       (match.teamAId === teamBId && match.teamBId === teamAId);
     if (!involvesBoth) continue;
-    const winner = matchWinner(match);
+    const winner = matchWinner(match, competition);
     if (winner === teamAId) winsA += 1;
     else if (winner === teamBId) winsB += 1;
   }
@@ -188,6 +198,7 @@ function evaluateSingleCriterion(
   b: TeamStandingResult,
   matches: MatchRecord[],
   onlyHomologated: boolean,
+  competition?: CompetitionRecord,
 ): { diff: number; reason?: string } {
   switch (criterion) {
     case 'points':
@@ -209,7 +220,7 @@ function evaluateSingleCriterion(
       return { diff: 0 };
 
     case 'head-to-head': {
-      const winner = headToHeadWinner(matches, a.teamId, b.teamId, onlyHomologated);
+      const winner = headToHeadWinner(matches, a.teamId, b.teamId, onlyHomologated, competition);
       if (winner === a.teamId) {
         return { diff: -1, reason: `${a.teamName} venceu o confronto direto contra ${b.teamName}` };
       }
@@ -293,9 +304,7 @@ export function computeStandings(
     ? options.criteria
     : configCriteria?.length
       ? configCriteria
-      : competition?.tiebreakCriteriaOrder?.length
-        ? competition.tiebreakCriteriaOrder
-        : DEFAULT_TIEBREAK_CRITERIA;
+      : DEFAULT_TIEBREAK_CRITERIA;
   const onlyHomologated = options?.onlyHomologated ?? false;
 
   const rows: TeamStandingResult[] = teams.map(({ team, groupName }) => ({
@@ -317,7 +326,7 @@ export function computeStandings(
   // Comportamento canônico pairwise original
   rows.sort((a, b) => {
     for (const criterion of criteria) {
-      const { diff, reason } = evaluateSingleCriterion(criterion, a, b, matches, onlyHomologated);
+      const { diff, reason } = evaluateSingleCriterion(criterion, a, b, matches, onlyHomologated, competition);
       if (diff !== 0) {
         if (criterion !== 'points') {
           if (diff < 0 && !a.tiebreakReason) a.tiebreakReason = reason;
@@ -411,7 +420,7 @@ export function computeBestThirds(
   thirdPlaces.sort((a, b) => {
     for (const criterion of criteria) {
       if (criterion === 'head-to-head') continue; // Equipes de grupos diferentes não têm confronto direto
-      const { diff, reason } = evaluateSingleCriterion(criterion, a, b, [], onlyHomologated);
+      const { diff, reason } = evaluateSingleCriterion(criterion, a, b, [], onlyHomologated, options?.competition);
       if (diff !== 0) {
         if (criterion !== 'points') {
           if (diff < 0 && !a.tiebreakReason) a.tiebreakReason = reason;

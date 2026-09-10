@@ -554,12 +554,14 @@ export class CompetitionRuntimeService {
           // Se configurado ranking geral intergrupos, calcula via OverallStandingsEngine
           const allStandingsRows = groupStandings.flatMap(g => g.standings);
           if (allStandingsRows.length > 0) {
+            const canonicalConfig = CompetitionRulesService.getConfig(competition);
+            const criteria = canonicalConfig.standings.tiebreakCriteriaOrder;
             const overall = OverallStandingsEngine.computeOverallStandings(
               groupStandings,
               {
                 competition,
                 matches: groupMatches,
-                criteria: competition.tiebreakCriteriaOrder || competition.tiebreakCriteria || ['points', 'set-average', 'points-average'],
+                criteria,
               },
             );
             context.overallStandingsByStage![stage.stageId] = overall;

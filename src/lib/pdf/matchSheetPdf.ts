@@ -1,3 +1,11 @@
+/**
+ * @deprecated LEGADO / CONCORRENTE
+ * 
+ * Este gerador baseado em jsPDF linear (A4 Retrato) foi substituído pelo
+ * Motor BaseOS canônico em src/document-engine/baseos/ (@react-pdf/renderer).
+ * Mantido para compatibilidade e histórico de tipos.
+ */
+
 import jsPDF from 'jspdf';
 
 // Types for PDF generation

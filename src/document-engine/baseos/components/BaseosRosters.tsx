@@ -185,9 +185,29 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({
           </View>
           <View style={[styles.colNameHeader, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}>
             <Text style={styles.headerLabel}>EQUIPE  </Text>
-            <View style={{ width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK, marginHorizontal: 2 }} />
+            <View
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                borderWidth: 1,
+                borderColor: BASEOS_TOKENS.colors.WHITE,
+                backgroundColor: sideLetter === 'A' ? BASEOS_TOKENS.colors.WHITE : 'transparent',
+                marginHorizontal: 2,
+              }}
+            />
             <Text style={styles.headerLabel}> A  </Text>
-            <View style={{ width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.BLACK, marginHorizontal: 2 }} />
+            <View
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                borderWidth: 1,
+                borderColor: BASEOS_TOKENS.colors.WHITE,
+                backgroundColor: sideLetter === 'B' ? BASEOS_TOKENS.colors.WHITE : 'transparent',
+                marginHorizontal: 2,
+              }}
+            />
             <Text style={styles.headerLabel}> B    {team.name ? team.name.toUpperCase() : ''}{team.shortName ? ` [${team.shortName.toUpperCase()}]` : ''}</Text>
           </View>
         </View>

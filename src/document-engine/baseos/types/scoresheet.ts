@@ -6,6 +6,7 @@ import type { BaseosCompetitionData, BaseosMatchInfo } from './competition';
 import type { BaseosTeamData } from './team';
 import type { BaseosSetData } from './set';
 import type { BaseosOfficialsData, BaseosSignaturesData, SanctionEntry } from './officials';
+import type { SetFormatConfig } from '@/types/competitionConfig';
 
 export type DocumentState = 'blank' | 'prefilled' | 'completed';
 export type ScoresheetFormat = '3-sets' | '5-sets';
@@ -65,4 +66,5 @@ export interface BaseosScoresheetData {
   signatures: BaseosSignaturesData;
   result?: MatchResultData;
   observations?: string;
+  rules?: SetFormatConfig;
 }

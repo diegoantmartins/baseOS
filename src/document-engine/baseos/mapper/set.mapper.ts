@@ -4,11 +4,16 @@
 
 import type { MatchRecord } from '@/types/entities';
 import type { BaseosSetData, RotationData, PointGridData } from '../types/set';
+import type { SetFormatConfig } from '@/types/competitionConfig';
 import { getSetRuleConfig } from '../domain/set.rules';
 import { ROTATION_POSITIONS } from '../domain/rotation.rules';
 
-export function createBlankSetData(setNumber: 1 | 2 | 3 | 4 | 5, format: '3-sets' | '5-sets'): BaseosSetData {
-  const config = getSetRuleConfig(setNumber, format);
+export function createBlankSetData(
+  setNumber: 1 | 2 | 3 | 4 | 5,
+  format: '3-sets' | '5-sets',
+  rules?: SetFormatConfig,
+): BaseosSetData {
+  const config = getSetRuleConfig(setNumber, format, rules);
 
   const blankRotation: RotationData = {
     positions: { I: '', II: '', III: '', IV: '', V: '', VI: '' },
@@ -26,6 +31,7 @@ export function createBlankSetData(setNumber: 1 | 2 | 3 | 4 | 5, format: '3-sets
   return {
     setNumber,
     status: 'not-started',
+    targetPoints: config.targetPoints,
     rotation: {
       teamA: { ...blankRotation },
       teamB: { ...blankRotation },
@@ -61,8 +67,9 @@ export function mapLiveSetData(
   format: '3-sets' | '5-sets',
   match: MatchRecord,
   athleteNumberMap: Map<string, number>,
+  rules?: SetFormatConfig,
 ): BaseosSetData {
-  const base = createBlankSetData(setNumber, format);
+  const base = createBlankSetData(setNumber, format, rules);
   const setRecord = match.sets?.find(s => s.setNumber === setNumber);
   if (!setRecord) return base;
 

@@ -28,16 +28,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   officialsGrid: {
-    height: 82,
+    flex: 1,
     flexDirection: 'column',
     paddingHorizontal: 5,
-    paddingVertical: 2,
+    paddingVertical: 1.5,
     justifyContent: 'space-around',
   },
   officialRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 12,
+    flex: 1,
   },
   officialLabel: {
     width: 95,
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     fontSize: 4.8,
   },
   captainLine: {
-    width: 80,
+    width: 56,
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
     marginLeft: 4,
@@ -127,7 +127,6 @@ export const BaseosSignatures: React.FC<BaseosSignaturesProps> = ({
           <Text style={styles.captainText}>Capitão (A):</Text>
           <View style={styles.captainLine} />
         </View>
-        <Text style={[styles.captainText, { color: BASEOS_TOKENS.colors.GRAY_DARK }]}>Capitães</Text>
         <View style={styles.captainBlock}>
           <Text style={styles.captainText}>Capitão (B):</Text>
           <View style={styles.captainLine} />

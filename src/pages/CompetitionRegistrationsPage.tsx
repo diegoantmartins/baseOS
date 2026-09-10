@@ -48,8 +48,7 @@ import { InviteTeamDialog } from '@/components/registration/InviteTeamDialog';
 import { RegisterTeamInCompetitionDialog } from '@/components/competition/dialogs/RegisterTeamInCompetitionDialog';
 import { TeamRegistrationSuccessModal } from '@/components/registration/TeamRegistrationSuccessModal';
 import { defaultDeadlineFromNow } from '@/components/registration/registrationHelpers';
-import { downloadMatchSheetsBatchPdf } from '@/lib/pdf/matchSheetPdf';
-import { buildMatchSheetData } from '@/lib/pdf/matchSheetDataBuilder';
+import { loadBaseosScoresheetData, downloadBaseosBatchScoresheets } from '@/document-engine/baseos';
 import { dataAccess } from '@/services/dataAccess';
 import { CompetitionRegistrationService } from '@/services/competitionRegistrationService';
 import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
@@ -261,18 +260,20 @@ export function CompetitionRegistrationsPage() {
     setExporting(true);
     try {
       const matches = await dataAccess.listMatches(competition.id);
-      const withRosters = await Promise.all(
-        matches.map(async (match) => {
-          const rosters = await getMatchRosters(match.id);
-          return buildMatchSheetData(match, competition, rosters.teamA, rosters.teamB);
-        }),
-      );
-      if (withRosters.length === 0) {
+      if (matches.length === 0) {
         toast.error('Nenhuma partida cadastrada nesta competição.');
         return;
       }
-      downloadMatchSheetsBatchPdf(withRosters, competition.name);
-      toast.success(`Súmulas de ${withRosters.length} partida(s) geradas com sucesso!`);
+      const loadedScoresheets = (
+        await Promise.all(matches.map(m => loadBaseosScoresheetData(m.id)))
+      ).filter((d): d is NonNullable<typeof d> => d !== null);
+
+      if (loadedScoresheets.length === 0) {
+        toast.error('Não foi possível carregar os dados das partidas.');
+        return;
+      }
+      await downloadBaseosBatchScoresheets(loadedScoresheets, competition.name);
+      toast.success(`Súmulas de ${loadedScoresheets.length} partida(s) geradas com sucesso!`);
     } catch (error) {
       console.error(error);
       toast.error('Erro ao gerar súmulas em lote.');

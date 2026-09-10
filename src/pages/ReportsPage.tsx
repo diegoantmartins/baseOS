@@ -283,7 +283,6 @@ export function ReportsPage() {
           });
         }
         const standings = computeStandingsByGroup(registrations, filteredMatches, {
-          criteria: competition.tiebreakCriteriaOrder,
           competition,
         });
         return generateStandingsReportPdf(

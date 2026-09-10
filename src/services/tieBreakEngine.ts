@@ -204,7 +204,7 @@ export class TieBreakEngine {
     // Caso 1: 2 Equipes -> Confronto direto tradicional
     if (partition.length === 2) {
       const [teamA, teamB] = partition;
-      const winnerId = headToHeadWinner(matches, teamA.teamId, teamB.teamId, onlyHomologated);
+      const winnerId = headToHeadWinner(matches, teamA.teamId, teamB.teamId, onlyHomologated, competition);
 
       if (winnerId === teamA.teamId) {
         teamA.tiebreakReason = `Venceu o confronto direto contra ${teamB.teamName}`;

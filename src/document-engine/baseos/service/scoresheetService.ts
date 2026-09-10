@@ -11,6 +11,7 @@ export const generateBlankBaseosScoresheetData = createBlankBaseosScoresheetData
 import { validateBaseosScoresheetData } from '../validation/validator';
 import { BaseosThreeSetScoresheet } from '../templates/BaseosThreeSetScoresheet';
 import { BaseosFiveSetScoresheet } from '../templates/BaseosFiveSetScoresheet';
+import { BaseosBatchScoresheetDocument } from '../templates/BaseosBatchScoresheetDocument';
 import type { CompetitionAthlete } from '@/types/registration';
 
 import { getMatchRosters } from '@/services/registrationService';
@@ -159,3 +160,33 @@ export async function printBaseosScoresheet(data: BaseosScoresheetData): Promise
     iframe.contentWindow?.print();
   };
 }
+
+/** Gera o Blob binário de um PDF compilado contendo múltiplas súmulas em lote */
+export async function generateBaseosBatchPdfBlob(
+  matchesData: BaseosScoresheetData[],
+  title?: string,
+): Promise<Blob> {
+  const docElement = React.createElement(BaseosBatchScoresheetDocument, { matchesData, title });
+  const pdfInstance = pdf(docElement);
+  return pdfInstance.toBlob();
+}
+
+/** Executa o download de súmulas em lote em um único PDF compilado */
+export async function downloadBaseosBatchScoresheets(
+  matchesData: BaseosScoresheetData[],
+  competitionName: string,
+): Promise<void> {
+  const safeName = competitionName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const blob = await generateBaseosBatchPdfBlob(matchesData, `Sumulas_${safeName}`);
+  const fileName = `Sumulas_${safeName}_${matchesData.length}_jogos.pdf`;
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+

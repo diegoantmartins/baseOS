@@ -4,13 +4,16 @@
 
 import type { MatchRecord, TeamRecord, CompetitionRecord } from '@/types/entities';
 import type { CompetitionAthlete } from '@/types/registration';
-import type { BaseosScoresheetData, ScoresheetFormat, DocumentState, ScoresheetOutput } from '../types/scoresheet';
+import type { SetFormatConfig } from '@/types/competitionConfig';
+import type { BaseosScoresheetData, ScoresheetFormat, DocumentState, ScoresheetOutput, MatchResultData } from '../types/scoresheet';
 import { mapTeam, createBlankTeam } from './team.mapper';
 import { createBlankSetData, mapLiveSetData } from './set.mapper';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
 
 export function createBlankBaseosScoresheetData(
   format: ScoresheetFormat = '3-sets',
   output: ScoresheetOutput = 'print-a4',
+  rules?: SetFormatConfig,
 ): BaseosScoresheetData {
   return {
     document: {
@@ -42,13 +45,13 @@ export function createBlankBaseosScoresheetData(
       B: createBlankTeam('B'),
     },
     sets: {
-      set1: createBlankSetData(1, format),
-      set2: createBlankSetData(2, format),
-      set3: createBlankSetData(3, format),
+      set1: createBlankSetData(1, format, rules),
+      set2: createBlankSetData(2, format, rules),
+      set3: createBlankSetData(3, format, rules),
       ...(format === '5-sets'
         ? {
-            set4: createBlankSetData(4, format),
-            set5: createBlankSetData(5, format),
+            set4: createBlankSetData(4, format, rules),
+            set5: createBlankSetData(5, format, rules),
           }
         : {}),
     },
@@ -57,6 +60,7 @@ export function createBlankBaseosScoresheetData(
     officials: {},
     signatures: {},
     observations: '',
+    rules,
   };
 }
 
@@ -70,12 +74,28 @@ export function mapMatchRecordToBaseosScoresheet(
   forcedState?: DocumentState,
   output: ScoresheetOutput = 'print-a4',
 ): BaseosScoresheetData {
-  const is5Sets =
-    competition?.setFormat === '5-sets' || (match.sets?.length || 0) > 3;
+  let is5Sets = false;
+  let formatConfig: SetFormatConfig | undefined;
+  if (competition) {
+    formatConfig = CompetitionRulesService.resolveMatchFormat(
+      competition,
+      match.phase,
+      match.customSetFormat,
+    );
+    is5Sets = formatConfig.setsToWin === 3 || formatConfig.maxSets === 5;
+  } else {
+    is5Sets = false;
+  }
+  if ((match.sets?.length || 0) > 3) {
+    is5Sets = true;
+  }
   const format: ScoresheetFormat = is5Sets ? '5-sets' : '3-sets';
 
   const state: DocumentState =
-    forcedState || (match.status === 'completed' ? 'completed' : 'prefilled');
+    forcedState ||
+    (match.status === 'completed' || match.status === 'homologated' || match.status === 'wo' || match.isWo
+      ? 'completed'
+      : 'prefilled');
 
   // Mapeamento de números de atletas para preenchimento de rotação
   const athleteNumberMap = new Map<string, number>();
@@ -101,48 +121,58 @@ export function mapMatchRecordToBaseosScoresheet(
       : '';
 
   const setsData = {
-    set1: state === 'completed' ? mapLiveSetData(1, format, match, athleteNumberMap) : createBlankSetData(1, format),
-    set2: state === 'completed' ? mapLiveSetData(2, format, match, athleteNumberMap) : createBlankSetData(2, format),
-    set3: state === 'completed' ? mapLiveSetData(3, format, match, athleteNumberMap) : createBlankSetData(3, format),
+    set1: state === 'completed' ? mapLiveSetData(1, format, match, athleteNumberMap, formatConfig) : createBlankSetData(1, format, formatConfig),
+    set2: state === 'completed' ? mapLiveSetData(2, format, match, athleteNumberMap, formatConfig) : createBlankSetData(2, format, formatConfig),
+    set3: state === 'completed' ? mapLiveSetData(3, format, match, athleteNumberMap, formatConfig) : createBlankSetData(3, format, formatConfig),
     ...(format === '5-sets'
       ? {
-          set4: state === 'completed' ? mapLiveSetData(4, format, match, athleteNumberMap) : createBlankSetData(4, format),
-          set5: state === 'completed' ? mapLiveSetData(5, format, match, athleteNumberMap) : createBlankSetData(5, format),
+          set4: state === 'completed' ? mapLiveSetData(4, format, match, athleteNumberMap, formatConfig) : createBlankSetData(4, format, formatConfig),
+          set5: state === 'completed' ? mapLiveSetData(5, format, match, athleteNumberMap, formatConfig) : createBlankSetData(5, format, formatConfig),
         }
       : {}),
   };
 
-  const setsA = match.sets?.filter(s => s.scoreA > s.scoreB).length ?? 0;
-  const setsB = match.sets?.filter(s => s.scoreB > s.scoreA).length ?? 0;
+  const isMatchFinished =
+    state === 'completed' ||
+    match.status === 'completed' ||
+    match.status === 'homologated' ||
+    match.status === 'wo' ||
+    Boolean(match.isWo);
 
-  const resultData =
-    state === 'completed' && (match.sets?.length || 0) > 0
-      ? {
-          winnerTeamName:
-            match.winnerId === match.teamAId
-              ? match.teamAName
-              : match.winnerId === match.teamBId
-                ? match.teamBName
-                : setsA > setsB
-                  ? match.teamAName
-                  : match.teamBName,
-          winnerSide:
-            match.winnerId === match.teamAId || setsA > setsB
-              ? ('A' as const)
-              : ('B' as const),
-          finalScoreSetsA: setsA,
-          finalScoreSetsB: setsB,
-          setResults: (match.sets || []).map(s => ({
-            setNumber: s.setNumber,
-            scoreA: s.scoreA,
-            scoreB: s.scoreB,
-            timeOutsA: 0,
-            timeOutsB: 0,
-            substitutionsA: 0,
-            substitutionsB: 0,
-          })),
-        }
-      : undefined;
+  let resultData: MatchResultData | undefined = undefined;
+
+  if (isMatchFinished && ((match.sets && match.sets.length > 0) || match.isWo || match.status === 'wo')) {
+    const canonical = CompetitionRulesService.getCanonicalMatchResult(competition, match);
+    const winnerSide = canonical.winnerSide;
+    const winnerTeamName =
+      winnerSide === 'A'
+        ? match.teamAName
+        : winnerSide === 'B'
+          ? match.teamBName
+          : canonical.winnerId === match.teamAId
+            ? match.teamAName
+            : canonical.winnerId === match.teamBId
+              ? match.teamBName
+              : undefined;
+
+    const rawSets = canonical.setScores && canonical.setScores.length > 0 ? canonical.setScores : match.sets || [];
+
+    resultData = {
+      winnerTeamName,
+      winnerSide: winnerSide ?? undefined,
+      finalScoreSetsA: canonical.setsWonA,
+      finalScoreSetsB: canonical.setsWonB,
+      setResults: rawSets.map(s => ({
+        setNumber: s.setNumber,
+        scoreA: s.scoreA,
+        scoreB: s.scoreB,
+        timeOutsA: 0,
+        timeOutsB: 0,
+        substitutionsA: 0,
+        substitutionsB: 0,
+      })),
+    };
+  }
 
   return {
     document: {
@@ -184,5 +214,6 @@ export function mapMatchRecordToBaseosScoresheet(
     signatures: {},
     result: resultData,
     observations: match.observations,
+    rules: formatConfig,
   };
 }

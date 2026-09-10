@@ -9,15 +9,14 @@ import { BASEOS_TOKENS } from '../theme/tokens';
 
 const styles = StyleSheet.create({
   container: {
-    height: 42,
+    height: '100%',
     borderWidth: BASEOS_TOKENS.borders.STRONG,
     borderColor: BASEOS_TOKENS.colors.BLACK,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
-    marginBottom: 3,
     flexDirection: 'column',
   },
   topRow: {
-    height: 25,
+    flex: 1.4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -118,7 +117,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   metaBar: {
-    height: 16,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
@@ -149,6 +148,7 @@ interface BaseosHeaderProps {
   match: BaseosMatchInfo;
   teamAName?: string;
   teamBName?: string;
+  height?: number;
 }
 
 export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
@@ -156,6 +156,7 @@ export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
   match,
   teamAName,
   teamBName,
+  height,
 }) => {
   const genderLabel = match.gender === 'female' ? 'Feminino' : (match.gender === 'mixed' ? 'Misto' : 'Masculino');
   const compName = competition.name ? competition.name.toUpperCase() : 'TORNEIO OFICIAL';
@@ -163,7 +164,7 @@ export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
   const nameB = teamBName ? teamBName.toUpperCase() : 'EQUIPE B';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, height ? { height } : {}]}>
       {/* Linha Superior: Branding BaseOS + Súmula Oficial + Confronto + Selo */}
       <View style={styles.topRow}>
         {/* Esquerda: Branding BaseOS */}

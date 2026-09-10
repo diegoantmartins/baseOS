@@ -101,7 +101,7 @@ export function CompetitionConfigTab({
         <div className="space-y-2 pt-3 border-t border-border">
           <h4 className="font-semibold text-foreground text-[10px] uppercase tracking-wider">Critérios de Desempate Ordenados</h4>
           <div className="flex flex-wrap gap-2 text-xs">
-            {(selected.tiebreakCriteriaOrder || [
+            {(CompetitionRulesService.getConfig(selected).standings?.tiebreakCriteriaOrder || [
               'points',
               'victories',
               'head-to-head',

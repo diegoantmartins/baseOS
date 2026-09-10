@@ -3,7 +3,7 @@
 // =====================================================================
 
 import { useEffect, useState } from 'react';
-import { FileText, Eye, Printer, Download, Loader2, Sparkles, ShieldCheck } from 'lucide-react';
+import { FileText, Eye, Printer, Download, Loader2, Sparkles, ShieldCheck, ClipboardList, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,13 +13,14 @@ import {
   loadBaseosScoresheetData,
   generateBaseosPdfBlob,
   generateBlankBaseosPdfBlob,
-  downloadBaseosScoresheet,
-  printBaseosScoresheet,
+  generateServeOrderPdfBlob,
+  generateGamePackagePdfBlob,
+  mapScoresheetToServeOrderData,
   type BaseosScoresheetData,
 } from '@/document-engine/baseos';
 import type { MatchRecord, CompetitionRecord } from '@/types/entities';
 
-type Tab = 'prefilled' | 'blank';
+type Tab = 'sumula' | 'ordem' | 'pacote' | 'blank';
 
 interface Props {
   match: MatchRecord | null;
@@ -29,14 +30,16 @@ interface Props {
 }
 
 export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
-  const [tab, setTab] = useState<Tab>('prefilled');
+  const [tab, setTab] = useState<Tab>('sumula');
   const [loading, setLoading] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [currentBlob, setCurrentBlob] = useState<Blob | null>(null);
   const [scoresheetData, setScoresheetData] = useState<BaseosScoresheetData | null>(null);
 
   useEffect(() => {
     if (!open || !match) {
       setPdfBlobUrl(null);
+      setCurrentBlob(null);
       return;
     }
 
@@ -53,11 +56,20 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
 
         if (!isCancelled) {
           setScoresheetData(data);
-          const blob =
-            tab === 'blank'
-              ? await generateBlankBaseosPdfBlob(data.document.format)
-              : await generateBaseosPdfBlob(data);
+          let blob: Blob;
 
+          if (tab === 'blank') {
+            blob = await generateBlankBaseosPdfBlob(data.document.format);
+          } else if (tab === 'ordem') {
+            const serveOrderData = mapScoresheetToServeOrderData(data);
+            blob = await generateServeOrderPdfBlob(serveOrderData);
+          } else if (tab === 'pacote') {
+            blob = await generateGamePackagePdfBlob(data);
+          } else {
+            blob = await generateBaseosPdfBlob(data);
+          }
+
+          setCurrentBlob(blob);
           const url = URL.createObjectURL(blob);
           setPdfBlobUrl(prev => {
             if (prev) URL.revokeObjectURL(prev);
@@ -77,47 +89,63 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
     };
   }, [open, match, tab]);
 
+  const getDocumentTitle = () => {
+    const formatBadge = scoresheetData?.document.format === '5-sets' ? '5 Sets' : '3 Sets';
+    if (tab === 'ordem') return `Ordem de Saque BaseOS (${formatBadge})`;
+    if (tab === 'pacote') return `Pacote Oficial do Jogo (Súmula + Ordem de Saque)`;
+    if (tab === 'blank') return `Súmula Oficial em Branco (${formatBadge})`;
+    return `Súmula Oficial BaseOS (${formatBadge})`;
+  };
+
+  const getDownloadFileName = () => {
+    const matchNum = match?.matchNumber || '1';
+    if (tab === 'ordem') return `Ordem_de_Saque_BaseOS_Jogo_${matchNum}.pdf`;
+    if (tab === 'pacote') return `Pacote_Completo_Jogo_${matchNum}_BaseOS.pdf`;
+    if (tab === 'blank') return `Sumula_Oficial_BaseOS_${scoresheetData?.document.format || '3-sets'}_Em_Branco.pdf`;
+    return `Sumula_Oficial_BaseOS_Jogo_${matchNum}.pdf`;
+  };
+
   const handlePreview = () => {
     if (!pdfBlobUrl) return;
     window.open(pdfBlobUrl, '_blank');
-    toast.success('Visualizando Súmula Oficial BaseOS em nova aba.');
+    toast.success('Visualizando documento em nova aba.');
   };
 
-  const handlePrint = async () => {
-    if (!scoresheetData) return;
-    try {
-      await printBaseosScoresheet(scoresheetData);
-      toast.success('Enviado para impressão!');
-    } catch (err) {
-      console.error(err);
-      toast.error('Erro ao imprimir.');
-    }
+  const handlePrint = () => {
+    if (!pdfBlobUrl) return;
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.src = pdfBlobUrl;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    };
+    toast.success('Enviado para impressão!');
   };
 
-  const handleDownload = async () => {
-    if (!scoresheetData) return;
+  const handleDownload = () => {
+    if (!currentBlob) return;
     try {
-      if (tab === 'blank') {
-        const blob = await generateBlankBaseosPdfBlob(scoresheetData.document.format);
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `Sumula_Oficial_BaseOS_${scoresheetData.document.format}_Em_Branco.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      } else {
-        await downloadBaseosScoresheet(scoresheetData);
-      }
-      toast.success('Download da Súmula Oficial BaseOS concluído!');
+      const url = URL.createObjectURL(currentBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = getDownloadFileName();
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Download do documento BaseOS concluído!');
     } catch (err) {
       console.error(err);
       toast.error('Erro ao baixar documento.');
     }
   };
-
-  const formatBadge = scoresheetData?.document.format === '5-sets' ? '5 Sets (A3)' : '3 Sets (A4)';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -126,7 +154,7 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <DialogTitle className="text-xl font-bold font-display">
-                Súmula Oficial BaseOS ({formatBadge})
+                {getDocumentTitle()}
               </DialogTitle>
               <Badge variant="outline" className="gap-1 text-xs">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
@@ -141,14 +169,22 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
 
         <div className="flex-1 flex flex-col min-h-0 gap-3">
           <Tabs value={tab} onValueChange={v => setTab(v as Tab)} className="w-full shrink-0">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="prefilled" className="text-xs gap-1.5 font-medium">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="sumula" className="text-xs gap-1.5 font-medium">
                 <Sparkles className="w-3.5 h-3.5" />
-                Súmula da Partida (Pré-Preenchida)
+                Súmula Oficial
+              </TabsTrigger>
+              <TabsTrigger value="ordem" className="text-xs gap-1.5 font-medium">
+                <ClipboardList className="w-3.5 h-3.5" />
+                Ordem de Saque
+              </TabsTrigger>
+              <TabsTrigger value="pacote" className="text-xs gap-1.5 font-medium">
+                <Layers className="w-3.5 h-3.5 text-amber-500" />
+                Pacote do Jogo
               </TabsTrigger>
               <TabsTrigger value="blank" className="text-xs gap-1.5 font-medium">
                 <FileText className="w-3.5 h-3.5" />
-                Súmula em Branco (Impressão Limpa)
+                Súmula em Branco
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -163,7 +199,7 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
               <iframe
                 src={`${pdfBlobUrl}#view=FitH&toolbar=0&navpanes=0`}
                 className="w-full h-full border-0"
-                title="Pré-visualização da Súmula"
+                title="Pré-visualização do Documento"
               />
             ) : (
               <span className="text-xs text-slate-400">Nenhum documento disponível</span>
@@ -172,7 +208,11 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border shrink-0">
             <p className="text-[11px] text-muted-foreground">
-              Documento vetorial de alta definição com troca de lado no tie-break.
+              {tab === 'ordem'
+                ? 'Fichas regulamentares A4 Paisagem prontas para entrega da formação inicial.'
+                : tab === 'pacote'
+                  ? 'Arquivo unificado: Súmula Oficial + Fichas de Ordem de Saque da partida.'
+                  : 'Documento vetorial de alta definição com regras esportivas homologadas.'}
             </p>
 
             <div className="flex items-center gap-2">
@@ -201,11 +241,11 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
               <Button
                 size="sm"
                 onClick={handleDownload}
-                disabled={loading || !pdfBlobUrl}
+                disabled={loading || !currentBlob}
                 className="text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
               >
                 <Download className="w-3.5 h-3.5" />
-                Baixar PDF ({formatBadge})
+                Baixar PDF
               </Button>
             </div>
           </div>

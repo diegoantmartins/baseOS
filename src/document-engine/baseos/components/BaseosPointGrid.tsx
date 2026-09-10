@@ -92,7 +92,7 @@ export const BaseosPointGrid: React.FC<BaseosPointGridProps> = ({
     pointGrid.points.filter(p => p.marked).map(p => p.point),
   );
 
-  const calculatedWidth = width || (grid.isSingleCol ? 14 : maxPoints <= 30 ? 24 : 28);
+  const calculatedWidth = width || (grid.isSingleCol ? 16 : maxPoints <= 30 ? 24 : 28);
 
   const renderColumn = (pts: number[], hasDivider = true) => (
     <View style={[styles.column, hasDivider ? styles.colDivider : {}]}>
@@ -116,8 +116,8 @@ export const BaseosPointGrid: React.FC<BaseosPointGridProps> = ({
 
   return (
     <View style={[styles.container, { width: calculatedWidth, height: '100%' }]}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>PONTOS</Text>
+      <View style={[styles.header, grid.isSingleCol ? { paddingHorizontal: 0 } : {}]}>
+        <Text style={[styles.headerText, grid.isSingleCol ? { fontSize: 3.4 } : {}]}>PONTOS</Text>
       </View>
       <View style={styles.body}>
         {grid.isSingleCol ? (

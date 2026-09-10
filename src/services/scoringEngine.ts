@@ -24,6 +24,41 @@ export interface MatchPointsResult {
 
 export class ScoringEngine {
   /**
+   * Calcula os pontos atribuídos a uma equipe específica com base na contagem de sets e W.O.
+   * Função matemática pura, determinística e sem dependências de entidades de persistência.
+   *
+   * Nota de domínio: setsWon === setsLost representa estado incompleto ou inválido para uma
+   * partida de voleibol finalizada (voleibol não admite empate). Trata-se como guarda defensiva (0 pts).
+   */
+  public static calculateTeamPoints(
+    setsWon: number,
+    setsLost: number,
+    isWo: boolean,
+    scoringConfig: ScoringSystemConfig,
+  ): number {
+    if (isWo) {
+      return setsWon > setsLost ? scoringConfig.pointsWoWin : scoringConfig.pointsWoLoss;
+    }
+
+    // Guarda defensiva para partidas incompletas ou estados inválidos (não há empate no vôlei)
+    if (setsWon === setsLost) return 0;
+
+    // Vitória
+    if (setsWon > setsLost) {
+      // No voleibol, vitória apertada/tiebreak exige que o adversário tenha vencido ao menos 1 set.
+      // Em formato de 1 set (1x0), a vitória é limpa (pointsWinClear), não tiebreak.
+      const isNarrow = (setsWon - setsLost === 1) && setsLost > 0;
+      return isNarrow ? scoringConfig.pointsWinNarrow : scoringConfig.pointsWinClear;
+    }
+
+    // Derrota
+    // Derrota apertada/tiebreak também exige que a equipe tenha vencido ao menos 1 set.
+    // Em formato de 1 set (0x1), a derrota é limpa (pointsLossClear), não tiebreak.
+    const isNarrow = (setsLost - setsWon === 1) && setsWon > 0;
+    return isNarrow ? scoringConfig.pointsLossNarrow : scoringConfig.pointsLossClear;
+  }
+
+  /**
    * Calcula os pontos atribuídos a cada equipe com base na configuração da competição
    * e no resultado canônico da partida.
    */
@@ -42,37 +77,28 @@ export class ScoringEngine {
       };
     }
 
-    // Tratamento de W.O. (Walkover)
-    if (canonical.isWo) {
-      const winnerPoints = scoringConfig.pointsWoWin;
-      const loserPoints = scoringConfig.pointsWoLoss;
+    const pointsA = this.calculateTeamPoints(
+      canonical.setsWonA,
+      canonical.setsWonB,
+      canonical.isWo,
+      scoringConfig,
+    );
+    const pointsB = this.calculateTeamPoints(
+      canonical.setsWonB,
+      canonical.setsWonA,
+      canonical.isWo,
+      scoringConfig,
+    );
 
-      return {
-        pointsA: canonical.winnerSide === 'A' ? winnerPoints : loserPoints,
-        pointsB: canonical.winnerSide === 'B' ? winnerPoints : loserPoints,
-        winnerPoints,
-        loserPoints,
-        isWo: true,
-      };
-    }
-
-    const setsWon = canonical.winnerSide === 'A' ? canonical.setsWonA : canonical.setsWonB;
-    const setsLost = canonical.winnerSide === 'A' ? canonical.setsWonB : canonical.setsWonA;
-    const setDiff = setsWon - setsLost;
-
-    // Se a diferença for de 1 set (ex: 3x2 em melhor de 5, ou 2x1 em melhor de 3),
-    // trata-se de vitória apertada / tiebreak.
-    const isNarrow = setDiff === 1;
-
-    const winnerPoints = isNarrow ? scoringConfig.pointsWinNarrow : scoringConfig.pointsWinClear;
-    const loserPoints = isNarrow ? scoringConfig.pointsLossNarrow : scoringConfig.pointsLossClear;
+    const winnerPoints = canonical.winnerSide === 'A' ? pointsA : pointsB;
+    const loserPoints = canonical.winnerSide === 'A' ? pointsB : pointsA;
 
     return {
-      pointsA: canonical.winnerSide === 'A' ? winnerPoints : loserPoints,
-      pointsB: canonical.winnerSide === 'B' ? winnerPoints : loserPoints,
+      pointsA,
+      pointsB,
       winnerPoints,
       loserPoints,
-      isWo: false,
+      isWo: canonical.isWo,
     };
   }
 

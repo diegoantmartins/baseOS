@@ -2,6 +2,8 @@
 // BaseOS Domain - Regras Esportivas de Voleibol
 // =====================================================================
 
+import type { SetFormatConfig } from '@/types/competitionConfig';
+
 export const VOLLEYBALL_RULES = {
   REGULAR_SET_POINTS: 25,
   DECIDING_SET_POINTS: 15,
@@ -23,16 +25,26 @@ export interface SetRuleConfig {
   maxPointsRuler: number;
 }
 
-/** Determina as regras esportivas de um set com base no formato da partida. */
-export function getSetRuleConfig(setNumber: number, totalSetsFormat: '3-sets' | '5-sets'): SetRuleConfig {
+/** Determina as regras esportivas de um set com base no formato da partida e nas regras da competição. */
+export function getSetRuleConfig(
+  setNumber: number,
+  totalSetsFormat: '3-sets' | '5-sets',
+  rules?: Partial<Pick<SetFormatConfig, 'regularSetPoints' | 'tiebreakPoints' | 'minAdvantage'>>,
+): SetRuleConfig {
   const isDecidingSet = (totalSetsFormat === '3-sets' && setNumber === 3) || (totalSetsFormat === '5-sets' && setNumber === 5);
   
+  const regularPoints = rules?.regularSetPoints ?? VOLLEYBALL_RULES.REGULAR_SET_POINTS;
+  const tiebreakPoints = rules?.tiebreakPoints ?? VOLLEYBALL_RULES.DECIDING_SET_POINTS;
+  const sideChangeTriggerPoint = isDecidingSet
+    ? (rules?.tiebreakPoints ? Math.ceil(rules.tiebreakPoints / 2) : VOLLEYBALL_RULES.TIE_BREAK_SIDE_CHANGE_POINT)
+    : 0;
+
   return {
     setNumber,
-    targetPoints: isDecidingSet ? VOLLEYBALL_RULES.DECIDING_SET_POINTS : VOLLEYBALL_RULES.REGULAR_SET_POINTS,
+    targetPoints: isDecidingSet ? tiebreakPoints : regularPoints,
     isDecidingSet,
     hasSideChange: isDecidingSet,
-    sideChangeTriggerPoint: VOLLEYBALL_RULES.TIE_BREAK_SIDE_CHANGE_POINT,
+    sideChangeTriggerPoint,
     maxPointsRuler: isDecidingSet ? VOLLEYBALL_RULES.POINTS_RULER_MAX_DECIDING : VOLLEYBALL_RULES.POINTS_RULER_MAX_REGULAR,
   };
 }

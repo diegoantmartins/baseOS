@@ -57,10 +57,10 @@ export const THREE_SET_A4_LAYOUT: ScoresheetLayout = {
       5: undefined,
     },
     rosters: { x: 529, y: 51, width: 306.89, height: 420 },
-    sanctions: { x: 6, y: 478, width: 165, height: 110 },
-    signatures: { x: 173.5, y: 478, width: 220, height: 110 },
-    remarks: { x: 396, y: 478, width: 132.5, height: 110 },
-    result: { x: 531, y: 478, width: 304.89, height: 110 },
+    sanctions: { x: 6, y: 478, width: 165, height: 107 },
+    signatures: { x: 173.5, y: 478, width: 220, height: 107 },
+    remarks: { x: 396, y: 478, width: 132.5, height: 107 },
+    result: { x: 531, y: 478, width: 304.89, height: 107 },
   },
 };
 
@@ -78,13 +78,13 @@ export const FIVE_SET_A4_LAYOUT: ScoresheetLayout = {
       4: { x: 425, y: 160, width: 410.89, height: 110 },
       5: { x: 6, y: 275, width: 520, height: 120 }, // Set 5 aumentado em largura e altura
     },
-    // SANCTIONS e REMARKS na linha de cima (y=400)
-    sanctions: { x: 6, y: 400, width: 220, height: 95 },
-    remarks: { x: 231, y: 400, width: 295, height: 95 },
-    // RESULT e SIGNATURES na linha de baixo (y=500)
-    result: { x: 6, y: 500, width: 220, height: 89 },
-    signatures: { x: 231, y: 500, width: 295, height: 89 },
-    rosters: { x: 531, y: 275, width: 304.89, height: 314 },
+    // SANCTIONS e REMARKS na linha de cima (y=398)
+    sanctions: { x: 6, y: 398, width: 220, height: 92 },
+    remarks: { x: 231, y: 398, width: 295, height: 92 },
+    // RESULT e SIGNATURES na linha de baixo (y=494)
+    result: { x: 6, y: 494, width: 220, height: 90 },
+    signatures: { x: 231, y: 494, width: 295, height: 90 },
+    rosters: { x: 531, y: 275, width: 304.89, height: 309 },
   },
 };
 

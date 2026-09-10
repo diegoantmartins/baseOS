@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
   },
   colSubText: {
     fontFamily: BASEOS_TOKENS.fonts.REGULAR,
-    fontSize: 2.8,
+    fontSize: 3.4,
     color: BASEOS_TOKENS.colors.GRAY_DARK,
   },
   rowsBlock: {
@@ -80,14 +80,14 @@ const styles = StyleSheet.create({
     fontSize: 4.0,
   },
   footerNote: {
-    height: 40,
+    flex: 1,
     padding: 2,
     backgroundColor: BASEOS_TOKENS.colors.WHITE,
     justifyContent: 'center',
   },
   footerNoteText: {
     fontFamily: BASEOS_TOKENS.fonts.REGULAR,
-    fontSize: 3.0,
+    fontSize: 3.4,
     color: BASEOS_TOKENS.colors.GRAY_DARK,
     lineHeight: 1.15,
   },
