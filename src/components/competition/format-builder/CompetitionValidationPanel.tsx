@@ -21,10 +21,10 @@ export const CompetitionValidationPanel: React.FC<CompetitionValidationPanelProp
         className={cn(
           'p-4 rounded-xl border flex items-start gap-3 transition-all',
           isValid && warnings.length === 0
-            ? 'bg-state-success/10 border-state-success/30 text-state-success'
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
             : !isValid
-            ? 'bg-state-error/10 border-state-error/30 text-state-error'
-            : 'bg-state-warning/10 border-state-warning/30 text-state-warning',
+            ? 'bg-red-500/10 border-red-500/30 text-red-400'
+            : 'bg-amber-500/10 border-amber-500/30 text-amber-400',
         )}
       >
         {isValid && warnings.length === 0 ? (
@@ -56,19 +56,19 @@ export const CompetitionValidationPanel: React.FC<CompetitionValidationPanelProp
       {/* Lista de Erros Bloqueantes */}
       {errors.length > 0 && (
         <div className="space-y-2">
-          <h5 className="text-[11px] font-semibold uppercase tracking-wider text-state-error flex items-center gap-1.5">
+          <h5 className="text-[11px] font-semibold uppercase tracking-wider text-red-400 flex items-center gap-1.5">
             <XCircle className="w-3.5 h-3.5" /> Erros Bloqueantes
           </h5>
           <div className="space-y-1.5">
             {errors.map((err, idx) => (
               <div
                 key={idx}
-                className="p-3 rounded-lg border border-state-error/20 bg-state-error/5 text-xs text-text-primary flex items-start gap-2.5"
+                className="p-3 rounded-lg border border-red-500/20 bg-red-500/5 text-xs text-foreground flex items-start gap-2.5"
               >
-                <span className="font-mono text-[10px] text-state-error font-semibold shrink-0 bg-state-error/10 px-1.5 py-0.5 rounded">
+                <span className="font-mono text-[10px] text-red-400 font-semibold shrink-0 bg-red-500/10 px-1.5 py-0.5 rounded">
                   {err.field}
                 </span>
-                <span className="text-text-secondary">{err.message}</span>
+                <span className="text-muted-foreground">{err.message}</span>
               </div>
             ))}
           </div>
@@ -78,19 +78,19 @@ export const CompetitionValidationPanel: React.FC<CompetitionValidationPanelProp
       {/* Lista de Avisos (Warnings) */}
       {warnings.length > 0 && (
         <div className="space-y-2">
-          <h5 className="text-[11px] font-semibold uppercase tracking-wider text-state-warning flex items-center gap-1.5">
+          <h5 className="text-[11px] font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
             <AlertTriangle className="w-3.5 h-3.5" /> Avisos e Alertas
           </h5>
           <div className="space-y-1.5">
             {warnings.map((warn, idx) => (
               <div
                 key={idx}
-                className="p-3 rounded-lg border border-state-warning/20 bg-state-warning/5 text-xs text-text-primary flex items-start gap-2.5"
+                className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-xs text-foreground flex items-start gap-2.5"
               >
-                <span className="font-mono text-[10px] text-state-warning font-semibold shrink-0 bg-state-warning/10 px-1.5 py-0.5 rounded">
+                <span className="font-mono text-[10px] text-amber-400 font-semibold shrink-0 bg-amber-500/10 px-1.5 py-0.5 rounded">
                   {warn.field}
                 </span>
-                <span className="text-text-secondary">{warn.message}</span>
+                <span className="text-muted-foreground">{warn.message}</span>
               </div>
             ))}
           </div>

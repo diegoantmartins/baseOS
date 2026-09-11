@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { CompetitionRecord, ModalityRecord, VenueRecord } from '@/types/entities';
+import type { CompetitionRecord, ModalityRecord, VenueRecord, CompetitionSupporter } from '@/types/entities';
 import type { CompetitionConfig, SetsToWin } from '@/types/competitionConfig';
 import {
   DEFAULT_BEACH_COMPETITION_CONFIG,
@@ -15,11 +15,13 @@ import {
   formatSetsToWinLabel,
 } from '@/types/competitionConfig';
 import { CompetitionTemplateService } from '@/services/competitionTemplateService';
+import { CompetitionIdentityEditor } from './CompetitionIdentityEditor';
 import {
   Calendar,
   Layers,
   Settings2,
   Shield,
+  Sparkles,
   Trophy,
   Users,
   Volleyball,
@@ -40,7 +42,7 @@ export function CompetitionFormDialog({
   venues,
 }: CompetitionFormDialogProps) {
   // Aba ativa
-  const [activeTab, setActiveTab] = useState<'geral' | 'disputa' | 'sets' | 'inscricao'>('geral');
+  const [activeTab, setActiveTab] = useState<'geral' | 'disputa' | 'sets' | 'inscricao' | 'identidade'>('geral');
 
   // Aba 1 — Dados Gerais
   const [name, setName] = useState('');
@@ -72,6 +74,10 @@ export function CompetitionFormDialog({
   const [maxLiberos, setMaxLiberos] = useState<number>(2);
   const [maxCaptains, setMaxCaptains] = useState<number>(1);
   const [requireJerseyNumber, setRequireJerseyNumber] = useState<boolean>(false);
+
+  // Aba 5 — Identidade Visual e Apoiadores
+  const [logoUrl, setLogoUrl] = useState<string | undefined>();
+  const [supporters, setSupporters] = useState<CompetitionSupporter[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -108,6 +114,8 @@ export function CompetitionFormDialog({
       setGroupsCount(2);
       setAdvancingPerGroup(2);
       setBestThirdsCount(0);
+      setLogoUrl(undefined);
+      setSupporters([]);
       applyModalityPreset('indoor');
     }
   }, [open, venues]);
@@ -212,6 +220,8 @@ export function CompetitionFormDialog({
         setFormat: legacySetFormat,
         genderCategory,
         status: 'planning',
+        logoUrl: logoUrl || undefined,
+        supporters: supporters.length > 0 ? supporters : [],
         groupsCount: isGroupBasedTemplate ? groupsCount : 1,
         advancingPerGroup: isGroupBasedTemplate ? advancingPerGroup : 1,
         bestThirdsCount: isGroupBasedTemplate ? bestThirdsCount : 0,
@@ -254,25 +264,29 @@ export function CompetitionFormDialog({
 
         <Tabs
           value={activeTab}
-          onValueChange={(v) => setActiveTab(v as 'geral' | 'disputa' | 'sets' | 'inscricao')}
+          onValueChange={(v) => setActiveTab(v as 'geral' | 'disputa' | 'sets' | 'inscricao' | 'identidade')}
           className="flex-1 flex flex-col overflow-hidden pt-2"
         >
-          <TabsList className="grid grid-cols-4 h-8 bg-zinc-900 border border-zinc-800 p-0.5 rounded-lg mb-3">
-            <TabsTrigger value="geral" className="text-xs data-[state=active]:bg-zinc-800 flex items-center gap-1.5 py-1">
-              <Volleyball className="w-3.5 h-3.5" />
+          <TabsList className="grid grid-cols-5 h-8 bg-zinc-900 border border-zinc-800 p-0.5 rounded-lg mb-3">
+            <TabsTrigger value="geral" className="text-xs h-7 data-[state=active]:bg-zinc-800 data-[state=active]:text-foreground text-muted-foreground gap-1">
+              <Calendar className="w-3.5 h-3.5" />
               Geral
             </TabsTrigger>
-            <TabsTrigger value="disputa" className="text-xs data-[state=active]:bg-zinc-800 flex items-center gap-1.5 py-1">
+            <TabsTrigger value="disputa" className="text-xs h-7 data-[state=active]:bg-zinc-800 data-[state=active]:text-foreground text-muted-foreground gap-1">
               <Layers className="w-3.5 h-3.5" />
               Disputa
             </TabsTrigger>
-            <TabsTrigger value="sets" className="text-xs data-[state=active]:bg-zinc-800 flex items-center gap-1.5 py-1">
+            <TabsTrigger value="sets" className="text-xs h-7 data-[state=active]:bg-zinc-800 data-[state=active]:text-foreground text-muted-foreground gap-1">
               <Settings2 className="w-3.5 h-3.5" />
-              Sets & Pontos
+              Sets
             </TabsTrigger>
-            <TabsTrigger value="inscricao" className="text-xs data-[state=active]:bg-zinc-800 flex items-center gap-1.5 py-1">
+            <TabsTrigger value="inscricao" className="text-xs h-7 data-[state=active]:bg-zinc-800 data-[state=active]:text-foreground text-muted-foreground gap-1">
               <Users className="w-3.5 h-3.5" />
               Inscrição
+            </TabsTrigger>
+            <TabsTrigger value="identidade" className="text-xs h-7 data-[state=active]:bg-zinc-800 data-[state=active]:text-foreground text-muted-foreground gap-1">
+              <Sparkles className="w-3.5 h-3.5" />
+              Identidade
             </TabsTrigger>
           </TabsList>
 
@@ -642,6 +656,16 @@ export function CompetitionFormDialog({
                   onCheckedChange={setRequireJerseyNumber}
                 />
               </div>
+            </TabsContent>
+
+            {/* ════ ABA 5: IDENTIDADE E APOIADORES ════ */}
+            <TabsContent value="identidade" className="space-y-4 m-0 focus-visible:outline-none">
+              <CompetitionIdentityEditor
+                logoUrl={logoUrl}
+                onLogoChange={setLogoUrl}
+                supporters={supporters}
+                onSupportersChange={setSupporters}
+              />
             </TabsContent>
           </div>
         </Tabs>

@@ -13,6 +13,7 @@ export interface StageBuilderProps {
   onUpdateStage: (stageId: string, updates: Partial<StageDefinition>) => void;
   onRemoveStage: (stageId: string) => void;
   onReorderStages: (stageIds: string[]) => void;
+  disabled?: boolean;
   className?: string;
 }
 
@@ -31,13 +32,14 @@ export const StageBuilder: React.FC<StageBuilderProps> = ({
   onUpdateStage,
   onRemoveStage,
   onReorderStages,
+  disabled = false,
   className = '',
 }) => {
   const [editingStage, setEditingStage] = useState<StageDefinition | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
 
   const handleMoveUp = (index: number) => {
-    if (index === 0) return;
+    if (disabled || index === 0) return;
     const stageIds = stages.map(s => getStageId(s));
     const temp = stageIds[index - 1];
     stageIds[index - 1] = stageIds[index];
@@ -46,7 +48,7 @@ export const StageBuilder: React.FC<StageBuilderProps> = ({
   };
 
   const handleMoveDown = (index: number) => {
-    if (index === stages.length - 1) return;
+    if (disabled || index === stages.length - 1) return;
     const stageIds = stages.map(s => getStageId(s));
     const temp = stageIds[index + 1];
     stageIds[index + 1] = stageIds[index];
@@ -55,6 +57,7 @@ export const StageBuilder: React.FC<StageBuilderProps> = ({
   };
 
   const handleDuplicate = (stage: StageDefinition) => {
+    if (disabled) return;
     const sId = getStageId(stage);
     const duplicated: StageDefinition = {
       ...JSON.parse(JSON.stringify(stage)),
@@ -70,14 +73,15 @@ export const StageBuilder: React.FC<StageBuilderProps> = ({
     <div className={cn('space-y-4', className)}>
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-text-primary">Fases da Competição (Stage Graph)</h3>
-          <p className="text-xs text-text-secondary">
+          <h3 className="text-sm font-semibold text-foreground">Fases da Competição (Stage Graph)</h3>
+          <p className="text-xs text-muted-foreground">
             Configure as etapas sequenciais do torneio. O sistema valida dependências e aciclicidade.
           </p>
         </div>
         <Button
           type="button"
           size="sm"
+          disabled={disabled}
           onClick={() => {
             setEditingStage(null);
             setEditorOpen(true);
@@ -89,10 +93,10 @@ export const StageBuilder: React.FC<StageBuilderProps> = ({
       </div>
 
       {stages.length === 0 ? (
-        <div className="p-8 text-center rounded-xl border border-dashed border-border-subtle bg-surface-elevated/30">
-          <Layers className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-50" />
-          <p className="text-xs font-semibold text-text-primary">Nenhuma fase configurada</p>
-          <p className="text-[11px] text-text-secondary mt-0.5">
+        <div className="p-8 text-center rounded-xl border border-dashed border-border bg-card">
+          <Layers className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+          <p className="text-xs font-semibold text-foreground">Nenhuma fase configurada</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
             Adicione uma fase manualmente ou selecione um template inicial.
           </p>
         </div>
@@ -106,7 +110,7 @@ export const StageBuilder: React.FC<StageBuilderProps> = ({
             return (
               <div
                 key={sId}
-                className="flex items-center justify-between p-3.5 rounded-xl border border-border-subtle bg-surface-elevated/70 transition-all hover:border-primary-500/30"
+                className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-card transition-all hover:border-primary-500/30"
               >
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col gap-0.5">
@@ -114,9 +118,9 @@ export const StageBuilder: React.FC<StageBuilderProps> = ({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      disabled={idx === 0}
+                      disabled={disabled || idx === 0}
                       onClick={() => handleMoveUp(idx)}
-                      className="h-5 w-5 p-0 text-text-muted hover:text-text-primary disabled:opacity-30"
+                      className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
                       aria-label="Mover fase para cima"
                     >
                       <ArrowUp className="w-3 h-3" />
@@ -125,9 +129,9 @@ export const StageBuilder: React.FC<StageBuilderProps> = ({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      disabled={idx === stages.length - 1}
+                      disabled={disabled || idx === stages.length - 1}
                       onClick={() => handleMoveDown(idx)}
-                      className="h-5 w-5 p-0 text-text-muted hover:text-text-primary disabled:opacity-30"
+                      className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
                       aria-label="Mover fase para baixo"
                     >
                       <ArrowDown className="w-3 h-3" />
@@ -140,13 +144,13 @@ export const StageBuilder: React.FC<StageBuilderProps> = ({
 
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="text-xs font-semibold text-text-primary">{stage.name}</h4>
-                      <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal text-text-muted">
+                      <h4 className="text-xs font-semibold text-foreground">{stage.name}</h4>
+                      <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal text-muted-foreground">
                         {STAGE_TYPE_LABELS[stage.type] || stage.type}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-[11px] text-text-secondary">
-                      <span className="font-mono text-[10px] text-text-muted">ID: {sId}</span>
+                    <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
+                      <span className="font-mono text-[10px]">ID: {sId}</span>
                       <span>•</span>
                       <span>{roundsCount} {roundsCount === 1 ? 'rodada' : 'rodadas'}</span>
                       {feedsCount > 0 && (
@@ -170,11 +174,12 @@ export const StageBuilder: React.FC<StageBuilderProps> = ({
                     type="button"
                     variant="ghost"
                     size="sm"
+                    disabled={disabled}
                     onClick={() => {
                       setEditingStage(stage);
                       setEditorOpen(true);
                     }}
-                    className="h-7 text-xs gap-1 text-text-secondary hover:text-text-primary"
+                    className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
                   >
                     <Edit2 className="w-3.5 h-3.5" /> Editar
                   </Button>
@@ -182,8 +187,9 @@ export const StageBuilder: React.FC<StageBuilderProps> = ({
                     type="button"
                     variant="ghost"
                     size="sm"
+                    disabled={disabled}
                     onClick={() => handleDuplicate(stage)}
-                    className="h-7 w-7 p-0 text-text-muted hover:text-text-primary"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
                     aria-label="Duplicar fase"
                   >
                     <Copy className="w-3.5 h-3.5" />
@@ -192,8 +198,9 @@ export const StageBuilder: React.FC<StageBuilderProps> = ({
                     type="button"
                     variant="ghost"
                     size="sm"
+                    disabled={disabled}
                     onClick={() => onRemoveStage(sId)}
-                    className="h-7 w-7 p-0 text-state-error hover:bg-state-error/10"
+                    className="h-7 w-7 p-0 text-rose-400 hover:bg-rose-500/10 disabled:opacity-30"
                     aria-label="Remover fase"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

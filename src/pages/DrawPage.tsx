@@ -56,6 +56,7 @@ import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entitie
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
 import { useAuth } from '@/components/auth/useAuth';
 import { OperationalAuditService } from '@/services/operationalAuditService';
+import { buildMatchesUrl } from '@/services/competitionNavigationHelper';
 import { cn } from '@/lib/utils';
 
 type DrawOperationState = 'idle' | 'running' | 'saving';
@@ -761,7 +762,11 @@ const DrawPage = () => {
                       <p className="text-xs font-semibold text-foreground">Deseja ajustar os horários e quadras?</p>
                       <p className="text-[11px] text-muted-foreground">Acesse a Central de Jogos para definir as datas, horários e quadras de cada confronto.</p>
                     </div>
-                    <Button size="sm" className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none shrink-0" onClick={() => navigate('/jogos')}>
+                    <Button
+                      size="sm"
+                      className="gap-1.5 text-xs h-8 rounded-md font-medium shadow-none shrink-0"
+                      onClick={() => navigate(selectedId ? buildMatchesUrl(selectedId) : '/jogos')}
+                    >
                       <Calendar className="w-3.5 h-3.5" />
                       Ir para Agenda
                       <ArrowRight className="w-3.5 h-3.5" />

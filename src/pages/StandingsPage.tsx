@@ -52,6 +52,11 @@ import {
   type StandingInput,
 } from '@/services/standingsService';
 import { CompetitionRulesService } from '@/services/competitionRulesService';
+import {
+  resolveActiveCompetition,
+  setActiveCompetitionId,
+  buildMatchesUrl,
+} from '@/services/competitionNavigationHelper';
 import { generateStandingsReportPdf, downloadReportsPdf, type StandingsReportGroup } from '@/lib/pdf/reportsPdf';
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
 import type { CompetitionTeam } from '@/types/registration';
@@ -68,6 +73,7 @@ export function StandingsPage() {
   const [teams, setTeams] = useState<TeamRecord[]>([]);
   const [competitionTeams, setCompetitionTeams] = useState<CompetitionTeam[]>([]);
   const [selectedCompId, setSelectedCompId] = useState<string>('');
+  const [isExplicitInvalid, setIsExplicitInvalid] = useState(false);
   const [selectedGroupTab, setSelectedGroupTab] = useState<string>('all');
   const [showCriteria, setShowCriteria] = useState(false);
 
@@ -89,26 +95,32 @@ export function StandingsPage() {
       setMatches(rawMatches);
       setTeams(rawTeams);
       setCompetitionTeams(rawCt);
-
-      // Definir competição selecionada (ou parâmetro de URL ou a primeira disponível)
-      if (rawComps.length > 0) {
-        if (competitionParam && rawComps.some((c) => c.id === competitionParam)) {
-          setSelectedCompId(competitionParam);
-        } else if (!selectedCompId || !rawComps.some((c) => c.id === selectedCompId)) {
-          setSelectedCompId(rawComps[0].id);
-        }
-      }
     } catch (err: unknown) {
       setIsError(true);
       setErrorMessage(err instanceof Error ? err.message : 'Falha ao carregar os dados de classificação.');
     } finally {
       setLoading(false);
     }
-  }, [competitionParam, selectedCompId]);
+  }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Sincroniza competição ativa com a URL e contexto local com precedência canônica
+  useEffect(() => {
+    if (competitions.length === 0) return;
+    const resolved = resolveActiveCompetition({
+      searchParamId: competitionParam,
+      competitions,
+    });
+    setIsExplicitInvalid(resolved.isExplicitInvalid);
+    if (resolved.selectedId) {
+      setSelectedCompId(resolved.selectedId);
+    } else if (resolved.isExplicitInvalid) {
+      setSelectedCompId('');
+    }
+  }, [competitionParam, competitions]);
 
   const selectedCompetition = useMemo(
     () => competitions.find((c) => c.id === selectedCompId) || null,
@@ -198,7 +210,21 @@ export function StandingsPage() {
   const handleSelectCompetition = (compId: string) => {
     setSelectedCompId(compId);
     setSelectedGroupTab('all');
-    setSearchParams({ competitionId: compId });
+    if (compId) {
+      setActiveCompetitionId(compId);
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (compId) {
+          next.set('competitionId', compId);
+        } else {
+          next.delete('competitionId');
+        }
+        return next;
+      },
+      { replace: false },
+    );
   };
 
   return (
@@ -253,6 +279,29 @@ export function StandingsPage() {
           }
         >
           <div className="space-y-3.5">
+            {isExplicitInvalid && (
+              <div className="p-4 rounded-xl border border-red-500/40 bg-red-950/20 text-red-300 flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-sm">Competição não encontrada</p>
+                  <p className="text-xs text-red-400">
+                    O identificador &quot;{competitionParam}&quot; informado na URL não existe ou foi excluído.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs border-red-500/30 hover:bg-red-900/30"
+                  onClick={() => {
+                    if (competitions.length > 0) {
+                      handleSelectCompetition(competitions[0].id);
+                    }
+                  }}
+                >
+                  Ver primeira competição
+                </Button>
+              </div>
+            )}
+
             {/* ── Seletor & Contexto da Competição ── */}
             <div className="p-4 rounded-xl bg-card border border-border space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -381,7 +430,7 @@ export function StandingsPage() {
                     variant="outline"
                     size="sm"
                     className="text-xs h-8"
-                    onClick={() => navigate('/jogos')}
+                    onClick={() => navigate(selectedCompId ? buildMatchesUrl(selectedCompId) : '/jogos')}
                   >
                     Ir para Central de Jogos
                   </Button>

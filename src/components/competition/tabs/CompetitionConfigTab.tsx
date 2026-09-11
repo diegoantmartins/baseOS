@@ -1,4 +1,4 @@
-import { Settings, Layers } from 'lucide-react';
+import { Settings, Layers, Sparkles, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SectionCard } from '@/components/ui/Section';
@@ -42,12 +42,12 @@ export function CompetitionConfigTab({
             {onOpenFormatBuilder && (
               <Button size="sm" onClick={onOpenFormatBuilder} className="gap-1.5 text-xs">
                 <Layers className="w-3.5 h-3.5" />
-                Format Builder & Fases
+                Formato e Regras da Competição
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={onOpenEditConfig} className="gap-1.5 text-xs">
               <Settings className="w-3.5 h-3.5" />
-              Editar Parâmetros
+              Editar Configurações
             </Button>
           </div>
         )
@@ -115,6 +115,70 @@ export function CompetitionConfigTab({
                 <span className="capitalize">{TIEBREAK_CRITERIA_LABELS_PT[crit] || crit.replace(/-/g, ' ')}</span>
               </Badge>
             ))}
+          </div>
+        </div>
+
+        {/* Identidade Visual e Apoiadores do Evento */}
+        <div className="space-y-2.5 pt-3 border-t border-border">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-[10px] uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              Identidade Visual e Apoiadores Oficiais
+            </h4>
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onOpenEditConfig}
+                className="h-6 text-[11px] text-amber-400 hover:text-amber-300 px-2"
+              >
+                Gerenciar Apoiadores
+              </Button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="p-3 rounded-lg bg-zinc-900/40 border border-border flex items-center gap-3">
+              {selected.logoUrl ? (
+                <img
+                  src={selected.logoUrl}
+                  alt="Logo da competição"
+                  className="w-10 h-10 rounded-lg object-contain bg-zinc-950 p-1 border border-border shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-lg bg-zinc-900 border border-border flex items-center justify-center text-zinc-500 shrink-0">
+                  <Trophy className="w-5 h-5 opacity-50" />
+                </div>
+              )}
+              <div>
+                <span className="text-[10px] text-muted-foreground block font-semibold uppercase">Logo Oficial</span>
+                <span className="text-xs text-foreground font-medium">
+                  {selected.logoUrl ? 'Configurado' : 'Não definido'}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-zinc-900/40 border border-border">
+              <span className="text-[10px] text-muted-foreground block font-semibold uppercase">
+                Apoiadores do Evento ({selected.supporters?.length || 0})
+              </span>
+              {selected.supporters && selected.supporters.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {selected.supporters.map((sup) => (
+                    <Badge
+                      key={sup.id}
+                      variant="outline"
+                      className="text-[10px] py-0 px-2 h-5 border-zinc-800 bg-zinc-900/80 text-zinc-300"
+                    >
+                      {sup.name}
+                      {sup.tier && <span className="text-amber-400/80 ml-1">({sup.tier})</span>}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-xs text-zinc-500 mt-1 block">Nenhum apoiador cadastrado</span>
+              )}
+            </div>
           </div>
         </div>
       </div>

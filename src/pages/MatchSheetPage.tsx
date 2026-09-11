@@ -34,6 +34,7 @@ import {
   LayoutGrid,
   Share2,
   ShieldCheck,
+  Trophy,
   Plus,
   Filter,
 } from 'lucide-react';
@@ -94,6 +95,21 @@ export function MatchSheetPage() {
   const [notFound, setNotFound] = useState(false);
   const [isError, setIsError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Destaque da Partida (MVP) derivado dos elencos carregados
+  const highlightAthlete = useMemo(() => {
+    if (!match?.highlightAthleteId) return undefined;
+    return (
+      teamARoster.find((a) => a.id === match.highlightAthleteId) ||
+      teamBRoster.find((a) => a.id === match.highlightAthleteId)
+    );
+  }, [match?.highlightAthleteId, teamARoster, teamBRoster]);
+
+  const highlightTeamName = useMemo(() => {
+    if (!highlightAthlete || !match) return undefined;
+    const inA = teamARoster.some((a) => a.id === highlightAthlete.id);
+    return inA ? match.teamAName : match.teamBName;
+  }, [highlightAthlete, match, teamARoster]);
 
   // Carrega listagem de partidas e campeonatos
   const loadListData = useCallback(async () => {
@@ -365,7 +381,7 @@ export function MatchSheetPage() {
 
                 {/* Banner de Homologação */}
                 {match.status === 'homologated' && (
-                  <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between gap-3">
+                  <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                       <span>
@@ -377,6 +393,12 @@ export function MatchSheetPage() {
                         .
                       </span>
                     </div>
+                    {highlightAthlete && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold text-xs shrink-0">
+                        <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                        Destaque: {highlightAthlete.jerseyNumber !== undefined ? `#${highlightAthlete.jerseyNumber} ` : ''}{highlightAthlete.name} ({highlightTeamName})
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -467,6 +489,9 @@ export function MatchSheetPage() {
                           finalScoreA={pdfData?.finalScoreA ?? 0}
                           finalScoreB={pdfData?.finalScoreB ?? 0}
                           winner={pdfData?.winner}
+                          mvpName={highlightAthlete?.name}
+                          mvpNumber={highlightAthlete?.jerseyNumber}
+                          mvpTeam={highlightTeamName}
                           date={new Date(match.scheduledTime).toLocaleDateString('pt-BR')}
                           venue={match.venue}
                         />

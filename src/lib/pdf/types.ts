@@ -139,6 +139,8 @@ export interface MatchBoletimRow {
   scoreA?: number;
   scoreB?: number;
   statusLabel: string;
+  highlightAthleteName?: string;
+  highlightTeamShort?: string;
 }
 
 /** Dados para relatório de classificação */

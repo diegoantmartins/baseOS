@@ -213,7 +213,23 @@ export function mapMatchRecordToBaseosScoresheet(
     },
     signatures: {},
     result: resultData,
-    observations: match.observations,
+    observations: (() => {
+      let text = match.observations || '';
+      if (match.highlightAthleteId) {
+        const athleteInA = rosterA.find((a) => a.id === match.highlightAthleteId);
+        const athleteInB = rosterB.find((a) => a.id === match.highlightAthleteId);
+        const athlete = athleteInA || athleteInB;
+        if (athlete) {
+          const teamShort = athleteInA
+            ? match.teamAShortName || teamA?.shortName || teamAData.shortName || 'A'
+            : match.teamBShortName || teamB?.shortName || teamBData.shortName || 'B';
+          const jerseyPrefix = athlete.jerseyNumber != null ? `#${athlete.jerseyNumber} ` : '';
+          const highlightNote = `Destaque da Partida (MVP): ${jerseyPrefix}${athlete.name} (${teamShort})`;
+          text = text ? `${text} | ${highlightNote}` : highlightNote;
+        }
+      }
+      return text;
+    })(),
     rules: formatConfig,
   };
 }

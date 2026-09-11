@@ -337,6 +337,50 @@ export function TeamRosterRegistrationPage() {
           </div>
         </div>
 
+        {/* ── Identidade Oficial da Competição e Apoiadores do Evento ── */}
+        {competition && (
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 p-3 px-4 rounded-xl bg-zinc-900/50 border border-zinc-800 text-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {competition.logoUrl ? (
+                <img
+                  src={competition.logoUrl}
+                  alt={competition.name}
+                  className="w-8 h-8 rounded-lg object-contain bg-zinc-950 p-1 border border-zinc-800 shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700/60 text-amber-400 flex items-center justify-center shrink-0">
+                  <Trophy className="w-4 h-4" />
+                </div>
+              )}
+              <div className="truncate">
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Competição Oficial</span>
+                <span className="font-semibold text-foreground truncate">{competition.name}</span>
+              </div>
+            </div>
+
+            {/* Apoiadores do Evento (Somente Leitura) */}
+            {competition.supporters && competition.supporters.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] text-zinc-500 uppercase font-semibold">Apoiadores do Torneio:</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {competition.supporters.map((sup) => (
+                    <span
+                      key={sup.id}
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-950 border border-zinc-800 text-[10px] text-zinc-300"
+                    >
+                      {sup.logoUrl && (
+                        <img src={sup.logoUrl} alt="" className="w-3.5 h-3.5 rounded object-contain" />
+                      )}
+                      <span>{sup.name}</span>
+                      {sup.tier && <span className="text-amber-400/80 text-[9px]">({sup.tier})</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Prazos e Alertas */}
         {locked ? (
           <Alert variant="destructive" className="rounded-xl bg-destructive/10 border-destructive/25 text-red-400 p-3.5">
@@ -582,6 +626,26 @@ export function TeamRosterRegistrationPage() {
                             ))}
                           </div>
                         )}
+
+                        {/* Destaque da Partida (MVP) — visível em partidas homologadas */}
+                        {m.status === 'homologated' && m.highlightAthleteId && (() => {
+                          const myAthlete = athletes.find(a => a.id === m.highlightAthleteId);
+                          return (
+                            <div
+                              className={`flex items-center gap-1.5 p-1.5 rounded-md text-[11px] font-semibold ${
+                                myAthlete
+                                  ? 'bg-amber-500/15 border border-amber-500/40 text-amber-300'
+                                  : 'bg-zinc-800/60 border border-zinc-700/50 text-zinc-300'
+                              }`}
+                              data-testid="team-portal-highlight"
+                            >
+                              <Trophy className={`w-3.5 h-3.5 shrink-0 ${myAthlete ? 'text-amber-400' : 'text-zinc-400'}`} />
+                              <span className="truncate">
+                                Destaque do Jogo: {myAthlete ? `${myAthlete.jerseyNumber != null ? `#${myAthlete.jerseyNumber} ` : ''}${myAthlete.name} (Sua Equipe)` : 'Atleta Oficial'}
+                              </span>
+                            </div>
+                          );
+                        })()}
 
                         <div className="flex items-center justify-between pt-2 border-t border-border text-[11px] text-muted-foreground">
                           <span className="truncate">{m.venue || 'Ginásio Principal'} · {m.court || 'Quadra 1'}</span>

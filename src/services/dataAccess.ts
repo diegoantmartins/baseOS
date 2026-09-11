@@ -15,6 +15,7 @@ import type { DocumentEdit, DocumentEditKey, TemplateLayout } from '@/types/docu
 import { SEED_VERSION, seedCompetitionAthletes, seedCompetitionTeams, seedCompetitions, seedDraws, seedMatches, seedModalities, seedPersons, seedReferees, seedTeams, seedVenues } from '@/data/seed';
 import { getSupabaseClient, isSupabaseConfigured, SUPABASE_TABLES } from '@/lib/supabaseClient';
 import { notificationService } from '@/services/notificationService';
+import { normalizeSupporters } from '@/lib/supporters';
 type CompetitionAthleteCreate = CompetitionAthleteInput & { competitionTeamId: string };
 
 export interface SaveStageDrawAndSlotsParams {
@@ -338,6 +339,8 @@ function normalizeCompetitionRecord(comp: CompetitionRecord): CompetitionRecord 
     ...comp,
     slug: comp.slug || generateSlug(comp.name),
     status: normalizedStatus,
+    logoUrl: comp.logoUrl ? String(comp.logoUrl) : undefined,
+    supporters: normalizeSupporters(comp.supporters),
   };
 }
 
@@ -353,14 +356,16 @@ const localStorageAdapter = {
   },
 
   async getCompetition(id: string): Promise<CompetitionRecord | null> {
-    const all = await this.listCompetitions();
-    const comp = all.find(c => c.id === id) ?? null;
+    ensureSeeded();
+    const all = readCollection<CompetitionRecord>('competitions');
+    const comp = all.find(c => c.id === id);
     return comp ? normalizeCompetitionRecord(comp) : null;
   },
 
   async getCompetitionBySlug(slug: string): Promise<CompetitionRecord | null> {
-    const all = await this.listCompetitions();
-    const comp = all.find(c => c.slug === slug) ?? null;
+    ensureSeeded();
+    const all = readCollection<CompetitionRecord>('competitions');
+    const comp = all.find(c => (c.slug || generateSlug(c.name)) === slug);
     return comp ? normalizeCompetitionRecord(comp) : null;
   },
 
@@ -378,7 +383,7 @@ const localStorageAdapter = {
     }
     all[idx] = { ...all[idx], ...safeUpdates };
     writeCollection('competitions', all);
-    return all[idx];
+    return normalizeCompetitionRecord(all[idx]);
   },
 
   async createCompetition(input: Omit<CompetitionRecord, 'id'> & { id?: string }): Promise<CompetitionRecord> {
@@ -391,9 +396,10 @@ const localStorageAdapter = {
       counter++;
     }
     const record: CompetitionRecord = { ...input, slug: uniqueSlug, id: (input as { id?: string }).id || generateId('comp') };
-    all.push(record);
+    const normalized = normalizeCompetitionRecord(record);
+    all.push(normalized);
     writeCollection('competitions', all);
-    return record;
+    return normalized;
   },
 
   async deleteCompetition(id: string): Promise<void> {
@@ -1880,7 +1886,8 @@ const supabaseAdapter = {
       safeUpdates.slug = existing.slug;
     }
     const { data } = await supabase.from(SUPABASE_TABLES.competitions).update(toSnake(safeUpdates)).eq('id', id).select().maybeSingle();
-    return mapRow<CompetitionRecord>(data);
+    const mapped = mapRow<CompetitionRecord>(data);
+    return mapped ? normalizeCompetitionRecord(mapped) : null;
   },
 
   async createCompetition(input: Omit<CompetitionRecord, 'id'> & { id?: string }): Promise<CompetitionRecord> {
@@ -1889,7 +1896,8 @@ const supabaseAdapter = {
     const slug = input.slug || generateSlug(input.name);
     const payload = { ...input, slug };
     const { data } = await supabase.from(SUPABASE_TABLES.competitions).insert(toSnake(payload)).select().single();
-    return mapRow<CompetitionRecord>(data) ?? (data as unknown as CompetitionRecord);
+    const mapped = mapRow<CompetitionRecord>(data) ?? (data as unknown as CompetitionRecord);
+    return mapped ? normalizeCompetitionRecord(mapped) : mapped;
   },
 
   async deleteCompetition(id: string): Promise<void> {
@@ -2025,14 +2033,32 @@ const supabaseAdapter = {
   async createMatch(match: Omit<MatchRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<MatchRecord> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
-    const { data } = await supabase.from(SUPABASE_TABLES.matches).insert(toSnake(match)).select().single();
+    const rawPayload = toSnake(match as Record<string, unknown>);
+    const payload: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(rawPayload)) {
+      if (value !== undefined) {
+        payload[key] = value;
+      }
+    }
+    const { data } = await supabase.from(SUPABASE_TABLES.matches).insert(payload).select().single();
     return mapRow<MatchRecord>(data) ?? (data as unknown as MatchRecord);
   },
 
   async updateMatch(id: string, updates: Partial<MatchRecord>): Promise<MatchRecord | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.matches).update(toSnake(updates)).eq('id', id).select().maybeSingle();
+    const rawPayload = toSnake(updates as Record<string, unknown>);
+    // Sanitização de payload para prevenir erros PGRST204
+    const payload: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(rawPayload)) {
+      if (value !== undefined) {
+        payload[key] = value;
+      } else if (key === 'highlight_athlete_id' || key === 'homologated_at' || key === 'homologated_by') {
+        // Permite limpar explicitamente campos nullable
+        payload[key] = null;
+      }
+    }
+    const { data } = await supabase.from(SUPABASE_TABLES.matches).update(payload).eq('id', id).select().maybeSingle();
     return mapRow<MatchRecord>(data);
   },
 

@@ -45,6 +45,14 @@ import { OperationalAuditService } from '@/services/operationalAuditService';
 import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 
+import {
+  resolveActiveCompetition,
+  setActiveCompetitionId,
+  buildMatchesUrl,
+  buildReportsUrl,
+  buildDrawUrl,
+} from '@/services/competitionNavigationHelper';
+
 // Componentes Modularizados (Fase 9.3)
 import { CompetitionSidebarList } from '@/components/competition/CompetitionSidebarList';
 import { CompetitionOverviewTab } from '@/components/competition/tabs/CompetitionOverviewTab';
@@ -55,6 +63,17 @@ import { CompetitionStandingsTab } from '@/components/competition/tabs/Competiti
 import { CompetitionFormDialog } from '@/components/competition/dialogs/CompetitionFormDialog';
 import { CompetitionSettingsEditDialog } from '@/components/competition/dialogs/CompetitionSettingsEditDialog';
 import { CompetitionFormatBuilder } from '@/components/competition/format-builder';
+
+const VALID_TABS: CompetitionTab[] = [
+  'overview',
+  'config',
+  'teams',
+  'athletes',
+  'draw',
+  'matches',
+  'standings',
+  'reports',
+];
 
 export default function CompetitionsPage() {
   const navigate = useNavigate();
@@ -76,6 +95,8 @@ export default function CompetitionsPage() {
   const [isError, setIsError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isExplicitInvalid, setIsExplicitInvalid] = useState(false);
+  const [explicitInvalidId, setExplicitInvalidId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<CompetitionTab>('overview');
   const [createOpen, setCreateOpen] = useState(false);
   const [editConfigOpen, setEditConfigOpen] = useState(false);
@@ -85,6 +106,9 @@ export default function CompetitionsPage() {
   // Estados de filtros da lista
   const [searchTerm, setSearchTerm] = useState('');
   const [modalityFilter, setModalityFilter] = useState<'all' | 'indoor' | 'beach'>('all');
+
+  const queryCompId = searchParams.get('competitionId') || searchParams.get('id');
+  const queryTab = searchParams.get('tab');
 
   const refresh = useCallback(async () => {
     try {
@@ -106,7 +130,6 @@ export default function CompetitionsPage() {
       setCompetitionTeams(cts);
       setCompetitionAthletes(aths);
       setMatches(ms);
-      setSelectedId((prev) => prev ?? comps[0]?.id ?? null);
     } catch (err: unknown) {
       setIsError(true);
       setErrorMessage(
@@ -121,10 +144,83 @@ export default function CompetitionsPage() {
     refresh();
   }, [refresh]);
 
+  // Sincronização e resolução de competição ativa: URL > Contexto persistido localmente > Fallback controlado
+  useEffect(() => {
+    if (loading) return;
+
+    const resolution = resolveActiveCompetition({
+      searchParamId: queryCompId,
+      competitions,
+    });
+
+    setSelectedId(resolution.selectedId);
+    setIsExplicitInvalid(resolution.isExplicitInvalid);
+    setExplicitInvalidId(resolution.rawExplicitId ?? null);
+
+    // Se nenhum ID estava na URL, mas resolvemos um ID válido, normaliza a URL de forma limpa sem poluir histórico
+    if (!queryCompId && resolution.selectedId) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set('competitionId', resolution.selectedId!);
+          return next;
+        },
+        { replace: true },
+      );
+    }
+  }, [loading, competitions, queryCompId, setSearchParams]);
+
+  // Sincronização de aba ativa: URL query param
+  useEffect(() => {
+    if (queryTab && VALID_TABS.includes(queryTab as CompetitionTab)) {
+      setActiveTab(queryTab as CompetitionTab);
+    } else if (!queryTab) {
+      setActiveTab('overview');
+    }
+  }, [queryTab]);
+
+  const handleSelectCompetition = (newId: string) => {
+    setSelectedId(newId);
+    setIsExplicitInvalid(false);
+    setExplicitInvalidId(null);
+    setActiveCompetitionId(newId);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('competitionId', newId);
+        return next;
+      },
+      { replace: false }, // push para registrar no histórico do navegador
+    );
+  };
+
+  const handleTabChange = (newTab: CompetitionTab) => {
+    setActiveTab(newTab);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (newTab === 'overview') {
+          next.delete('tab');
+        } else {
+          next.set('tab', newTab);
+        }
+        return next;
+      },
+      { replace: false }, // push para permitir voltar/avançar entre abas
+    );
+  };
+
   useEffect(() => {
     if (searchParams.get('new') === '1') {
       setCreateOpen(true);
-      setSearchParams({}, { replace: true });
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('new');
+          return next;
+        },
+        { replace: true },
+      );
     }
   }, [searchParams, setSearchParams]);
 
@@ -310,7 +406,7 @@ export default function CompetitionsPage() {
     toast.success(`Competição "${created.name}" criada com sucesso!`);
     setCreateOpen(false);
     await refresh();
-    setSelectedId(created.id);
+    handleSelectCompetition(created.id);
   };
 
   const handleUpdateConfig = async (updates: Partial<CompetitionRecord>) => {
@@ -474,7 +570,7 @@ export default function CompetitionsPage() {
               competitions={competitions}
               filteredCompetitions={filteredCompetitions}
               selectedId={selectedId}
-              onSelect={setSelectedId}
+              onSelect={handleSelectCompetition}
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
               modalityFilter={modalityFilter}
@@ -488,7 +584,7 @@ export default function CompetitionsPage() {
                 <CompetitionHeader
                   competition={selected}
                   activeTab={activeTab}
-                  onTabChange={setActiveTab}
+                  onTabChange={handleTabChange}
                   extraStats={{
                     teamsCount: selectedTeams.length,
                     matchesCount: selectedMatches.length,
@@ -508,7 +604,7 @@ export default function CompetitionsPage() {
                     canEdit={can('competition:edit')}
                     onRefresh={refresh}
                     onRequestStatusTransition={requestStatusTransition}
-                    onNavigateTab={setActiveTab}
+                    onNavigateTab={handleTabChange}
                   />
                 )}
 
@@ -550,7 +646,7 @@ export default function CompetitionsPage() {
                           Realize sorteio automático ou manual com potes, cabeças de chave e geração de tabela Berger.
                         </p>
                       </div>
-                      <Button onClick={() => navigate(`/sorteio/${selected.id}`)} className="text-xs gap-1.5">
+                      <Button onClick={() => navigate(buildDrawUrl(selected.id))} className="text-xs gap-1.5">
                         Acessar Motor de Sorteio
                       </Button>
                     </div>
@@ -563,7 +659,7 @@ export default function CompetitionsPage() {
                     title={`Confrontos da Competição (${selectedMatches.length})`}
                     description="Partidas agendadas, em andamento e finalizadas deste torneio."
                     actions={
-                      <Button variant="outline" size="sm" onClick={() => navigate('/jogos')} className="text-xs gap-1.5">
+                      <Button variant="outline" size="sm" onClick={() => navigate(buildMatchesUrl(selected.id))} className="text-xs gap-1.5">
                         <Calendar className="w-3.5 h-3.5" />
                         Abrir Central de Jogos
                       </Button>
@@ -575,7 +671,7 @@ export default function CompetitionsPage() {
                       emptyTitle="Nenhum confronto gerado"
                       emptyDescription="Realize o sorteio das chaves para gerar os jogos automaticamente."
                       emptyAction={
-                        <Button size="sm" onClick={() => navigate(`/sorteio/${selected.id}`)} className="text-xs gap-1.5">
+                        <Button size="sm" onClick={() => navigate(buildDrawUrl(selected.id))} className="text-xs gap-1.5">
                           <Dices className="w-3.5 h-3.5" />
                           Sortear Chaves
                         </Button>
@@ -609,13 +705,40 @@ export default function CompetitionsPage() {
                           Emita súmulas oficiais, ordens de saque, classificação detalhada e boletins da competição.
                         </p>
                       </div>
-                      <Button onClick={() => navigate('/relatorios')} className="text-xs gap-1.5">
+                      <Button onClick={() => navigate(buildReportsUrl(selected.id))} className="text-xs gap-1.5">
                         Abrir Central de Relatórios
                       </Button>
                     </div>
                   </SectionCard>
                 )}
               </div>
+            ) : isExplicitInvalid ? (
+              <SectionCard
+                density="loose"
+                className="border-amber-500/30 bg-amber-950/10"
+                title="Competição não encontrada"
+                description={`O identificador "${explicitInvalidId}" informado na URL não corresponde a nenhuma competição cadastrada ou com acesso liberado.`}
+              >
+                <div className="space-y-4 pt-2">
+                  <p className="text-xs text-muted-foreground">
+                    Verifique se o link está correto ou selecione uma das competições disponíveis na barra lateral à esquerda.
+                  </p>
+                  {competitions.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs gap-1.5"
+                      onClick={() => {
+                        if (competitions[0]) {
+                          handleSelectCompetition(competitions[0].id);
+                        }
+                      }}
+                    >
+                      Ver primeira competição disponível ({competitions[0].name})
+                    </Button>
+                  )}
+                </div>
+              </SectionCard>
             ) : (
               <SectionCard title="Nenhuma competição selecionada" description="Selecione um torneio à esquerda para gerenciar.">
                 <p className="text-xs text-muted-foreground">
@@ -673,6 +796,7 @@ export default function CompetitionsPage() {
             open={formatBuilderOpen}
             onOpenChange={setFormatBuilderOpen}
             competition={selected}
+            matches={selectedMatches}
             onSaved={refresh}
           />
         </>

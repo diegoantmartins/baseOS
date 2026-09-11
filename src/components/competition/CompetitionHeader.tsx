@@ -101,9 +101,17 @@ export function CompetitionHeader({
       {/* Top Banner with info */}
       <div className="px-4 py-3 sm:px-4 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-lg bg-zinc-800/80 border border-zinc-700/50 text-zinc-300 flex items-center justify-center shrink-0">
-            <Trophy className="w-5 h-5" />
-          </div>
+          {competition.logoUrl ? (
+            <img
+              src={competition.logoUrl}
+              alt={competition.name}
+              className="w-10 h-10 rounded-lg object-contain bg-zinc-950 p-1 border border-border shrink-0"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-lg bg-zinc-800/80 border border-zinc-700/50 text-zinc-300 flex items-center justify-center shrink-0">
+              <Trophy className="w-5 h-5" />
+            </div>
+          )}
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-base sm:text-lg font-semibold tracking-tight text-foreground">

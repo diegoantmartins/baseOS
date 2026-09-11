@@ -55,6 +55,17 @@ export type ModalityRecord = {
   description?: string;
 };
 
+export type CompetitionSupporterTier = 'master' | 'official' | 'support' | 'media';
+
+export interface CompetitionSupporter {
+  id: string;
+  name: string;
+  logoUrl?: string;
+  tier?: CompetitionSupporterTier;
+  websiteUrl?: string;
+  order?: number;
+}
+
 export type CompetitionRecord = {
   id: string;
   name: string;
@@ -71,6 +82,10 @@ export type CompetitionRecord = {
   endDate?: string;
   venue?: string;
   description?: string;
+  /** Logo oficial da competição (data URI base64 ou URL) */
+  logoUrl?: string;
+  /** Apoiadores e patrocinadores vinculados exclusivamente à competição */
+  supporters?: CompetitionSupporter[];
   /** Número de quadras disponíveis */
   courtsCount?: number;
   /** Quantidade de grupos */
@@ -256,6 +271,7 @@ export type MatchRecord = {
   isWo?: boolean;
   woReason?: string;
   customSetFormat?: '3-sets' | '5-sets';
+  highlightAthleteId?: string;
   homologatedAt?: string;
   homologatedBy?: string;
   auditLog?: MatchAuditEntry[];

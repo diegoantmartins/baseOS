@@ -6,6 +6,7 @@ import { SectionCard } from '@/components/ui/Section';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { CompetitionProgress } from '@/components/competition/CompetitionProgress';
 import { CompetitionPendingTasks } from '@/components/competition/CompetitionPendingTasks';
+import { buildMatchesUrl, buildDrawUrl } from '@/services/competitionNavigationHelper';
 import type {
   CompetitionRecord,
   CompetitionLifecycleStatus,
@@ -189,7 +190,7 @@ export function CompetitionOverviewTab({
             variant="outline"
             size="sm"
             className="w-full text-xs mt-2"
-            onClick={() => navigate('/jogos')}
+            onClick={() => navigate(buildMatchesUrl(selected.id))}
           >
             Central de Jogos
           </Button>
@@ -207,7 +208,7 @@ export function CompetitionOverviewTab({
             variant="outline"
             size="sm"
             className="w-full text-xs mt-2"
-            onClick={() => navigate(`/sorteio/${selected.id}`)}
+            onClick={() => navigate(buildDrawUrl(selected.id))}
           >
             Motor de Sorteio
           </Button>

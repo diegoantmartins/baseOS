@@ -27,6 +27,12 @@ import { cn } from '@/lib/utils';
 import { dataAccess } from '@/services/dataAccess';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import { evaluateCompetitionReadiness } from '@/services/competitionReadinessService';
+import {
+  buildCompetitionUrl,
+  buildMatchesUrl,
+  buildReportsUrl,
+  buildRegistrationsUrl,
+} from '@/services/competitionNavigationHelper';
 import type { CompetitionRecord, MatchRecord, TeamRecord, ModalityRecord, VenueRecord } from '@/types/entities';
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
 
@@ -234,7 +240,10 @@ export default function ActiveCompetitionsPage() {
 
                     {/* Title */}
                     <div>
-                      <h3 className="text-sm sm:text-base font-semibold text-foreground">
+                      <h3
+                        className="text-sm sm:text-base font-semibold text-foreground hover:text-primary cursor-pointer transition-colors"
+                        onClick={() => navigate(buildCompetitionUrl(c.id))}
+                      >
                         {c.name}
                       </h3>
                       <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
@@ -291,7 +300,7 @@ export default function ActiveCompetitionsPage() {
                         variant="secondary"
                         size="sm"
                         className="gap-1.5 text-xs h-7 px-2.5 rounded-md font-medium bg-zinc-800 hover:bg-zinc-700 text-foreground border border-zinc-700/60"
-                        onClick={() => navigate(`/jogos?competitionId=${c.id}`)}
+                        onClick={() => navigate(buildMatchesUrl(c.id))}
                       >
                         <Volleyball className="w-3 h-3 text-zinc-400" />
                         Ver Jogos
@@ -301,7 +310,7 @@ export default function ActiveCompetitionsPage() {
                         variant="ghost"
                         size="sm"
                         className="gap-1 text-xs h-7 px-2 text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 rounded-md"
-                        onClick={() => navigate(`/relatorios`)}
+                        onClick={() => navigate(buildReportsUrl(c.id))}
                       >
                         <FileSpreadsheet className="w-3 h-3 text-zinc-400" />
                         Relatórios
@@ -312,7 +321,7 @@ export default function ActiveCompetitionsPage() {
                       variant="ghost"
                       size="sm"
                       className="gap-1 text-xs h-7 px-2 text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 rounded-md"
-                      onClick={() => navigate(`/competicoes/${c.id}/inscricoes`)}
+                      onClick={() => navigate(buildRegistrationsUrl(c.id))}
                     >
                       <Users className="w-3 h-3 text-zinc-400" />
                       Inscrições

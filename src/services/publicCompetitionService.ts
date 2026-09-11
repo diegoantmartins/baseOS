@@ -14,7 +14,9 @@
 import { dataAccess } from '@/services/dataAccess';
 import { CompetitionRulesService } from '@/services/competitionRulesService';
 import { computeStandingsByGroup, type StandingsByGroup } from '@/services/standingsService';
-import type { CompetitionRecord, CompetitionLifecycleStatus } from '@/types/entities';
+import type { CompetitionRecord, CompetitionLifecycleStatus, CompetitionSupporter } from '@/types/entities';
+import { sanitizeExternalUrl } from '@/lib/security';
+import { normalizeSupporters } from '@/lib/supporters';
 
 // ============================================================================
 // Utilitários Puros de Slug
@@ -67,6 +69,8 @@ export interface PublicCompetitionDTO {
   endDate?: string;
   venue?: string;
   description?: string;
+  logoUrl?: string;
+  supporters?: CompetitionSupporter[];
   publicRules: PublicRulesDTO;
 }
 
@@ -105,6 +109,11 @@ export interface PublicMatchDTO {
   isCompleted: boolean;
   isHomologated: boolean;
   isWo: boolean;
+  highlightAthlete?: {
+    name: string;
+    jerseyNumber?: number;
+    teamName: string;
+  } | null;
 }
 
 export interface PublicCompetitionBundle {
@@ -164,6 +173,8 @@ export function sanitizePublicCompetition(comp: CompetitionRecord): PublicCompet
   const pointsWoWin = cfg.scoring.pointsWoWin;
   const pointsWoLoss = cfg.scoring.pointsWoLoss;
 
+  const sanitizedSupporters: CompetitionSupporter[] = normalizeSupporters(comp.supporters);
+
   return {
     id: comp.id,
     name: comp.name,
@@ -179,6 +190,8 @@ export function sanitizePublicCompetition(comp: CompetitionRecord): PublicCompet
     endDate: comp.endDate,
     venue: comp.venue,
     description: comp.description,
+    logoUrl: comp.logoUrl || undefined,
+    supporters: sanitizedSupporters,
     publicRules: {
       setsToWin,
       regularSetPoints,
@@ -272,11 +285,34 @@ export const publicCompetitionService = {
     });
     const groups = Array.from(groupsSet).sort();
 
+    // Carrega atletas das equipes para resolução do Destaque da Partida (MVP) se houver partidas homologadas com destaque
+    const hasHighlights = matches.some(m => m.status === 'homologated' && m.highlightAthleteId);
+    let allAthletes: Awaited<ReturnType<typeof dataAccess.listCompetitionAthletes>> = [];
+    if (hasHighlights && compTeams.length > 0) {
+      const athleteArrays = await Promise.all(compTeams.map(ct => dataAccess.listCompetitionAthletes(ct.id)));
+      allAthletes = athleteArrays.flat();
+    }
+
     // DTO de Partidas calculado exclusivamente via CompetitionRulesService.getCanonicalMatchResult
     const publicMatches: PublicMatchDTO[] = matches.map(m => {
       const canonical = CompetitionRulesService.getCanonicalMatchResult(rawComp, m);
       const teamA = masterTeamMap.get(m.teamAId);
       const teamB = masterTeamMap.get(m.teamBId);
+
+      // Destaque da Partida (MVP): visível exclusivamente após homologação oficial
+      let highlightAthlete: PublicMatchDTO['highlightAthlete'] = null;
+      if (canonical.isHomologated && m.highlightAthleteId) {
+        const ath = allAthletes.find(a => a.id === m.highlightAthleteId);
+        if (ath) {
+          const compTeam = compTeams.find(ct => ct.id === ath.competitionTeamId);
+          const master = compTeam ? masterTeamMap.get(compTeam.teamId) : undefined;
+          highlightAthlete = {
+            name: ath.name,
+            jerseyNumber: ath.jerseyNumber,
+            teamName: master?.name || compTeam?.teamName || (m.teamAId === compTeam?.teamId ? m.teamAName : m.teamBName),
+          };
+        }
+      }
 
       return {
         id: m.id,
@@ -302,6 +338,7 @@ export const publicCompetitionService = {
         isCompleted: canonical.isCompleted,
         isHomologated: canonical.isHomologated,
         isWo: canonical.isWo,
+        highlightAthlete,
       };
     });
 

@@ -1,19 +1,30 @@
-import React, { useMemo, useState } from 'react';
-import { CheckCircle, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { CheckCircle, AlertTriangle, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { validateMatchResult, DEFAULT_INDOOR_CONFIG, DEFAULT_BEACH_CONFIG } from '@/services/matchValidationService';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { validateMatchResult, validateMatchHighlight, DEFAULT_INDOOR_CONFIG, DEFAULT_BEACH_CONFIG } from '@/services/matchValidationService';
 import { CompetitionRulesService } from '@/services/competitionRulesService';
 import { formatSetsToWinLabel } from '@/types/competitionConfig';
 import type { CompetitionRecord, MatchRecord } from '@/types/entities';
+import type { CompetitionAthlete } from '@/types/registration';
+import { getMatchRosters } from '@/services/registrationService';
 
 export interface ResultValidationDialogProps {
   match: MatchRecord;
   competition: CompetitionRecord | null;
   onClose: () => void;
-  onSaved: (sets: MatchRecord['sets'], winnerId: string) => Promise<void>;
+  onSaved: (sets: MatchRecord['sets'], winnerId: string, highlightAthleteId?: string) => Promise<void>;
 }
 
 export function ResultValidationDialog({ match, competition, onClose, onSaved }: ResultValidationDialogProps) {
@@ -41,6 +52,36 @@ export function ResultValidationDialog({ match, competition, onClose, onSaved }:
     );
   });
   const [saving, setSaving] = useState(false);
+  const [teamARoster, setTeamARoster] = useState<CompetitionAthlete[]>([]);
+  const [teamBRoster, setTeamBRoster] = useState<CompetitionAthlete[]>([]);
+  const [highlightAthleteId, setHighlightAthleteId] = useState<string>(match.highlightAthleteId || '');
+
+  useEffect(() => {
+    let active = true;
+    getMatchRosters(match.id).then((rosters) => {
+      if (active) {
+        setTeamARoster(rosters.teamA);
+        setTeamBRoster(rosters.teamB);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [match.id]);
+
+  const eligibleTeamA = useMemo(() => {
+    if (match.checkedInAthleteIds && match.checkedInAthleteIds.length > 0) {
+      return teamARoster.filter((a) => match.checkedInAthleteIds!.includes(a.id));
+    }
+    return teamARoster;
+  }, [teamARoster, match.checkedInAthleteIds]);
+
+  const eligibleTeamB = useMemo(() => {
+    if (match.checkedInAthleteIds && match.checkedInAthleteIds.length > 0) {
+      return teamBRoster.filter((a) => match.checkedInAthleteIds!.includes(a.id));
+    }
+    return teamBRoster;
+  }, [teamBRoster, match.checkedInAthleteIds]);
 
   const filledSets = setScores
     .filter((s) => s.a !== '' && s.b !== '')
@@ -69,10 +110,15 @@ export function ResultValidationDialog({ match, competition, onClose, onSaved }:
       toast.error(validation.errors[0] || 'Resultado incompleto ou matematicamente inválido.');
       return;
     }
+    const highlightVal = validateMatchHighlight(match, highlightAthleteId, teamARoster, teamBRoster);
+    if (!highlightVal.valid) {
+      toast.error(highlightVal.error || 'Destaque da partida inválido.');
+      return;
+    }
     const winnerId = validation.winner === 'A' ? match.teamAId : match.teamBId;
     setSaving(true);
     try {
-      await onSaved(filledSets, winnerId);
+      await onSaved(filledSets, winnerId, highlightAthleteId || undefined);
     } finally {
       setSaving(false);
     }
@@ -151,6 +197,60 @@ export function ResultValidationDialog({ match, competition, onClose, onSaved }:
               </ul>
             </div>
           ) : null}
+
+          {/* Seleção do Destaque da Partida (MVP) — Opcional */}
+          <div className="pt-2 border-t border-border/80 space-y-1.5" data-testid="highlight-athlete-section">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                Destaque da Partida (MVP)
+                <span className="text-[10px] font-normal text-muted-foreground">(opcional)</span>
+              </label>
+            </div>
+            {match.isWo ? (
+              <p className="text-[11px] text-muted-foreground italic">
+                Partidas finalizadas por W.O. não permitem indicação de Destaque da Partida.
+              </p>
+            ) : (
+              <Select
+                value={highlightAthleteId || 'none'}
+                onValueChange={(val) => setHighlightAthleteId(val === 'none' ? '' : val)}
+              >
+                <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800">
+                  <SelectValue placeholder="Selecione o atleta destaque..." />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-950 border-border max-h-56">
+                  <SelectItem value="none" className="text-xs text-muted-foreground">
+                    Nenhum destaque indicado
+                  </SelectItem>
+                  {eligibleTeamA.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] font-bold uppercase text-primary tracking-wider">
+                        {match.teamAName}
+                      </SelectLabel>
+                      {eligibleTeamA.map((ath) => (
+                        <SelectItem key={ath.id} value={ath.id} className="text-xs">
+                          {ath.jerseyNumber != null ? `#${ath.jerseyNumber} ` : ''}{ath.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {eligibleTeamB.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] font-bold uppercase text-primary tracking-wider">
+                        {match.teamBName}
+                      </SelectLabel>
+                      {eligibleTeamB.map((ath) => (
+                        <SelectItem key={ath.id} value={ath.id} className="text-xs">
+                          {ath.jerseyNumber != null ? `#${ath.jerseyNumber} ` : ''}{ath.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </div>
 
         <DialogFooter className="gap-2 pt-2">

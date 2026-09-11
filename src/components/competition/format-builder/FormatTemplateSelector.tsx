@@ -11,11 +11,11 @@ import { cn } from '@/lib/utils';
 export interface FormatTemplateSelectorProps {
   selectedTemplateId: string | null;
   onSelectTemplate: (templateId: string) => void;
+  disabled?: boolean;
   className?: string;
 }
 
 const TEMPLATE_ICONS: Record<string, React.ElementType> = {
-  'round-robin': Shuffle,
   'groups-knockout': Layers,
   'groups-play-in-knockout': Trophy,
   'knockout': Dices,
@@ -24,6 +24,7 @@ const TEMPLATE_ICONS: Record<string, React.ElementType> = {
 export const FormatTemplateSelector: React.FC<FormatTemplateSelectorProps> = ({
   selectedTemplateId,
   onSelectTemplate,
+  disabled = false,
   className = '',
 }) => {
   const templates = CompetitionTemplateService.listTemplates();
@@ -31,8 +32,8 @@ export const FormatTemplateSelector: React.FC<FormatTemplateSelectorProps> = ({
   return (
     <div className={cn('space-y-4', className)}>
       <div className="space-y-1">
-        <h3 className="text-sm font-semibold text-text-primary">Modelos Prontos de Formato (Presets)</h3>
-        <p className="text-xs text-text-secondary">
+        <h3 className="text-sm font-semibold text-foreground">Modelos Prontos de Formato (Presets)</h3>
+        <p className="text-xs text-muted-foreground">
           Selecione uma estrutura inicial recomendada. Você poderá customizar fases, feeds e regras em seguida.
         </p>
       </div>
@@ -46,43 +47,44 @@ export const FormatTemplateSelector: React.FC<FormatTemplateSelectorProps> = ({
             <button
               key={tpl.id}
               type="button"
+              disabled={disabled}
               onClick={() => onSelectTemplate(tpl.id)}
               className={cn(
-                'relative flex flex-col text-left p-4 rounded-xl border transition-all',
-                'bg-surface-elevated/70 hover:bg-surface-elevated hover:border-primary-500/50',
+                'relative flex flex-col text-left p-4 rounded-xl border transition-all disabled:opacity-50 disabled:cursor-not-allowed',
+                'bg-zinc-900/80 hover:bg-zinc-900 hover:border-amber-500/50',
                 isSelected
-                  ? 'border-primary-500 ring-1 ring-primary-500/50 bg-primary-950/10'
-                  : 'border-border-subtle',
+                  ? 'border-amber-500 ring-1 ring-amber-500/50 bg-amber-500/10'
+                  : 'border-border',
               )}
             >
               <div className="flex items-start justify-between gap-3 w-full">
                 <div className="flex items-center gap-2.5">
                   <div className={cn(
                     'p-2 rounded-lg',
-                    isSelected ? 'bg-primary-500/20 text-primary-400' : 'bg-surface-muted text-text-secondary',
+                    isSelected ? 'bg-amber-500/20 text-amber-400' : 'bg-zinc-800 text-muted-foreground',
                   )}>
                     <Icon className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-semibold text-text-primary">{tpl.name}</h4>
-                    <span className="text-[11px] text-text-muted">
+                    <h4 className="text-xs font-semibold text-foreground">{tpl.name}</h4>
+                    <span className="text-[11px] text-zinc-500">
                       {tpl.recommendedTeamsMin} a {tpl.recommendedTeamsMax} equipes recomendadas
                     </span>
                   </div>
                 </div>
 
                 {isSelected && (
-                  <CheckCircle2 className="w-4 h-4 text-primary-500 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
                 )}
               </div>
 
-              <p className="text-xs text-text-secondary mt-2.5 line-clamp-2">
+              <p className="text-xs text-muted-foreground mt-2.5 line-clamp-2">
                 {tpl.description}
               </p>
 
-              <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-border-subtle/60">
+              <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-border/60">
                 {tpl.tags.map((tag) => (
-                  <Badge key={tag} variant="outline" className="text-[10px] py-0 px-1.5 font-normal text-text-muted">
+                  <Badge key={tag} variant="outline" className="text-[10px] py-0 px-1.5 font-normal text-zinc-500">
                     {tag}
                   </Badge>
                 ))}

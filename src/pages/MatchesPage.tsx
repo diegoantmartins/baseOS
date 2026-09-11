@@ -20,7 +20,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { setActiveCompetitionId } from '@/services/competitionNavigationHelper';
 import {
   Clock,
   MapPin,
@@ -156,6 +157,9 @@ export function MatchesPage() {
   const [venues, setVenues] = useState<VenueRecord[]>([]);
 
   // Estados de controle e interface
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlCompId = searchParams.get('competitionId') || searchParams.get('id');
+
   const [loading, setLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -165,6 +169,40 @@ export function MatchesPage() {
   const [query, setQuery] = useState('');
   const [competitionFilter, setCompetitionFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // Sincroniza filtro a partir do parâmetro da URL
+  useEffect(() => {
+    if (urlCompId) {
+      if (urlCompId === 'all') {
+        setCompetitionFilter('all');
+      } else {
+        const found = competitions.find((c) => c.id === urlCompId);
+        if (found) {
+          setCompetitionFilter(found.id);
+          setActiveCompetitionId(found.id);
+        }
+      }
+    }
+  }, [urlCompId, competitions]);
+
+  const handleCompetitionFilterChange = (newCompId: string) => {
+    setCompetitionFilter(newCompId);
+    if (newCompId && newCompId !== 'all') {
+      setActiveCompetitionId(newCompId);
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (newCompId && newCompId !== 'all') {
+          next.set('competitionId', newCompId);
+        } else {
+          next.delete('competitionId');
+        }
+        return next;
+      },
+      { replace: false },
+    );
+  };
 
   // Estados de Modais
   const [editMatch, setEditMatch] = useState<MatchRecord | null>(null);
@@ -941,7 +979,7 @@ export function MatchesPage() {
                   query={query}
                   onQueryChange={setQuery}
                   competitionFilter={competitionFilter}
-                  onCompetitionFilterChange={setCompetitionFilter}
+                  onCompetitionFilterChange={handleCompetitionFilterChange}
                   statusFilter={statusFilter}
                   onStatusFilterChange={setStatusFilter}
                   competitions={competitions}
@@ -989,7 +1027,7 @@ export function MatchesPage() {
           match={resultMatch}
           competition={compById.get(resultMatch.competitionId) || null}
           onClose={() => setResultMatch(null)}
-          onSaved={async (sets, winnerId) => {
+          onSaved={async (sets, winnerId, highlightAthleteId) => {
             const comp = compById.get(resultMatch.competitionId);
             if (comp && !CompetitionLifecycleService.canRecordResult(comp, resultMatch)) {
               toast.error('Não é possível registrar resultado em competição encerrada ou cancelada.');
@@ -998,6 +1036,7 @@ export function MatchesPage() {
             await dataAccess.updateMatch(resultMatch.id, {
               sets,
               winnerId,
+              highlightAthleteId: highlightAthleteId || undefined,
               status: 'completed',
             });
             const winnerTeam = teams.find((t) => t.id === winnerId);

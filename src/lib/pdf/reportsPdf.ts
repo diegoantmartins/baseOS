@@ -33,6 +33,8 @@ export type MatchBoletimRow = {
   scoreA?: number;
   scoreB?: number;
   statusLabel: string;
+  highlightAthleteName?: string;
+  highlightTeamShort?: string;
 };
 
 export type StandingsReportGroup = {

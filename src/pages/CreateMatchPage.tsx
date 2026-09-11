@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { CreateMatchForm } from '@/components/match/CreateMatchForm';
 import { toast } from 'sonner';
 import { dataAccess } from '@/services/dataAccess';
+import { buildCompetitionUrl, buildMatchesUrl } from '@/services/competitionNavigationHelper';
 
 interface MatchFormData {
   competitionId?: string;
@@ -30,7 +31,7 @@ interface MatchFormData {
 const CreateMatchPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const competitionParam = searchParams.get('competition');
+  const competitionParam = searchParams.get('competition') || searchParams.get('competitionId');
 
   useEffect(() => {
     if (!competitionParam) {
@@ -70,7 +71,7 @@ const CreateMatchPage = () => {
       toast.success('Partida agendada com sucesso!', {
         description: 'A partida foi adicionada ao calendário da competição.',
       });
-      navigate('/competicoes');
+      navigate(data.competitionId ? buildMatchesUrl(data.competitionId) : '/jogos');
     } catch (error) {
       console.error(error);
       toast.error('Erro ao agendar partida.');
@@ -78,7 +79,7 @@ const CreateMatchPage = () => {
   };
 
   const handleCancel = () => {
-    navigate('/competicoes');
+    navigate(competitionParam ? buildMatchesUrl(competitionParam) : '/jogos');
   };
 
   if (!competitionParam) return null;

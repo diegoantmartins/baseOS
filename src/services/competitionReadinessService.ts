@@ -32,6 +32,13 @@ import type {
 import { validateRosterMinimum, getRosterLimits } from '@/services/registrationService';
 import { computePodium } from '@/services/playoffsService';
 import { detectScheduleConflicts } from '@/services/scheduleConflictService';
+import {
+  buildCompetitionUrl,
+  buildMatchesUrl,
+  buildReportsUrl,
+  buildDrawUrl,
+  buildRegistrationsUrl,
+} from '@/services/competitionNavigationHelper';
 
 export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): CompetitionReadinessReport {
   const comp = data.competition;
@@ -66,7 +73,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       severity: 'blocker',
       title: 'Nome da competição ausente',
       description: 'Informe o nome oficial da competição para prosseguir.',
-      route: '/competicoes',
+      route: buildCompetitionUrl(comp.id, 'config'),
       actionLabel: 'Editar Competição',
       articleId: 'criar-competicao',
     });
@@ -78,7 +85,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       severity: 'warning',
       title: 'Data de início pendente',
       description: 'Configure as datas de início e encerramento previstas.',
-      route: '/competicoes',
+      route: buildCompetitionUrl(comp.id, 'config'),
       actionLabel: 'Definir Datas',
       articleId: 'criar-competicao',
     });
@@ -99,7 +106,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
     blockers: step01Blockers.length > 0 ? step01Blockers : undefined,
     warnings: step01Warnings.length > 0 ? step01Warnings : undefined,
     articleId: 'criar-competicao',
-    route: '/competicoes',
+    route: buildCompetitionUrl(comp.id, 'config'),
     actionLabel: 'Gerenciar Competição',
     guideLabel: 'Ver como criar',
   });
@@ -204,7 +211,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       severity: 'blocker',
       title: 'Nenhuma equipe cadastrada',
       description: 'Cadastre as equipes participantes ou gere o link de auto-inscrição.',
-      route: `/competicoes/${comp.id}/inscricoes`,
+      route: buildRegistrationsUrl(comp.id),
       actionLabel: 'Inscrever Equipes',
       articleId: 'cadastrar-equipe',
     });
@@ -216,7 +223,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       severity: 'blocker',
       title: 'Mínimo de equipes não atingido',
       description: 'Cadastre ao menos mais uma equipe para viabilizar os confrontos.',
-      route: `/competicoes/${comp.id}/inscricoes`,
+      route: buildRegistrationsUrl(comp.id),
       actionLabel: 'Adicionar Equipes',
       articleId: 'cadastrar-equipe',
     });
@@ -233,7 +240,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
     ],
     blockers: step04Blockers.length > 0 ? step04Blockers : undefined,
     articleId: 'cadastrar-equipe',
-    route: '/equipes',
+    route: buildCompetitionUrl(comp.id, 'teams'),
     actionLabel: 'Gerenciar Equipes',
     guideLabel: 'Ver como cadastrar',
   });
@@ -293,7 +300,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
         severity: 'warning',
         title: `Elenco pendente: ${issue.teamName}`,
         description: issue.reason,
-        route: `/atletas`,
+        route: buildCompetitionUrl(comp.id, 'athletes'),
         actionLabel: 'Ajustar Elenco',
         articleId: 'cadastrar-atleta',
       });
@@ -314,7 +321,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
     ],
     warnings: step05Warnings.length > 0 ? step05Warnings : undefined,
     articleId: 'cadastrar-atleta',
-    route: '/atletas',
+    route: buildCompetitionUrl(comp.id, 'athletes'),
     actionLabel: 'Gerenciar Atletas',
     guideLabel: 'Ver regras de elenco',
   });
@@ -341,7 +348,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       severity: 'blocker',
       title: 'Sorteio de grupos pendente',
       description: 'Distribua as equipes inscritas em grupos (Chaves A, B...) para gerar os confrontos.',
-      route: `/sorteio/${comp.id}`,
+      route: buildDrawUrl(comp.id),
       actionLabel: 'Realizar Sorteio',
       articleId: 'sorteio-grupos',
     });
@@ -360,7 +367,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
     ],
     blockers: step06Blockers.length > 0 ? step06Blockers : undefined,
     articleId: 'sorteio-grupos',
-    route: `/sorteio/${comp.id}`,
+    route: buildDrawUrl(comp.id),
     actionLabel: 'Abrir Sorteio e Grupos',
     guideLabel: 'Ver como sortear',
   });
@@ -378,7 +385,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       severity: 'info',
       title: 'Critérios de desempate',
       description: 'Revise a ordem de critérios de desempate da competição (FIVB/CBV).',
-      route: '/competicoes',
+      route: buildCompetitionUrl(comp.id, 'config'),
       actionLabel: 'Revisar Classificação',
       articleId: 'regras-classificacao',
     });
@@ -395,7 +402,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       { label: 'Classificados/Grupo', value: comp.advancingPerGroup || 2 },
     ],
     articleId: 'regras-classificacao',
-    route: '/competicoes',
+    route: buildCompetitionUrl(comp.id, 'standings'),
     actionLabel: 'Ver Classificação',
     guideLabel: 'Ver critérios de desempate',
   });
@@ -418,7 +425,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       severity: 'blocker',
       title: 'Confrontos não gerados',
       description: 'Gere a tabela de partidas da fase de grupos para programar as rodadas.',
-      route: `/sorteio/${comp.id}`,
+      route: buildDrawUrl(comp.id),
       actionLabel: 'Gerar Tabela de Jogos',
       articleId: 'gerar-confrontos',
     });
@@ -435,7 +442,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
     ],
     blockers: step08Blockers.length > 0 ? step08Blockers : undefined,
     articleId: 'gerar-confrontos',
-    route: '/jogos',
+    route: buildMatchesUrl(comp.id),
     actionLabel: 'Ver Jogos Gerados',
     guideLabel: 'Ver geração de jogos',
   });
@@ -460,7 +467,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
         severity: 'warning',
         title: `${matchesWithoutDate.length} jogo(s) sem horário`,
         description: 'Defina os horários de início das partidas para publicação da tabela.',
-        route: '/jogos',
+        route: buildMatchesUrl(comp.id),
         actionLabel: 'Definir Horários',
         articleId: 'montar-tabela-jogos',
       });
@@ -472,7 +479,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
         severity: 'warning',
         title: `${matchesWithoutCourt.length} jogo(s) sem quadra`,
         description: 'Aloque as quadras de jogo para evitar conflitos de local.',
-        route: '/jogos',
+        route: buildMatchesUrl(comp.id),
         actionLabel: 'Alocar Quadras',
         articleId: 'montar-tabela-jogos',
       });
@@ -493,7 +500,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
     ],
     warnings: step09Warnings.length > 0 ? step09Warnings : undefined,
     articleId: 'montar-tabela-jogos',
-    route: '/jogos',
+    route: buildMatchesUrl(comp.id),
     actionLabel: 'Escalar Partidas',
     guideLabel: 'Ver agendamento',
   });
@@ -529,7 +536,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       { label: 'Agendadas', value: scheduledCount },
     ],
     articleId: 'abrir-partida',
-    route: '/jogos',
+    route: buildMatchesUrl(comp.id),
     actionLabel: 'Central de Jogos',
     guideLabel: 'Ver operação de jogo',
   });
@@ -549,7 +556,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       severity: 'blocker',
       title: `${finishedMatchesWithoutSets.length} jogo(s) sem placar de sets`,
       description: 'Partidas marcadas como finalizadas não possuem as parciais registradas.',
-      route: '/jogos',
+      route: buildMatchesUrl(comp.id),
       actionLabel: 'Lançar Placar',
       articleId: 'lancar-resultado-sets',
     });
@@ -593,7 +600,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       severity: 'blocker',
       title: 'Fase de grupos concluída: Gerar Mata-mata',
       description: 'Todas as partidas dos grupos foram finalizadas. Gere a fase eliminatória para definir o pódio.',
-      route: '/jogos',
+      route: buildMatchesUrl(comp.id),
       actionLabel: 'Gerar Fases Finais',
       articleId: 'fases-finais-mata-mata',
     });
@@ -616,7 +623,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       { label: 'Concluídos', value: playoffCompleted },
     ],
     articleId: 'fases-finais-mata-mata',
-    route: '/competicoes',
+    route: buildCompetitionUrl(comp.id, 'matches'),
     actionLabel: 'Fases da Competição',
     guideLabel: 'Ver mata-mata',
   });
@@ -641,7 +648,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       severity: 'info',
       title: '🏆 Competição pronta para homologação',
       description: 'Todas as partidas e o pódio foram apurados. Realize a homologação formal para encerramento.',
-      route: '/competicoes',
+      route: buildCompetitionUrl(comp.id, 'standings'),
       actionLabel: 'Homologar Torneio',
       articleId: 'relatorios-encerramento',
     });
@@ -662,7 +669,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
       { label: 'Homologação', value: comp.status === 'completed' ? 'Sim' : (canHomologate ? 'Pronta' : 'Pendente') },
     ],
     articleId: 'relatorios-encerramento',
-    route: '/relatorios',
+    route: buildReportsUrl(comp.id),
     actionLabel: 'Emitir Boletins',
     guideLabel: 'Ver encerramento',
   });
@@ -778,7 +785,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
     nextAction = {
       title: 'Iniciar as primeiras partidas',
       description: 'A tabela e as equipes estão prontas. Faça o check-in na quadra e inicie a rodada de abertura.',
-      route: '/jogos',
+      route: buildMatchesUrl(comp.id),
       actionLabel: 'Ir para Central de Jogos',
       articleId: 'abrir-partida',
       guideLabel: 'Como operar partidas',
@@ -787,7 +794,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
     nextAction = {
       title: 'Conduzir partidas e registrar placares',
       description: `${scheduledCount + inProgressCount} partida(s) pendente(s) de conclusão.`,
-      route: '/jogos',
+      route: buildMatchesUrl(comp.id),
       actionLabel: 'Lançar Resultados',
       articleId: 'lancar-resultado-sets',
       guideLabel: 'Como lançar sets',
@@ -796,7 +803,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
     nextAction = {
       title: 'Homologar resultados e encerrar',
       description: 'Todos os jogos foram finalizados e o campeão foi apurado.',
-      route: '/competicoes',
+      route: buildCompetitionUrl(comp.id, 'standings'),
       actionLabel: 'Homologar Competição',
       articleId: 'relatorios-encerramento',
       guideLabel: 'Como homologar',

@@ -5,7 +5,7 @@ import type { CompetitionRecord, MatchRecord, ModalityRecord, PersonRecord, Refe
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
 import type { DrawRecord } from '@/types/draw';
 
-export const SEED_VERSION = 'voleipro.v14_exclusive_two_competitions_2026';
+export const SEED_VERSION = 'voleipro.v15_fase5_probability_demo_2026';
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
@@ -561,21 +561,12 @@ export const seedMatches: MatchRecord[] = [
     { setNumber: 2, scoreA: 25, scoreB: 22 },
     { setNumber: 3, scoreA: 25, scoreB: 20 },
   ], 'team-m-2'),
-  // R3: Vortex 3x0 Águias (25x17, 25x19, 25x21)
-  makeMatch('match-m-05', 5, 3, 'Grupo A', 'team-m-1', 'team-m-4', 'ath-m1', 'ath-m4', -72, 'Quadra Principal', 'comp-masculino-2026', 'Fase de Grupos', '5-sets', 'completed', [
-    { setNumber: 1, scoreA: 25, scoreB: 17 },
-    { setNumber: 2, scoreA: 25, scoreB: 19 },
-    { setNumber: 3, scoreA: 25, scoreB: 21 },
-  ], 'team-m-1'),
-  // R3: Titanium 3x1 Fênix (25x23, 25x21, 22x25, 25x20) -> Titanium avança em 2º
-  makeMatch('match-m-06', 6, 3, 'Grupo A', 'team-m-2', 'team-m-3', 'ath-m2', 'ath-m3', -70, 'Quadra Auxiliar', 'comp-masculino-2026', 'Fase de Grupos', '5-sets', 'completed', [
-    { setNumber: 1, scoreA: 25, scoreB: 23 },
-    { setNumber: 2, scoreA: 25, scoreB: 21 },
-    { setNumber: 3, scoreA: 22, scoreB: 25 },
-    { setNumber: 4, scoreA: 25, scoreB: 20 },
-  ], 'team-m-2'),
+  // R3: Vortex vs Águias (Em disputa - agendado)
+  makeMatch('match-m-05', 5, 3, 'Grupo A', 'team-m-1', 'team-m-4', 'ath-m1', 'ath-m4', 24, 'Quadra Principal', 'comp-masculino-2026', 'Fase de Grupos', '5-sets', 'scheduled'),
+  // R3: Titanium vs Fênix (Confronto direto valendo vaga - agendado)
+  makeMatch('match-m-06', 6, 3, 'Grupo A', 'team-m-2', 'team-m-3', 'ath-m2', 'ath-m3', 26, 'Quadra Auxiliar', 'comp-masculino-2026', 'Fase de Grupos', '5-sets', 'scheduled'),
 
-  // ── GRUPO B (MASCULINO - FINALIZADO) ──
+  // ── GRUPO B (MASCULINO - EM ANDAMENTO) ──
   // R1: Aurora 3x2 Guarani (25x23, 21x25, 25x22, 23x25, 15x12)
   makeMatch('match-m-07', 7, 1, 'Grupo B', 'team-m-5', 'team-m-6', 'ath-m5', 'ath-m6', -120, 'Quadra Principal', 'comp-masculino-2026', 'Fase de Grupos', '5-sets', 'completed', [
     { setNumber: 1, scoreA: 25, scoreB: 23 },
@@ -604,19 +595,10 @@ export const seedMatches: MatchRecord[] = [
     { setNumber: 3, scoreA: 23, scoreB: 25 },
     { setNumber: 4, scoreA: 25, scoreB: 18 },
   ], 'team-m-6'),
-  // R3: Aurora 3x1 Trovão (25x19, 22x25, 25x21, 25x20)
-  makeMatch('match-m-11', 11, 3, 'Grupo B', 'team-m-5', 'team-m-8', 'ath-m5', 'ath-m8', -72, 'Quadra Principal', 'comp-masculino-2026', 'Fase de Grupos', '5-sets', 'completed', [
-    { setNumber: 1, scoreA: 25, scoreB: 19 },
-    { setNumber: 2, scoreA: 22, scoreB: 25 },
-    { setNumber: 3, scoreA: 25, scoreB: 21 },
-    { setNumber: 4, scoreA: 25, scoreB: 20 },
-  ], 'team-m-5'),
-  // R3: Guarani 3x0 Siderúrgica (25x21, 25x22, 25x19) -> Guarani avança em 2º
-  makeMatch('match-m-12', 12, 3, 'Grupo B', 'team-m-6', 'team-m-7', 'ath-m6', 'ath-m7', -70, 'Quadra Auxiliar', 'comp-masculino-2026', 'Fase de Grupos', '5-sets', 'completed', [
-    { setNumber: 1, scoreA: 25, scoreB: 21 },
-    { setNumber: 2, scoreA: 25, scoreB: 22 },
-    { setNumber: 3, scoreA: 25, scoreB: 19 },
-  ], 'team-m-6'),
+  // R3: Aurora vs Trovão (Em disputa - agendado)
+  makeMatch('match-m-11', 11, 3, 'Grupo B', 'team-m-5', 'team-m-8', 'ath-m5', 'ath-m8', 24, 'Quadra Principal', 'comp-masculino-2026', 'Fase de Grupos', '5-sets', 'scheduled'),
+  // R3: Guarani vs Siderúrgica (Confronto direto valendo vaga - agendado)
+  makeMatch('match-m-12', 12, 3, 'Grupo B', 'team-m-6', 'team-m-7', 'ath-m6', 'ath-m7', 26, 'Quadra Auxiliar', 'comp-masculino-2026', 'Fase de Grupos', '5-sets', 'scheduled'),
 
   // ── 🔥 SEMIFINAIS MASCULINAS (EM ANDAMENTO / AGENDADAS HOJE) ──
   // Semifinal 1: 1º Grupo A (Vortex) vs 2º Grupo B (Guarani)

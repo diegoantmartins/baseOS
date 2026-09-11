@@ -241,39 +241,48 @@ export default function PublicCompetitionPage() {
       <section className="border-b border-zinc-800 bg-gradient-to-b from-zinc-900/90 via-zinc-900/50 to-zinc-950 px-4 sm:px-6 py-6 sm:py-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-400 text-xs font-semibold px-2.5 py-0.5">
-                  {competition.statusLabel}
-                </Badge>
-                <Badge variant="outline" className="border-zinc-700 bg-zinc-800/60 text-zinc-300 text-xs">
-                  {competition.modality === 'indoor' ? 'Vôlei de Quadra' : 'Vôlei de Praia'}
-                </Badge>
-                <Badge variant="outline" className="border-zinc-700 bg-zinc-800/60 text-zinc-300 text-xs">
-                  {competition.genderCategory === 'male' ? 'Masculino' : competition.genderCategory === 'female' ? 'Feminino' : 'Misto'}
-                </Badge>
-              </div>
+            <div className="flex items-start gap-4">
+              {competition.logoUrl && (
+                <img
+                  src={competition.logoUrl}
+                  alt={competition.name}
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-contain bg-zinc-950/80 p-1.5 border border-zinc-700/60 shrink-0 shadow-md"
+                />
+              )}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-400 text-xs font-semibold px-2.5 py-0.5">
+                    {competition.statusLabel}
+                  </Badge>
+                  <Badge variant="outline" className="border-zinc-700 bg-zinc-800/60 text-zinc-300 text-xs">
+                    {competition.modality === 'indoor' ? 'Vôlei de Quadra' : 'Vôlei de Praia'}
+                  </Badge>
+                  <Badge variant="outline" className="border-zinc-700 bg-zinc-800/60 text-zinc-300 text-xs">
+                    {competition.genderCategory === 'male' ? 'Masculino' : competition.genderCategory === 'female' ? 'Feminino' : 'Misto'}
+                  </Badge>
+                </div>
 
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
-                {competition.name}
-              </h1>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
+                  {competition.name}
+                </h1>
 
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-zinc-400">
-                {competition.venue && (
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-zinc-500" />
-                    <span>{competition.venue}</span>
-                  </div>
-                )}
-                {competition.startDate && (
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-zinc-500" />
-                    <span>
-                      {competition.startDate}
-                      {competition.endDate && ` até ${competition.endDate}`}
-                    </span>
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-zinc-400">
+                  {competition.venue && (
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 text-zinc-500" />
+                      <span>{competition.venue}</span>
+                    </div>
+                  )}
+                  {competition.startDate && (
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-zinc-500" />
+                      <span>
+                        {new Date(competition.startDate).toLocaleDateString('pt-BR')}
+                        {competition.endDate && ` até ${new Date(competition.endDate).toLocaleDateString('pt-BR')}`}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -664,14 +673,92 @@ export default function PublicCompetitionPage() {
         </Tabs>
       </main>
 
-      {/* ── RODAPÉ INSTITUCIONAL ── */}
-      <footer className="border-t border-zinc-800/80 bg-zinc-950 py-6 px-4 sm:px-6 mt-12 text-center text-xs text-zinc-500">
+      {/* ── SEÇÃO DE APOIADORES E PATROCINADORES OFICIAIS DO EVENTO ── */}
+      {competition.supporters && competition.supporters.length > 0 && (
+        <section className="border-t border-zinc-800/60 bg-zinc-950/80 py-8 px-4 sm:px-6">
+          <div className="max-w-6xl mx-auto space-y-4">
+            <div className="text-center space-y-1">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500 block">
+                Parceiros Oficiais
+              </span>
+              <h3 className="text-sm sm:text-base font-bold text-white">
+                Apoiadores e Patrocinadores da Competição
+              </h3>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-2">
+              {competition.supporters.map((sup) => {
+                const tierLabel =
+                  sup.tier === 'master'
+                    ? 'Patrocinador Master'
+                    : sup.tier === 'official'
+                    ? 'Patrocinador Oficial'
+                    : sup.tier === 'support'
+                    ? 'Apoiador'
+                    : sup.tier === 'media'
+                    ? 'Parceiro de Mídia'
+                    : null;
+
+                const CardContent = (
+                  <div className="flex items-center gap-3 p-2.5 px-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800 hover:border-zinc-700 transition-all group shadow-sm">
+                    {sup.logoUrl ? (
+                      <img
+                        src={sup.logoUrl}
+                        alt={sup.name}
+                        className="w-8 h-8 rounded-lg object-contain bg-zinc-950 p-1 border border-zinc-800 shrink-0 group-hover:scale-105 transition-transform"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-bold text-amber-400 shrink-0">
+                        {sup.name.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="text-left">
+                      <span className="text-xs font-semibold text-white block group-hover:text-amber-400 transition-colors">
+                        {sup.name}
+                      </span>
+                      {tierLabel && (
+                        <span className="text-[10px] text-zinc-400 block font-medium">
+                          {tierLabel}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+
+                if (sup.websiteUrl) {
+                  return (
+                    <a
+                      key={sup.id}
+                      href={sup.websiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500 rounded-xl"
+                    >
+                      {CardContent}
+                    </a>
+                  );
+                }
+
+                return <div key={sup.id}>{CardContent}</div>;
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── RODAPÉ INSTITUCIONAL (ATRIBUIÇÃO DA PLATAFORMA BASEOS) ── */}
+      <footer className="border-t border-zinc-800/80 bg-zinc-950 py-6 px-4 sm:px-6 text-center text-xs text-zinc-500">
         <div className="max-w-6xl mx-auto space-y-2">
-          <p className="text-zinc-400 font-medium">
-            BaseOS — Sistema de Gestão de Competições de Voleibol
-          </p>
+          <div className="flex items-center justify-center gap-1.5 font-medium text-zinc-400">
+            <span>Powered by</span>
+            <span className="font-bold tracking-tight text-white">
+              Base<span className="text-amber-500">OS</span>
+            </span>
+            <span className="text-zinc-600">|</span>
+            <span className="text-[11px] text-zinc-400">Gestão Profissional de Voleibol</span>
+          </div>
           <p className="text-zinc-600 text-[11px]">
-            Dados oficiais atualizados conforme a persistência atual do BaseOS. Portal de leitura pública.
+            Dados oficiais atualizados conforme a persistência do BaseOS. Portal de leitura pública.
           </p>
         </div>
       </footer>
@@ -843,6 +930,24 @@ function MatchDetailedCard({ match }: { match: PublicMatchDTO }) {
           {match.venue && <span>Local: {match.venue}</span>}
         </div>
       </div>
+
+      {/* Destaque da Partida (MVP) — visível somente após homologação */}
+      {match.highlightAthlete && (
+        <div
+          className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300"
+          data-testid="public-match-highlight"
+        >
+          <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span className="font-medium text-[11px] text-amber-400/90 uppercase tracking-wider">Destaque da Partida:</span>
+          <span className="font-bold text-white truncate">
+            {match.highlightAthlete.jerseyNumber != null ? `#${match.highlightAthlete.jerseyNumber} ` : ''}
+            {match.highlightAthlete.name}
+          </span>
+          <span className="text-[11px] text-zinc-400 truncate">
+            ({match.highlightAthlete.teamName})
+          </span>
+        </div>
+      )}
     </div>
   );
 }

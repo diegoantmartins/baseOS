@@ -108,9 +108,9 @@ export const CompetitionPreview: React.FC<CompetitionPreviewProps> = ({
         </Badge>
       </div>
 
-      <div className="p-4 rounded-xl border border-border-subtle bg-surface-elevated/40">
+      <div className="p-4 rounded-xl border border-border bg-zinc-900/60">
         {slots.length === 0 ? (
-          <div className="p-8 text-center text-xs text-text-muted">
+          <div className="p-8 text-center text-xs text-zinc-500">
             Configure pelo menos uma fase com rodadas para visualizar a prévia do chaveamento.
           </div>
         ) : (

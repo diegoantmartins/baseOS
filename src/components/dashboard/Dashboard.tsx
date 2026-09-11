@@ -39,6 +39,7 @@ import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { StateContainer } from '@/components/ui/StateContainer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { dataAccess } from '@/services/dataAccess';
+import { buildCompetitionUrl, buildMatchesUrl } from '@/services/competitionNavigationHelper';
 import type { CompetitionRecord, MatchRecord, TeamRecord, VenueRecord } from '@/types/entities';
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
 import type { DrawRecord } from '@/types/draw';
@@ -208,13 +209,14 @@ export function Dashboard() {
     return athCount === 0 && ct.status !== 'rejected';
   });
   if (teamsWithoutAthletes.length > 0) {
+    const targetCompId = teamsWithoutAthletes[0].competitionId;
     alerts.push({
       id: 'teams-no-athletes',
       type: 'warning',
       title: `${teamsWithoutAthletes.length} equipe(s) sem elenco enviado`,
       description: 'Verifique os prazos de envio de elenco para validação das inscrições.',
       linkText: 'Ver Inscrições',
-      linkTo: '/competicoes',
+      linkTo: targetCompId ? buildCompetitionUrl(targetCompId, 'teams') : '/competicoes',
     });
   }
 
@@ -507,7 +509,7 @@ export function Dashboard() {
                     <div
                       key={comp.id}
                       className="group relative rounded-xl border border-border bg-card overflow-hidden cursor-pointer hover-raise"
-                      onClick={() => navigate('/competicoes')}
+                      onClick={() => navigate(buildCompetitionUrl(comp.id))}
                     >
                       <div className="px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="space-y-1 min-w-0">
@@ -538,7 +540,7 @@ export function Dashboard() {
                             className="text-xs h-8 text-muted-foreground hover:text-foreground hover:bg-zinc-800"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate('/jogos');
+                              navigate(buildMatchesUrl(comp.id));
                             }}
                           >
                             Jogos
@@ -549,7 +551,7 @@ export function Dashboard() {
                             className="text-xs h-8 font-medium bg-zinc-800 hover:bg-zinc-700 text-foreground border border-zinc-700/50"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate('/competicoes');
+                              navigate(buildCompetitionUrl(comp.id));
                             }}
                           >
                             Gerenciar

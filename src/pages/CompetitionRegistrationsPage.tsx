@@ -54,6 +54,7 @@ import { CompetitionRegistrationService } from '@/services/competitionRegistrati
 import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
 import { CompetitionDrawEligibilityService, type TeamDrawEligibility } from '@/services/competitionDrawEligibilityService';
 import { getMatchRosters, isRegistrationLocked } from '@/services/registrationService';
+import { buildCompetitionUrl, buildMatchesUrl } from '@/services/competitionNavigationHelper';
 import { useAuth } from '@/components/auth/useAuth';
 import { GENDER_CATEGORY_LABELS } from '@/types/registration';
 import {
@@ -470,7 +471,10 @@ export function CompetitionRegistrationsPage() {
         <BreadcrumbNav
           items={[
             { label: 'Competições', href: '/competicoes' },
-            { label: competition?.name || 'Competição', href: '/competicoes' },
+            {
+              label: competition?.name || 'Competição',
+              href: competition ? buildCompetitionUrl(competition.id) : '/competicoes',
+            },
             { label: 'Inscrições' },
           ]}
         />
@@ -729,7 +733,10 @@ export function CompetitionRegistrationsPage() {
 
               {/* Informação Operacional */}
               <p className="text-xs text-muted-foreground">
-                <Link to="/jogos" className="text-primary hover:underline font-medium">
+                <Link
+                  to={competition ? buildMatchesUrl(competition.id) : '/jogos'}
+                  className="text-primary hover:underline font-medium"
+                >
                   Ir para a Central de Jogos
                 </Link>{' '}
                 · O link de auto-inscrição permite que a agremiação cadastre atletas e comissão técnica sem necessidade de login.

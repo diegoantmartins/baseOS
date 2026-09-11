@@ -310,3 +310,49 @@ export class SecurityConfigService {
     return updated;
   }
 }
+
+/**
+ * Sanitiza e valida URLs externas para exibição segura em links de apoiadores e parceiros.
+ * Aceita exclusivamente os protocolos http: e https:.
+ * Rejeita esquemas perigosos como javascript:, data:, vbscript: e caracteres de injeção.
+ * Se a URL for válida mas não tiver protocolo explícito, normaliza com https://.
+ */
+export function sanitizeExternalUrl(url?: string | null): string | undefined {
+  if (!url || typeof url !== 'string') return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+
+  // Rejeita esquemas perigosos imediatamente
+  if (/^(javascript|data|vbscript|file|blob):/i.test(trimmed)) {
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      const result = parsed.toString();
+      if (result.endsWith('/') && !trimmed.endsWith('/') && parsed.pathname === '/') {
+        return result.slice(0, -1);
+      }
+      return result;
+    }
+    return undefined;
+  } catch {
+    // Tenta prefixar https:// se for um domínio (ex: 'www.empresa.com.br' ou 'patrocinador.com/volei')
+    if (/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(\/.*)?$/.test(trimmed)) {
+      try {
+        const fallback = new URL(`https://${trimmed}`);
+        if (fallback.protocol === 'https:') {
+          const result = fallback.toString();
+          if (result.endsWith('/') && !trimmed.endsWith('/') && fallback.pathname === '/') {
+            return result.slice(0, -1);
+          }
+          return result;
+        }
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  }
+}
