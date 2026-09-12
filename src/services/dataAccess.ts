@@ -2215,9 +2215,10 @@ const supabaseAdapter = {
   async createCompetitionTeam(input: Omit<CompetitionTeam, 'id' | 'accessToken' | 'createdAt' | 'updatedAt'>): Promise<CompetitionTeam> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
+    const id = generateId('ct');
     const { data } = await supabase
       .from(SUPABASE_TABLES.competitionTeams)
-      .insert({ ...toSnake(input), access_token: generateToken() })
+      .insert({ ...toSnake({ ...input, id }), access_token: generateToken() })
       .select()
       .single();
     return mapRow<CompetitionTeam>(data) ?? (data as unknown as CompetitionTeam);
@@ -2242,7 +2243,8 @@ const supabaseAdapter = {
   async createCompetitionAthlete(input: CompetitionAthleteCreate): Promise<CompetitionAthlete> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
-    const { data } = await supabase.from(SUPABASE_TABLES.competitionAthletes).insert(toSnake(input)).select().single();
+    const id = generateId('ath');
+    const { data } = await supabase.from(SUPABASE_TABLES.competitionAthletes).insert(toSnake({ ...input, id })).select().single();
     return mapRow<CompetitionAthlete>(data) ?? (data as unknown as CompetitionAthlete);
   },
 
@@ -2392,8 +2394,9 @@ const supabaseAdapter = {
   async createPerson(input: Omit<PersonRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<PersonRecord> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
+    const id = generateId('per');
     const now = new Date().toISOString();
-    const { data } = await supabase.from(SUPABASE_TABLES.persons).insert(toSnake({ ...input, created_at: now, updated_at: now })).select().single();
+    const { data } = await supabase.from(SUPABASE_TABLES.persons).insert(toSnake({ ...input, id, created_at: now, updated_at: now })).select().single();
     return mapRow<PersonRecord>(data) ?? (data as unknown as PersonRecord);
   },
 
