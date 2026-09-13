@@ -43,7 +43,10 @@ vi.mock('@/lib/supabaseClient', () => {
         return { data: Array.isArray(value) ? (value[0] ?? null) : (value ?? null) };
       },
       insert(payload: Record<string, unknown>) {
-        state.rows[table] = { ...payload, id: `${table}-novo` };
+        if (!payload.id) {
+          throw new Error(`PostgreSQL 23502: null value in column "id" of relation "${table}" violates not-null constraint`);
+        }
+        state.rows[table] = { ...payload };
         return chain;
       },
       update(payload: Record<string, unknown>) {
@@ -60,6 +63,27 @@ vi.mock('@/lib/supabaseClient', () => {
     getSupabaseClient: async () => ({
       from: (table: string) => qb(table),
       rpc: async (fnName: string, args: Record<string, unknown>) => {
+        if (fnName === 'register_athlete') {
+          return {
+            data: {
+              ok: true,
+              athlete: {
+                id: 'ath-rpc-test',
+                competition_team_id: 'ct-1',
+                name: args.p_name,
+                jersey_number: args.p_jersey_number,
+                position: args.p_position,
+                gender: args.p_gender,
+                is_captain: args.p_is_captain,
+                is_libero: args.p_is_libero,
+                document_number: args.p_document_number,
+                birth_date: args.p_birth_date,
+                created_at: new Date().toISOString(),
+              },
+            },
+            error: null,
+          };
+        }
         if (fnName === 'save_stage_draw_and_slots') {
           return {
             data: {
@@ -99,6 +123,9 @@ vi.mock('@/lib/supabaseClient', () => {
       matches: 'matches',
       competitionTeams: 'competition_teams',
       competitionAthletes: 'competition_athletes',
+      venues: 'venues',
+      draws: 'draws',
+      auditLogs: 'audit_logs',
       competitionStages: 'competition_stages',
       competitionRounds: 'competition_rounds',
       competitionMatchSlots: 'competition_match_slots',
@@ -135,7 +162,74 @@ describe('adaptador Supabase', () => {
     });
     expect(created.teamAId).toBe('ct-1');
     expect(created.scheduledTime).toBe('2026-08-20T10:00:00Z');
-    expect(created.id).toBe('matches-novo');
+    expect(created.id).toMatch(/^match-/);
+  });
+
+  it('createCompetitionTeam gera id com prefixo ct- e access_token', async () => {
+    const created = await dataAccess.createCompetitionTeam({
+      competitionId: 'comp-1',
+      teamId: 'team-1',
+      teamName: 'Equipe Teste',
+      teamShortName: 'TES',
+      registrationDeadline: '2026-12-31T23:59:59Z',
+      isLocked: false,
+      status: 'invited',
+    });
+    expect(created.id).toMatch(/^ct-/);
+    expect(created.accessToken).toBeDefined();
+    expect(created.accessToken.length).toBeGreaterThan(10);
+  });
+
+  it('createCompetitionAthlete gera id com prefixo ath-', async () => {
+    const created = await dataAccess.createCompetitionAthlete({
+      competitionTeamId: 'ct-1',
+      name: 'Paula Pequeno',
+      position: 'Ponteira',
+      isCaptain: false,
+      isLibero: false,
+      gender: 'female',
+    });
+    expect(created.id).toMatch(/^ath-/);
+    expect(created.name).toBe('Paula Pequeno');
+  });
+
+  it('createReferee gera id com prefixo ref-', async () => {
+    const created = await dataAccess.createReferee({
+      name: 'Árbitro Silva',
+      level: 'nacional',
+    });
+    expect(created.id).toMatch(/^ref-/);
+    expect(created.name).toBe('Árbitro Silva');
+  });
+
+  it('createVenue gera id com prefixo venue-', async () => {
+    const created = await dataAccess.createVenue({
+      name: 'Arena Central',
+      address: 'Rua das Flores 100',
+      courts: ['Quadra 1'],
+    });
+    expect(created.id).toMatch(/^venue-/);
+    expect(created.name).toBe('Arena Central');
+  });
+
+  it('registerAthletePublic executa RPC register_athlete e mapeia retorno', async () => {
+    const res = await dataAccess.registerAthletePublic('tok-valid', {
+      name: 'Sheilla Castro',
+      position: 'Oposta',
+      jerseyNumber: 13,
+      isCaptain: true,
+      isLibero: false,
+      gender: 'female',
+    });
+    expect(res.ok).toBe(true);
+    expect(res.athlete?.id).toBe('ath-rpc-test');
+    expect(res.athlete?.name).toBe('Sheilla Castro');
+    expect(res.athlete?.isCaptain).toBe(true);
+  });
+
+  it('insert sem id lança erro simulando constraint not-null do PostgreSQL', async () => {
+    const supabase = await (await import('@/lib/supabaseClient')).getSupabaseClient();
+    expect(() => supabase!.from('matches').insert({ round: 1 })).toThrow(/violates not-null constraint/);
   });
 
   it('listMatches mapeia colunas snake_case para camelCase', async () => {

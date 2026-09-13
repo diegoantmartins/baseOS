@@ -1,5 +1,5 @@
-// Types padronizados para geração de PDFs de súmula
-// Garante consistência em todo o sistema VolleyPro
+// Types padronizados para geração de PDFs de súmula e relatórios
+// Garante consistência em todo o sistema BaseOS
 
 import type { TeamStandingResult } from '@/services/standingsService';
 
@@ -192,4 +192,268 @@ export interface PositionCardData {
   opponent: MatchSheetData['teamB'];
   setLabel: string;
   orgName: string;
+}
+
+/** Linha da Escala Oficial de Arbitragem e Oficiais de Mesa */
+export interface RefereesScheduleRow {
+  matchNumber: number;
+  round: number;
+  phase?: string;
+  groupName?: string;
+  date: string;
+  time: string;
+  venue: string;
+  court?: string;
+  teamAName: string;
+  teamAShort?: string;
+  teamALogo?: string;
+  teamBName: string;
+  teamBShort?: string;
+  teamBLogo?: string;
+  statusLabel: string;
+  firstReferee: string;
+  secondReferee: string;
+  scorer: string;
+  assistantScorer: string;
+  lineJudges: string[];
+  hasOfficials: boolean;
+}
+
+/** Linha da Programação Diária / Ordem dos Jogos */
+export interface DailyScheduleRow {
+  matchId: string;
+  matchNumber: number;
+  round: number;
+  phase?: string;
+  groupName?: string;
+  date: string;
+  time: string;
+  scheduledTime: string;
+  venue: string;
+  court?: string;
+  teamAName: string;
+  teamAShort?: string;
+  teamALogo?: string;
+  teamBName: string;
+  teamBShort?: string;
+  teamBLogo?: string;
+  status: string;
+  statusLabel: string;
+  scoreA?: number;
+  scoreB?: number;
+  hasConflict?: boolean;
+  conflictMessage?: string;
+}
+
+/** Linha de confronto para o Relatório de Destaques / MVP */
+export interface MvpMatchRow {
+  matchId: string;
+  matchNumber: number;
+  round: number;
+  phase?: string;
+  groupName?: string;
+  date: string;
+  time: string;
+  scheduledTime: string;
+  venue: string;
+  court?: string;
+  teamAId: string;
+  teamAName: string;
+  teamAShort?: string;
+  teamALogo?: string;
+  teamBId: string;
+  teamBName: string;
+  teamBShort?: string;
+  teamBLogo?: string;
+  scoreA?: number;
+  scoreB?: number;
+  setsScoreLabel?: string;
+  status: string;
+  statusLabel: string;
+  hasHighlight: boolean;
+  athleteId?: string;
+  athleteName?: string;
+  jerseyNumber?: number;
+  athleteTeamId?: string;
+  athleteTeamName?: string;
+  athleteTeamShort?: string;
+  isUnresolvedAthlete?: boolean;
+}
+
+/** Linha do Ranking/Leaderboard de Destaques / MVP */
+export interface MvpLeaderboardRow {
+  position: number;
+  athleteId: string;
+  athleteName: string;
+  jerseyNumber?: number;
+  teamId?: string;
+  teamName: string;
+  teamShortName?: string;
+  teamLogoUrl?: string;
+  mvpCount: number;
+  matchNumbers: number[];
+}
+
+/** Estrutura unificada de dados para o Relatório de Destaques / MVP */
+export interface MvpReportData {
+  competitionName: string;
+  metrics: {
+    totalMatches: number;
+    matchesWithMvp: number;
+    matchesWithoutMvp: number;
+    distinctHighlightedAthletes: number;
+    totalMvpAwards: number;
+    leaderName?: string;
+    leaderMvpCount?: number;
+    leaderTeamName?: string;
+  };
+  leaderboard: MvpLeaderboardRow[];
+  matches: MvpMatchRow[];
+}
+
+/** Atleta integrante da delegação da equipe na competição */
+export interface DelegationAthleteRow {
+  athleteId: string;
+  name: string;
+  jerseyNumber?: number;
+  position: string;
+  documentNumber?: string;
+  birthDate?: string;
+  isCaptain: boolean;
+  isLibero: boolean;
+}
+
+/** Delegação oficial da equipe na competição com responsáveis e elenco */
+export interface DelegationTeamRow {
+  teamId: string;
+  competitionTeamId: string;
+  teamName: string;
+  teamShortName?: string;
+  teamLogoUrl?: string;
+  city?: string;
+  state?: string;
+  modality?: string;
+  registrationStatus: string; // 'Aprovada' | 'Pendente' | 'Rascunho' | 'Rejeitada'
+  rawStatus: string;          // 'approved' | 'pending' | 'draft' | 'rejected'
+  isLocked: boolean;
+  managerName?: string;
+  managerEmail?: string;
+  managerPhone?: string;
+  coachName?: string;
+  assistantCoach?: string;
+  physicalTrainer?: string;
+  doctor?: string;
+  athleteCount: number;
+  athletes: DelegationAthleteRow[];
+}
+
+/** Estrutura unificada de dados para a Relação Oficial de Delegações & Responsáveis */
+export interface DelegationReportData {
+  competitionId?: string;
+  competitionName: string;
+  competitionModality?: string;
+  metrics: {
+    totalTeams: number;
+    approvedTeams: number;
+    pendingTeams: number;
+    totalAthletes: number;
+    teamsWithManager: number;
+    teamsWithCoach: number;
+  };
+  teams: DelegationTeamRow[];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TIPOS DO RELATÓRIO DE ESTATÍSTICAS DE PARTIDAS, SETS E DURAÇÃO (FASE 7.5)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Detalhamento de um set específico na partida */
+export interface MatchStatisticsSetRow {
+  setNumber: number;
+  scoreA: number;
+  scoreB: number;
+  pointDifference: number;
+  winnerSide: 'A' | 'B' | null;
+}
+
+/** Linha individual de partida com estatísticas derivadas */
+export interface MatchStatisticsRow {
+  matchId: string;
+  matchNumber: number;
+  date: string;
+  time: string;
+  scheduledTime: string;
+  venue: string;
+  court?: string;
+  phase?: string;
+  groupName?: string;
+  round?: number;
+  teamAId: string;
+  teamBId: string;
+  teamAName: string;
+  teamBName: string;
+  teamAShortName?: string;
+  teamBShortName?: string;
+  teamALogo?: string;
+  teamBLogo?: string;
+  setsPlayed: number;
+  teamASetsWon: number;
+  teamBSetsWon: number;
+  teamAPoints: number;
+  teamBPoints: number;
+  pointDifference: number;
+  winnerId?: string | null;
+  winnerSide?: 'A' | 'B' | null;
+  winnerName?: string;
+  status: string;
+  statusLabel: string;
+  isWo: boolean;
+  isCompleted: boolean;
+  setsScoreLabel: string; // Ex: '3 x 1' ou '—'
+  setsBreakdownLabel: string; // Ex: '25-21, 23-25, 25-18, 25-20'
+  durationLabel: string; // 'Não registrada' (domínio não possui cronômetro persistido)
+  sets: MatchStatisticsSetRow[];
+}
+
+/** Resumo consolidado de desempenho por equipe na competição */
+export interface TeamStatisticsSummaryRow {
+  teamId: string;
+  teamName: string;
+  teamShortName?: string;
+  teamLogo?: string;
+  matchesPlayed: number;
+  wins: number;
+  losses: number;
+  winRate: number; // Percentual 0 a 100
+  setsWon: number;
+  setsLost: number;
+  setRatio: number | null; // Set average CBV
+  pointsScored: number;
+  pointsConceded: number;
+  pointRatio: number | null; // Point average CBV
+  pointBalance: number; // Saldo de pontos (+/-)
+}
+
+/** Estrutura unificada de dados para o Relatório Estatístico de Partidas e Sets */
+export interface MatchStatisticsReportData {
+  competitionId?: string;
+  competitionName: string;
+  competitionModality?: string;
+  metrics: {
+    totalMatches: number;
+    completedMatches: number;
+    inProgressMatches: number;
+    scheduledMatches: number;
+    woMatches: number;
+    cancelledMatches: number;
+    totalSetsPlayed: number;
+    totalPointsScored: number;
+    averageSetsPerMatch: number;
+    averagePointsPerMatch: number;
+    averagePointsPerSet: number;
+    tiebreakMatchesCount: number;
+    durationNotice: string; // Declaração de transparência estatística
+  };
+  matches: MatchStatisticsRow[];
+  teamSummaries: TeamStatisticsSummaryRow[];
 }

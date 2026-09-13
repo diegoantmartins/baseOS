@@ -58,19 +58,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { dataAccess, generateToken } from '@/services/dataAccess';
 import { CompetitionRegistrationService } from '@/services/competitionRegistrationService';
 import { compressImageToDataUrl } from '@/lib/imageUtils';
 import { TeamCreatedShareDialog } from '@/components/registration/TeamCreatedShareDialog';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import { useCapability } from '@/hooks/useCapability';
+import { sortRosterAthletes } from '@/services/registrationService';
 import type { TeamRecord } from '@/types/entities';
+import type { CompetitionAthlete } from '@/types/registration';
+
+export interface TeamAthleteItem extends CompetitionAthlete {
+  competitionName: string;
+  competitionId: string;
+}
 
 export interface TeamView extends TeamRecord {
   athletes: number;
   matchesPlayed: number;
   wins: number;
   competitions: string[];
+  roster: TeamAthleteItem[];
 }
 
 function generateRandomPassword(): string {
@@ -113,23 +122,42 @@ export function TeamsPage() {
       ]);
 
       const compById = new Map(competitions.map((c) => [c.id, c]));
+      const ctById = new Map(competitionTeams.map((ct) => [ct.id, ct]));
       const ctForTeam = (teamId: string) => competitionTeams.filter((ct) => ct.teamId === teamId);
-      const athletesForTeam = (teamId: string) =>
-        athletes.filter((a) => ctForTeam(teamId).some((ct) => ct.id === a.competitionTeamId));
+      const athletesForTeam = (teamId: string): TeamAthleteItem[] => {
+        const teamCts = ctForTeam(teamId);
+        const ctIdSet = new Set(teamCts.map((ct) => ct.id));
+        const matched = athletes
+          .filter((a) => ctIdSet.has(a.competitionTeamId))
+          .map((a) => {
+            const ct = ctById.get(a.competitionTeamId);
+            const comp = ct ? compById.get(ct.competitionId) : undefined;
+            return {
+              ...a,
+              competitionName: comp?.name ?? (ct?.competitionId || 'Competição'),
+              competitionId: ct?.competitionId ?? '',
+            };
+          });
+        return sortRosterAthletes(matched);
+      };
       const winsForTeam = (teamId: string) => matches.filter((m) => m.winnerId === teamId).length;
       const playedForTeam = (teamId: string) =>
         matches.filter((m) => m.teamAId === teamId || m.teamBId === teamId).length;
 
       setTeams(
-        allTeams.map((t) => ({
-          ...t,
-          athletes: athletesForTeam(t.id).length,
-          matchesPlayed: playedForTeam(t.id),
-          wins: winsForTeam(t.id),
-          competitions: ctForTeam(t.id)
-            .map((ct) => compById.get(ct.competitionId)?.name ?? ct.competitionId)
-            .filter((v, i, arr) => arr.indexOf(v) === i),
-        })),
+        allTeams.map((t) => {
+          const teamRoster = athletesForTeam(t.id);
+          return {
+            ...t,
+            athletes: teamRoster.length,
+            roster: teamRoster,
+            matchesPlayed: playedForTeam(t.id),
+            wins: winsForTeam(t.id),
+            competitions: ctForTeam(t.id)
+              .map((ct) => compById.get(ct.competitionId)?.name ?? ct.competitionId)
+              .filter((v, i, arr) => arr.indexOf(v) === i),
+          };
+        }),
       );
     } catch (err: unknown) {
       setIsError(true);
@@ -534,7 +562,10 @@ export function TeamsPage() {
         isEdit
       />
 
-      <TeamDetailsDialog team={viewing} onClose={() => setViewing(null)} />
+      <TeamDetailsDialog
+        team={viewing ? (teams.find((t) => t.id === viewing.id) ?? viewing) : null}
+        onClose={() => setViewing(null)}
+      />
 
       <TeamCreatedShareDialog
         team={shareTeam}
@@ -933,58 +964,337 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TeamDetailsDialog({ team, onClose }: { team: TeamView | null; onClose: () => void }) {
-  const details: Array<{ label: string; value: string }> = team
-    ? [
-        { label: 'Nome da Equipe', value: team.name },
-        { label: 'Sigla Oficial', value: team.shortName },
-        { label: 'Modalidade', value: team.modality === 'indoor' ? 'Vôlei de Quadra' : 'Vôlei de Praia' },
-        { label: 'Cidade / Estado', value: team.city ? `${team.city}${team.state ? ` - ${team.state}` : ''}` : '—' },
-        { label: 'Técnico / Treinador', value: team.coachName ?? '—' },
-        { label: 'Gestor / Responsável', value: team.managerName ?? '—' },
-        { label: 'WhatsApp / Telefone', value: team.managerPhone ?? '—' },
-        { label: 'E-mail / Usuário', value: team.managerEmail ?? '—' },
-        { label: 'Senha de Acesso', value: team.managerPassword ?? '—' },
-        { label: 'Atletas no Elenco', value: String(team.athletes) },
-        { label: 'Partidas Disputadas', value: String(team.matchesPlayed) },
-        { label: 'Vitórias', value: String(team.wins) },
-      ]
-    : [];
+  const [activeTab, setActiveTab] = useState<'data' | 'roster'>('data');
+  const [selectedComp, setSelectedComp] = useState<string>('all');
+
+  // Reset filtros e aba ao trocar de equipe
+  useEffect(() => {
+    setSelectedComp('all');
+    setActiveTab('data');
+  }, [team?.id]);
+
+  if (!team) return null;
+
+  const details: Array<{ label: string; value: string }> = [
+    { label: 'Nome da Equipe', value: team.name },
+    { label: 'Sigla Oficial', value: team.shortName },
+    { label: 'Modalidade', value: team.modality === 'indoor' ? 'Vôlei de Quadra' : 'Vôlei de Praia' },
+    { label: 'Cidade / Estado', value: team.city ? `${team.city}${team.state ? ` - ${team.state}` : ''}` : '—' },
+    { label: 'Técnico / Treinador', value: team.coachName ?? '—' },
+    { label: 'Gestor / Responsável', value: team.managerName ?? '—' },
+    { label: 'WhatsApp / Telefone', value: team.managerPhone ?? '—' },
+    { label: 'E-mail / Usuário', value: team.managerEmail ?? '—' },
+    { label: 'Senha de Acesso', value: team.managerPassword ?? '—' },
+    { label: 'Atletas no Elenco', value: String(team.athletes) },
+    { label: 'Partidas Disputadas', value: String(team.matchesPlayed) },
+    { label: 'Vitórias', value: String(team.wins) },
+  ];
+
+  const availableComps = Array.from(
+    new Set(team.roster.map((a) => a.competitionName).filter(Boolean)),
+  );
+
+  const displayedAthletes = team.roster.filter((a) => {
+    if (selectedComp !== 'all' && a.competitionName !== selectedComp) return false;
+    return true;
+  });
+
+  const captainCount = displayedAthletes.filter((a) => a.isCaptain).length;
+  const liberoCount = displayedAthletes.filter((a) => a.isLibero).length;
+  const numberedCount = displayedAthletes.filter(
+    (a) => a.jerseyNumber !== undefined && a.jerseyNumber !== null,
+  ).length;
 
   return (
     <Dialog open={team !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-md bg-zinc-950 border-border p-5 rounded-xl shadow-none">
-        <DialogHeader>
-          <DialogTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <Users className="w-4 h-4 text-primary" />
-            Detalhes da Equipe
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-2 py-1 text-xs">
-          {details.map((d) => (
-            <div key={d.label} className="flex items-center justify-between border-b border-border/40 pb-1.5">
-              <span className="text-muted-foreground">{d.label}</span>
-              <span className="font-medium text-right max-w-[200px] truncate text-foreground">{d.value}</span>
-            </div>
-          ))}
-          {team && team.competitions.length > 0 && (
-            <div className="space-y-1 pt-1">
-              <span className="text-[10px] text-muted-foreground uppercase font-semibold">Competições Vinculadas:</span>
-              <div className="flex flex-wrap gap-1">
-                {team.competitions.map((c, idx) => (
-                  <Badge key={idx} variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400">
-                    {c}
-                  </Badge>
-                ))}
+      <DialogContent className="w-[95vw] sm:max-w-2xl md:max-w-3xl max-h-[90vh] flex flex-col bg-zinc-950 border-border p-5 rounded-xl shadow-none overflow-hidden">
+        <DialogHeader className="pb-3 border-b border-border/40">
+          <div className="flex items-center gap-3">
+            {team.logoUrl ? (
+              <img
+                src={team.logoUrl}
+                alt={`Escudo ${team.name}`}
+                className="w-10 h-10 rounded-lg object-contain bg-zinc-900 p-1 border border-zinc-800 shrink-0"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-800 text-amber-400 font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                {team.shortName || team.name.slice(0, 2).toUpperCase()}
               </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <DialogTitle className="text-sm sm:text-base font-semibold text-foreground truncate">
+                  {team.name}
+                </DialogTitle>
+                <Badge variant="outline" className="text-[9px] py-0 px-1.5 border-zinc-800 bg-zinc-900 text-zinc-400 font-mono shrink-0">
+                  {team.shortName}
+                </Badge>
+                <StatusBadge
+                  status={team.modality === 'indoor' ? 'in-progress' : 'registration-open'}
+                  customLabel={team.modality === 'indoor' ? 'Quadra' : 'Praia'}
+                  className="text-[9px] h-4.5"
+                />
+              </div>
+              <DialogDescription className="text-[11px] text-muted-foreground truncate mt-0.5">
+                {team.city ? `${team.city}${team.state ? ` - ${team.state}` : ''} · ` : ''}
+                {team.coachName ? `Técnico: ${team.coachName} · ` : ''}
+                {team.athletes} {team.athletes === 1 ? 'atleta registrado' : 'atletas registrados'}
+              </DialogDescription>
             </div>
-          )}
-        </div>
-        <DialogFooter className="pt-2">
+          </div>
+        </DialogHeader>
+
+        {/* Estrutura de Abas Operacionais */}
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as 'data' | 'roster')}
+          className="w-full flex-1 flex flex-col min-h-0 pt-3"
+        >
+          <TabsList className="grid w-full grid-cols-2 bg-zinc-900 border border-zinc-800 h-9 p-0.5">
+            <TabsTrigger
+              value="data"
+              onClick={() => setActiveTab('data')}
+              className="text-xs"
+            >
+              Dados da Equipe
+            </TabsTrigger>
+            <TabsTrigger
+              value="roster"
+              onClick={() => setActiveTab('roster')}
+              className="text-xs flex items-center justify-center gap-1.5"
+            >
+              <span>Elenco de Atletas</span>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-zinc-800 text-zinc-300 font-mono">
+                {team.roster.length}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Aba 1: Dados da Equipe (Preservada integralmente) */}
+          <TabsContent value="data" className="flex-1 overflow-y-auto min-h-0 py-2 pr-1 space-y-2 text-xs">
+            {details.map((d) => (
+              <div key={d.label} className="flex items-center justify-between border-b border-border/40 pb-1.5">
+                <span className="text-muted-foreground">{d.label}</span>
+                <span className="font-medium text-right max-w-[240px] truncate text-foreground">{d.value}</span>
+              </div>
+            ))}
+            {team.competitions.length > 0 && (
+              <div className="space-y-1.5 pt-2">
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Competições Vinculadas:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {team.competitions.map((c, idx) => (
+                    <Badge key={idx} variant="outline" className="text-[10px] py-0.5 px-2 border-zinc-800 bg-zinc-900 text-zinc-300">
+                      {c}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Aba 2: Elenco de Atletas (Visualização Operacional) */}
+          <TabsContent value="roster" className="flex-1 flex flex-col min-h-0 py-2 space-y-2">
+            {/* Sub-filtro de competição caso participe de mais de uma */}
+            {availableComps.length > 1 && (
+              <div className="flex items-center gap-1.5 pb-1 overflow-x-auto shrink-0">
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold shrink-0 mr-1">
+                  Torneio:
+                </span>
+                <Button
+                  variant={selectedComp === 'all' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-6 text-[10px] px-2"
+                  onClick={() => setSelectedComp('all')}
+                >
+                  Todos ({team.roster.length})
+                </Button>
+                {availableComps.map((compName) => {
+                  const count = team.roster.filter((a) => a.competitionName === compName).length;
+                  return (
+                    <Button
+                      key={compName}
+                      variant={selectedComp === compName ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-6 text-[10px] px-2 shrink-0"
+                      onClick={() => setSelectedComp(compName)}
+                    >
+                      {compName} ({count})
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Resumo Numérico do Elenco */}
+            {displayedAthletes.length > 0 && (
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1 shrink-0">
+                <span className="font-mono">
+                  {displayedAthletes.length} {displayedAthletes.length === 1 ? 'atleta' : 'atletas'} ({numberedCount} com camisa)
+                </span>
+                <div className="flex items-center gap-2">
+                  {captainCount > 0 && (
+                    <span className="text-[10px] text-amber-400 font-medium">
+                      {captainCount} Capitão
+                    </span>
+                  )}
+                  {liberoCount > 0 && (
+                    <span className="text-[10px] text-blue-400 font-medium">
+                      {liberoCount} {liberoCount === 1 ? 'Líbero' : 'Líberos'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Lista ou Estados Vazios */}
+            {team.roster.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center py-10 px-4 text-center rounded-xl bg-zinc-900/30 border border-zinc-800/60 my-2">
+                <div className="w-10 h-10 rounded-full bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center mb-2.5 text-zinc-400">
+                  <Users className="w-5 h-5" />
+                </div>
+                <p className="text-xs font-semibold text-foreground">Nenhum atleta vinculado a esta equipe.</p>
+                <p className="text-[11px] text-muted-foreground mt-1 max-w-sm">
+                  {team.competitions.length === 0
+                    ? 'Esta equipe ainda não possui inscrição ativa em nenhuma competição.'
+                    : 'Ainda não foram inscritos atletas no elenco desta equipe para as competições vinculadas.'}
+                </p>
+              </div>
+            ) : displayedAthletes.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center py-8 px-4 text-center rounded-xl bg-zinc-900/30 border border-zinc-800/60 my-2">
+                <p className="text-xs font-semibold text-foreground">Nenhum atleta encontrado para o filtro selecionado.</p>
+                <p className="text-[11px] text-muted-foreground mt-1">Tente selecionar outro torneio ou exibir todos.</p>
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                {/* Tabela Desktop / Tablet (sm+) */}
+                <div className="hidden sm:block rounded-lg border border-border bg-zinc-900/30 overflow-hidden">
+                  <table className="w-full text-xs" aria-label="Elenco de Atletas">
+                    <caption className="sr-only">Relação de atletas vinculados à equipe</caption>
+                    <thead>
+                      <tr className="border-b border-border bg-zinc-900/80 text-muted-foreground font-semibold text-left">
+                        <th scope="col" className="py-2 px-3 w-12 text-center font-mono">Nº</th>
+                        <th scope="col" className="py-2 px-3">Atleta</th>
+                        <th scope="col" className="py-2 px-3 w-28">Posição</th>
+                        <th scope="col" className="py-2 px-3 w-28 text-center">Função</th>
+                        <th scope="col" className="py-2 px-3 w-36">Competição</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {displayedAthletes.map((ath) => (
+                        <tr key={ath.id} className="hover:bg-zinc-900/50 transition-colors">
+                          <td className="py-2 px-3 text-center">
+                            {ath.jerseyNumber !== undefined && ath.jerseyNumber !== null ? (
+                              <span className="w-7 h-7 inline-flex items-center justify-center rounded-md bg-zinc-900 border border-zinc-800 text-foreground font-mono font-bold text-xs tabular-nums">
+                                {ath.jerseyNumber}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground font-mono text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-foreground">{ath.name}</span>
+                              {ath.isCaptain && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] py-0 px-1 border-amber-500/40 text-amber-400 bg-amber-500/10 font-bold"
+                                  title="Capitão da Equipe"
+                                >
+                                  <span className="font-mono">C</span>
+                                  <span className="ml-1 hidden lg:inline font-sans text-[9px]">Capitão</span>
+                                </Badge>
+                              )}
+                              {ath.isLibero && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] py-0 px-1 border-blue-500/40 text-blue-400 bg-blue-500/10 font-bold"
+                                  title="Líbero"
+                                >
+                                  <span className="font-mono">L</span>
+                                  <span className="ml-1 hidden lg:inline font-sans text-[9px]">Líbero</span>
+                                </Badge>
+                              )}
+                            </div>
+                            {ath.documentNumber && (
+                              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                                Doc: {ath.documentNumber}
+                              </p>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 text-muted-foreground">
+                            {ath.position || 'Geral'}
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            {ath.isCaptain ? (
+                              <span className="text-[10px] font-semibold text-amber-400">Capitão</span>
+                            ) : ath.isLibero ? (
+                              <span className="text-[10px] font-semibold text-blue-400">Líbero</span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground">Atleta</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3">
+                            <Badge variant="outline" className="text-[9px] py-0 px-1.5 border-zinc-800 bg-zinc-900 text-zinc-300 truncate max-w-[140px] block">
+                              {ath.competitionName}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Lista Mobile (< sm) */}
+                <div className="sm:hidden space-y-2">
+                  {displayedAthletes.map((ath) => (
+                    <div
+                      key={ath.id}
+                      className="p-2.5 rounded-lg border border-border bg-zinc-900/40 flex items-center justify-between gap-2.5"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 text-foreground font-mono font-bold text-xs flex items-center justify-center shrink-0 tabular-nums">
+                          {ath.jerseyNumber ?? '—'}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-xs text-foreground truncate">{ath.name}</span>
+                            {ath.isCaptain && (
+                              <Badge
+                                variant="outline"
+                                className="text-[8px] py-0 px-1 border-amber-500/40 text-amber-400 bg-amber-500/10 font-bold"
+                              >
+                                C Capitão
+                              </Badge>
+                            )}
+                            {ath.isLibero && (
+                              <Badge
+                                variant="outline"
+                                className="text-[8px] py-0 px-1 border-blue-500/40 text-blue-400 bg-blue-500/10 font-bold"
+                              >
+                                L Líbero
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {ath.position || 'Geral'}
+                            {ath.competitionName ? ` · ${ath.competitionName}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        <DialogFooter className="pt-3 border-t border-border/40 shrink-0">
           <Button
             variant="outline"
             size="sm"
             onClick={onClose}
-            className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60"
+            className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60 w-full sm:w-auto"
           >
             Fechar
           </Button>

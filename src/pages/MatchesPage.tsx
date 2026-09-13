@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { setActiveCompetitionId } from '@/services/competitionNavigationHelper';
 import {
+  Calendar,
   Clock,
   MapPin,
   CheckCircle,
@@ -803,6 +804,18 @@ export function MatchesPage() {
           }
           secondaryActions={
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const compQuery = activeCompId ? `competitionId=${activeCompId}&` : '';
+                  navigate(`/relatorios?${compQuery}report=programacao`);
+                }}
+                className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium"
+              >
+                <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                Programação Oficial
+              </Button>
               <Button
                 variant="outline"
                 size="sm"

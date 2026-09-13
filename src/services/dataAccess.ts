@@ -777,6 +777,18 @@ const localStorageAdapter = {
     return record;
   },
 
+  async registerAthletePublic(token: string, input: CompetitionAthleteInput): Promise<{ ok: boolean; athlete?: CompetitionAthlete; error?: string }> {
+    const team = await this.getCompetitionTeamByToken(token);
+    if (!team) return { ok: false, error: 'Convite de equipe não encontrado.' };
+    const athlete = await this.createCompetitionAthlete({
+      ...input,
+      competitionTeamId: team.id,
+      name: input.name.trim(),
+      position: input.position.trim(),
+    });
+    return { ok: true, athlete };
+  },
+
   async updateCompetitionAthlete(id: string, updates: Partial<CompetitionAthlete>): Promise<CompetitionAthlete | null> {
     const all = readCollection<CompetitionAthlete>('competition_athletes');
     const idx = all.findIndex(a => a.id === id);
@@ -1893,8 +1905,9 @@ const supabaseAdapter = {
   async createCompetition(input: Omit<CompetitionRecord, 'id'> & { id?: string }): Promise<CompetitionRecord> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
+    const id = input.id || generateId('comp');
     const slug = input.slug || generateSlug(input.name);
-    const payload = { ...input, slug };
+    const payload = { ...input, id, slug };
     const { data } = await supabase.from(SUPABASE_TABLES.competitions).insert(toSnake(payload)).select().single();
     const mapped = mapRow<CompetitionRecord>(data) ?? (data as unknown as CompetitionRecord);
     return mapped ? normalizeCompetitionRecord(mapped) : mapped;
@@ -1916,7 +1929,8 @@ const supabaseAdapter = {
   async createTeam(input: Omit<TeamRecord, 'id'> & { id?: string }): Promise<TeamRecord> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
-    const { data } = await supabase.from(SUPABASE_TABLES.teams).insert(toSnake(input)).select().single();
+    const id = input.id || generateId('team');
+    const { data } = await supabase.from(SUPABASE_TABLES.teams).insert(toSnake({ ...input, id })).select().single();
     return mapRow<TeamRecord>(data) ?? (data as unknown as TeamRecord);
   },
 
@@ -1940,10 +1954,11 @@ const supabaseAdapter = {
     return mapRows<RefereeRecord>(data ?? []);
   },
 
-  async createReferee(input: Omit<RefereeRecord, 'id'>): Promise<RefereeRecord> {
+  async createReferee(input: Omit<RefereeRecord, 'id'> & { id?: string }): Promise<RefereeRecord> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
-    const { data } = await supabase.from(SUPABASE_TABLES.referees).insert(toSnake(input)).select().single();
+    const id = input.id || generateId('ref');
+    const { data } = await supabase.from(SUPABASE_TABLES.referees).insert(toSnake({ ...input, id })).select().single();
     return mapRow<RefereeRecord>(data) ?? (data as unknown as RefereeRecord);
   },
 
@@ -1967,10 +1982,12 @@ const supabaseAdapter = {
     return mapRows<VenueRecord>(data ?? []);
   },
 
-  async createVenue(input: Omit<VenueRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<VenueRecord> {
+  async createVenue(input: Omit<VenueRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<VenueRecord> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
-    const { data } = await supabase.from(SUPABASE_TABLES.venues).insert(toSnake(input)).select().single();
+    const id = input.id || generateId('venue');
+    const now = new Date().toISOString();
+    const { data } = await supabase.from(SUPABASE_TABLES.venues).insert(toSnake({ ...input, id, createdAt: now, updatedAt: now })).select().single();
     return mapRow<VenueRecord>(data) ?? (data as unknown as VenueRecord);
   },
 
@@ -2030,10 +2047,12 @@ const supabaseAdapter = {
     return mapRow<MatchRecord>(data);
   },
 
-  async createMatch(match: Omit<MatchRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<MatchRecord> {
+  async createMatch(match: Omit<MatchRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<MatchRecord> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
-    const rawPayload = toSnake(match as Record<string, unknown>);
+    const id = match.id || generateId('match');
+    const now = new Date().toISOString();
+    const rawPayload = toSnake({ ...match, id, createdAt: now, updatedAt: now } as Record<string, unknown>);
     const payload: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(rawPayload)) {
       if (value !== undefined) {
@@ -2089,7 +2108,8 @@ const supabaseAdapter = {
     if (!supabase) throw new Error('Supabase não configurado');
     const now = new Date().toISOString();
     const existing = await this.getDrawByCompetition(result.competitionId);
-    const payload = toSnake({ ...result, id: existing?.id ?? undefined });
+    const drawId = existing?.id || generateId('draw');
+    const payload = toSnake({ ...result, id: drawId });
     const { data } = existing
       ? await supabase.from(SUPABASE_TABLES.draws).update({ ...payload, updated_at: now }).eq('id', existing.id).select().maybeSingle()
       : await supabase.from(SUPABASE_TABLES.draws).insert({ ...payload, created_at: now, updated_at: now }).select().single();
@@ -2165,7 +2185,8 @@ const supabaseAdapter = {
       .insert(newMatches.map(m => toSnake(m)))
       .select();
 
-    const payload = toSnake({ ...result, id: existingDraw?.id ?? undefined });
+    const drawId = existingDraw?.id || generateId('draw');
+    const payload = toSnake({ ...result, id: drawId });
     const { data: drawData } = existingDraw
       ? await supabase.from(SUPABASE_TABLES.draws).update({ ...payload, updated_at: now }).eq('id', existingDraw.id).select().maybeSingle()
       : await supabase.from(SUPABASE_TABLES.draws).insert({ ...payload, created_at: now, updated_at: now }).select().single();
@@ -2212,10 +2233,10 @@ const supabaseAdapter = {
     return mapRow<CompetitionTeam>(data);
   },
 
-  async createCompetitionTeam(input: Omit<CompetitionTeam, 'id' | 'accessToken' | 'createdAt' | 'updatedAt'>): Promise<CompetitionTeam> {
+  async createCompetitionTeam(input: Omit<CompetitionTeam, 'id' | 'accessToken' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<CompetitionTeam> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
-    const id = generateId('ct');
+    const id = input.id || generateId('ct');
     const { data } = await supabase
       .from(SUPABASE_TABLES.competitionTeams)
       .insert({ ...toSnake({ ...input, id }), access_token: generateToken() })
@@ -2240,12 +2261,37 @@ const supabaseAdapter = {
     return mapRows<CompetitionAthlete>(data ?? []);
   },
 
-  async createCompetitionAthlete(input: CompetitionAthleteCreate): Promise<CompetitionAthlete> {
+  async createCompetitionAthlete(input: CompetitionAthleteCreate & { id?: string }): Promise<CompetitionAthlete> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
-    const id = generateId('ath');
+    const id = input.id || generateId('ath');
     const { data } = await supabase.from(SUPABASE_TABLES.competitionAthletes).insert(toSnake({ ...input, id })).select().single();
     return mapRow<CompetitionAthlete>(data) ?? (data as unknown as CompetitionAthlete);
+  },
+
+  async registerAthletePublic(token: string, input: CompetitionAthleteInput): Promise<{ ok: boolean; athlete?: CompetitionAthlete; error?: string }> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const { data, error } = await supabase.rpc('register_athlete', {
+      p_token: token,
+      p_name: input.name.trim(),
+      p_position: input.position.trim(),
+      p_jersey_number: input.jerseyNumber ?? null,
+      p_is_captain: input.isCaptain ?? false,
+      p_is_libero: input.isLibero ?? false,
+      p_gender: input.gender ?? 'female',
+      p_document_number: input.documentNumber ? input.documentNumber.trim() : null,
+      p_birth_date: input.birthDate ?? null,
+    });
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    const res = data as { ok?: boolean; athlete?: unknown; error?: string } | null;
+    if (!res || !res.ok) {
+      return { ok: false, error: res?.error || 'Falha ao registrar atleta via inscrição pública.' };
+    }
+    const mappedAthlete = mapRow<CompetitionAthlete>(res.athlete) ?? (res.athlete as unknown as CompetitionAthlete);
+    return { ok: true, athlete: mappedAthlete };
   },
 
   async updateCompetitionAthlete(id: string, updates: Partial<CompetitionAthlete>): Promise<CompetitionAthlete | null> {
@@ -2430,11 +2476,12 @@ const supabaseAdapter = {
     return mapRows<MatchAuditEntry>(data ?? []);
   },
 
-  async addAuditLog(entry: Omit<MatchAuditEntry, 'id' | 'timestamp'>): Promise<MatchAuditEntry> {
+  async addAuditLog(entry: Omit<MatchAuditEntry, 'id' | 'timestamp'> & { id?: string }): Promise<MatchAuditEntry> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
+    const id = entry.id || generateId('audit');
     const now = new Date().toISOString();
-    const { data } = await supabase.from(SUPABASE_TABLES.auditLogs).insert(toSnake({ ...entry, timestamp: now })).select().single();
+    const { data } = await supabase.from(SUPABASE_TABLES.auditLogs).insert(toSnake({ ...entry, id, timestamp: now })).select().single();
     return mapRow<MatchAuditEntry>(data) ?? (data as unknown as MatchAuditEntry);
   },
 

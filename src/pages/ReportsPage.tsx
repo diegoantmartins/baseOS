@@ -39,6 +39,12 @@ import {
   generateStandingsReportPdf,
   generateTeamRosterReportPdf,
   generatePodiumReportPdf,
+  generateRefereesSchedulePdf,
+  generateDailySchedulePdf,
+  generateMvpReportPdf,
+  generateDelegationReportPdf,
+  generateMatchStatisticsReportPdf,
+  parseMatchReferees,
   downloadReportsPdf,
 } from '@/lib/pdf/reportsPdf';
 import type {
@@ -46,7 +52,12 @@ import type {
   StandingsReportGroup,
   RosterReportTeam,
   PodiumReportData,
-} from '@/lib/pdf/reportsPdf';
+  RefereesScheduleRow,
+  DailyScheduleRow,
+  MvpReportData,
+  DelegationReportData,
+  MatchStatisticsReportData,
+} from '@/lib/pdf/types';
 import { ClassificationProbabilityService } from '@/services/classificationProbabilityService';
 import type { CompetitionProbabilityResult } from '@/types/classificationProbability';
 import { BlankSheetEmitDialog } from '@/components/match/BlankSheetEmitDialog';
@@ -64,6 +75,14 @@ import { MatchesBoletimView } from '@/components/report/MatchesBoletimView';
 import { StandingsReportView } from '@/components/report/StandingsReportView';
 import { TeamRostersReportView } from '@/components/report/TeamRostersReportView';
 import { PodiumReportView } from '@/components/report/PodiumReportView';
+import { RefereesScheduleReportView } from '@/components/report/RefereesScheduleReportView';
+import { DailyScheduleReportView } from '@/components/report/DailyScheduleReportView';
+import { MvpReportView } from '@/components/report/MvpReportView';
+import { buildMvpReportData } from '@/services/mvpReportService';
+import { DelegationReportView } from '@/components/report/DelegationReportView';
+import { buildDelegationReportData } from '@/services/delegationReportService';
+import { MatchStatisticsReportView } from '@/components/report/MatchStatisticsReportView';
+import { buildMatchStatisticsReportData } from '@/services/matchStatisticsReportService';
 import type {
   CompetitionRecord,
   MatchRecord,
@@ -76,10 +95,18 @@ export function ReportsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlCompId = searchParams.get('competitionId');
   const reportParam = searchParams.get('report');
+  const urlDate = searchParams.get('date') || 'all';
 
   // Relatório ativo na URL (fallback controlado para 'boletim')
   const activeReport: ReportType =
-    reportParam === 'standings' || reportParam === 'roster' || reportParam === 'podium'
+    reportParam === 'standings' ||
+    reportParam === 'roster' ||
+    reportParam === 'podium' ||
+    reportParam === 'arbitragem' ||
+    reportParam === 'programacao' ||
+    reportParam === 'mvp' ||
+    reportParam === 'delegacoes' ||
+    reportParam === 'estatisticas'
       ? reportParam
       : 'boletim';
 
@@ -198,6 +225,21 @@ export function ReportsPage() {
       (prev) => {
         const next = new URLSearchParams(prev);
         next.set('report', newReport);
+        return next;
+      },
+      { replace: false },
+    );
+  };
+
+  const handleDateChange = (newDate: string) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (newDate && newDate !== 'all') {
+          next.set('date', newDate);
+        } else {
+          next.delete('date');
+        }
         return next;
       },
       { replace: false },
@@ -421,6 +463,197 @@ export function ReportsPage() {
     };
   }, [competition, filteredMatches, teams]);
 
+  // 5. View Model: Escala Oficial de Arbitragem e Oficiais de Mesa (RefereesScheduleRow[])
+  const refereesScheduleRows: RefereesScheduleRow[] = useMemo(() => {
+    if (!competition) return [];
+
+    return filteredMatches
+      .slice()
+      .sort((a, b) => {
+        // 1. Data / Horário cronológico
+        const timeA = a.scheduledTime ? new Date(a.scheduledTime).getTime() : 0;
+        const timeB = b.scheduledTime ? new Date(b.scheduledTime).getTime() : 0;
+        if (timeA !== timeB) return timeA - timeB;
+
+        // 2. Ginásio / Local
+        const venueComp = (a.venue || '').localeCompare(b.venue || '');
+        if (venueComp !== 0) return venueComp;
+
+        // 3. Quadra
+        const courtComp = (a.court || '').localeCompare(b.court || '');
+        if (courtComp !== 0) return courtComp;
+
+        // 4. Número do jogo
+        return a.matchNumber - b.matchNumber;
+      })
+      .map((m) => {
+        const teamA = teams.find((t) => t.id === m.teamAId);
+        const teamB = teams.find((t) => t.id === m.teamBId);
+        const parsedRef = parseMatchReferees(m.referees || []);
+
+        const dt = m.scheduledTime ? new Date(m.scheduledTime) : null;
+        const dateStr = dt && !isNaN(dt.getTime())
+          ? dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          : '';
+        const timeStr = dt && !isNaN(dt.getTime())
+          ? dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          : '';
+
+        return {
+          matchNumber: m.matchNumber,
+          round: m.round || 1,
+          phase: m.phase,
+          groupName: m.groupName,
+          date: dateStr,
+          time: timeStr,
+          venue: m.venue || '—',
+          court: m.court,
+          teamAName: teamA?.name || m.teamAName,
+          teamAShort: teamA?.shortName,
+          teamALogo: teamA?.logoUrl,
+          teamBName: teamB?.name || m.teamBName,
+          teamBShort: teamB?.shortName,
+          teamBLogo: teamB?.logoUrl,
+          statusLabel:
+            m.status === 'completed' || m.status === 'homologated'
+              ? 'Finalizado'
+              : m.status === 'in-progress'
+              ? 'Em andamento'
+              : m.status === 'cancelled'
+              ? 'Cancelado'
+              : 'Agendado',
+          firstReferee: parsedRef.firstReferee,
+          secondReferee: parsedRef.secondReferee,
+          scorer: parsedRef.scorer,
+          assistantScorer: parsedRef.assistantScorer,
+          lineJudges: parsedRef.lineJudges,
+          hasOfficials: parsedRef.hasOfficials,
+        };
+      });
+  }, [competition, filteredMatches, teams]);
+
+  // 6. View Model: Programação Diária / Ordem dos Jogos (DailyScheduleRow[])
+  const dailyScheduleRows: DailyScheduleRow[] = useMemo(() => {
+    if (!competition) return [];
+
+    // Primeiro, detecta sobreposições potenciais (mesmo horário, mesmo local e mesma quadra)
+    const slotCounts = new Map<string, number>();
+    for (const m of filteredMatches) {
+      if (m.scheduledTime && m.venue && m.court && m.status !== 'cancelled') {
+        const slotKey = `${m.scheduledTime}__${m.venue.trim().toLowerCase()}__${m.court.trim().toLowerCase()}`;
+        slotCounts.set(slotKey, (slotCounts.get(slotKey) || 0) + 1);
+      }
+    }
+
+    return filteredMatches
+      .slice()
+      .sort((a, b) => {
+        // 1. Data / Horário cronológico
+        const timeA = a.scheduledTime ? new Date(a.scheduledTime).getTime() : 0;
+        const timeB = b.scheduledTime ? new Date(b.scheduledTime).getTime() : 0;
+        if (timeA !== timeB) return timeA - timeB;
+
+        // 2. Ginásio / Local
+        const venueComp = (a.venue || '').localeCompare(b.venue || '');
+        if (venueComp !== 0) return venueComp;
+
+        // 3. Quadra
+        const courtComp = (a.court || '').localeCompare(b.court || '');
+        if (courtComp !== 0) return courtComp;
+
+        // 4. Número do jogo
+        return a.matchNumber - b.matchNumber;
+      })
+      .map((m) => {
+        const teamA = teams.find((t) => t.id === m.teamAId);
+        const teamB = teams.find((t) => t.id === m.teamBId);
+
+        const dt = m.scheduledTime ? new Date(m.scheduledTime) : null;
+        const dateStr = dt && !isNaN(dt.getTime())
+          ? dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          : '';
+        const rawDateStr = dt && !isNaN(dt.getTime())
+          ? dt.toISOString().split('T')[0]
+          : '';
+        const timeStr = dt && !isNaN(dt.getTime())
+          ? dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          : '';
+
+        const slotKey = m.scheduledTime && m.venue && m.court && m.status !== 'cancelled'
+          ? `${m.scheduledTime}__${m.venue.trim().toLowerCase()}__${m.court.trim().toLowerCase()}`
+          : '';
+        const hasConflict = Boolean(slotKey && (slotCounts.get(slotKey) || 0) > 1);
+
+        const statusLabel =
+          m.status === 'completed' || m.status === 'homologated'
+            ? 'Finalizado'
+            : m.status === 'in-progress'
+            ? 'Em andamento'
+            : m.status === 'cancelled'
+            ? 'Cancelado'
+            : 'Agendado';
+
+        const scoreA = m.sets.filter((s) => s.scoreA > s.scoreB).length;
+        const scoreB = m.sets.filter((s) => s.scoreB > s.scoreA).length;
+
+        return {
+          matchId: m.id,
+          matchNumber: m.matchNumber,
+          round: m.round || 1,
+          phase: m.phase,
+          groupName: m.groupName,
+          date: dateStr,
+          rawDate: rawDateStr,
+          time: timeStr,
+          scheduledTime: m.scheduledTime || '',
+          venue: m.venue || '—',
+          court: m.court,
+          teamAName: teamA?.name || m.teamAName,
+          teamAShort: teamA?.shortName,
+          teamALogo: teamA?.logoUrl,
+          teamBName: teamB?.name || m.teamBName,
+          teamBShort: teamB?.shortName,
+          teamBLogo: teamB?.logoUrl,
+          status: m.status,
+          statusLabel,
+          scoreA: (m.status === 'completed' || m.status === 'homologated') && m.sets.length > 0 ? scoreA : undefined,
+          scoreB: (m.status === 'completed' || m.status === 'homologated') && m.sets.length > 0 ? scoreB : undefined,
+          hasConflict,
+          conflictMessage: hasConflict ? 'Possível sobreposição de horário na mesma quadra/local' : undefined,
+        };
+      });
+  }, [competition, filteredMatches, teams]);
+
+  // 7. View Model: Galeria Oficial de Destaques / MVP (MvpReportData)
+  const mvpReportData: MvpReportData = useMemo(() => {
+    return buildMvpReportData({
+      competition,
+      matches: filteredMatches,
+      teams,
+      athletes,
+      competitionTeams,
+    });
+  }, [competition, filteredMatches, teams, athletes, competitionTeams]);
+
+  // 8. View Model: Relação Oficial de Delegações & Responsáveis (DelegationReportData)
+  const delegationReportData: DelegationReportData = useMemo(() => {
+    return buildDelegationReportData({
+      competition,
+      teams,
+      athletes,
+      competitionTeams,
+    });
+  }, [competition, teams, athletes, competitionTeams]);
+
+  // 9. View Model: Resumo Estatístico de Partidas e Sets (MatchStatisticsReportData)
+  const matchStatisticsReportData: MatchStatisticsReportData = useMemo(() => {
+    return buildMatchStatisticsReportData({
+      competition,
+      matches: filteredMatches,
+      teams,
+    });
+  }, [competition, filteredMatches, teams]);
+
   // ═══════════════════════════════════════════════════════════════════════════
   // AÇÕES DO RELATÓRIO (COMPARTILHAMENTO, IMPRESSÃO, PDF E CSV)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -428,11 +661,16 @@ export function ReportsPage() {
   const handleShare = async () => {
     if (!competition) return;
     const url = window.location.href;
-    const reportNames = {
+    const reportNames: Record<ReportType, string> = {
       boletim: 'Boletim Geral de Jogos',
       standings: 'Classificação Oficial por Grupos',
       roster: 'Relação Nominal das Equipes',
       podium: 'Quadro de Honra e Pódio',
+      arbitragem: 'Escala Oficial de Arbitragem e Mesa',
+      programacao: 'Programação Diária e Ordem dos Jogos',
+      mvp: 'Galeria Oficial de Destaques / MVP da Partida',
+      delegacoes: 'Relação Oficial de Delegações e Responsáveis',
+      estatisticas: 'Resumo Estatístico de Partidas e Sets',
     };
     const reportTitle = `${reportNames[activeReport]} — ${competition.name}`;
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -476,6 +714,24 @@ export function ReportsPage() {
       } else if (activeReport === 'podium') {
         const doc = generatePodiumReportPdf(podiumData);
         downloadReportsPdf(doc, `podio_final_${safeName}.pdf`);
+      } else if (activeReport === 'arbitragem') {
+        const doc = generateRefereesSchedulePdf(refereesScheduleRows, competition.name);
+        downloadReportsPdf(doc, `escala_arbitragem_${safeName}.pdf`);
+      } else if (activeReport === 'programacao') {
+        const targetRows = urlDate !== 'all' ? dailyScheduleRows.filter((r) => r.date === urlDate) : dailyScheduleRows;
+        const selectedDateLabel = urlDate !== 'all' ? urlDate : undefined;
+        const doc = generateDailySchedulePdf(targetRows, competition.name, selectedDateLabel);
+        const fileSuffix = urlDate !== 'all' ? `_${urlDate.replace(/\//g, '-')}` : '';
+        downloadReportsPdf(doc, `programacao_jogos_${safeName}${fileSuffix}.pdf`);
+      } else if (activeReport === 'mvp') {
+        const doc = generateMvpReportPdf(mvpReportData, competition.name);
+        downloadReportsPdf(doc, `galeria_destaques_mvp_${safeName}.pdf`);
+      } else if (activeReport === 'delegacoes') {
+        const doc = generateDelegationReportPdf(delegationReportData, competition.name);
+        downloadReportsPdf(doc, `relacao_delegacoes_${safeName}.pdf`);
+      } else if (activeReport === 'estatisticas') {
+        const doc = generateMatchStatisticsReportPdf(matchStatisticsReportData, competition.name);
+        downloadReportsPdf(doc, `estatisticas_partidas_${safeName}.pdf`);
       }
       toast.success('Download do PDF oficial iniciado com sucesso!');
     } catch (err) {
@@ -527,6 +783,191 @@ export function ReportsPage() {
     toast.success('Boletim em CSV exportado com sucesso!');
   };
 
+  const exportArbitragemCsv = () => {
+    if (!competition) return;
+    const header = 'Jogo,Rodada,Fase,Grupo,Data,Hora,Local,Quadra,Equipe A,Equipe B,1º Árbitro,2º Árbitro,Apontador,Apontador Assistente,Juízes de Linha\n';
+    const rows = refereesScheduleRows
+      .map((r) =>
+        [
+          r.matchNumber,
+          r.round,
+          r.phase || '',
+          r.groupName || '',
+          r.date,
+          r.time,
+          r.venue,
+          r.court || '',
+          r.teamAName,
+          r.teamBName,
+          r.firstReferee,
+          r.secondReferee,
+          r.scorer,
+          r.assistantScorer || '',
+          r.lineJudges ? r.lineJudges.join('; ') : '',
+        ]
+          .map((v) => `"${v}"`)
+          .join(','),
+      )
+      .join('\n');
+    downloadCsv(`escala_arbitragem_${competition.name}.csv`, header + rows);
+    toast.success('Escala de arbitragem em CSV exportada com sucesso!');
+  };
+
+  const exportDailyScheduleCsv = () => {
+    if (!competition) return;
+    const header = 'Jogo,Data,Horário,Local,Quadra,Equipe A,Equipe B,Fase,Grupo,Rodada,Status,Conflito\n';
+    const targetRows = urlDate !== 'all' ? dailyScheduleRows.filter((r) => r.date === urlDate) : dailyScheduleRows;
+    const rows = targetRows
+      .map((r) =>
+        [
+          r.matchNumber,
+          r.date,
+          r.time,
+          r.venue,
+          r.court || '',
+          r.teamAName,
+          r.teamBName,
+          r.phase || '',
+          r.groupName || '',
+          r.round || '',
+          r.statusLabel,
+          r.hasConflict ? 'Sim' : 'Não',
+        ]
+          .map((v) => `"${v}"`)
+          .join(','),
+      )
+      .join('\n');
+    const fileSuffix = urlDate !== 'all' ? `_${urlDate.replace(/\//g, '-')}` : '';
+    downloadCsv(`programacao_jogos_${competition.name}${fileSuffix}.csv`, header + rows);
+    toast.success('Programação de jogos em CSV exportada com sucesso!');
+  };
+
+  const exportMvpCsv = () => {
+    if (!competition) return;
+    const header = 'Jogo,Data,Horário,Equipe A,Equipe B,Resultado,MVP,Equipe do MVP,Número da Camisa,Status\n';
+    const rows = mvpReportData.matches
+      .map((m) =>
+        [
+          m.matchNumber,
+          m.date,
+          m.time,
+          m.teamAName,
+          m.teamBName,
+          m.setsScoreLabel,
+          m.hasHighlight ? (m.isUnresolvedAthlete ? 'Atleta não localizado' : m.athleteName) : 'Sem destaque registrado',
+          m.athleteTeamName || '',
+          m.jerseyNumber != null ? m.jerseyNumber : '',
+          m.statusLabel,
+        ]
+          .map((v) => `"${v}"`)
+          .join(','),
+      )
+      .join('\n');
+    downloadCsv(`destaques_mvp_${competition.name}.csv`, header + rows);
+    toast.success('Galeria de Destaques/MVP em CSV exportada com sucesso!');
+  };
+
+  const exportDelegacoesCsv = () => {
+    if (!competition) return;
+    const header =
+      'Equipe,Sigla,Cidade,UF,Modalidade,Responsável,Email Responsável,Telefone Responsável,Técnico,Auxiliar Técnico,Preparador Físico,Médico,Situação Inscrição,Total Atletas,Atleta,Número da Camisa,Posição,Documento,Capitão,Líbero\n';
+    const rows: string[] = [];
+    delegationReportData.teams.forEach((t) => {
+      if (t.athletes.length === 0) {
+        rows.push(
+          [
+            t.teamName,
+            t.teamShortName || '',
+            t.city || '',
+            t.state || '',
+            t.modality || '',
+            t.managerName || '',
+            t.managerEmail || '',
+            t.managerPhone || '',
+            t.coachName || '',
+            t.assistantCoach || '',
+            t.physicalTrainer || '',
+            t.doctor || '',
+            t.registrationStatus,
+            t.athleteCount,
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+          ]
+            .map((v) => `"${v}"`)
+            .join(','),
+        );
+      } else {
+        t.athletes.forEach((a) => {
+          rows.push(
+            [
+              t.teamName,
+              t.teamShortName || '',
+              t.city || '',
+              t.state || '',
+              t.modality || '',
+              t.managerName || '',
+              t.managerEmail || '',
+              t.managerPhone || '',
+              t.coachName || '',
+              t.assistantCoach || '',
+              t.physicalTrainer || '',
+              t.doctor || '',
+              t.registrationStatus,
+              t.athleteCount,
+              a.name,
+              a.jerseyNumber != null ? a.jerseyNumber : '',
+              a.position || '',
+              a.documentNumber || '',
+              a.isCaptain ? 'Sim' : 'Não',
+              a.isLibero ? 'Sim' : 'Não',
+            ]
+              .map((v) => `"${v}"`)
+              .join(','),
+          );
+        });
+      }
+    });
+    downloadCsv(`relacao_delegacoes_${competition.name}.csv`, header + rows.join('\n'));
+    toast.success('Relação de delegações em CSV exportada com sucesso!');
+  };
+
+  const exportMatchStatisticsCsv = () => {
+    if (!competition) return;
+    const header = 'Jogo,Data,Horario,Local,Quadra,Fase,Grupo,Rodada,Equipe A,Equipe B,Vencedor,Sets A,Sets B,Placar Sets,Pontos A,Pontos B,Saldo Pontos,Status,WO,Duracao\n';
+    const rows = matchStatisticsReportData.matches.map((m) =>
+      [
+        m.matchNumber,
+        m.date,
+        m.time,
+        m.venue,
+        m.court,
+        m.phase,
+        m.groupName,
+        m.round,
+        m.teamAName,
+        m.teamBName,
+        m.winnerName,
+        m.teamASetsWon,
+        m.teamBSetsWon,
+        m.setsBreakdownLabel,
+        m.teamAPoints,
+        m.teamBPoints,
+        m.pointDifference,
+        m.statusLabel,
+        m.isWo ? 'Sim' : 'Não',
+        m.durationLabel,
+      ]
+        .map((v) => `"${v}"`)
+        .join(','),
+    );
+    downloadCsv(`estatisticas_partidas_${competition.name}.csv`, header + rows.join('\n'));
+    toast.success('Estatísticas de partidas em CSV exportadas com sucesso!');
+  };
+
   // Metadados do relatório ativo
   const reportMeta = {
     boletim: {
@@ -544,6 +985,26 @@ export function ReportsPage() {
     podium: {
       title: 'Quadro Oficial de Premiações',
       subtitle: `${competition?.name ?? ''} · Encerramento e premiações homologadas`,
+    },
+    arbitragem: {
+      title: 'Escala Oficial de Arbitragem e Oficiais de Mesa',
+      subtitle: `${competition?.name ?? ''} · Designação oficial de árbitros, apontadores e mesa`,
+    },
+    programacao: {
+      title: 'Programação Diária e Ordem dos Jogos',
+      subtitle: `${competition?.name ?? ''} · Cronograma operacional por data, local e quadra`,
+    },
+    mvp: {
+      title: 'Galeria Oficial de Destaques / MVP',
+      subtitle: `${competition?.name ?? ''} · Reconhecimento dos atletas eleitos como melhores em quadra`,
+    },
+    delegacoes: {
+      title: 'Relação Oficial de Delegações & Responsáveis',
+      subtitle: `${competition?.name ?? ''} · Entidades esportivas, dirigentes, comissão técnica e elenco oficial`,
+    },
+    estatisticas: {
+      title: 'Estatísticas Oficiais de Partidas e Sets',
+      subtitle: `${competition?.name ?? ''} · Parciais de sets, placares, totais de pontos e desempenho por equipe`,
     },
   }[activeReport];
 
@@ -755,7 +1216,21 @@ export function ReportsPage() {
                   onPrint={handlePrint}
                   onShare={handleShare}
                   onExportPdf={handleExportPdf}
-                  onExportCsv={activeReport === 'boletim' ? exportBoletimCsv : undefined}
+                  onExportCsv={
+                    activeReport === 'boletim'
+                      ? exportBoletimCsv
+                      : activeReport === 'arbitragem'
+                      ? exportArbitragemCsv
+                      : activeReport === 'programacao'
+                      ? exportDailyScheduleCsv
+                      : activeReport === 'mvp'
+                      ? exportMvpCsv
+                      : activeReport === 'delegacoes'
+                      ? exportDelegacoesCsv
+                      : activeReport === 'estatisticas'
+                      ? exportMatchStatisticsCsv
+                      : undefined
+                  }
                   isPdfLoading={isPdfLoading}
                 />
 
@@ -776,6 +1251,23 @@ export function ReportsPage() {
                   )}
                   {activeReport === 'roster' && <TeamRostersReportView teams={rosterTeams} />}
                   {activeReport === 'podium' && <PodiumReportView data={podiumData} />}
+                  {activeReport === 'arbitragem' && (
+                    <RefereesScheduleReportView rows={refereesScheduleRows} />
+                  )}
+                  {activeReport === 'programacao' && (
+                    <DailyScheduleReportView
+                      rows={dailyScheduleRows}
+                      selectedDate={urlDate}
+                      onDateChange={handleDateChange}
+                    />
+                  )}
+                  {activeReport === 'mvp' && <MvpReportView data={mvpReportData} />}
+                  {activeReport === 'delegacoes' && (
+                    <DelegationReportView data={delegationReportData} />
+                  )}
+                  {activeReport === 'estatisticas' && (
+                    <MatchStatisticsReportView data={matchStatisticsReportData} />
+                  )}
                 </div>
               </div>
             ) : (

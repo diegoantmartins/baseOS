@@ -1,7 +1,7 @@
-import { ClipboardList, Trophy, Users, Award } from 'lucide-react';
+import { ClipboardList, Trophy, Users, Award, UserCheck, Calendar, Medal, Shield, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export type ReportType = 'boletim' | 'standings' | 'roster' | 'podium';
+export type ReportType = 'boletim' | 'standings' | 'roster' | 'podium' | 'arbitragem' | 'programacao' | 'mvp' | 'delegacoes' | 'estatisticas';
 
 interface ReportSelectorProps {
   activeReport: ReportType;
@@ -21,6 +21,13 @@ export function ReportSelector({
       name: 'Competição & Confrontos',
       items: [
         {
+          id: 'programacao' as ReportType,
+          label: 'Programação Diária / Ordem dos Jogos',
+          description: 'Horários, quadras, locais e confrontos por data',
+          icon: Calendar,
+          count: matchCount,
+        },
+        {
           id: 'boletim' as ReportType,
           label: 'Boletim Geral de Jogos',
           description: 'Confrontos, horários e resultados',
@@ -33,11 +40,25 @@ export function ReportSelector({
           description: 'Tabelas oficiais CBV/FIVB',
           icon: Trophy,
         },
+        {
+          id: 'estatisticas' as ReportType,
+          label: 'Estatísticas de Partidas e Sets',
+          description: 'Parciais de sets, pontuação, médias e totais por equipe',
+          icon: BarChart3,
+          count: matchCount,
+        },
       ],
     },
     {
       name: 'Equipes & Delegações',
       items: [
+        {
+          id: 'delegacoes' as ReportType,
+          label: 'Relação Oficial de Delegações & Responsáveis',
+          description: 'Equipes, comissão, gestores, elenco e situação de inscrição',
+          icon: Shield,
+          count: teamCount,
+        },
         {
           id: 'roster' as ReportType,
           label: 'Relação Nominal das Equipes',
@@ -50,6 +71,20 @@ export function ReportSelector({
     {
       name: 'Documentos Oficiais & Premiação',
       items: [
+        {
+          id: 'arbitragem' as ReportType,
+          label: 'Escala Oficial de Arbitragem',
+          description: 'Árbitros e oficiais de mesa designados',
+          icon: UserCheck,
+          count: matchCount,
+        },
+        {
+          id: 'mvp' as ReportType,
+          label: 'Galeria de Destaques / MVP',
+          description: 'Atletas em evidência e destaques por confronto',
+          icon: Medal,
+          count: matchCount,
+        },
         {
           id: 'podium' as ReportType,
           label: 'Quadro de Honra & Pódio Oficial',

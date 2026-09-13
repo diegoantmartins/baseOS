@@ -42,13 +42,18 @@ vi.mock('@/services/dataAccess', () => ({
   },
 }));
 
-vi.mock('@/lib/pdf/reportsPdf', () => ({
-  generateMatchesBoletimPdf: vi.fn(() => ({})),
-  generateStandingsReportPdf: vi.fn(() => ({})),
-  generateTeamRosterReportPdf: vi.fn(() => ({})),
-  generatePodiumReportPdf: vi.fn(() => ({})),
-  downloadReportsPdf: vi.fn(),
-}));
+vi.mock('@/lib/pdf/reportsPdf', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/pdf/reportsPdf')>('@/lib/pdf/reportsPdf');
+  return {
+    ...actual,
+    generateMatchesBoletimPdf: vi.fn(() => ({})),
+    generateStandingsReportPdf: vi.fn(() => ({})),
+    generateTeamRosterReportPdf: vi.fn(() => ({})),
+    generatePodiumReportPdf: vi.fn(() => ({})),
+    generateRefereesSchedulePdf: vi.fn(() => ({})),
+    downloadReportsPdf: vi.fn(),
+  };
+});
 
 const mockCompetitions: CompetitionRecord[] = [
   {

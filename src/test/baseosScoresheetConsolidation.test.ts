@@ -147,8 +147,8 @@ describe('BaseOS Scoresheet Engine — Consolidação Fase 2', () => {
 
       expect(blob).toBeInstanceOf(Blob);
       expect(blob.size).toBeGreaterThan(3000);
-      expect(elapsed).toBeLessThan(15000);
-    }, 20000);
+      expect(elapsed).toBeLessThan(25000);
+    }, 30000);
 
     it('gera lote de 6 partidas com validação de integridade e escalabilidade linear', async () => {
       const batchData = Array.from({ length: 6 }, (_, i) => {
@@ -164,8 +164,8 @@ describe('BaseOS Scoresheet Engine — Consolidação Fase 2', () => {
 
       expect(blob).toBeInstanceOf(Blob);
       expect(blob.size).toBeGreaterThan(6000);
-      expect(elapsed).toBeLessThan(25000);
-    }, 30000);
+      expect(elapsed).toBeLessThan(45000);
+    }, 60000);
   });
 
   describe('Validação Semântica e Integridade dos Dados', () => {

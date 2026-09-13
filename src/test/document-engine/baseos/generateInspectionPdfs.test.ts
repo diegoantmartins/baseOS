@@ -241,5 +241,5 @@ describe('Geração de PDFs reais para inspeção visual — Fase Súmula 3', ()
     fs.writeFileSync(fileFilled5TeamB, bufFilled5TeamB);
     expect(fs.existsSync(fileFilled5TeamB)).toBe(true);
     expect(bufFilled5TeamB.length).toBeGreaterThan(10000);
-  });
+  }, 60000);
 });

@@ -149,13 +149,37 @@ export async function getCompetitionTeam(id: string): Promise<CompetitionTeam | 
   return dataAccess.getCompetitionTeamById(id);
 }
 
+/**
+ * Ordenação determinística canônica do elenco:
+ * 1. Número da camisa (ascendente) — atletas sem número vão para o fim;
+ * 2. Nome do atleta (ordem alfabética pt-BR);
+ * 3. ID do atleta como critério de desempate final.
+ */
+export function sortRosterAthletes<T extends { jerseyNumber?: number | null; name: string; id: string }>(
+  athletes: T[]
+): T[] {
+  return [...athletes].sort((a, b) => {
+    const aHasNum = a.jerseyNumber !== undefined && a.jerseyNumber !== null;
+    const bHasNum = b.jerseyNumber !== undefined && b.jerseyNumber !== null;
+
+    if (aHasNum && !bHasNum) return -1;
+    if (!aHasNum && bHasNum) return 1;
+
+    if (aHasNum && bHasNum) {
+      const diff = Number(a.jerseyNumber) - Number(b.jerseyNumber);
+      if (diff !== 0) return diff;
+    }
+
+    const nameDiff = a.name.localeCompare(b.name, 'pt-BR');
+    if (nameDiff !== 0) return nameDiff;
+
+    return a.id.localeCompare(b.id);
+  });
+}
+
 export async function listRoster(competitionTeamId: string): Promise<CompetitionAthlete[]> {
   const all = await dataAccess.listCompetitionAthletes(competitionTeamId);
-  return [...all].sort((a, b) => {
-    if (a.jerseyNumber === undefined || a.jerseyNumber === null) return 1; // sem camisa no fim
-    if (b.jerseyNumber === undefined || b.jerseyNumber === null) return -1;
-    return a.jerseyNumber - b.jerseyNumber;
-  });
+  return sortRosterAthletes(all);
 }
 
 export async function addAthlete(
@@ -188,12 +212,25 @@ export async function addAthlete(
   );
   if (!validation.valid) return { ok: false, errors: validation.errors };
 
-  const athlete = await dataAccess.createCompetitionAthlete({
-    ...input,
-    competitionTeamId,
-    name: input.name.trim(),
-    position: input.position.trim(),
-  });
+  let athlete: CompetitionAthlete;
+  if (team.accessToken && typeof dataAccess.registerAthletePublic === 'function') {
+    const res = await dataAccess.registerAthletePublic(team.accessToken, {
+      ...input,
+      name: input.name.trim(),
+      position: input.position.trim(),
+    });
+    if (!res.ok || !res.athlete) {
+      return { ok: false, errors: [res.error || 'Falha ao registrar atleta via inscrição pública.'] };
+    }
+    athlete = res.athlete;
+  } else {
+    athlete = await dataAccess.createCompetitionAthlete({
+      ...input,
+      competitionTeamId,
+      name: input.name.trim(),
+      position: input.position.trim(),
+    });
+  }
 
   if (team.status === 'invited') {
     await dataAccess.updateCompetitionTeam(team.id, { status: 'in_progress' });

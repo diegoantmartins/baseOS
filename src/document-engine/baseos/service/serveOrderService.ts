@@ -289,6 +289,25 @@ export async function printServeOrderSheet(data: BaseosServeOrderData): Promise<
  * FASE B (P2 Não-Bloqueante): Gera o Pacote Completo do Jogo
  * Concatenando Súmula Canônica (A4 Retrato) + Ordem de Saque (A4 Paisagem) via pdf-lib.
  */
+/**
+ * Converte um Blob em Uint8Array com suporte universal (modern browsers e fallback para FileReader em JSDOM)
+ */
+async function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
+  if (typeof blob.arrayBuffer === 'function') {
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+  return new Promise<Uint8Array>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+    reader.onerror = () => reject(new Error('Falha ao ler ArrayBuffer do Blob'));
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+/**
+ * Gera o Pacote Oficial do Jogo unificado em um único PDF multi-páginas:
+ * Concatenando Súmula Canônica (A4 Paisagem) + Ordem de Saque (A4 Paisagem) via pdf-lib.
+ */
 export async function generateGamePackagePdfBlob(
   scoresheetData: BaseosScoresheetData,
 ): Promise<Blob> {
@@ -298,9 +317,9 @@ export async function generateGamePackagePdfBlob(
     const serveOrderData = mapScoresheetToServeOrderData(scoresheetData);
     const serveOrderBlob = await generateServeOrderPdfBlob(serveOrderData);
 
-    // 2. Converte para Uint8Array
-    const sumulaBytes = new Uint8Array(await sumulaBlob.arrayBuffer());
-    const serveOrderBytes = new Uint8Array(await serveOrderBlob.arrayBuffer());
+    // 2. Converte para Uint8Array com fallback universal
+    const sumulaBytes = await blobToUint8Array(sumulaBlob);
+    const serveOrderBytes = await blobToUint8Array(serveOrderBlob);
 
     // 3. Concatena usando pdf-lib
     const mergedDoc = await PDFDocument.create();

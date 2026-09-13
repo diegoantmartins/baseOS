@@ -34,6 +34,7 @@ import {
   ShieldAlert,
   UserCheck,
   Filter,
+  FileText,
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -378,6 +379,15 @@ export function RefereesPage() {
           }
           secondaryActions={
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium"
+                onClick={() => navigate('/relatorios?report=arbitragem')}
+              >
+                <FileText className="w-3.5 h-3.5 text-amber-400" />
+                Relatório Oficial
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
