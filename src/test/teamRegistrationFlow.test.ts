@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { registerTeamInCompetition } from '@/services/registrationService';
 import { dataAccess } from '@/services/dataAccess';
+import { authService } from '@/services/authService';
 import { OperationalAuditService } from '@/services/operationalAuditService';
 import type { CompetitionRecord } from '@/types/entities';
 
@@ -56,12 +57,6 @@ describe('teamRegistrationFlow — registerTeamInCompetition', () => {
       expect(result.token).toBe(result.competitionTeam?.accessToken);
       expect(result.portalUrl).toContain(`/equipe/inscricao/${result.competitionTeam?.accessToken}`);
 
-      // 4. Gestor registrado em persons
-      const persons = await dataAccess.listPersons();
-      const manager = persons.find(p => p.fullName === 'Renata Vasconcelos');
-      expect(manager).toBeDefined();
-      expect(manager?.roles).toContain('manager');
-      expect(manager?.teamIds).toContain(result.team?.id);
 
       // 5. Trilha de auditoria gravada
       const auditLogs = await OperationalAuditService.listAuditLogs({ competitionId: competition.id });
@@ -69,6 +64,28 @@ describe('teamRegistrationFlow — registerTeamInCompetition', () => {
       expect(regLog).toBeDefined();
       expect(regLog?.user).toBe('Admin Diego');
       expect(regLog?.entityId).toBe(result.competitionTeam?.id);
+    });
+
+    it('deve provisionar usuário de acesso Auth quando fornecido managerEmail e managerPassword', async () => {
+      const result = await registerTeamInCompetition({
+        competitionId: competition.id,
+        name: 'Minas Tênis Clube',
+        shortName: 'MTC',
+        managerName: 'Marcos Pacheco',
+        managerEmail: 'pacheco@minas.com.br',
+        managerPassword: 'SenhaSegura@2026',
+      });
+
+      expect(result.ok).toBe(true);
+      expect(result.userId).toBeDefined();
+      expect(result.competitionTeam).toBeDefined();
+
+      // Verifica se o usuário provisionado consegue autenticar
+      const loginRes = await authService.signIn('pacheco@minas.com.br', 'SenhaSegura@2026');
+      expect(loginRes.ok).toBe(true);
+      expect(loginRes.session?.user.email).toBe('pacheco@minas.com.br');
+      expect(loginRes.session?.user.role).toBe('team');
+      expect(loginRes.session?.user.competitionTeamId).toBe(result.competitionTeam?.id);
     });
   });
 

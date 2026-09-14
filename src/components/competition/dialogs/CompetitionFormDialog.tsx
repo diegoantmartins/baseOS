@@ -74,6 +74,7 @@ export function CompetitionFormDialog({
   const [maxLiberos, setMaxLiberos] = useState<number>(2);
   const [maxCaptains, setMaxCaptains] = useState<number>(1);
   const [requireJerseyNumber, setRequireJerseyNumber] = useState<boolean>(false);
+  const [maxTeams, setMaxTeams] = useState<number>(16);
 
   // Aba 5 — Identidade Visual e Apoiadores
   const [logoUrl, setLogoUrl] = useState<string | undefined>();
@@ -99,6 +100,7 @@ export function CompetitionFormDialog({
     setMaxLiberos(preset.registration.maxLiberos);
     setMaxCaptains(preset.registration.maxCaptains);
     setRequireJerseyNumber(preset.registration.requireJerseyNumberOnRegistration);
+    setMaxTeams(targetModality === 'indoor' ? 16 : 8);
   };
 
   useEffect(() => {
@@ -116,6 +118,7 @@ export function CompetitionFormDialog({
       setBestThirdsCount(0);
       setLogoUrl(undefined);
       setSupporters([]);
+      setMaxTeams(16);
       applyModalityPreset('indoor');
     }
   }, [open, venues]);
@@ -205,6 +208,7 @@ export function CompetitionFormDialog({
         maxCaptains,
         maxLiberos,
         requireJerseyNumberOnRegistration: requireJerseyNumber,
+        maxTeams,
       };
 
       // 3. Monta baseRecord mantendo campos legados sincronizados para retrocompatibilidade
@@ -219,7 +223,7 @@ export function CompetitionFormDialog({
         playerFormat,
         setFormat: legacySetFormat,
         genderCategory,
-        status: 'planning',
+        status: 'registration-open',
         logoUrl: logoUrl || undefined,
         supporters: supporters.length > 0 ? supporters : [],
         groupsCount: isGroupBasedTemplate ? groupsCount : 1,
@@ -637,6 +641,28 @@ export function CompetitionFormDialog({
                     onChange={(e) => setMaxCaptains(Number(e.target.value))}
                     className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
                   />
+                </div>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">
+                  Capacidade Oficial da Competição
+                </Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-zinc-400">Vagas Máximas de Equipes (maxTeams)</Label>
+                    <Input
+                      type="number"
+                      min={2}
+                      max={64}
+                      value={maxTeams}
+                      onChange={(e) => setMaxTeams(Math.max(2, Number(e.target.value)))}
+                      className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md font-mono"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Limite determinístico de agremiações confirmadas na competição.
+                    </p>
+                  </div>
                 </div>
               </div>
 

@@ -229,6 +229,20 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
     });
   }
 
+  const isPreCompetition = comp.status !== 'in-progress' && comp.status !== 'completed' && comp.status !== 'cancelled' && draws.length === 0 && matches.length === 0;
+  const submittedTeams = compTeams.filter(ct => ct.status === 'submitted');
+  if (submittedTeams.length > 0 && isPreCompetition) {
+    pendingTasks.push({
+      id: 'task-registrations-submitted',
+      severity: 'warning',
+      title: `${submittedTeams.length} inscrição(ões) aguardando confirmação`,
+      description: 'Analise o elenco das equipes que finalizaram o cadastro e confirme sua participação oficial.',
+      route: buildRegistrationsUrl(comp.id),
+      actionLabel: 'Revisar Inscrições',
+      articleId: 'cadastrar-equipe',
+    });
+  }
+
   steps.push({
     stepNumber: '04',
     id: 'etapa-04-equipes',

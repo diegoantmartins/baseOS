@@ -32,6 +32,7 @@ import {
   createByeParticipantSlot,
   createUnresolvedParticipantSlot,
   getStageId,
+  normalizeCompetitionConfig,
 } from '@/types/competitionConfig';
 import { GenericPairingEngine } from './genericPairingEngine';
 
@@ -39,13 +40,7 @@ export class CompetitionFormatBuilder {
   private config: CompetitionConfig;
 
   constructor(initialConfig?: CompetitionConfig) {
-    this.config = initialConfig
-      ? JSON.parse(JSON.stringify(initialConfig))
-      : JSON.parse(JSON.stringify(DEFAULT_INDOOR_COMPETITION_CONFIG));
-
-    if (!this.config.format.stages) {
-      this.config.format.stages = [];
-    }
+    this.config = normalizeCompetitionConfig(initialConfig);
   }
 
   public static fromConfig(config: CompetitionConfig): CompetitionFormatBuilder {
@@ -210,11 +205,11 @@ export class CompetitionFormatBuilder {
    * com base nas definições das fases e pareamentos configurados.
    * Totalmente em memória, sem persistir no banco de dados.
    */
-  public static generatePreviewSlots(config: CompetitionConfig): {
+  public static generatePreviewSlots(config?: CompetitionConfig | null): {
     stages: StageDefinition[];
     slots: MatchSlot[];
   } {
-    const stages = config.format.stages ?? [];
+    const stages = config?.format?.stages ?? [];
     const allSlots: MatchSlot[] = [];
 
     for (const stage of stages) {

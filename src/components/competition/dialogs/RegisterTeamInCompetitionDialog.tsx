@@ -22,6 +22,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Sparkles,
+  KeyRound,
+  Dices,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -45,6 +47,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { compressImageToDataUrl } from '@/lib/imageUtils';
+import { generateRandomPassword } from '@/lib/security';
+import { dataAccess } from '@/services/dataAccess';
+import { defaultDeadlineFromNow, toLocalInputValue } from '@/components/registration/registrationHelpers';
 import {
   registerTeamInCompetition,
   type RegisterTeamInCompetitionResult,
@@ -74,22 +79,28 @@ export function RegisterTeamInCompetitionDialog({
   // Campos da Equipe
   const [name, setName] = useState('');
   const [shortName, setShortName] = useState('');
+  const [shortNameManuallyEdited, setShortNameManuallyEdited] = useState(false);
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [coachName, setCoachName] = useState('');
   const [logoUrl, setLogoUrl] = useState<string | undefined>();
   const [uploading, setUploading] = useState(false);
 
+  // Prazo Efetivo (herda competition.defaultDeadline ou sugere hoje + 7 dias)
+  const [effectiveDeadline, setEffectiveDeadline] = useState('');
+
   // Campos do Responsável
   const [managerName, setManagerName] = useState('');
   const [managerPhone, setManagerPhone] = useState('');
   const [managerEmail, setManagerEmail] = useState('');
+  const [managerPassword, setManagerPassword] = useState('');
 
   // Controle de submissão
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const hasValidDeadline = Boolean(competition.defaultDeadline?.trim());
+  const hasCompetitionDeadline = Boolean(competition.defaultDeadline?.trim());
+  const hasValidDeadline = Boolean(competition.defaultDeadline?.trim() || effectiveDeadline?.trim());
 
   useEffect(() => {
     if (open) {
@@ -97,6 +108,7 @@ export function RegisterTeamInCompetitionDialog({
       setSelectedTeamId('');
       setName('');
       setShortName('');
+      setShortNameManuallyEdited(false);
       setCity('');
       setState('');
       setCoachName('');
@@ -104,10 +116,20 @@ export function RegisterTeamInCompetitionDialog({
       setManagerName('');
       setManagerPhone('');
       setManagerEmail('');
+      setManagerPassword(generateRandomPassword());
       setFormError(null);
       setSubmitting(false);
+
+      const initialDateIso = competition.defaultDeadline?.trim() || defaultDeadlineFromNow(7);
+      setEffectiveDeadline(toLocalInputValue(initialDateIso));
     }
-  }, [open]);
+  }, [open, competition.defaultDeadline]);
+
+  const handleGeneratePassword = () => {
+    const pwd = generateRandomPassword();
+    setManagerPassword(pwd);
+    toast.success('Nova senha gerada!');
+  };
 
   // Se o usuário selecionar uma equipe existente para reutilização
   const handleSelectExistingTeam = (teamId: string) => {
@@ -116,6 +138,7 @@ export function RegisterTeamInCompetitionDialog({
     if (existing) {
       setName(existing.name);
       setShortName(existing.shortName);
+      setShortNameManuallyEdited(true);
       setCity(existing.city || '');
       setState(existing.state || '');
       setCoachName(existing.coachName || '');
@@ -123,7 +146,26 @@ export function RegisterTeamInCompetitionDialog({
       setManagerName(existing.managerName || '');
       setManagerPhone(existing.managerPhone || '');
       setManagerEmail(existing.managerEmail || '');
+      setManagerPassword(existing.managerPassword || generateRandomPassword());
     }
+  };
+
+  const handleNameChange = (val: string) => {
+    setName(val);
+    if (!shortNameManuallyEdited) {
+      const clean = val.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase();
+      setShortName(clean);
+    }
+  };
+
+  const handleShortNameChange = (val: string) => {
+    setShortNameManuallyEdited(true);
+    setShortName(
+      val
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 3),
+    );
   };
 
   const handleLogoFile = async (file: File | undefined) => {
@@ -142,32 +184,66 @@ export function RegisterTeamInCompetitionDialog({
   };
 
   const deadlineFormatted = useMemo(() => {
-    if (!competition.defaultDeadline) return null;
-    return new Date(competition.defaultDeadline).toLocaleString('pt-BR', {
+    const raw = competition.defaultDeadline?.trim() || (effectiveDeadline ? new Date(effectiveDeadline).toISOString() : null);
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     });
-  }, [competition.defaultDeadline]);
+  }, [competition.defaultDeadline, effectiveDeadline]);
 
-  const canSubmit =
-    hasValidDeadline &&
-    name.trim().length >= 2 &&
-    shortName.trim().length === 3 &&
-    managerName.trim().length > 0 &&
-    !submitting &&
-    !uploading;
+  const missingFields = useMemo(() => {
+    const list: string[] = [];
+    if (name.trim().length < 2) list.push('Nome da equipe');
+    if (shortName.trim().length !== 3) list.push('Sigla (3 letras)');
+    if (!managerName.trim()) list.push('Responsável');
+    if (!hasValidDeadline) list.push('Prazo de inscrição');
+    return list;
+  }, [name, shortName, managerName, hasValidDeadline]);
+
+  const canSubmit = missingFields.length === 0 && !submitting && !uploading;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+
+    if (name.trim().length < 2) {
+      toast.error('Informe o nome da equipe com pelo menos 2 caracteres.');
+      return;
+    }
+
+    if (shortName.trim().length !== 3) {
+      toast.error('A sigla da equipe deve conter exatamente 3 letras (ex: DIV).');
+      return;
+    }
+
+    if (!managerName.trim()) {
+      toast.error('Informe o nome do responsável ou capitão da equipe.');
+      return;
+    }
+
+    if (!hasValidDeadline) {
+      toast.error('Defina o prazo de inscrição da competição.');
+      return;
+    }
 
     setSubmitting(true);
     setFormError(null);
 
     try {
+      // Se a competição não possuía prazo cadastrado, regulariza no banco antes da inscrição
+      if (!competition.defaultDeadline?.trim() && effectiveDeadline) {
+        const deadlineIso = new Date(effectiveDeadline).toISOString();
+        await dataAccess.updateCompetition(competition.id, {
+          defaultDeadline: deadlineIso,
+        });
+        competition.defaultDeadline = deadlineIso;
+      }
+
       const result = await registerTeamInCompetition({
         competitionId: competition.id,
         teamId: mode === 'existing' && selectedTeamId ? selectedTeamId : undefined,
@@ -181,6 +257,7 @@ export function RegisterTeamInCompetitionDialog({
         managerName: managerName.trim(),
         managerPhone: managerPhone.trim() || undefined,
         managerEmail: managerEmail.trim() || undefined,
+        managerPassword: managerPassword.trim() || generateRandomPassword(),
         operator: operatorName,
       });
 
@@ -225,15 +302,30 @@ export function RegisterTeamInCompetitionDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Alerta de Prazo Obrigatório Ausente (Seção 5) */}
-        {!hasValidDeadline && (
-          <Alert variant="destructive" className="bg-rose-950/40 border-rose-900 text-xs py-2.5">
-            <AlertCircle className="w-4 h-4 text-rose-400" />
-            <AlertTitle className="text-xs font-semibold">Prazo da competição não configurado</AlertTitle>
-            <AlertDescription className="text-[11px] text-rose-300">
-              Esta competição precisa ter um prazo regulamentar de inscrição definido para aceitar equipes. Configure o prazo nas configurações da competição.
-            </AlertDescription>
-          </Alert>
+        {/* Configuração Rápida de Prazo caso a competição não possua */}
+        {!hasCompetitionDeadline && (
+          <div className="p-3 rounded-lg border border-amber-800/60 bg-amber-950/20 space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="comp-reg-deadline" className="text-[10px] uppercase font-semibold text-amber-400 flex items-center gap-1.5">
+                <CalendarClock className="w-3.5 h-3.5 text-amber-400" />
+                Definir Prazo de Inscrição da Competição *
+              </Label>
+              <Badge variant="outline" className="text-[9px] border-amber-800 text-amber-400 bg-amber-950/60">
+                Regularização Automática
+              </Badge>
+            </div>
+            <p className="text-[11px] text-amber-200/80 leading-tight">
+              Esta competição não possui prazo regulamentar definido. Ajuste ou confirme o prazo para validar as inscrições:
+            </p>
+            <Input
+              id="comp-reg-deadline"
+              type="datetime-local"
+              value={effectiveDeadline}
+              onChange={(e) => setEffectiveDeadline(e.target.value)}
+              className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md max-w-sm"
+              required
+            />
+          </div>
         )}
 
         {formError && (
@@ -243,7 +335,7 @@ export function RegisterTeamInCompetitionDialog({
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3.5 py-1">
+        <form onSubmit={handleSubmit} noValidate className="space-y-3.5 py-1">
           {/* Seletor de Modo: Nova Equipe vs Reutilizar Existente */}
           {availableTeams.length > 0 && (
             <div className="flex items-center gap-1.5 p-1 rounded-lg bg-zinc-900/60 border border-zinc-800 text-xs">
@@ -332,7 +424,7 @@ export function RegisterTeamInCompetitionDialog({
                 <Input
                   id="team-reg-name"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => handleNameChange(e.target.value)}
                   placeholder="Ex.: Sada Cruzeiro Vôlei"
                   className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md"
                   required
@@ -359,17 +451,10 @@ export function RegisterTeamInCompetitionDialog({
                 <Input
                   id="team-reg-short"
                   value={shortName}
-                  onChange={(e) =>
-                    setShortName(
-                      e.target.value
-                        .toUpperCase()
-                        .replace(/[^A-Z0-9]/g, '')
-                        .slice(0, 3),
-                    )
-                  }
-                  placeholder="CRU"
+                  onChange={(e) => handleShortNameChange(e.target.value)}
+                  placeholder="SIG"
                   maxLength={3}
-                  className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md font-mono font-bold tracking-widest text-center uppercase"
+                  className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md font-mono font-bold tracking-widest text-center uppercase placeholder:text-zinc-600 placeholder:font-normal placeholder:tracking-normal"
                   required
                 />
               </div>
@@ -487,7 +572,7 @@ export function RegisterTeamInCompetitionDialog({
                   className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1"
                 >
                   <Mail className="w-3 h-3 text-zinc-400" />
-                  E-mail de Contato
+                  E-mail / Usuário de Login
                 </Label>
                 <Input
                   id="team-reg-email"
@@ -500,37 +585,84 @@ export function RegisterTeamInCompetitionDialog({
               </div>
             </div>
 
+            {/* Senha de Acesso do Gestor */}
+            <div className="space-y-1 pt-1">
+              <div className="flex items-center justify-between">
+                <Label
+                  htmlFor="team-reg-pwd"
+                  className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1"
+                >
+                  <KeyRound className="w-3 h-3 text-amber-500" />
+                  Senha de Acesso do Gestor
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleGeneratePassword}
+                  className="h-6 text-[10px] gap-1 text-primary hover:text-primary/80 px-1.5"
+                >
+                  <Dices className="w-3 h-3" />
+                  Gerar Senha
+                </Button>
+              </div>
+              <Input
+                id="team-reg-pwd"
+                value={managerPassword}
+                onChange={(e) => setManagerPassword(e.target.value)}
+                placeholder="Defina uma senha ou clique em Gerar Senha"
+                className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md font-mono"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                O e-mail e esta senha serão preparados junto com o link para envio direto via WhatsApp ao gestor.
+              </p>
+            </div>
+
             <p className="text-[11px] text-muted-foreground pt-1 flex items-center gap-1.5 leading-tight">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              Ao salvar, a inscrição será confirmada e você receberá o link exclusivo para enviar diretamente pelo WhatsApp.
+              Ao salvar, a inscrição será confirmada e você receberá o link exclusivo e as credenciais para enviar pelo WhatsApp.
             </p>
           </div>
 
-          <DialogFooter className="gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-              className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60"
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={!canSubmit}
-              className="h-8 text-xs rounded-md font-medium shadow-none gap-1.5"
-            >
-              {submitting ? (
-                'Salvando Inscrição...'
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Salvar Equipe e Gerar Acesso
-                </>
+          <DialogFooter className="gap-2 pt-2 sm:justify-between items-center">
+            <div className="flex items-center gap-1.5 min-h-[20px]">
+              {missingFields.length > 0 && !submitting && (
+                <span className="text-[10px] text-amber-400 font-mono flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3 text-amber-400 shrink-0" />
+                  Pendente: {missingFields.join(' · ')}
+                </span>
               )}
-            </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+                className="h-8 text-xs rounded-md border-border hover:bg-zinc-800/60"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={submitting || uploading}
+                className={`h-8 text-xs rounded-md font-medium shadow-none gap-1.5 transition-all ${
+                  canSubmit
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                }`}
+              >
+                {submitting ? (
+                  'Salvando Inscrição...'
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Salvar Equipe e Gerar Acesso
+                  </>
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

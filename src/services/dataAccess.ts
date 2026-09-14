@@ -16,6 +16,7 @@ import { SEED_VERSION, seedCompetitionAthletes, seedCompetitionTeams, seedCompet
 import { getSupabaseClient, isSupabaseConfigured, SUPABASE_TABLES } from '@/lib/supabaseClient';
 import { notificationService } from '@/services/notificationService';
 import { normalizeSupporters } from '@/lib/supporters';
+import { competitionMapper, teamMapper, competitionTeamMapper } from '@/services/mappers';
 type CompetitionAthleteCreate = CompetitionAthleteInput & { competitionTeamId: string };
 
 export interface SaveStageDrawAndSlotsParams {
@@ -94,6 +95,20 @@ export interface MaterializeSlotMatchResult {
   alreadyMaterialized: boolean;
   matchNumber?: number;
   message?: string;
+}
+
+export interface ProvisionTeamUserInput {
+  email: string;
+  password: string;
+  name: string;
+  competitionTeamId: string;
+  phone?: string;
+}
+
+export interface ProvisionTeamUserResult {
+  ok: boolean;
+  error?: string;
+  userId?: string;
 }
 
 const STORAGE_PREFIX = 'voleipro.v1';
@@ -864,7 +879,7 @@ const localStorageAdapter = {
 
   async getModality(id: string): Promise<ModalityRecord | null> {
     const all = await this.listModalities();
-    return all.find(m => m.id === id) ?? null;
+    return all.find(m => m.id === id || m.type === id) ?? null;
   },
 
   async createModality(input: Omit<ModalityRecord, 'id'>): Promise<ModalityRecord> {
@@ -898,26 +913,22 @@ const localStorageAdapter = {
     return all.find(p => p.id === id) ?? null;
   },
 
-  async createPerson(input: Omit<PersonRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<PersonRecord> {
-    const now = new Date().toISOString();
-    const record: PersonRecord = { ...input, id: generateId('per'), createdAt: now, updatedAt: now };
-    const all = readCollection<PersonRecord>('persons');
-    all.push(record);
-    writeCollection('persons', all);
-    return record;
+  async createPerson(_input: Omit<PersonRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<PersonRecord> {
+    throw new Error(
+      'A API "createPerson" é legada e foi descontinuada na Fase 8.3. A entidade "public.persons" não existe no banco de dados. Utilize o modelo Team, CompetitionTeam ou Profiles.'
+    );
   },
 
-  async updatePerson(id: string, updates: Partial<PersonRecord>): Promise<PersonRecord | null> {
-    const all = readCollection<PersonRecord>('persons');
-    const idx = all.findIndex(p => p.id === id);
-    if (idx === -1) return null;
-    all[idx] = { ...all[idx], ...updates, updatedAt: new Date().toISOString() };
-    writeCollection('persons', all);
-    return all[idx];
+  async updatePerson(_id: string, _updates: Partial<PersonRecord>): Promise<PersonRecord | null> {
+    throw new Error(
+      'A API "updatePerson" é legada e foi descontinuada na Fase 8.3. A entidade "public.persons" não existe no banco de dados.'
+    );
   },
 
-  async deletePerson(id: string): Promise<void> {
-    writeCollection('persons', readCollection<PersonRecord>('persons').filter(p => p.id !== id));
+  async deletePerson(_id: string): Promise<void> {
+    throw new Error(
+      'A API "deletePerson" é legada e foi descontinua na Fase 8.3. A entidade "public.persons" não existe no banco de dados.'
+    );
   },
 
   async listAuditLogs(filters?: { competitionId?: string; entityType?: string; entityId?: string }): Promise<MatchAuditEntry[]> {
@@ -1823,12 +1834,69 @@ const localStorageAdapter = {
     slot.updatedAt = now;
     writeCollection('competition_match_slots', allSlots);
 
-    return {
-      ok: true,
-      matchId,
-      alreadyMaterialized: false,
-      matchNumber: nextMatchNumber,
-    };
+      return {
+        ok: true,
+        matchId,
+        alreadyMaterialized: false,
+        matchNumber: nextMatchNumber,
+      };
+    },
+
+  async provisionTeamUser(input: ProvisionTeamUserInput): Promise<ProvisionTeamUserResult> {
+    try {
+      const normEmail = input.email.trim().toLowerCase();
+      const PASSWORDS_KEY = 'voleipro.auth.custom_passwords.v1';
+      const USERS_STORAGE_KEY = 'voleipro.system.users.v1';
+
+      let passMap: Record<string, string> = {};
+      try {
+        const raw = localStorage.getItem(PASSWORDS_KEY);
+        if (raw) passMap = JSON.parse(raw);
+      } catch {
+        // storage fallback
+      }
+      passMap[normEmail] = input.password;
+      localStorage.setItem(PASSWORDS_KEY, JSON.stringify(passMap));
+
+      let users: Array<{
+        id: string;
+        name: string;
+        email: string;
+        role: string;
+        competitionTeamId?: string;
+        status?: string;
+        createdAt?: string;
+      }> = [];
+      try {
+        const raw = localStorage.getItem(USERS_STORAGE_KEY);
+        if (raw) users = JSON.parse(raw);
+      } catch {
+        // storage fallback
+      }
+
+      const existingIdx = users.findIndex(u => u.email.toLowerCase() === normEmail);
+      const userId = existingIdx !== -1 ? users[existingIdx].id : 'usr-' + Date.now();
+      const userObj = {
+        id: userId,
+        name: input.name.trim(),
+        email: normEmail,
+        role: 'team',
+        status: 'active',
+        competitionTeamId: input.competitionTeamId,
+        createdAt: existingIdx !== -1 && users[existingIdx].createdAt ? users[existingIdx].createdAt : new Date().toISOString(),
+      };
+
+      if (existingIdx !== -1) {
+        users[existingIdx] = { ...users[existingIdx], ...userObj };
+      } else {
+        users.push(userObj);
+      }
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+
+      return { ok: true, userId };
+    } catch (err: unknown) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Falha ao provisionar usuário local' };
+    }
   },
 };
 
@@ -1861,28 +1929,79 @@ function mapRow<T>(row: unknown): T | null {
   return row ? (toCamel(row as Record<string, unknown>) as T) : null;
 }
 
+export interface SupabaseErrorLike {
+  code?: string;
+  message: string;
+  details?: string;
+  hint?: string;
+}
+
+export function assertSupabaseSuccess<T>(
+  data: T | null,
+  error: SupabaseErrorLike | null,
+  context: { operation: string; table: string },
+): T {
+  if (error) {
+    const code = error.code ? `[${error.code}] ` : '';
+    const details = error.details ? ` - Detalhes: ${error.details}` : '';
+    const hint = error.hint ? ` (Dica: ${error.hint})` : '';
+    throw new Error(
+      `Falha na operação "${context.operation}" na tabela "${context.table}": ${code}${error.message}${details}${hint}`
+    );
+  }
+  if (data === null || data === undefined) {
+    throw new Error(
+      `Falha na operação "${context.operation}" na tabela "${context.table}": Nenhum dado retornado pelo banco.`
+    );
+  }
+  return data;
+}
+
+export function assertSupabaseUpdateSuccess<T>(
+  data: T | null,
+  error: SupabaseErrorLike | null,
+  context: { operation: string; table: string },
+): T | null {
+  if (error) {
+    const code = error.code ? `[${error.code}] ` : '';
+    const details = error.details ? ` - Detalhes: ${error.details}` : '';
+    const hint = error.hint ? ` (Dica: ${error.hint})` : '';
+    throw new Error(
+      `Falha na operação "${context.operation}" na tabela "${context.table}": ${code}${error.message}${details}${hint}`
+    );
+  }
+  return data;
+}
+
 const supabaseAdapter = {
   async listCompetitions(): Promise<CompetitionRecord[]> {
     const supabase = await getSupabaseClient();
     if (!supabase) return [];
-    const { data } = await supabase.from(SUPABASE_TABLES.competitions).select('*');
-    return mapRows<CompetitionRecord>(data ?? []).map(normalizeCompetitionRecord);
+    const { data, error } = await supabase.from(SUPABASE_TABLES.competitions).select('*');
+    if (error) {
+      throw new Error(`Falha ao listar competições: [${error.code}] ${error.message}`);
+    }
+    return (data ?? []).map(row => competitionMapper.toDomain(row as Record<string, unknown>));
   },
 
   async getCompetition(id: string): Promise<CompetitionRecord | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.competitions).select('*').eq('id', id).maybeSingle();
-    const comp = mapRow<CompetitionRecord>(data);
-    return comp ? normalizeCompetitionRecord(comp) : null;
+    const { data, error } = await supabase.from(SUPABASE_TABLES.competitions).select('*').eq('id', id).maybeSingle();
+    if (error) {
+      throw new Error(`Falha ao buscar competição "${id}": [${error.code}] ${error.message}`);
+    }
+    return data ? competitionMapper.toDomain(data as Record<string, unknown>) : null;
   },
 
   async getCompetitionBySlug(slug: string): Promise<CompetitionRecord | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.competitions).select('*').eq('slug', slug).maybeSingle();
-    const comp = mapRow<CompetitionRecord>(data);
-    return comp ? normalizeCompetitionRecord(comp) : null;
+    const { data, error } = await supabase.from(SUPABASE_TABLES.competitions).select('*').eq('slug', slug).maybeSingle();
+    if (error) {
+      throw new Error(`Falha ao buscar competição pelo slug "${slug}": [${error.code}] ${error.message}`);
+    }
+    return data ? competitionMapper.toDomain(data as Record<string, unknown>) : null;
   },
 
   async updateCompetition(id: string, updates: Partial<CompetitionRecord>): Promise<CompetitionRecord | null> {
@@ -1897,9 +2016,10 @@ const supabaseAdapter = {
     if (existing?.slug) {
       safeUpdates.slug = existing.slug;
     }
-    const { data } = await supabase.from(SUPABASE_TABLES.competitions).update(toSnake(safeUpdates)).eq('id', id).select().maybeSingle();
-    const mapped = mapRow<CompetitionRecord>(data);
-    return mapped ? normalizeCompetitionRecord(mapped) : null;
+    const payload = competitionMapper.toPersistence(safeUpdates);
+    const { data, error } = await supabase.from(SUPABASE_TABLES.competitions).update(payload).eq('id', id).select().maybeSingle();
+    assertSupabaseUpdateSuccess(data, error, { operation: 'updateCompetition', table: SUPABASE_TABLES.competitions });
+    return data ? competitionMapper.toDomain(data as Record<string, unknown>) : null;
   },
 
   async createCompetition(input: Omit<CompetitionRecord, 'id'> & { id?: string }): Promise<CompetitionRecord> {
@@ -1907,44 +2027,57 @@ const supabaseAdapter = {
     if (!supabase) throw new Error('Supabase não configurado');
     const id = input.id || generateId('comp');
     const slug = input.slug || generateSlug(input.name);
-    const payload = { ...input, id, slug };
-    const { data } = await supabase.from(SUPABASE_TABLES.competitions).insert(toSnake(payload)).select().single();
-    const mapped = mapRow<CompetitionRecord>(data) ?? (data as unknown as CompetitionRecord);
-    return mapped ? normalizeCompetitionRecord(mapped) : mapped;
+    const payload = competitionMapper.toPersistence({ ...input, id, slug });
+    const { data, error } = await supabase.from(SUPABASE_TABLES.competitions).insert(payload).select().single();
+    const res = assertSupabaseSuccess(data, error, { operation: 'createCompetition', table: SUPABASE_TABLES.competitions });
+    return competitionMapper.toDomain(res as Record<string, unknown>);
   },
 
   async deleteCompetition(id: string): Promise<void> {
     const supabase = await getSupabaseClient();
     if (!supabase) return;
-    await supabase.from(SUPABASE_TABLES.competitions).delete().eq('id', id);
+    const { error } = await supabase.from(SUPABASE_TABLES.competitions).delete().eq('id', id);
+    if (error) {
+      throw new Error(`Falha ao excluir competição "${id}": [${error.code}] ${error.message}`);
+    }
   },
 
   async listTeams(): Promise<TeamRecord[]> {
     const supabase = await getSupabaseClient();
     if (!supabase) return [];
-    const { data } = await supabase.from(SUPABASE_TABLES.teams).select('*');
-    return mapRows<TeamRecord>(data ?? []);
+    const { data, error } = await supabase.from(SUPABASE_TABLES.teams).select('*');
+    if (error) {
+      throw new Error(`Falha ao listar equipes: [${error.code}] ${error.message}`);
+    }
+    return (data ?? []).map(row => teamMapper.toDomain(row as Record<string, unknown>));
   },
 
   async createTeam(input: Omit<TeamRecord, 'id'> & { id?: string }): Promise<TeamRecord> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
     const id = input.id || generateId('team');
-    const { data } = await supabase.from(SUPABASE_TABLES.teams).insert(toSnake({ ...input, id })).select().single();
-    return mapRow<TeamRecord>(data) ?? (data as unknown as TeamRecord);
+    const payload = teamMapper.toPersistence({ ...input, id });
+    const { data, error } = await supabase.from(SUPABASE_TABLES.teams).insert(payload).select().single();
+    const res = assertSupabaseSuccess(data, error, { operation: 'createTeam', table: SUPABASE_TABLES.teams });
+    return teamMapper.toDomain(res as Record<string, unknown>);
   },
 
   async updateTeam(id: string, updates: Partial<TeamRecord>): Promise<TeamRecord | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.teams).update(toSnake(updates)).eq('id', id).select().maybeSingle();
-    return mapRow<TeamRecord>(data);
+    const payload = teamMapper.toPersistence(updates);
+    const { data, error } = await supabase.from(SUPABASE_TABLES.teams).update(payload).eq('id', id).select().maybeSingle();
+    assertSupabaseUpdateSuccess(data, error, { operation: 'updateTeam', table: SUPABASE_TABLES.teams });
+    return data ? teamMapper.toDomain(data as Record<string, unknown>) : null;
   },
 
   async deleteTeam(id: string): Promise<void> {
     const supabase = await getSupabaseClient();
     if (!supabase) return;
-    await supabase.from(SUPABASE_TABLES.teams).delete().eq('id', id);
+    const { error } = await supabase.from(SUPABASE_TABLES.teams).delete().eq('id', id);
+    if (error) {
+      throw new Error(`Falha ao excluir equipe "${id}": [${error.code}] ${error.message}`);
+    }
   },
 
   async listReferees(): Promise<RefereeRecord[]> {
@@ -2059,8 +2192,9 @@ const supabaseAdapter = {
         payload[key] = value;
       }
     }
-    const { data } = await supabase.from(SUPABASE_TABLES.matches).insert(payload).select().single();
-    return mapRow<MatchRecord>(data) ?? (data as unknown as MatchRecord);
+    const { data, error } = await supabase.from(SUPABASE_TABLES.matches).insert(payload).select().single();
+    const res = assertSupabaseSuccess(data, error, { operation: 'createMatch', table: SUPABASE_TABLES.matches });
+    return mapRow<MatchRecord>(res) ?? (res as unknown as MatchRecord);
   },
 
   async updateMatch(id: string, updates: Partial<MatchRecord>): Promise<MatchRecord | null> {
@@ -2077,7 +2211,8 @@ const supabaseAdapter = {
         payload[key] = null;
       }
     }
-    const { data } = await supabase.from(SUPABASE_TABLES.matches).update(payload).eq('id', id).select().maybeSingle();
+    const { data, error } = await supabase.from(SUPABASE_TABLES.matches).update(payload).eq('id', id).select().maybeSingle();
+    assertSupabaseUpdateSuccess(data, error, { operation: 'updateMatch', table: SUPABASE_TABLES.matches });
     return mapRow<MatchRecord>(data);
   },
 
@@ -2215,41 +2350,55 @@ const supabaseAdapter = {
     if (!supabase) return [];
     let query = supabase.from(SUPABASE_TABLES.competitionTeams).select('*');
     if (competitionId) query = query.eq('competition_id', competitionId);
-    const { data } = await query;
-    return mapRows<CompetitionTeam>(data ?? []);
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(`Falha ao listar inscrições de equipes: [${error.code}] ${error.message}`);
+    }
+    return (data ?? []).map(row => competitionTeamMapper.toDomain(row as Record<string, unknown>));
   },
 
   async getCompetitionTeamById(id: string): Promise<CompetitionTeam | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.competitionTeams).select('*').eq('id', id).maybeSingle();
-    return mapRow<CompetitionTeam>(data);
+    const { data, error } = await supabase.from(SUPABASE_TABLES.competitionTeams).select('*').eq('id', id).maybeSingle();
+    if (error) {
+      throw new Error(`Falha ao buscar inscrição de equipe "${id}": [${error.code}] ${error.message}`);
+    }
+    return data ? competitionTeamMapper.toDomain(data as Record<string, unknown>) : null;
   },
 
   async getCompetitionTeamByToken(token: string): Promise<CompetitionTeam | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.competitionTeams).select('*').eq('access_token', token).maybeSingle();
-    return mapRow<CompetitionTeam>(data);
+    const { data, error } = await supabase.from(SUPABASE_TABLES.competitionTeams).select('*').eq('access_token', token).maybeSingle();
+    if (error) {
+      throw new Error(`Falha ao buscar inscrição de equipe por token: [${error.code}] ${error.message}`);
+    }
+    return data ? competitionTeamMapper.toDomain(data as Record<string, unknown>) : null;
   },
 
-  async createCompetitionTeam(input: Omit<CompetitionTeam, 'id' | 'accessToken' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<CompetitionTeam> {
+  async createCompetitionTeam(input: Omit<CompetitionTeam, 'id' | 'accessToken' | 'createdAt' | 'updatedAt'> & { id?: string; accessToken?: string }): Promise<CompetitionTeam> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
     const id = input.id || generateId('ct');
-    const { data } = await supabase
+    const accessToken = input.accessToken || generateToken();
+    const payload = competitionTeamMapper.toPersistence({ ...input, id, accessToken });
+    const { data, error } = await supabase
       .from(SUPABASE_TABLES.competitionTeams)
-      .insert({ ...toSnake({ ...input, id }), access_token: generateToken() })
+      .insert(payload)
       .select()
       .single();
-    return mapRow<CompetitionTeam>(data) ?? (data as unknown as CompetitionTeam);
+    const res = assertSupabaseSuccess(data, error, { operation: 'createCompetitionTeam', table: SUPABASE_TABLES.competitionTeams });
+    return competitionTeamMapper.toDomain(res as Record<string, unknown>);
   },
 
   async updateCompetitionTeam(id: string, updates: Partial<CompetitionTeam>): Promise<CompetitionTeam | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.competitionTeams).update(toSnake(updates)).eq('id', id).select().maybeSingle();
-    return mapRow<CompetitionTeam>(data);
+    const payload = competitionTeamMapper.toPersistence(updates);
+    const { data, error } = await supabase.from(SUPABASE_TABLES.competitionTeams).update(payload).eq('id', id).select().maybeSingle();
+    assertSupabaseUpdateSuccess(data, error, { operation: 'updateCompetitionTeam', table: SUPABASE_TABLES.competitionTeams });
+    return data ? competitionTeamMapper.toDomain(data as Record<string, unknown>) : null;
   },
 
   async listCompetitionAthletes(competitionTeamId?: string): Promise<CompetitionAthlete[]> {
@@ -2265,8 +2414,9 @@ const supabaseAdapter = {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
     const id = input.id || generateId('ath');
-    const { data } = await supabase.from(SUPABASE_TABLES.competitionAthletes).insert(toSnake({ ...input, id })).select().single();
-    return mapRow<CompetitionAthlete>(data) ?? (data as unknown as CompetitionAthlete);
+    const { data, error } = await supabase.from(SUPABASE_TABLES.competitionAthletes).insert(toSnake({ ...input, id })).select().single();
+    const res = assertSupabaseSuccess(data, error, { operation: 'createCompetitionAthlete', table: SUPABASE_TABLES.competitionAthletes });
+    return mapRow<CompetitionAthlete>(res) ?? (res as unknown as CompetitionAthlete);
   },
 
   async registerAthletePublic(token: string, input: CompetitionAthleteInput): Promise<{ ok: boolean; athlete?: CompetitionAthlete; error?: string }> {
@@ -2297,7 +2447,8 @@ const supabaseAdapter = {
   async updateCompetitionAthlete(id: string, updates: Partial<CompetitionAthlete>): Promise<CompetitionAthlete | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.competitionAthletes).update(toSnake(updates)).eq('id', id).select().maybeSingle();
+    const { data, error } = await supabase.from(SUPABASE_TABLES.competitionAthletes).update(toSnake(updates)).eq('id', id).select().maybeSingle();
+    assertSupabaseUpdateSuccess(data, error, { operation: 'updateCompetitionAthlete', table: SUPABASE_TABLES.competitionAthletes });
     return mapRow<CompetitionAthlete>(data);
   },
 
@@ -2389,74 +2540,71 @@ const supabaseAdapter = {
     return mapRow<TemplateLayout>(data) ?? (data as unknown as TemplateLayout);
   },
 
+  /**
+   * Catálogo Canônico de Modalidades Esportivas (BaseOS):
+   * Modalidade no BaseOS não é uma tabela relacional no PostgreSQL, mas sim um tipo enumerado
+   * ('indoor' | 'beach') e um catálogo estático de parametrizações oficiais (Quadra 6x6, Praia 2x2).
+   * Retorna os presets de domínio diretamente, sem efetuar requisições REST ao banco.
+   */
   async listModalities(): Promise<ModalityRecord[]> {
-    const supabase = await getSupabaseClient();
-    if (!supabase) return [];
-    const { data } = await supabase.from(SUPABASE_TABLES.modalities).select('*');
-    return mapRows<ModalityRecord>(data ?? []);
+    return [...seedModalities];
   },
 
   async getModality(id: string): Promise<ModalityRecord | null> {
-    const supabase = await getSupabaseClient();
-    if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.modalities).select('*').eq('id', id).maybeSingle();
-    return mapRow<ModalityRecord>(data);
+    return seedModalities.find((m) => m.id === id || m.type === id) ?? null;
   },
 
   async createModality(input: Omit<ModalityRecord, 'id'>): Promise<ModalityRecord> {
-    const supabase = await getSupabaseClient();
-    if (!supabase) throw new Error('Supabase não configurado');
-    const { data } = await supabase.from(SUPABASE_TABLES.modalities).insert(toSnake(input)).select().single();
-    return mapRow<ModalityRecord>(data) ?? (data as unknown as ModalityRecord);
+    const newMod: ModalityRecord = { id: `mod-custom-${Date.now()}`, ...input };
+    return newMod;
   },
 
   async updateModality(id: string, updates: Partial<ModalityRecord>): Promise<ModalityRecord | null> {
-    const supabase = await getSupabaseClient();
-    if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.modalities).update(toSnake(updates)).eq('id', id).select().maybeSingle();
-    return mapRow<ModalityRecord>(data);
+    const existing = seedModalities.find((m) => m.id === id);
+    if (!existing) return null;
+    return { ...existing, ...updates };
   },
 
-  async deleteModality(id: string): Promise<void> {
-    const supabase = await getSupabaseClient();
-    if (!supabase) return;
-    await supabase.from(SUPABASE_TABLES.modalities).delete().eq('id', id);
+  async deleteModality(_id: string): Promise<void> {
+    // No-op para catálogo de domínio
   },
 
+  /**
+   * @deprecated ATENÇÃO DE GOVERNANÇA (Fase 8.5):
+   * A entidade `public.persons` não existe no banco de dados relacional (PostgreSQL).
+   * Retornar `[]` de forma silenciosa previne crash imediato em chamadas de leitura legadas
+   * (ex: PeoplePage, fallback em documentEditorService/scoresheetService), mas pode produzir
+   * relatórios e súmulas silenciosamente incompletas caso a equipe não possua elenco oficial cadastrado.
+   * Nos fluxos oficiais do BaseOS, use exclusivamente `listCompetitionAthletes` ou `getMatchRosters`.
+   * Marcado para expurgo definitivo ou bloqueio formal nas Fases 8.6/8.7.
+   */
   async listPersons(): Promise<PersonRecord[]> {
-    const supabase = await getSupabaseClient();
-    if (!supabase) return [];
-    const { data } = await supabase.from(SUPABASE_TABLES.persons).select('*');
-    return mapRows<PersonRecord>(data ?? []);
+    return [];
   },
 
-  async getPerson(id: string): Promise<PersonRecord | null> {
-    const supabase = await getSupabaseClient();
-    if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.persons).select('*').eq('id', id).maybeSingle();
-    return mapRow<PersonRecord>(data);
+  /**
+   * @deprecated Entidade `public.persons` inexistente no banco relacional. Retorna null.
+   */
+  async getPerson(_id: string): Promise<PersonRecord | null> {
+    return null;
   },
 
-  async createPerson(input: Omit<PersonRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<PersonRecord> {
-    const supabase = await getSupabaseClient();
-    if (!supabase) throw new Error('Supabase não configurado');
-    const id = generateId('per');
-    const now = new Date().toISOString();
-    const { data } = await supabase.from(SUPABASE_TABLES.persons).insert(toSnake({ ...input, id, created_at: now, updated_at: now })).select().single();
-    return mapRow<PersonRecord>(data) ?? (data as unknown as PersonRecord);
+  async createPerson(_input: Omit<PersonRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<PersonRecord> {
+    throw new Error(
+      'A API "createPerson" é legada e foi descontinuada na Fase 8.3. A entidade "public.persons" não existe no banco de dados. Utilize o modelo Team, CompetitionTeam ou Profiles.'
+    );
   },
 
-  async updatePerson(id: string, updates: Partial<PersonRecord>): Promise<PersonRecord | null> {
-    const supabase = await getSupabaseClient();
-    if (!supabase) return null;
-    const { data } = await supabase.from(SUPABASE_TABLES.persons).update(toSnake({ ...updates, updated_at: new Date().toISOString() })).eq('id', id).select().maybeSingle();
-    return mapRow<PersonRecord>(data);
+  async updatePerson(_id: string, _updates: Partial<PersonRecord>): Promise<PersonRecord | null> {
+    throw new Error(
+      'A API "updatePerson" é legada e foi descontinuada na Fase 8.3. A entidade "public.persons" não existe no banco de dados. Utilize o modelo Team, CompetitionTeam ou Profiles.'
+    );
   },
 
-  async deletePerson(id: string): Promise<void> {
-    const supabase = await getSupabaseClient();
-    if (!supabase) return;
-    await supabase.from(SUPABASE_TABLES.persons).delete().eq('id', id);
+  async deletePerson(_id: string): Promise<void> {
+    throw new Error(
+      'A API "deletePerson" é legada e foi descontinuada na Fase 8.3. A entidade "public.persons" não existe no banco de dados. Utilize o modelo Team, CompetitionTeam ou Profiles.'
+    );
   },
 
   async listAuditLogs(filters?: { competitionId?: string; entityType?: string; entityId?: string }): Promise<MatchAuditEntry[]> {
@@ -2851,6 +2999,30 @@ const supabaseAdapter = {
       matchNumber: res?.matchNumber ? Number(res.matchNumber) : undefined,
       message: res?.message ? String(res.message) : undefined,
     };
+  },
+
+  async provisionTeamUser(input: ProvisionTeamUserInput): Promise<ProvisionTeamUserResult> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return { ok: false, error: 'Supabase não configurado' };
+
+    const { data, error } = await supabase.rpc('provision_team_user', {
+      p_email: input.email.trim(),
+      p_password: input.password.trim(),
+      p_name: input.name.trim(),
+      p_competition_team_id: input.competitionTeamId,
+      p_phone: input.phone?.trim() || null,
+    });
+
+    if (error) {
+      return { ok: false, error: `[${error.code}] ${error.message}` };
+    }
+
+    const res = data as { ok?: boolean; error?: string; user_id?: string } | null;
+    if (!res?.ok) {
+      return { ok: false, error: res?.error || 'Falha desconhecida ao provisionar conta de equipe' };
+    }
+
+    return { ok: true, userId: res.user_id };
   },
 };
 

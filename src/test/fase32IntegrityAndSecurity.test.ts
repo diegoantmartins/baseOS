@@ -134,7 +134,10 @@ describe('BaseOS — Fase 3.2: Integridade de Lifecycle, Segurança do Portal e 
       // Avaliação para 2 grupos com apenas 2 equipes elegíveis
       const report = CompetitionDrawEligibilityService.evaluateCompetitionDrawEligibility({
         competition: closedComp,
-        competitionTeams: [compTeamA, compTeamB],
+        competitionTeams: [
+          { ...compTeamA, status: 'approved' },
+          { ...compTeamB, status: 'approved' },
+        ],
         athletes: mockAthletes,
         groupsCount: 2,
       });

@@ -398,15 +398,19 @@ export default function CompetitionsPage() {
       toast.error('Você não possui permissão para cadastrar competições.');
       return;
     }
-    const created = await dataAccess.createCompetition(input);
-    await OperationalAuditService.recordCompetitionCreation({
-      competition: created,
-      operator: session?.user?.name || session?.user?.email || 'Organizador',
-    });
-    toast.success(`Competição "${created.name}" criada com sucesso!`);
-    setCreateOpen(false);
-    await refresh();
-    handleSelectCompetition(created.id);
+    try {
+      const created = await dataAccess.createCompetition(input);
+      await OperationalAuditService.recordCompetitionCreation({
+        competition: created,
+        operator: session?.user?.name || session?.user?.email || 'Organizador',
+      });
+      toast.success(`Competição "${created.name}" criada com sucesso!`);
+      setCreateOpen(false);
+      await refresh();
+      handleSelectCompetition(created.id);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao criar competição.');
+    }
   };
 
   const handleUpdateConfig = async (updates: Partial<CompetitionRecord>) => {

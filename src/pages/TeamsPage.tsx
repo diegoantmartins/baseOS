@@ -27,14 +27,15 @@ import {
   Eye,
   Upload,
   MessageCircle,
-  Dices,
-  KeyRound,
   User,
   Phone,
   Mail,
   Trophy,
+  KeyRound,
+  Dices,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { generateRandomPassword } from '@/lib/security';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SectionCard } from '@/components/ui/Section';
@@ -81,14 +82,6 @@ export interface TeamView extends TeamRecord {
   competitions: string[];
   roster: TeamAthleteItem[];
 }
-
-function generateRandomPassword(): string {
-  const words = ['Volei', 'Ace', 'Bloqueio', 'Saque', 'Ponto', 'Quadra'];
-  const word = words[Math.floor(Math.random() * words.length)];
-  const num = Math.floor(1000 + Math.random() * 9000);
-  return `${word}@${num}`;
-}
-
 export function TeamsPage() {
   const { can } = useCapability();
 
@@ -192,27 +185,21 @@ export function TeamsPage() {
   const totalAthletes = useMemo(() => teams.reduce((acc, t) => acc + t.athletes, 0), [teams]);
 
   const handleCreate = async (input: Omit<TeamRecord, 'id'>) => {
-    const token = input.registrationToken || generateToken();
-    const created = await dataAccess.createTeam({ ...input, registrationToken: token });
-
-    if (input.managerName?.trim()) {
-      try {
-        await dataAccess.createPerson({
-          fullName: input.managerName.trim(),
-          roles: ['manager'],
-          teamIds: [created.id],
-          email: input.managerEmail?.trim(),
-          phone: input.managerPhone?.trim(),
-        });
-      } catch (err) {
-        console.warn('Sync manager note:', err);
-      }
+    try {
+      const created = await dataAccess.createTeam(input);
+      toast.success(`Equipe "${input.name}" criada com sucesso!`);
+      setCreateOpen(false);
+      await refresh();
+      setShareTeam({
+        ...created,
+        managerName: input.managerName,
+        managerEmail: input.managerEmail,
+        managerPhone: input.managerPhone,
+        managerPassword: input.managerPassword,
+      });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao cadastrar equipe.');
     }
-
-    toast.success(`Equipe "${input.name}" criada com sucesso!`);
-    setCreateOpen(false);
-    await refresh();
-    setShareTeam(created);
   };
 
   const handleUpdate = async (id: string, updates: Partial<TeamRecord>) => {
@@ -653,6 +640,12 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
 
   const canSubmit = name.trim().length >= 2 && shortName.trim().length === 3;
 
+  const handleGeneratePassword = () => {
+    const pwd = generateRandomPassword();
+    setManagerPassword(pwd);
+    toast.success('Nova senha gerada!');
+  };
+
   const handleLogoFile = async (file: File | undefined) => {
     if (!file) return;
     setUploading(true);
@@ -666,12 +659,6 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
     } finally {
       setUploading(false);
     }
-  };
-
-  const handleGeneratePassword = () => {
-    const pwd = generateRandomPassword();
-    setManagerPassword(pwd);
-    toast.success('Nova senha gerada!');
   };
 
   const handleSubmit = async () => {
@@ -689,7 +676,6 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
         managerPhone: managerPhone.trim() || undefined,
         managerEmail: managerEmail.trim() || undefined,
         managerPassword: managerPassword.trim() || generateRandomPassword(),
-        registrationToken: initial?.registrationToken || generateToken(),
         logoUrl,
       });
     } finally {
@@ -911,15 +897,15 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
                   htmlFor="manager-pwd"
                   className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1"
                 >
-                  <KeyRound className="w-3 h-3 text-zinc-400" />
-                  Senha do Gestor
+                  <KeyRound className="w-3 h-3 text-amber-500" />
+                  Senha de Acesso do Gestor
                 </Label>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={handleGeneratePassword}
-                  className="h-6 text-[10px] gap-1 text-muted-foreground hover:text-foreground px-1.5"
+                  className="h-6 text-[10px] gap-1 text-primary hover:text-primary/80 px-1.5"
                 >
                   <Dices className="w-3 h-3" />
                   Gerar Senha
@@ -929,9 +915,12 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
                 id="manager-pwd"
                 value={managerPassword}
                 onChange={(e) => setManagerPassword(e.target.value)}
-                placeholder="Defina uma senha"
+                placeholder="Defina uma senha ou clique em Gerar Senha"
                 className="h-8 text-xs bg-zinc-950 border-zinc-800 rounded-md font-mono"
               />
+              <p className="text-[10px] text-muted-foreground">
+                O e-mail e esta senha serão preparados para envio direto via WhatsApp após o cadastro.
+              </p>
             </div>
           </div>
         </div>
@@ -951,7 +940,7 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
             onClick={handleSubmit}
             className="h-8 text-xs rounded-md font-medium shadow-none"
           >
-            {submitting ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Equipe e Gerar Link'}
+            {submitting ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Equipe'}
           </Button>
         </DialogFooter>
       </DialogContent>

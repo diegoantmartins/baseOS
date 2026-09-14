@@ -189,3 +189,14 @@ export function buildDrawUrl(id?: string | null): string {
 export function buildRegistrationsUrl(id: string): string {
   return `/competicoes/${encodeURIComponent(id.trim())}/inscricoes`;
 }
+
+/**
+ * Constrói a rota canônica para os confrontos de playoffs / mata-mata.
+ */
+export function buildPlayoffsUrl(id?: string | null): string {
+  if (!id || id.trim() === '') {
+    return '/jogos';
+  }
+  return `/jogos?competitionId=${encodeURIComponent(id.trim())}&phase=playoffs`;
+}
+

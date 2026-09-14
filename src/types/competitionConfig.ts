@@ -454,6 +454,8 @@ export interface RegistrationRulesConfig {
   maxLiberos: number;
   /** Se o número de camisa é obrigatório já na inscrição online pré-jogo. */
   requireJerseyNumberOnRegistration: boolean;
+  /** Limite máximo explícito de equipes na competição (capacidade determinística). */
+  maxTeams?: number;
 }
 
 /**
@@ -682,3 +684,43 @@ export function createUnresolvedParticipantSlot(
   };
 }
 
+/**
+ * Normaliza qualquer objeto bruto (parcial, legado ou vazio) para uma instância íntegra de CompetitionConfig.
+ * Garante que format, scoring, standings e registration existam com valores válidos.
+ */
+export function normalizeCompetitionConfig(
+  raw?: unknown,
+  modality: 'indoor' | 'beach' = 'indoor',
+): CompetitionConfig {
+  const base = modality === 'beach' ? DEFAULT_BEACH_COMPETITION_CONFIG : DEFAULT_INDOOR_COMPETITION_CONFIG;
+  if (!raw || typeof raw !== 'object') {
+    return JSON.parse(JSON.stringify(base));
+  }
+  const obj = raw as Partial<CompetitionConfig>;
+  return {
+    version: typeof obj.version === 'number' ? obj.version : base.version,
+    format: {
+      defaultSetsToWin: obj.format?.defaultSetsToWin ?? base.format.defaultSetsToWin,
+      phaseOverrides: obj.format?.phaseOverrides ?? base.format.phaseOverrides,
+      setRules: {
+        regularSetPoints: obj.format?.setRules?.regularSetPoints ?? base.format.setRules.regularSetPoints,
+        tiebreakPoints: obj.format?.setRules?.tiebreakPoints ?? base.format.setRules.tiebreakPoints,
+        minAdvantage: obj.format?.setRules?.minAdvantage ?? base.format.setRules.minAdvantage,
+      },
+      formatType: obj.format?.formatType ?? base.format.formatType,
+      stages: Array.isArray(obj.format?.stages) ? obj.format.stages : [],
+    },
+    scoring: {
+      ...base.scoring,
+      ...(obj.scoring && typeof obj.scoring === 'object' ? obj.scoring : {}),
+    },
+    standings: {
+      ...base.standings,
+      ...(obj.standings && typeof obj.standings === 'object' ? obj.standings : {}),
+    },
+    registration: {
+      ...base.registration,
+      ...(obj.registration && typeof obj.registration === 'object' ? obj.registration : {}),
+    },
+  };
+}

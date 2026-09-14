@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Copy, ExternalLink, MessageCircle, Shield, KeyRound, User, Link as LinkIcon, Users } from 'lucide-react';
+import { Check, Copy, ExternalLink, MessageCircle, Shield, User, Link as LinkIcon, Users, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -23,7 +23,7 @@ function buildWhatsAppMessage(team: TeamRecord, portalUrl: string): string {
 Olá, *${manager}*!
 Sua equipe *${team.name}* (${team.shortName}) foi cadastrada no sistema oficial de competições de voleibol.
 
-🔗 *Link Único de Inscrição / Elenco:*
+🔗 *Link de Inscrição / Envio de Elenco:*
 ${portalUrl}
 
 👤 *Usuário / Login:* ${username}
@@ -74,14 +74,14 @@ export function TeamCreatedShareDialog({ team, open, onOpenChange }: Props) {
                 Equipe Cadastrada com Sucesso!
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Envie o link de inscrição e as credenciais de acesso ao gestor da equipe.
+                Envie o link de inscrição para o gestor preencher o elenco da equipe.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Card Resumo da Equipe & Credenciais */}
+          {/* Card Resumo da Equipe & Link */}
           <Card className="border-border/80 bg-muted/30">
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -112,23 +112,41 @@ export function TeamCreatedShareDialog({ team, open, onOpenChange }: Props) {
                   </span>
                 </div>
 
-                <div className="space-y-1 p-2 rounded-lg bg-background border">
-                  <span className="text-muted-foreground flex items-center gap-1">
-                    <KeyRound className="w-3.5 h-3.5 text-amber-500" />
-                    Senha de Acesso:
-                  </span>
-                  <span className="font-mono font-bold text-foreground block truncate">
-                    {team.managerPassword || 'Acesso via Link'}
-                  </span>
-                </div>
+                {team.managerPhone && (
+                  <div className="space-y-1 p-2 rounded-lg bg-background border">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <MessageCircle className="w-3.5 h-3.5 text-emerald-500" />
+                      Contato / Telefone:
+                    </span>
+                    <span className="font-semibold text-foreground block truncate">
+                      {team.managerPhone}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {team.managerEmail && (
-                <div className="p-2 rounded-lg bg-background border text-xs">
-                  <span className="text-muted-foreground">Usuário / E-mail: </span>
-                  <span className="font-medium text-foreground">{team.managerEmail}</span>
-                </div>
-              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-xs">
+                {team.managerEmail && (
+                  <div className="space-y-1 p-2 rounded-lg bg-background border">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <User className="w-3.5 h-3.5 text-primary" />
+                      Usuário / Login:
+                    </span>
+                    <span className="font-medium text-foreground block truncate">{team.managerEmail}</span>
+                  </div>
+                )}
+                {team.managerPassword && (
+                  <div className="space-y-1 p-2 rounded-lg bg-background border">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <KeyRound className="w-3.5 h-3.5 text-amber-500" />
+                      Senha de Acesso:
+                    </span>
+                    <span className="font-mono font-bold text-foreground block truncate">
+                      {team.managerPassword}
+                    </span>
+                  </div>
+                )}
+              </div>
 
               {/* Link Único */}
               <div className="space-y-1.5 pt-1">

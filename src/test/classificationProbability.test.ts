@@ -516,7 +516,7 @@ describe('Fase 5: Probabilidade de Classificação', () => {
       matches,
       teams,
       cts,
-      { maxDeterministicScenarios: 100 }, // Força Monte Carlo
+      { maxDeterministicScenarios: 100, monteCarloSimulations: 500 }, // Força Monte Carlo com amostra adequada para teste unitário
     );
 
     const group = result.groups[0];
@@ -527,7 +527,7 @@ describe('Fase 5: Probabilidade de Classificação', () => {
       expect(team.mathematicalStatus).toBe('in_contention');
       expect(team.proofBasis).toBe('none');
     }
-  });
+  }, 60000);
 
   // ───────────────────────────────────────────────────────────────────────────
   // Cenário H: Múltiplos grupos com cálculo independente

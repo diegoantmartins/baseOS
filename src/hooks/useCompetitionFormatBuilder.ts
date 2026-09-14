@@ -11,7 +11,7 @@
  * - Integrar com dataAccess para salvar a configuração respeitando o congelamento (freeze).
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import type {
   CompetitionConfig,
@@ -25,7 +25,7 @@ import type {
   StageDefinition,
   StandingsConfig,
 } from '@/types/competitionConfig';
-import { DEFAULT_INDOOR_COMPETITION_CONFIG } from '@/types/competitionConfig';
+import { DEFAULT_INDOOR_COMPETITION_CONFIG, normalizeCompetitionConfig } from '@/types/competitionConfig';
 import { CompetitionConfigValidator, type ConfigValidationResult } from '@/services/competitionConfigValidator';
 import { CompetitionFormatBuilder } from '@/services/competitionFormatBuilder';
 import { CompetitionTemplateService, type CreateConfigOptions } from '@/services/competitionTemplateService';
@@ -44,14 +44,37 @@ export function useCompetitionFormatBuilder({
   onSaved,
 }: UseCompetitionFormatBuilderProps = {}) {
   const baseInitial = useMemo(() => {
-    return initialConfig
-      ? JSON.parse(JSON.stringify(initialConfig))
-      : JSON.parse(JSON.stringify(DEFAULT_INDOOR_COMPETITION_CONFIG));
+    if (initialConfig && initialConfig.format?.stages && initialConfig.format.stages.length > 0) {
+      return normalizeCompetitionConfig(initialConfig);
+    }
+    if (initialConfig) {
+      const templateId = initialConfig.format?.formatType || 'round-robin-standard';
+      const templateConfig = CompetitionTemplateService.createConfigFromTemplate(templateId, {
+        setsToWin: initialConfig.format?.defaultSetsToWin,
+      });
+      return normalizeCompetitionConfig({
+        ...templateConfig,
+        ...initialConfig,
+        format: {
+          ...templateConfig.format,
+          ...(initialConfig.format || {}),
+          stages: templateConfig.format.stages,
+        },
+      });
+    }
+    return CompetitionTemplateService.createConfigFromTemplate('groups-knockout-standard', {
+      modality: 'indoor',
+    });
   }, [initialConfig]);
 
   const [draftConfig, setDraftConfig] = useState<CompetitionConfig>(baseInitial);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+
+  // Sincroniza o rascunho com a configuração base recebida
+  useEffect(() => {
+    setDraftConfig(baseInitial);
+  }, [baseInitial]);
 
   // Validação pura em tempo real
   const validationResult: ConfigValidationResult = useMemo(() => {

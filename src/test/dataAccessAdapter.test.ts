@@ -14,6 +14,37 @@ const state = vi.hoisted(() => {
   };
 });
 
+const TABLE_ALLOWED_COLUMNS: Record<string, Set<string>> = {
+  competitions: new Set([
+    'id', 'name', 'slug', 'modality', 'format', 'player_format', 'set_format',
+    'gender_category', 'default_deadline', 'group_name', 'start_date', 'end_date',
+    'venue', 'status', 'config', 'rules_snapshot', 'organizer_id', 'logo_url',
+    'supporters', 'created_at', 'updated_at',
+  ]),
+  teams: new Set([
+    'id', 'name', 'short_name', 'modality', 'coach_name', 'city', 'logo_url',
+    'created_at', 'updated_at',
+  ]),
+  competition_teams: new Set([
+    'id', 'competition_id', 'team_id', 'team_name', 'team_short_name',
+    'access_token', 'registration_deadline', 'is_locked', 'status', 'custom_notes',
+    'created_at', 'updated_at',
+  ]),
+  competition_athletes: new Set([
+    'id', 'competition_team_id', 'name', 'jersey_number', 'position',
+    'document_number', 'birth_date', 'is_captain', 'is_libero', 'gender',
+    'created_at', 'updated_at',
+  ]),
+  matches: new Set([
+    'id', 'competition_id', 'round', 'match_number', 'team_a_id', 'team_b_id',
+    'team_a_name', 'team_b_name', 'team_a_short_name', 'team_b_short_name',
+    'venue', 'court', 'scheduled_time', 'status', 'sets', 'referees',
+    'observations', 'winner_id', 'phase', 'group_name', 'lineups', 'slot_id',
+    'stage_id', 'highlight_athlete_id', 'highlight_observations',
+    'homologated_at', 'homologated_by', 'created_at', 'updated_at',
+  ]),
+};
+
 vi.mock('@/lib/supabaseClient', () => {
   function qb(table: string) {
     const chain: Record<string, unknown> = {
@@ -46,10 +77,26 @@ vi.mock('@/lib/supabaseClient', () => {
         if (!payload.id) {
           throw new Error(`PostgreSQL 23502: null value in column "id" of relation "${table}" violates not-null constraint`);
         }
+        const allowed = TABLE_ALLOWED_COLUMNS[table];
+        if (allowed) {
+          for (const key of Object.keys(payload)) {
+            if (!allowed.has(key)) {
+              throw new Error(`PostgREST PGRST204: column "${key}" does not exist in relation "${table}"`);
+            }
+          }
+        }
         state.rows[table] = { ...payload };
         return chain;
       },
       update(payload: Record<string, unknown>) {
+        const allowed = TABLE_ALLOWED_COLUMNS[table];
+        if (allowed) {
+          for (const key of Object.keys(payload)) {
+            if (!allowed.has(key)) {
+              throw new Error(`PostgREST PGRST204: column "${key}" does not exist in relation "${table}"`);
+            }
+          }
+        }
         const current = (state.rows[table] ?? {}) as Record<string, unknown>;
         state.rows[table] = { ...current, ...payload };
         return chain;
@@ -165,6 +212,68 @@ describe('adaptador Supabase', () => {
     expect(created.id).toMatch(/^match-/);
   });
 
+  it('createTeam persiste exclusivamente as 9 colunas canônicas e expurga senhas e campos legados', async () => {
+    // 1. Invocação com payload contaminado (tentativa de enviar senha e campos não-canônicos)
+    const dirtyInput = {
+      name: 'Vôlei Zero Senhas',
+      shortName: 'VZS',
+      modality: 'indoor' as const,
+      city: 'São Paulo',
+      coachName: 'Bernardinho',
+      managerPassword: 'SecretPlainTextPassword123!',
+      managerEmail: 'gerente@vzs.com',
+      managerPhone: '11999999999',
+      state: 'SP',
+    };
+
+    const created = await dataAccess.createTeam(dirtyInput as unknown as Parameters<typeof dataAccess.createTeam>[0]);
+
+    // 2. Verificação do objeto de domínio retornado
+    expect(created.id).toMatch(/^team-/);
+    expect(created.name).toBe('Vôlei Zero Senhas');
+    expect(created).not.toHaveProperty('managerPassword');
+    expect(created).not.toHaveProperty('manager_password');
+
+    // 3. Verificação do payload físico persistido na tabela 'teams' do Supabase
+    const persistedRow = state.rows['teams'] as Record<string, unknown>;
+    expect(persistedRow).toBeDefined();
+    expect(persistedRow.id).toBe(created.id);
+    expect(persistedRow.name).toBe('Vôlei Zero Senhas');
+    expect(persistedRow.coach_name).toBe('Bernardinho');
+
+    // Comprova ausência total de propriedades de senha no banco/mock
+    expect(persistedRow.manager_password).toBeUndefined();
+    expect(persistedRow.managerPassword).toBeUndefined();
+    expect(persistedRow.password).toBeUndefined();
+    expect(persistedRow.state).toBeUndefined();
+
+    // Comprova que apenas as colunas físicas autorizadas estão presentes
+    const allowed = TABLE_ALLOWED_COLUMNS['teams'];
+    for (const key of Object.keys(persistedRow)) {
+      expect(allowed.has(key)).toBe(true);
+    }
+
+    // 4. Verificação de inexistência de senha em logs de auditoria
+    await dataAccess.addAuditLog({
+      user: 'admin-1',
+      action: 'create_team',
+      entityType: 'team',
+      entityId: created.id,
+      competitionId: 'comp-1',
+      details: JSON.stringify({ teamName: created.name }),
+    });
+    const persistedLog = state.rows['audit_logs'] as Record<string, unknown>;
+    expect(JSON.stringify(persistedLog)).not.toContain('password');
+    expect(JSON.stringify(persistedLog)).not.toContain('SecretPlainTextPassword123!');
+
+    // 5. Verificação de localStorage: nenhuma chave de senha de equipe gravada
+    const storageKeys = Object.keys(localStorage);
+    for (const k of storageKeys) {
+      const val = localStorage.getItem(k) || '';
+      expect(val).not.toContain('SecretPlainTextPassword123!');
+    }
+  });
+
   it('createCompetitionTeam gera id com prefixo ct- e access_token', async () => {
     const created = await dataAccess.createCompetitionTeam({
       competitionId: 'comp-1',
@@ -230,6 +339,26 @@ describe('adaptador Supabase', () => {
   it('insert sem id lança erro simulando constraint not-null do PostgreSQL', async () => {
     const supabase = await (await import('@/lib/supabaseClient')).getSupabaseClient();
     expect(() => supabase!.from('matches').insert({ round: 1 })).toThrow(/violates not-null constraint/);
+  });
+
+  it('mock rejeita colunas inexistentes em competition_athletes com PGRST204', async () => {
+    const supabase = await (await import('@/lib/supabaseClient')).getSupabaseClient();
+    expect(() =>
+      supabase!.from('competition_athletes').insert({
+        id: 'ath-err',
+        invalid_column_test: 'fail',
+      }),
+    ).toThrow(/PGRST204: column "invalid_column_test" does not exist in relation "competition_athletes"/);
+  });
+
+  it('mock rejeita colunas inexistentes em matches com PGRST204', async () => {
+    const supabase = await (await import('@/lib/supabaseClient')).getSupabaseClient();
+    expect(() =>
+      supabase!.from('matches').insert({
+        id: 'match-err',
+        unknown_match_column: 123,
+      }),
+    ).toThrow(/PGRST204: column "unknown_match_column" does not exist in relation "matches"/);
   });
 
   it('listMatches mapeia colunas snake_case para camelCase', async () => {

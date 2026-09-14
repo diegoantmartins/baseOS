@@ -25,10 +25,12 @@ import {
   DEFAULT_BEACH_COMPETITION_CONFIG,
   DEFAULT_INDOOR_COMPETITION_CONFIG,
   deriveMaxSets,
+  normalizeCompetitionConfig,
   parseLegacySetFormat,
 } from '@/types/competitionConfig';
 import { DEFAULT_TIEBREAK_CRITERIA } from './standingsService';
 import { ScoringEngine, type MatchPointsResult } from './scoringEngine';
+import { CompetitionTemplateService } from './competitionTemplateService';
 
 export type RuleValidationResult = {
   valid: boolean;
@@ -42,37 +44,95 @@ export class CompetitionRulesService {
   /**
    * Obtém a configuração canônica da competição.
    * Dá preferência estrita ao `rulesSnapshot` (regras congeladas para competições ativas/concluídas).
-   * Caso não haja `config` explícito, normaliza transparentemente a partir dos campos legados.
+   * Caso não haja `config` explícito ou seja parcial, normaliza transparentemente a partir dos campos legados
+   * e deriva a árvore de fases estruturada do template correspondente.
    */
   public static getConfig(competition: CompetitionRecord): CompetitionConfig {
     if (competition.rulesSnapshot) {
-      return competition.rulesSnapshot;
+      return normalizeCompetitionConfig(competition.rulesSnapshot, competition.modality);
     }
-    if (competition.config) {
-      return competition.config;
+    const legacy = this.normalizeLegacyToConfig(competition);
+    if (!competition.config || typeof competition.config !== 'object') {
+      return legacy;
     }
-    return this.normalizeLegacyToConfig(competition);
+
+    // Se o config possuir fases explícitas configuradas, preserva-as; caso contrário, usa as fases do template
+    const rawStages =
+      competition.config.format &&
+      typeof competition.config.format === 'object' &&
+      Array.isArray(competition.config.format.stages)
+        ? competition.config.format.stages
+        : [];
+    const resolvedStages = rawStages.length > 0 ? rawStages : legacy.format.stages ?? [];
+
+    const finalPhaseOverrides =
+      competition.modality === 'beach'
+        ? undefined
+        : competition.config.format?.phaseOverrides ?? legacy.format.phaseOverrides;
+
+    return normalizeCompetitionConfig(
+      {
+        ...legacy,
+        ...competition.config,
+        format: {
+          ...legacy.format,
+          ...(competition.config.format && typeof competition.config.format === 'object'
+            ? competition.config.format
+            : {}),
+          phaseOverrides: finalPhaseOverrides,
+          stages: resolvedStages,
+        },
+        scoring: {
+          ...legacy.scoring,
+          ...(competition.config.scoring && typeof competition.config.scoring === 'object'
+            ? competition.config.scoring
+            : {}),
+        },
+        standings: {
+          ...legacy.standings,
+          ...(competition.config.standings && typeof competition.config.standings === 'object'
+            ? competition.config.standings
+            : {}),
+        },
+        registration: {
+          ...legacy.registration,
+          ...(competition.config.registration && typeof competition.config.registration === 'object'
+            ? competition.config.registration
+            : {}),
+        },
+      },
+      competition.modality,
+    );
   }
 
   /**
-   * Normaliza um CompetitionRecord legado para o contrato moderno CompetitionConfig.
+   * Normaliza um CompetitionRecord legado para o contrato moderno CompetitionConfig,
+   * gerando a árvore canônica de fases (stages) a partir do template correspondente ao formato.
    */
   public static normalizeLegacyToConfig(competition: CompetitionRecord): CompetitionConfig {
     const isBeach = competition.modality === 'beach';
-    const base = isBeach ? DEFAULT_BEACH_COMPETITION_CONFIG : DEFAULT_INDOOR_COMPETITION_CONFIG;
-
     const defaultSetsToWin: SetsToWin = parseLegacySetFormat(competition.setFormat);
+    const formatIdentifier = competition.format || 'round-robin';
+
+    // Cria a configuração canônica base com a árvore de fases (stages) derivada do template de disputa
+    const templateConfig = CompetitionTemplateService.createConfigFromTemplate(formatIdentifier, {
+      modality: competition.modality,
+      setsToWin: defaultSetsToWin,
+      teamsCount: competition.groupsCount ? competition.groupsCount * 4 : undefined,
+    });
 
     const phaseRules = competition.phaseSetRules;
-    const phaseOverrides = phaseRules
-      ? {
-          groupStage: phaseRules.groupStage ? parseLegacySetFormat(phaseRules.groupStage) : defaultSetsToWin,
-          playoffs: phaseRules.playoffs ? parseLegacySetFormat(phaseRules.playoffs) : defaultSetsToWin,
-          quarterfinals: phaseRules.playoffs ? parseLegacySetFormat(phaseRules.playoffs) : defaultSetsToWin,
-          semifinals: phaseRules.semifinals ? parseLegacySetFormat(phaseRules.semifinals) : 3, // Padrão: melhor de 5 nas semis
-          final: phaseRules.final ? parseLegacySetFormat(phaseRules.final) : 3,               // Padrão: melhor de 5 na final
-        }
-      : base.format.phaseOverrides;
+    const phaseOverrides = isBeach
+      ? undefined
+      : phaseRules
+        ? {
+            groupStage: phaseRules.groupStage ? parseLegacySetFormat(phaseRules.groupStage) : defaultSetsToWin,
+            playoffs: phaseRules.playoffs ? parseLegacySetFormat(phaseRules.playoffs) : defaultSetsToWin,
+            quarterfinals: phaseRules.playoffs ? parseLegacySetFormat(phaseRules.playoffs) : defaultSetsToWin,
+            semifinals: phaseRules.semifinals ? parseLegacySetFormat(phaseRules.semifinals) : 3, // Padrão: melhor de 5 nas semis
+            final: phaseRules.final ? parseLegacySetFormat(phaseRules.final) : 3, // Padrão: melhor de 5 na final
+          }
+        : templateConfig.format.phaseOverrides;
 
     const tiebreakOrder =
       competition.tiebreakCriteriaOrder && competition.tiebreakCriteriaOrder.length > 0
@@ -83,8 +143,9 @@ export class CompetitionRulesService {
     const maxAthletes = isBeach ? 4 : 14;
 
     return {
-      version: 1,
+      ...templateConfig,
       format: {
+        ...templateConfig.format,
         defaultSetsToWin,
         phaseOverrides,
         setRules: {
@@ -92,28 +153,21 @@ export class CompetitionRulesService {
           tiebreakPoints: 15,
           minAdvantage: 2,
         },
-      },
-      scoring: {
-        systemType: 'fivb-standard',
-        pointsWinClear: 3,
-        pointsWinNarrow: 2,
-        pointsLossNarrow: 1,
-        pointsLossClear: 0,
-        pointsWoWin: 3,
-        pointsWoLoss: 0,
+        stages: templateConfig.format.stages ?? [],
       },
       standings: {
+        ...templateConfig.standings,
         tiebreakCriteriaOrder: tiebreakOrder,
-        advancingPerGroup: competition.advancingPerGroup ?? 2,
+        advancingPerGroup: competition.advancingPerGroup ?? templateConfig.standings.advancingPerGroup,
         bestThirds: {
           enabled: Boolean(competition.useBestThirds && (competition.bestThirdsCount ?? 0) > 0),
           count: competition.bestThirdsCount ?? 0,
         },
       },
       registration: {
+        ...templateConfig.registration,
         minAthletes,
         maxAthletes,
-        maxCaptains: 1,
         maxLiberos: isBeach ? 0 : 2,
         requireJerseyNumberOnRegistration: false,
       },

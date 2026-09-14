@@ -130,18 +130,23 @@ export class CompetitionTemplateService {
     baseConfig.format.defaultSetsToWin = setsToWin;
 
     switch (templateId) {
+      case 'round-robin':
       case 'round-robin-standard':
         return this.buildRoundRobinConfig(baseConfig, options);
 
+      case 'groups-knockout':
       case 'groups-knockout-standard':
         return this.buildGroupsKnockoutConfig(baseConfig, options);
 
+      case 'groups-play-in-knockout':
       case 'groups-play-in-knockout-standard':
         return this.buildGroupsPlayInKnockoutConfig(baseConfig, options);
 
+      case 'knockout':
       case 'knockout-pure-standard':
         return this.buildKnockoutConfig(baseConfig, options);
 
+      case 'double-elimination':
       case 'double-elimination-standard':
         return this.buildDoubleEliminationConfig(baseConfig, options);
 
@@ -165,6 +170,11 @@ export class CompetitionTemplateService {
       order: 1,
       name: 'Fase Única',
       type: 'round-robin',
+      groupConfig: {
+        groupsCount: 1,
+        teamsPerGroup: options.teamsCount ?? 4,
+        rounds: 'single',
+      },
       pairingConfig: {
         type: 'round-robin',
         rounds: 'single',
@@ -244,16 +254,19 @@ export class CompetitionTemplateService {
       ],
     };
 
+    const isBeach = options.modality === 'beach';
     return {
       ...base,
       format: {
         ...base.format,
         formatType: 'groups-knockout',
-        phaseOverrides: {
-          groupStage: base.format.defaultSetsToWin,
-          semifinals: 3, // Melhor de 5 nas decisões
-          final: 3,
-        },
+        phaseOverrides: isBeach
+          ? undefined
+          : {
+              groupStage: 2,
+              semifinals: 3, // Melhor de 5 nas decisões
+              final: 3,
+            },
         stages: [groupStage, knockoutStage],
       },
       standings: {
@@ -266,7 +279,7 @@ export class CompetitionTemplateService {
 
   private static buildGroupsPlayInKnockoutConfig(
     base: CompetitionConfig,
-    _options: CreateConfigOptions,
+    options: CreateConfigOptions,
   ): CompetitionConfig {
     // Padrão genérico de 4 grupos (ideal para 12 a 16 equipes)
     // 1º ao 4º colocados gerais avançam diretamente às Quartas de Final
@@ -349,17 +362,20 @@ export class CompetitionTemplateService {
       ],
     };
 
+    const isBeach = options.modality === 'beach';
     return {
       ...base,
       format: {
         ...base.format,
         formatType: 'groups-play-in-knockout',
-        phaseOverrides: {
-          groupStage: base.format.defaultSetsToWin,
-          quarterfinals: base.format.defaultSetsToWin,
-          semifinals: 3,
-          final: 3,
-        },
+        phaseOverrides: isBeach
+          ? undefined
+          : {
+              groupStage: 2,
+              quarterfinals: 2,
+              semifinals: 3,
+              final: 3,
+            },
         stages: [stageGroups, stagePlayIn, stageKnockout],
       },
       standings: {
@@ -412,15 +428,18 @@ export class CompetitionTemplateService {
       rounds,
     };
 
+    const isBeach = options.modality === 'beach';
     return {
       ...base,
       format: {
         ...base.format,
         formatType: 'knockout',
-        phaseOverrides: {
-          semifinals: 3,
-          final: 3,
-        },
+        phaseOverrides: isBeach
+          ? undefined
+          : {
+              semifinals: 3,
+              final: 3,
+            },
         stages: [stage],
       },
       standings: {
@@ -524,15 +543,18 @@ export class CompetitionTemplateService {
       progressionRoutes: [],
     };
 
+    const isBeach = options.modality === 'beach';
     return {
       ...base,
       format: {
         ...base.format,
         formatType: 'double-elimination',
-        phaseOverrides: {
-          semifinals: 3,
-          final: 3,
-        },
+        phaseOverrides: isBeach
+          ? undefined
+          : {
+              semifinals: 3,
+              final: 3,
+            },
         stages: [stageWinners, stageLosers, stageGrandFinal],
       },
       standings: {

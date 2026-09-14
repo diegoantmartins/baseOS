@@ -16,6 +16,7 @@ export interface TeamRegistrationWhatsAppMessageParams {
   competitionName: string;
   portalUrl: string;
   managerEmail?: string;
+  managerPassword?: string;
   deadlineIso?: string;
 }
 
@@ -57,9 +58,17 @@ export function buildTeamRegistrationWhatsAppMessage(params: TeamRegistrationWha
       })
     : 'Conforme regulamento da competição';
 
-  const emailLine = params.managerEmail?.trim()
-    ? `\nE-mail: ${params.managerEmail.trim()}`
+  const userLine = params.managerEmail?.trim()
+    ? `\n👤 *Usuário / Login:* ${params.managerEmail.trim()}`
     : '';
+
+  const passwordLine = params.managerPassword?.trim()
+    ? `\n🔑 *Senha de Acesso:* ${params.managerPassword.trim()}`
+    : '';
+
+  const accessNote = params.managerPassword?.trim()
+    ? `Acesso: Link direto exclusivo com token de segurança e credenciais.`
+    : `Acesso: Link direto exclusivo com token de segurança (dispensa senha inicial).`;
 
   return `Olá, ${manager}! 👋
 
@@ -69,8 +78,8 @@ Você pode acessar o Portal da Equipe pelo link:
 
 ${params.portalUrl}
 
-Dados de identificação:${emailLine}
-Acesso: Link direto exclusivo com token de segurança (dispensa senha inicial).
+Dados de identificação:${userLine}${passwordLine}
+${accessNote}
 
 No portal você poderá cadastrar os atletas da equipe dentro do prazo de inscrição e acompanhar jogos, resultados e classificação.
 

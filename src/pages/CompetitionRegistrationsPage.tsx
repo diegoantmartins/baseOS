@@ -20,7 +20,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
+  AlertCircle,
   CalendarClock,
+  CheckCircle2,
   ClipboardCopy,
   ExternalLink,
   FileDown,
@@ -33,6 +35,7 @@ import {
   Unlock,
   UserPlus,
   Users,
+  XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -56,7 +59,7 @@ import { CompetitionDrawEligibilityService, type TeamDrawEligibility } from '@/s
 import { getMatchRosters, isRegistrationLocked } from '@/services/registrationService';
 import { buildCompetitionUrl, buildMatchesUrl } from '@/services/competitionNavigationHelper';
 import { useAuth } from '@/components/auth/useAuth';
-import { GENDER_CATEGORY_LABELS } from '@/types/registration';
+import { GENDER_CATEGORY_LABELS, REGISTRATION_STATUS_LABELS } from '@/types/registration';
 import {
   Dialog,
   DialogContent,
@@ -100,7 +103,7 @@ export function CompetitionRegistrationsPage() {
 
   // Estados de filtros
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'submitted' | 'approved' | 'locked'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'submitted' | 'approved' | 'pending' | 'rejected' | 'locked'>('all');
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -164,6 +167,34 @@ export function CompetitionRegistrationsPage() {
     return map;
   }, [eligibilityReport]);
 
+  // Capacidade Operacional Determinística (Fase 8.3 - SEM INFERÊNCIA SILENCIOSA)
+  const capacity = useMemo(() => {
+    if (!competition) return { maxTeams: 0, isConfigured: false };
+    return CompetitionRegistrationService.getCapacity(competition);
+  }, [competition]);
+
+  const approvedRegistrationsCount = useMemo(() => {
+    return registrations.filter((r) => r.status === 'approved').length;
+  }, [registrations]);
+
+  const submittedRegistrationsCount = useMemo(() => {
+    return registrations.filter((r) => r.status === 'submitted').length;
+  }, [registrations]);
+
+  const rejectedRegistrationsCount = useMemo(() => {
+    return registrations.filter((r) => r.status === 'rejected').length;
+  }, [registrations]);
+
+  const pendingRegistrationsCount = useMemo(() => {
+    return registrations.filter((r) => r.status === 'invited' || r.status === 'in_progress').length;
+  }, [registrations]);
+
+  const lockedRegistrationsCount = useMemo(() => {
+    return registrations.filter(
+      (r) => r.isLocked || new Date(r.registrationDeadline).getTime() < now,
+    ).length;
+  }, [registrations, now]);
+
   const handleConfirmCloseRegistrations = async () => {
     if (!competition) return;
     setClosingRegistrations(true);
@@ -196,9 +227,10 @@ export function CompetitionRegistrationsPage() {
       if (!matchesSearch) return false;
 
       if (statusFilter === 'all') return true;
-      if (statusFilter === 'pending') return reg.status === 'invited' || reg.status === 'in_progress';
       if (statusFilter === 'submitted') return reg.status === 'submitted';
       if (statusFilter === 'approved') return reg.status === 'approved';
+      if (statusFilter === 'pending') return reg.status === 'invited' || reg.status === 'in_progress';
+      if (statusFilter === 'rejected') return reg.status === 'rejected';
       if (statusFilter === 'locked') return reg.isLocked || new Date(reg.registrationDeadline).getTime() < now;
 
       return true;
@@ -248,6 +280,49 @@ export function CompetitionRegistrationsPage() {
     setEditingRegistration(null);
     await refresh();
     return { ok: true, errors: [] };
+  };
+
+  const handleConfirmTeam = async (reg: CompetitionTeam) => {
+    if (!competition) return;
+    const check = CompetitionRegistrationService.canApproveTeam(
+      competition,
+      reg,
+      registrations,
+      competitionAthletes,
+    );
+    if (!check.ok) {
+      check.errors.forEach((e) => toast.error(e));
+      return;
+    }
+
+    try {
+      await dataAccess.updateCompetitionTeam(reg.id, {
+        status: 'approved',
+      });
+      toast.success(`Inscrição da equipe "${reg.teamName}" confirmada com sucesso!`);
+      await refresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao aprovar inscrição.');
+    }
+  };
+
+  const handleRejectTeam = async (reg: CompetitionTeam) => {
+    if (!competition) return;
+    const check = CompetitionRegistrationService.canRejectTeam(competition, reg);
+    if (!check.ok) {
+      check.errors.forEach((e) => toast.error(e));
+      return;
+    }
+
+    try {
+      await dataAccess.updateCompetitionTeam(reg.id, {
+        status: 'rejected',
+      });
+      toast.success(`Inscrição da equipe "${reg.teamName}" recusada.`);
+      await refresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao recusar inscrição.');
+    }
   };
 
   const handleToggleLock = async (registration: CompetitionTeam) => {
@@ -312,7 +387,11 @@ export function CompetitionRegistrationsPage() {
         const locked = isRegistrationLocked(row, competition, new Date(now));
         return (
           <div className="flex items-center gap-1.5 flex-wrap">
-            <StatusBadge status={row.status} className="text-[10px] h-5" />
+            <StatusBadge
+              status={row.status}
+              customLabel={REGISTRATION_STATUS_LABELS[row.status]}
+              className="text-[10px] h-5"
+            />
             {locked && (
               <Badge variant="destructive" className="gap-1 text-[10px] py-0 px-1.5 h-5 font-semibold">
                 <Lock className="w-2.5 h-2.5" />
@@ -385,7 +464,80 @@ export function CompetitionRegistrationsPage() {
       cell: ({ row }) => {
         const matchingTeam = teams.find((t) => t.id === row.teamId);
         return (
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-end gap-1 flex-wrap">
+            {row.status === 'submitted' && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs px-2 gap-1 rounded-md text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/40 font-semibold"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleConfirmTeam(row);
+                  }}
+                  title="Confirmar inscrição da equipe na competição"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  Confirmar
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs px-2 gap-1 rounded-md text-rose-400 hover:text-rose-300 hover:bg-rose-950/40"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRejectTeam(row);
+                  }}
+                  title="Recusar inscrição"
+                >
+                  <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                  Recusar
+                </Button>
+              </>
+            )}
+            {row.status === 'approved' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs px-2 gap-1 rounded-md text-rose-400 hover:text-rose-300 hover:bg-rose-950/40"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRejectTeam(row);
+                }}
+                title="Reverter aprovação / Recusar equipe"
+              >
+                <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                Recusar
+              </Button>
+            )}
+            {row.status === 'rejected' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs px-2 gap-1 rounded-md text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/40 font-semibold"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleConfirmTeam(row);
+                }}
+                title="Reverter recusa e confirmar inscrição"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                Confirmar
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs px-2 gap-1 rounded-md text-zinc-300 hover:text-foreground hover:bg-zinc-800"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/equipe/inscricao/${row.accessToken}`);
+              }}
+              title="Visualizar e gerenciar elenco da equipe"
+            >
+              <Users className="w-3 h-3 text-zinc-400" />
+              Ver Elenco
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -572,90 +724,137 @@ export function CompetitionRegistrationsPage() {
         >
           {competition && (
             <div className="space-y-6">
-              {/* ── Resumo Operacional ── */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {/* ── Banner de Capacidade Operacional (Fase 8.3) ── */}
+              <div
+                className={cn(
+                  'rounded-lg border p-4 transition-colors',
+                  !capacity.isConfigured
+                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+                    : approvedRegistrationsCount >= capacity.maxTeams
+                    ? 'border-rose-500/30 bg-rose-500/10 text-rose-200'
+                    : 'border-zinc-800 bg-zinc-900/50 text-zinc-300',
+                )}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    {!capacity.isConfigured ? (
+                      <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                    ) : approvedRegistrationsCount >= capacity.maxTeams ? (
+                      <Lock className="w-5 h-5 text-rose-400 shrink-0" />
+                    ) : (
+                      <Users className="w-5 h-5 text-primary shrink-0" />
+                    )}
+                    <div>
+                      <div className="font-semibold text-sm flex items-center gap-2">
+                        <span>Capacidade da Competição:</span>
+                        {capacity.isConfigured ? (
+                          <span className="font-mono text-foreground font-bold">
+                            {approvedRegistrationsCount} / {capacity.maxTeams} equipes confirmadas
+                          </span>
+                        ) : (
+                          <span className="text-amber-400 font-bold">Não configurada</span>
+                        )}
+                        {capacity.isConfigured && approvedRegistrationsCount >= capacity.maxTeams && (
+                          <Badge variant="destructive" className="text-[10px] py-0 px-1.5 h-4">
+                            Lotado
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {!capacity.isConfigured
+                          ? 'Aviso operacional: configure a capacidade máxima de equipes (maxTeams) nas regras para permitir a aprovação de equipes.'
+                          : `${submittedRegistrationsCount} inscrição(ões) aguardando análise e confirmação da organização.`}
+                      </p>
+                    </div>
+                  </div>
+                  {submittedRegistrationsCount > 0 && (
+                    <Badge
+                      variant="outline"
+                      className="border-amber-500/40 bg-amber-500/10 text-amber-300 font-mono text-xs shrink-0 self-start sm:self-center"
+                    >
+                      {submittedRegistrationsCount} pendente(s) de aprovação
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Resumo Operacional de Vagas e Inscrições (Fase 8.4) ── */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <SectionCard density="dense">
                   <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                     <span>Equipes Convidadas</span>
                     <Shield className="w-4 h-4 text-primary" />
                   </div>
-                  <p className="text-2xl font-bold font-mono tabular-nums text-foreground">{registrations.length}</p>
+                  <div className="flex items-baseline gap-1">
+                    <p className="text-2xl font-bold font-mono tabular-nums text-foreground">
+                      {approvedRegistrationsCount}
+                    </p>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      / {capacity.isConfigured ? capacity.maxTeams : '—'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {capacity.isConfigured
+                      ? `${Math.max(0, capacity.maxTeams - approvedRegistrationsCount)} vagas restantes (${registrations.length} convidadas)`
+                      : `${registrations.length} convidadas (vagas ilimitadas)`}
+                  </p>
                 </SectionCard>
 
-                <SectionCard density="dense">
+                <SectionCard
+                  density="dense"
+                  className={submittedRegistrationsCount > 0 ? 'border-amber-500/40 bg-amber-500/5' : undefined}
+                >
                   <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                    <span>Pendentes / Em Andamento</span>
-                    <RefreshCw className="w-4 h-4 text-amber-500" />
+                    <span className={submittedRegistrationsCount > 0 ? 'text-amber-400 font-semibold' : undefined}>
+                      Pendentes / Em Andamento
+                    </span>
+                    <RefreshCw className={cn('w-4 h-4', submittedRegistrationsCount > 0 ? 'text-amber-400' : 'text-zinc-500')} />
                   </div>
-                  <p className="text-2xl font-bold font-mono tabular-nums text-foreground">
-                    {registrations.filter((r) => r.status === 'invited' || r.status === 'in_progress').length}
+                  <p className={cn('text-2xl font-bold font-mono tabular-nums', submittedRegistrationsCount > 0 ? 'text-amber-400' : 'text-foreground')}>
+                    {submittedRegistrationsCount}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {submittedRegistrationsCount > 0 ? 'Aguardando confirmação' : 'Nenhuma pendente'}
                   </p>
                 </SectionCard>
 
                 <SectionCard density="dense">
                   <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                     <span>Finalizadas / Aprovadas</span>
-                    <Users className="w-4 h-4 text-emerald-500" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <p className="text-2xl font-bold font-mono tabular-nums text-emerald-400">
+                    {approvedRegistrationsCount}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Inscrições confirmadas
+                  </p>
+                </SectionCard>
+
+                <SectionCard density="dense">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                    <span>Aptas para Sorteio</span>
+                    <Users className="w-4 h-4 text-zinc-400" />
                   </div>
                   <p className="text-2xl font-bold font-mono tabular-nums text-foreground">
-                    {registrations.filter((r) => r.status === 'submitted' || r.status === 'approved').length}
+                    {eligibilityReport?.eligibleCount ?? 0}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Com elenco regular
                   </p>
                 </SectionCard>
 
                 <SectionCard density="dense">
                   <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                     <span>Bloqueadas / Expiradas</span>
-                    <Lock className="w-4 h-4 text-rose-500" />
+                    <XCircle className="w-4 h-4 text-rose-500" />
                   </div>
-                  <p className="text-2xl font-bold font-mono tabular-nums text-foreground">
-                    {
-                      registrations.filter(
-                        (r) => r.isLocked || new Date(r.registrationDeadline).getTime() < now,
-                      ).length
-                    }
+                  <p className="text-2xl font-bold font-mono tabular-nums text-rose-400">
+                    {rejectedRegistrationsCount}
                   </p>
-                </SectionCard>
-              </div>
-
-              {/* ── Painel de Elegibilidade e Encerramento (Fase 3) ── */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <SectionCard density="dense">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                    <span>Aptas para Sorteio</span>
-                    <Users className="w-4 h-4 text-emerald-500" />
-                  </div>
-                  <p className="text-2xl font-bold font-mono tabular-nums text-emerald-400">
-                    {eligibilityReport?.eligibleCount ?? 0}
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Recusadas / Bloqueadas
                   </p>
-                </SectionCard>
-
-                <SectionCard density="dense">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                    <span>Elenco Incompleto / Bloqueadas</span>
-                    <Lock className="w-4 h-4 text-amber-500" />
-                  </div>
-                  <p className="text-2xl font-bold font-mono tabular-nums text-amber-400">
-                    {eligibilityReport?.blockedCount ?? 0}
-                  </p>
-                </SectionCard>
-
-                <SectionCard density="dense">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                    <span>Status das Inscrições</span>
-                    <Lock className="w-4 h-4 text-primary" />
-                  </div>
-                  <div className="pt-1 flex items-center justify-between">
-                    <Badge
-                      variant={competition.status === 'registration-closed' ? 'destructive' : 'default'}
-                      className="text-xs font-semibold"
-                    >
-                      {competition.status === 'registration-closed'
-                        ? 'Encerradas'
-                        : competition.status === 'registration-open' || competition.status === 'registration'
-                        ? 'Abertas'
-                        : competition.status}
-                    </Badge>
-                  </div>
                 </SectionCard>
               </div>
 
@@ -687,20 +886,20 @@ export function CompetitionRegistrationsPage() {
                       Todas ({registrations.length})
                     </Button>
                     <Button
-                      variant={statusFilter === 'pending' ? 'secondary' : 'ghost'}
-                      size="sm"
-                      className="h-7 text-xs px-2.5"
-                      onClick={() => setStatusFilter('pending')}
-                    >
-                      Pendentes
-                    </Button>
-                    <Button
                       variant={statusFilter === 'submitted' ? 'secondary' : 'ghost'}
                       size="sm"
-                      className="h-7 text-xs px-2.5"
+                      className={cn(
+                        'h-7 text-xs px-2.5 gap-1',
+                        submittedRegistrationsCount > 0 && 'text-amber-400 font-semibold',
+                      )}
                       onClick={() => setStatusFilter('submitted')}
                     >
-                      Submetidas
+                      Aguardando análise
+                      {submittedRegistrationsCount > 0 && (
+                        <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 border-amber-500/40 bg-amber-500/20 text-amber-300">
+                          {submittedRegistrationsCount}
+                        </Badge>
+                      )}
                     </Button>
                     <Button
                       variant={statusFilter === 'approved' ? 'secondary' : 'ghost'}
@@ -708,7 +907,23 @@ export function CompetitionRegistrationsPage() {
                       className="h-7 text-xs px-2.5"
                       onClick={() => setStatusFilter('approved')}
                     >
-                      Aprovadas
+                      Confirmadas ({approvedRegistrationsCount})
+                    </Button>
+                    <Button
+                      variant={statusFilter === 'pending' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-7 text-xs px-2.5"
+                      onClick={() => setStatusFilter('pending')}
+                    >
+                      Preenchendo elenco ({pendingRegistrationsCount})
+                    </Button>
+                    <Button
+                      variant={statusFilter === 'rejected' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-7 text-xs px-2.5"
+                      onClick={() => setStatusFilter('rejected')}
+                    >
+                      Recusadas ({rejectedRegistrationsCount})
                     </Button>
                     <Button
                       variant={statusFilter === 'locked' ? 'secondary' : 'ghost'}
@@ -716,7 +931,7 @@ export function CompetitionRegistrationsPage() {
                       className="h-7 text-xs px-2.5"
                       onClick={() => setStatusFilter('locked')}
                     >
-                      Bloqueadas
+                      Bloqueadas ({lockedRegistrationsCount})
                     </Button>
                   </div>
                 </div>

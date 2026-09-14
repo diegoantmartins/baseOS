@@ -85,9 +85,15 @@ export class CompetitionDrawEligibilityService {
       blockers.push('Competição já finalizada não aceita novos sorteios.');
     }
 
-    // 3. Status da inscrição da equipe
+    // 3. Status da inscrição da equipe (Regra Sagrada: SOMENTE equipes aprovadas podem participar do sorteio)
     if (competitionTeam.status === 'rejected') {
       blockers.push('Inscrição da equipe foi rejeitada pela organização.');
+    } else if (competitionTeam.status !== 'approved') {
+      blockers.push(
+        `Inscrição não confirmada pela organização (status atual: ${competitionTeam.status}). Apenas equipes aprovadas podem participar do sorteio.`,
+      );
+    } else {
+      reasons.push('Inscrição formalmente aprovada pela organização.');
     }
 
     // 4. Limites regulamentares de elenco (Fonte Canônica: CompetitionConfig)
@@ -104,11 +110,9 @@ export class CompetitionDrawEligibilityService {
       );
     }
 
-    // Se aprovada
-    if (competitionTeam.status === 'approved') {
-      reasons.push('Inscrição formalmente aprovada pela organização.');
-    } else if (competitionTeam.status === 'submitted') {
-      reasons.push('Elenco finalizado pela equipe.');
+    // Nota sobre bloqueio de elenco (isLocked não impede sorteio; apenas bloqueia edição)
+    if (competitionTeam.isLocked) {
+      reasons.push('Elenco bloqueado para alterações (fechado para sorteio).');
     }
 
     const eligible = blockers.length === 0;

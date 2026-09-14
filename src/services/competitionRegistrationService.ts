@@ -116,6 +116,90 @@ export class CompetitionRegistrationService {
   }
 
   /**
+   * Obtém a capacidade máxima determinística de equipes configurada para a competição.
+   * Diretriz da Fase 8.3: maxTeams deve ser uma configuração explícita em config.registration.maxTeams.
+   * É terminantemente proibido inferir silenciosamente a capacidade via multiplicação de grupos ou templates.
+   */
+  public static getCapacity(competition: CompetitionRecord): { maxTeams: number; isConfigured: boolean } {
+    const maxTeams = competition.config?.registration?.maxTeams;
+    if (typeof maxTeams === 'number' && maxTeams > 0) {
+      return { maxTeams, isConfigured: true };
+    }
+    return { maxTeams: 0, isConfigured: false };
+  }
+
+  /**
+   * Avalia se uma equipe inscrita pode ser formalmente aprovada/confirmada na competição.
+   * Regras:
+   * 1. Competição não pode estar concluída ou cancelada.
+   * 2. Status deve ser 'submitted' (elenco preenchido e finalizado pela equipe).
+   * 3. Elenco atende estritamente ao mínimo regulamentar (CompetitionRulesService).
+   * 4. Capacidade deve estar explicitamente configurada e não ter sido esgotada (sem overbooking).
+   */
+  public static canApproveTeam(
+    competition: CompetitionRecord,
+    registration: CompetitionTeam,
+    allRegistrations: CompetitionTeam[] = [],
+    athletes: CompetitionAthlete[] = [],
+  ): IntegrityCheckResult {
+    const errors: string[] = [];
+
+    // 1. Status da competição
+    if (competition.status === 'completed' || competition.status === 'cancelled') {
+      errors.push(`Competição está ${competition.status === 'completed' ? 'concluída' : 'cancelada'} e não aceita alterações.`);
+    }
+
+    // 2. Status da inscrição
+    if (registration.status !== 'submitted') {
+      errors.push(
+        `A equipe "${registration.teamName}" está com status "${registration.status}". Apenas equipes com elenco enviado (status: finalizado / submitted) podem ser aprovadas.`,
+      );
+    }
+
+    // 3. Quantidade mínima de atletas
+    const teamAthletes = athletes.filter((a) => a.competitionTeamId === registration.id);
+    const limits = CompetitionRulesService.getRosterLimits(competition);
+    if (teamAthletes.length < limits.min) {
+      errors.push(
+        `Elenco incompleto: a equipe possui ${teamAthletes.length}/${limits.min} atletas cadastrados. O mínimo regulamentar deve ser atingido antes da aprovação.`,
+      );
+    }
+
+    // 4. Capacidade explícita configurada (SEM INFERÊNCIA SILENCIOSA)
+    const capacity = this.getCapacity(competition);
+    if (!capacity.isConfigured) {
+      errors.push(
+        'A capacidade máxima de equipes (maxTeams) não foi configurada para esta competição. Defina a capacidade nas configurações antes de aprovar inscrições.',
+      );
+    } else {
+      const approvedCount = allRegistrations.filter(
+        (r) => r.competitionId === competition.id && r.status === 'approved' && r.id !== registration.id,
+      ).length;
+      if (approvedCount >= capacity.maxTeams) {
+        errors.push(
+          `Capacidade máxima de equipes atingida (${approvedCount}/${capacity.maxTeams} confirmadas). Não é possível aprovar novas equipes sem expandir as vagas.`,
+        );
+      }
+    }
+
+    return { ok: errors.length === 0, errors };
+  }
+
+  /**
+   * Avalia se uma inscrição pode ser rejeitada pela organização.
+   */
+  public static canRejectTeam(
+    competition: CompetitionRecord,
+    _registration: CompetitionTeam,
+  ): IntegrityCheckResult {
+    const errors: string[] = [];
+    if (competition.status === 'completed' || competition.status === 'cancelled') {
+      errors.push(`Competição está ${competition.status === 'completed' ? 'concluída' : 'cancelada'}.`);
+    }
+    return { ok: errors.length === 0, errors };
+  }
+
+  /**
    * Valida a adição ou edição de um atleta no elenco de uma equipe inscrita.
    * Regras:
    * 1. Competição aberta (não cancelada e não finalizada).

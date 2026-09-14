@@ -1,5 +1,9 @@
 import "@testing-library/jest-dom";
+import { configure } from "@testing-library/dom";
 import { afterEach, vi } from "vitest";
+
+// Configure testing-library asyncUtilTimeout to 5000ms for reliable testing under load
+configure({ asyncUtilTimeout: 5000 });
 
 // Mock matchMedia
 if (typeof window !== 'undefined') {

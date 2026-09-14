@@ -11,11 +11,11 @@ export const GENDER_CATEGORY_LABELS: Record<GenderCategory, string> = {
 };
 
 export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {
-  invited: 'Pendente',
+  invited: 'Convidada',
   in_progress: 'Em Preenchimento',
-  submitted: 'Finalizado',
-  approved: 'Aprovado',
-  rejected: 'Rejeitado',
+  submitted: 'Aguardando análise',
+  approved: 'Confirmada',
+  rejected: 'Recusada',
 };
 
 /**

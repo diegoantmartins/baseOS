@@ -1,12 +1,28 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Calendar, Dices } from 'lucide-react';
+import {
+  Users,
+  Calendar,
+  Dices,
+  Trophy,
+  CheckCircle2,
+  ListOrdered,
+  Sparkles,
+  ChevronRight,
+  Shield,
+  HelpCircle,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { SectionCard } from '@/components/ui/Section';
-import { StatusBadge } from '@/components/ui/StatusBadge';
-import { CompetitionProgress } from '@/components/competition/CompetitionProgress';
-import { CompetitionPendingTasks } from '@/components/competition/CompetitionPendingTasks';
-import { buildMatchesUrl, buildDrawUrl } from '@/services/competitionNavigationHelper';
+import { CompetitionActionGuideCard } from '@/components/competition/CompetitionActionGuideCard';
+import { CompetitionReadinessModal } from '@/components/competition/CompetitionReadinessModal';
+import { evaluateCompetitionActionGuide } from '@/services/competitionActionGuideService';
+import {
+  buildMatchesUrl,
+  buildDrawUrl,
+  buildRegistrationsUrl,
+} from '@/services/competitionNavigationHelper';
 import type {
   CompetitionRecord,
   CompetitionLifecycleStatus,
@@ -16,6 +32,7 @@ import type {
 import type { CompetitionTeam } from '@/types/registration';
 import type { CompetitionReadinessReport } from '@/types/readiness';
 import type { CompetitionTab } from '@/components/competition/CompetitionHeader';
+import { cn } from '@/lib/utils';
 
 export interface CompetitionOverviewTabProps {
   selected: CompetitionRecord;
@@ -48,85 +65,120 @@ export function CompetitionOverviewTab({
   onNavigateTab,
 }: CompetitionOverviewTabProps) {
   const navigate = useNavigate();
+  const [readinessModalOpen, setReadinessModalOpen] = useState(false);
+
+  // Avaliação do Guia de Ação Operacional (Fase 8.4)
+  const actionGuide = useMemo(() => {
+    return evaluateCompetitionActionGuide({
+      competition: selected,
+      competitionTeams: selectedTeams,
+      matches: selectedMatches,
+      canEdit,
+    });
+  }, [selected, selectedTeams, selectedMatches, canEdit]);
+
+  // Jornada visual das 5 fases do torneio (orientada a produto, não a enums)
+  const journeyPhases = useMemo(() => {
+    const status = selected.status;
+    let currentPhaseIndex = 0;
+
+    if (status === 'planning' || status === 'registration-open' || status === 'registration') {
+      currentPhaseIndex = 0;
+    } else if (status === 'registration-closed' || status === 'draw-pending') {
+      currentPhaseIndex = 1;
+    } else if (status === 'groups-defined' || (status === 'in-progress' && !selectedMatches.some(m => m.phase === 'playoffs'))) {
+      currentPhaseIndex = 2;
+    } else if (status === 'playoffs' || selectedMatches.some(m => m.phase === 'playoffs')) {
+      currentPhaseIndex = 3;
+    } else if (status === 'completed') {
+      currentPhaseIndex = 4;
+    }
+
+    return [
+      { id: 'registration', label: '1. Inscrições', description: 'Recebimento de equipes' },
+      { id: 'draw', label: '2. Sorteio Oficial', description: 'Composição de chaves' },
+      { id: 'group_stage', label: '3. Fase de Grupos', description: 'Disputa classificatória' },
+      { id: 'playoffs', label: '4. Mata-mata', description: 'Eliminatórias e finais' },
+      { id: 'completed', label: '5. Pódio & Conclusão', description: 'Homologação oficial' },
+    ].map((phase, index) => {
+      const isCompleted = index < currentPhaseIndex;
+      const isCurrent = index === currentPhaseIndex;
+      return {
+        ...phase,
+        isCompleted,
+        isCurrent,
+        isUpcoming: index > currentPhaseIndex,
+      };
+    });
+  }, [selected.status, selectedMatches]);
+
+  const handleCloseRegistrations = async () => {
+    onRequestStatusTransition('registration-closed');
+  };
+
+  const handleReopenRegistrations = async () => {
+    onRequestStatusTransition('registration-open');
+  };
 
   return (
     <div className="space-y-6">
-      {/* Prontidão Operacional */}
-      {readinessReport && (
-        <div className="space-y-4">
-          <CompetitionProgress report={readinessReport} onRefresh={onRefresh} />
-          {readinessReport.pendingTasks && readinessReport.pendingTasks.length > 0 && (
-            <CompetitionPendingTasks tasks={readinessReport.pendingTasks} />
-          )}
-        </div>
-      )}
+      {/* ── CARD DE PRÓXIMA AÇÃO OPERACIONAL (Fase 8.4) ── */}
+      <CompetitionActionGuideCard
+        guide={actionGuide}
+        canEdit={canEdit}
+        onCloseRegistrations={handleCloseRegistrations}
+        onReopenRegistrations={handleReopenRegistrations}
+      />
 
-      {/* Controle de Ciclo de Vida */}
+      {/* ── JORNADA OPERACIONAL DO TORNEIO (Substitui o checklist técnico 1-6) ── */}
       <SectionCard
-        title="Fluxo e Ciclo de Vida do Torneio"
-        description="Avance as etapas regulamentares conforme o progresso do torneio."
-        actions={<StatusBadge status={selected.status} />}
+        title="Jornada da Competição"
+        description="Acompanhe o estágio da competição e as etapas concluídas pela organização."
+        actions={
+          readinessReport ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setReadinessModalOpen(true)}
+              className="h-8 text-xs gap-1.5 border-zinc-800 bg-zinc-900/60 hover:bg-zinc-800 font-medium text-foreground"
+            >
+              <ListOrdered className="w-3.5 h-3.5 text-primary" />
+              <span>Ver Checklist Técnico ({readinessReport.percentage}%)</span>
+            </Button>
+          ) : undefined
+        }
         divided
       >
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant={selected.status === 'registration-open' ? 'default' : 'outline'}
-            disabled={!canEdit}
-            onClick={() => onRequestStatusTransition('registration-open')}
-            className="text-xs h-8"
-          >
-            1. Abrir Inscrições
-          </Button>
-          <Button
-            size="sm"
-            variant={selected.status === 'registration-closed' ? 'default' : 'outline'}
-            disabled={!canEdit}
-            onClick={() => onRequestStatusTransition('registration-closed')}
-            className="text-xs h-8"
-          >
-            2. Encerrar Inscrições
-          </Button>
-          <Button
-            size="sm"
-            variant={selected.status === 'draw-pending' ? 'default' : 'outline'}
-            disabled={!canEdit}
-            onClick={() => onRequestStatusTransition('draw-pending')}
-            className="text-xs h-8"
-          >
-            3. Sorteio de Grupos
-          </Button>
-          <Button
-            size="sm"
-            variant={selected.status === 'in-progress' ? 'default' : 'outline'}
-            disabled={!canEdit}
-            onClick={() => onRequestStatusTransition('in-progress')}
-            className="text-xs h-8"
-          >
-            4. Iniciar Jogos
-          </Button>
-          <Button
-            size="sm"
-            variant={selected.status === 'playoffs' ? 'default' : 'outline'}
-            disabled={!canEdit}
-            onClick={() => onRequestStatusTransition('playoffs')}
-            className="text-xs h-8"
-          >
-            5. Mata-mata (Playoffs)
-          </Button>
-          <Button
-            size="sm"
-            variant={selected.status === 'completed' ? 'default' : 'outline'}
-            disabled={!canEdit}
-            onClick={() => onRequestStatusTransition('completed')}
-            className="text-xs h-8 text-emerald-400 border-emerald-500/30"
-          >
-            6. Finalizar Torneio
-          </Button>
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
+          {journeyPhases.map((phase) => (
+            <div
+              key={phase.id}
+              className={cn(
+                'p-3 rounded-lg border text-xs transition-all relative',
+                phase.isCurrent && 'border-amber-500/60 bg-amber-500/10 text-amber-200 shadow-sm ring-1 ring-amber-500/30',
+                phase.isCompleted && 'border-emerald-500/30 bg-emerald-950/20 text-emerald-300',
+                phase.isUpcoming && 'border-zinc-800/60 bg-zinc-900/20 text-zinc-500',
+              )}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-[11px] uppercase tracking-wider block">
+                  {phase.label}
+                </span>
+                {phase.isCompleted ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                ) : phase.isCurrent ? (
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                ) : null}
+              </div>
+              <p className="text-[10px] text-muted-foreground line-clamp-1">
+                {phase.description}
+              </p>
+            </div>
+          ))}
         </div>
       </SectionCard>
 
-      {/* Pódio Oficial se Apurado */}
+      {/* ── PÓDIO OFICIAL (Se Apurado) ── */}
       {podium && (podium.championTeamId || podium.runnerUpTeamId) && (
         <SectionCard
           title="Pódio Oficial da Competição"
@@ -162,21 +214,30 @@ export function CompetitionOverviewTab({
         </SectionCard>
       )}
 
-      {/* Resumo Operacional */}
+      {/* ── RESUMO OPERACIONAL E ATALHOS DIRETOS ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <SectionCard density="dense">
           <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-            <span>Equipes Confirmadas</span>
+            <span>Equipes da Competição</span>
             <Users className="w-4 h-4 text-primary" />
           </div>
-          <p className="text-xl font-bold font-mono tabular-nums text-foreground">{selectedTeams.length}</p>
+          <div className="flex items-baseline gap-2">
+            <p className="text-2xl font-bold font-mono tabular-nums text-foreground">
+              {actionGuide.capacity.confirmedCount}
+            </p>
+            {actionGuide.capacity.isConfigured && (
+              <span className="text-xs text-muted-foreground font-mono">
+                / {actionGuide.capacity.maxTeams} vagas
+              </span>
+            )}
+          </div>
           <Button
             variant="outline"
             size="sm"
             className="w-full text-xs mt-2"
-            onClick={() => onNavigateTab('teams')}
+            onClick={() => navigate(buildRegistrationsUrl(selected.id))}
           >
-            Gerenciar Equipes
+            Gerenciar Inscrições
           </Button>
         </SectionCard>
 
@@ -185,7 +246,9 @@ export function CompetitionOverviewTab({
             <span>Partidas Programadas</span>
             <Calendar className="w-4 h-4 text-primary" />
           </div>
-          <p className="text-xl font-bold font-mono tabular-nums text-foreground">{selectedMatches.length}</p>
+          <p className="text-2xl font-bold font-mono tabular-nums text-foreground">
+            {selectedMatches.length}
+          </p>
           <Button
             variant="outline"
             size="sm"
@@ -201,7 +264,7 @@ export function CompetitionOverviewTab({
             <span>Chaves de Disputa</span>
             <Dices className="w-4 h-4 text-primary" />
           </div>
-          <p className="text-xl font-bold font-mono tabular-nums text-foreground">
+          <p className="text-2xl font-bold font-mono tabular-nums text-foreground">
             {selected.groupsCount || 1} Grupos
           </p>
           <Button
@@ -214,6 +277,15 @@ export function CompetitionOverviewTab({
           </Button>
         </SectionCard>
       </div>
+
+      {/* ── MODAL DO CHECKLIST TÉCNICO (Acessível sob demanda) ── */}
+      {readinessReport && (
+        <CompetitionReadinessModal
+          report={readinessReport}
+          isOpen={readinessModalOpen}
+          onClose={() => setReadinessModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

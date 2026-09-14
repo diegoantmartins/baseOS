@@ -355,6 +355,7 @@ export interface RegisterTeamInCompetitionInput {
   managerName?: string;
   managerPhone?: string;
   managerEmail?: string;
+  managerPassword?: string;
   // Auditoria
   operator?: string;
 }
@@ -368,6 +369,7 @@ export interface RegisterTeamInCompetitionResult {
   portalUrl?: string;
   token?: string;
   deadlineIso?: string;
+  userId?: string;
 }
 
 /**
@@ -478,20 +480,15 @@ export async function registerTeamInCompetition(
 
     isExistingTeamReused = true;
   } else {
-    // Caso A: Criar nova TeamRecord global
+    // Caso A: Criar nova TeamRecord global (apenas colunas físicas de public.teams)
     const targetModality = input.modality || competition.modality || 'indoor';
     targetTeam = await dataAccess.createTeam({
       name: teamName,
       shortName: teamShortName,
       modality: targetModality,
       city: input.city?.trim() || undefined,
-      state: input.state?.trim() || undefined,
       coachName: input.coachName?.trim() || undefined,
-      managerName: managerName || undefined,
-      managerPhone: input.managerPhone?.trim() || undefined,
-      managerEmail: input.managerEmail?.trim() || undefined,
       logoUrl: input.logoUrl,
-      registrationToken: generateToken(),
     });
     isExistingTeamReused = false;
   }
@@ -524,19 +521,26 @@ export async function registerTeamInCompetition(
     status: 'invited',
   });
 
-  // 7. Associar responsável em persons
-  if (managerName) {
-    try {
-      await dataAccess.createPerson({
-        fullName: managerName,
-        roles: ['manager'],
-        teamIds: [targetTeam.id],
-        email: input.managerEmail?.trim() || undefined,
-        phone: input.managerPhone?.trim() || undefined,
-      });
-    } catch (err) {
-      console.warn('Sync manager person:', err);
+  // 7. Provisionamento de Acesso do Gestor no Supabase Auth + Profile (Fase 8.6.4)
+  let authUserId: string | undefined;
+  if (input.managerEmail?.trim() && input.managerPassword?.trim()) {
+    const provRes = await dataAccess.provisionTeamUser({
+      email: input.managerEmail.trim(),
+      password: input.managerPassword.trim(),
+      name: managerName,
+      competitionTeamId: competitionTeam.id,
+      phone: input.managerPhone?.trim(),
+    });
+
+    if (!provRes.ok) {
+      return {
+        ok: false,
+        errors: [`Equipe cadastrada, mas falhou ao provisionar acesso Auth da equipe: ${provRes.error || 'Erro desconhecido'}`],
+        team: targetTeam,
+        competitionTeam,
+      };
     }
+    authUserId = provRes.userId;
   }
 
   // 8. Trilha de Auditoria Operacional
@@ -560,11 +564,18 @@ export async function registerTeamInCompetition(
   return {
     ok: true,
     errors: [],
-    team: targetTeam,
+    team: {
+      ...targetTeam,
+      managerName,
+      managerPhone: input.managerPhone?.trim() || targetTeam.managerPhone,
+      managerEmail: input.managerEmail?.trim() || targetTeam.managerEmail,
+      ...(input.managerPassword?.trim() ? { managerPassword: input.managerPassword.trim() } : {}),
+    },
     competitionTeam,
     isExistingTeamReused,
     portalUrl,
     token: competitionTeam.accessToken,
     deadlineIso,
+    userId: authUserId,
   };
 }

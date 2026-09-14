@@ -356,3 +356,15 @@ export function sanitizeExternalUrl(url?: string | null): string | undefined {
     return undefined;
   }
 }
+
+/**
+ * Gerador oficial de senhas seguras e amigáveis para dirigentes e gestores de equipes.
+ * Formato padrão: PalavraVolei@1234 (ex.: Volei@4821, Bloqueio@9123).
+ * Atende plenamente à validação de validatePasswordStrength (letras, números, símbolos, 8+ chars).
+ */
+export function generateRandomPassword(): string {
+  const words = ['Volei', 'Ace', 'Bloqueio', 'Saque', 'Ponto', 'Quadra', 'Manchete', 'Ataque'];
+  const word = words[Math.floor(Math.random() * words.length)];
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `${word}@${num}`;
+}

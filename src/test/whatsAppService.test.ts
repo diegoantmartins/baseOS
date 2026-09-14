@@ -43,7 +43,7 @@ describe('whatsAppService', () => {
       expect(msg).toContain('*Cruzeiro Vôlei*');
       expect(msg).toContain('*Superliga 2026*');
       expect(msg).toContain('http://localhost:5173/equipe/inscricao/token-123');
-      expect(msg).toContain('E-mail: carlos@cruzeiro.com');
+      expect(msg).toContain('👤 *Usuário / Login:* carlos@cruzeiro.com');
       expect(msg).toContain('dispensa senha inicial');
       expect(msg).toContain('Prazo para cadastro dos atletas:');
     });
@@ -56,8 +56,24 @@ describe('whatsAppService', () => {
       });
 
       expect(msg).toContain('Olá, Responsável! 👋');
-      expect(msg).not.toContain('E-mail:');
+      expect(msg).not.toContain('Usuário / Login:');
       expect(msg).toContain('Conforme regulamento da competição');
+    });
+
+    it('deve incluir credenciais completas quando senha de acesso for fornecida', () => {
+      const msg = buildTeamRegistrationWhatsAppMessage({
+        managerName: 'Carlos Silva',
+        teamName: 'Cruzeiro Vôlei',
+        competitionName: 'Superliga 2026',
+        portalUrl: 'http://localhost:5173/equipe/inscricao/token-123',
+        managerEmail: 'carlos@cruzeiro.com',
+        managerPassword: 'Volei@2026',
+        deadlineIso: '2026-10-15T23:59:00.000Z',
+      });
+
+      expect(msg).toContain('👤 *Usuário / Login:* carlos@cruzeiro.com');
+      expect(msg).toContain('🔑 *Senha de Acesso:* Volei@2026');
+      expect(msg).toContain('Acesso: Link direto exclusivo com token de segurança e credenciais.');
     });
   });
 

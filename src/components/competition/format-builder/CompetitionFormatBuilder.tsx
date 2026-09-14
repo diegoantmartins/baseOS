@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Layers,
   Settings,
@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import type { CompetitionConfig } from '@/types/competitionConfig';
 import type { CompetitionRecord, MatchRecord } from '@/types/entities';
 import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
 import { dataAccess } from '@/services/dataAccess';
 import { useCompetitionFormatBuilder } from '@/hooks/useCompetitionFormatBuilder';
 import { FormatTemplateSelector } from './FormatTemplateSelector';
@@ -65,6 +66,14 @@ export const CompetitionFormatBuilder: React.FC<CompetitionFormatBuilderDialogPr
   const isRulesEditable = competition ? CompetitionLifecycleService.canEditRules(competition, effectiveMatches) : true;
   const isRulesLocked = !isRulesEditable;
 
+  const resolvedInitialConfig = useMemo(() => {
+    if (initialConfig) return initialConfig;
+    if (competition) {
+      return CompetitionRulesService.getConfig(competition);
+    }
+    return undefined;
+  }, [initialConfig, competition]);
+
   const {
     draftConfig,
     validationResult,
@@ -85,7 +94,7 @@ export const CompetitionFormatBuilder: React.FC<CompetitionFormatBuilderDialogPr
     resetDraft,
     saveConfig,
   } = useCompetitionFormatBuilder({
-    initialConfig: initialConfig || competition?.config,
+    initialConfig: resolvedInitialConfig,
     competitionId: competition?.id,
     onSaved: (saved) => {
       onSaved?.(saved);

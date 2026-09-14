@@ -22,6 +22,7 @@ import {
   Mail,
   CalendarClock,
   ShieldCheck,
+  KeyRound,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,7 @@ export function TeamRegistrationSuccessModal({
     competitionName: competition.name,
     portalUrl,
     managerEmail: team.managerEmail,
+    managerPassword: team.managerPassword,
     deadlineIso: competitionTeam.registrationDeadline,
   });
 
@@ -237,6 +239,30 @@ export function TeamRegistrationSuccessModal({
                   </a>
                 </div>
               </div>
+
+              {/* Credenciais de Acesso (Usuário & Senha) */}
+              {(team.managerEmail || team.managerPassword) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-zinc-800/80">
+                  {team.managerEmail && (
+                    <div className="space-y-1 p-2 rounded-lg bg-zinc-950 border border-zinc-800 text-xs">
+                      <span className="text-[10px] text-muted-foreground uppercase font-semibold flex items-center gap-1">
+                        <Mail className="w-3 h-3 text-primary" />
+                        Usuário / Login:
+                      </span>
+                      <span className="font-medium text-foreground block truncate">{team.managerEmail}</span>
+                    </div>
+                  )}
+                  {team.managerPassword && (
+                    <div className="space-y-1 p-2 rounded-lg bg-zinc-950 border border-zinc-800 text-xs">
+                      <span className="text-[10px] text-muted-foreground uppercase font-semibold flex items-center gap-1">
+                        <KeyRound className="w-3 h-3 text-amber-500" />
+                        Senha de Acesso:
+                      </span>
+                      <span className="font-mono font-bold text-foreground block truncate">{team.managerPassword}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 

@@ -103,7 +103,7 @@ describe('CompetitionDrawEligibilityService — BaseOS (Fase 3)', () => {
         accessToken: 'token-1',
         registrationDeadline: '2026-12-31T23:59:59.000Z',
         isLocked: false,
-        status: 'submitted',
+        status: 'approved',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -119,7 +119,7 @@ describe('CompetitionDrawEligibilityService — BaseOS (Fase 3)', () => {
       expect(evalResult.blockers).toHaveLength(0);
       expect(evalResult.athleteCount).toBe(6);
       expect(evalResult.minAthletes).toBe(6);
-      expect(evalResult.reasons[0]).toContain('Elenco regular com 6 atleta(s)');
+      expect(evalResult.reasons.some(r => r.includes('Elenco regular com 6 atleta(s)'))).toBe(true);
     });
 
     it('deve marcar equipe como inelegível se elenco for menor que o mínimo regulamentar', () => {
@@ -132,7 +132,7 @@ describe('CompetitionDrawEligibilityService — BaseOS (Fase 3)', () => {
         accessToken: 'token-2',
         registrationDeadline: '2026-12-31T23:59:59.000Z',
         isLocked: false,
-        status: 'in_progress',
+        status: 'approved',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -197,7 +197,7 @@ describe('CompetitionDrawEligibilityService — BaseOS (Fase 3)', () => {
         accessToken: 'token-custom',
         registrationDeadline: '2026-12-31T23:59:59.000Z',
         isLocked: false,
-        status: 'submitted',
+        status: 'approved',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -340,7 +340,7 @@ describe('CompetitionDrawEligibilityService — BaseOS (Fase 3)', () => {
         accessToken: 'tk-2',
         registrationDeadline: '2026-12-31T23:59:59.000Z',
         isLocked: false,
-        status: 'submitted',
+        status: 'approved',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -354,7 +354,7 @@ describe('CompetitionDrawEligibilityService — BaseOS (Fase 3)', () => {
         accessToken: 'tk-3',
         registrationDeadline: '2026-12-31T23:59:59.000Z',
         isLocked: false,
-        status: 'in_progress',
+        status: 'approved',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
