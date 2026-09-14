@@ -59,6 +59,8 @@ import {
   generateStandingsReportPdf,
   generateTeamRosterReportPdf,
   downloadReportsPdf,
+  type MatchBoletimRow,
+  type RosterReportAthlete,
 } from '@/lib/pdf/reportsPdf';
 import type { CompetitionAthlete, CompetitionAthleteInput, CompetitionTeam } from '@/types/registration';
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
@@ -131,9 +133,9 @@ export function TeamRosterRegistrationPage() {
   }, []);
 
   const playerFormat = competition?.playerFormat || '6x6';
-  const limits = competition
+  const limits = (competition
     ? CompetitionRulesService.getRosterLimits(competition)
-    : (ROSTER_LIMITS[playerFormat] ?? ROSTER_LIMITS['6x6']);
+    : (ROSTER_LIMITS[playerFormat] ?? ROSTER_LIMITS['6x6'])) ?? { min: 6, max: 14 };
   const locked = team ? isRegistrationLocked(team, competition, new Date(now)) : true;
   const countdown = useMemo(() => (team ? countdownText(team.registrationDeadline, now) : null), [team, now]);
   const genderCategory = competition?.genderCategory || 'mixed';
@@ -205,7 +207,7 @@ export function TeamRosterRegistrationPage() {
           shortName: team.teamShortName,
           coach: teamRecord?.coachName,
           logoUrl: teamRecord?.logoUrl,
-          athletes: athletes.map(a => ({
+          athletes: athletes.map((a): RosterReportAthlete => ({
             jerseyNumber: a.jerseyNumber,
             name: a.name,
             position: a.position,
@@ -224,7 +226,7 @@ export function TeamRosterRegistrationPage() {
 
   const handleExportBoletim = () => {
     if (!competition) return;
-    const rows = matches
+    const rows: MatchBoletimRow[] = matches
       .filter(m => m.competitionId === competition.id)
       .sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime))
       .map(m => {

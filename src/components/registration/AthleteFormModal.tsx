@@ -77,7 +77,7 @@ function toInput(values: AthleteFormValues, gender: 'male' | 'female'): Competit
 interface AthleteFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  athlete?: CompetitionAthlete;
+  athlete?: CompetitionAthlete | undefined;
   gender?: 'male' | 'female';
   onSubmit: (input: CompetitionAthleteInput) => Promise<{ ok: boolean; errors: string[] }>;
 }

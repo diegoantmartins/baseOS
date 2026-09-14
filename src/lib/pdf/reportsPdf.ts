@@ -19,23 +19,23 @@ import type { MvpReportData, DelegationReportData, MatchStatisticsReportData } f
 export type MatchBoletimRow = {
   matchNumber: number;
   round: number;
-  phase?: string;
-  groupName?: string;
+  phase?: string | undefined;
+  groupName?: string | undefined;
   date: string;
   time: string;
   venue: string;
-  court?: string;
+  court?: string | undefined;
   teamAName: string;
-  teamAShort?: string;
-  teamALogo?: string;
+  teamAShort?: string | undefined;
+  teamALogo?: string | undefined;
   teamBName: string;
-  teamBShort?: string;
-  teamBLogo?: string;
-  scoreA?: number;
-  scoreB?: number;
+  teamBShort?: string | undefined;
+  teamBLogo?: string | undefined;
+  scoreA?: number | undefined;
+  scoreB?: number | undefined;
   statusLabel: string;
-  highlightAthleteName?: string;
-  highlightTeamShort?: string;
+  highlightAthleteName?: string | undefined;
+  highlightTeamShort?: string | undefined;
 };
 
 export type StandingsReportGroup = {
@@ -44,10 +44,10 @@ export type StandingsReportGroup = {
 };
 
 export type RosterReportAthlete = {
-  jerseyNumber?: number;
+  jerseyNumber?: number | undefined;
   name: string;
   position: string;
-  documentNumber?: string;
+  documentNumber?: string | undefined;
   isCaptain: boolean;
   isLibero: boolean;
 };
@@ -55,13 +55,13 @@ export type RosterReportAthlete = {
 export type RosterReportTeam = {
   name: string;
   shortName: string;
-  coach?: string;
-  assistantCoach?: string;
-  medicalStaff?: string;
-  city?: string;
-  state?: string;
-  modality?: string;
-  logoUrl?: string;
+  coach?: string | undefined;
+  assistantCoach?: string | undefined;
+  medicalStaff?: string | undefined;
+  city?: string | undefined;
+  state?: string | undefined;
+  modality?: string | undefined;
+  logoUrl?: string | undefined;
   athletes: RosterReportAthlete[];
 };
 
