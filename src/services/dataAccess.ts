@@ -11,6 +11,7 @@ import type { CompetitionRecord, MatchAuditEntry, MatchRecord, ModalityRecord, P
 import type { ParticipantReference, ProgressionRoute } from '@/types/competitionConfig';
 import type { CompetitionAthlete, CompetitionAthleteInput, CompetitionTeam } from '@/types/registration';
 import type { DrawRecord, DrawResult } from '@/types/draw';
+import type { AthleteIdentity, UserMembership } from '@/types/identity';
 import type { DocumentEdit, DocumentEditKey, TemplateLayout } from '@/types/documentEdit';
 import { SEED_VERSION, seedCompetitionAthletes, seedCompetitionTeams, seedCompetitions, seedDraws, seedMatches, seedModalities, seedPersons, seedReferees, seedTeams, seedVenues } from '@/data/seed';
 import { getSupabaseClient, isSupabaseConfigured, SUPABASE_TABLES } from '@/lib/supabaseClient';
@@ -250,7 +251,8 @@ type CollectionName =
   | 'audit_logs'
   | 'competition_stages'
   | 'competition_rounds'
-  | 'competition_match_slots';
+  | 'competition_match_slots'
+  | 'user_memberships';
 
 function storageKey(collection: CollectionName): string {
   return `${STORAGE_PREFIX}.${collection}`;
@@ -424,6 +426,19 @@ const localStorageAdapter = {
     writeCollection('competition_stages', readCollection<StageRecord>('competition_stages').filter(s => s.competitionId !== id));
     writeCollection('competition_rounds', readCollection<RoundRecord>('competition_rounds').filter(r => r.competitionId !== id));
     writeCollection('competition_match_slots', readCollection<MatchSlotRecord>('competition_match_slots').filter(s => s.competitionId !== id));
+  },
+
+  async listUserMemberships(userId: string): Promise<UserMembership[]> {
+    return readCollection<UserMembership>('user_memberships').filter(membership => membership.userId === userId);
+  },
+
+  async createUserMembership(input: Omit<UserMembership, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<UserMembership> {
+    const now = new Date().toISOString();
+    const record: UserMembership = { ...input, id: input.id || generateId('membership'), createdAt: now, updatedAt: now };
+    const all = readCollection<UserMembership>('user_memberships');
+    all.push(record);
+    writeCollection('user_memberships', all);
+    return record;
   },
 
   async listTeams(): Promise<TeamRecord[]> {
@@ -2040,6 +2055,24 @@ const supabaseAdapter = {
     if (error) {
       throw new Error(`Falha ao excluir competição "${id}": [${error.code}] ${error.message}`);
     }
+  },
+
+  async listUserMemberships(userId: string): Promise<UserMembership[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(SUPABASE_TABLES.userMemberships).select('*').eq('user_id', userId);
+    if (error) throw new Error(`Falha ao listar memberships: [${error.code}] ${error.message}`);
+    return mapRows<UserMembership>(data ?? []);
+  },
+
+  async createUserMembership(input: Omit<UserMembership, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<UserMembership> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const now = new Date().toISOString();
+    const payload = toSnake({ ...input, id: input.id || generateId('membership'), createdAt: now, updatedAt: now });
+    const { data, error } = await supabase.from(SUPABASE_TABLES.userMemberships).insert(payload).select().single();
+    const result = assertSupabaseSuccess(data, error, { operation: 'createUserMembership', table: SUPABASE_TABLES.userMemberships });
+    return mapRow<UserMembership>(result) ?? (result as unknown as UserMembership);
   },
 
   async listTeams(): Promise<TeamRecord[]> {

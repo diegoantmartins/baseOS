@@ -58,4 +58,6 @@ export const SUPABASE_TABLES = {
   competitionStages: 'competition_stages',
   competitionRounds: 'competition_rounds',
   competitionMatchSlots: 'competition_match_slots',
+  userMemberships: 'user_memberships',
+  athletes: 'athletes',
 } as const;
