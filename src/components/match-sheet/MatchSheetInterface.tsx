@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { loadBaseosScoresheetData, downloadBaseosScoresheet } from '@/document-engine/baseos';
 import { toast } from 'sonner';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
 import type { MatchRecord } from '@/types/entities';
 import type { CompetitionRecord } from '@/types/entities';
 import type { CompetitionAthlete } from '@/types/registration';
@@ -165,13 +166,19 @@ export function MatchSheetInterface({
     } else {
       setTeamB(prev => ({ ...prev, score: prev.score + 1 }));
     }
-    setServingTeam(team);
-    if (matchStatus === 'warmup') setMatchStatus('in-progress');
-    // Rotação: se a equipe que marcou continuava sacando, roda a ordem
-    if (servingTeam === team) {
+
+    // Regra Oficial FIVB/CBV Side-Out:
+    // - Se a equipe receptora vence o rally, conquista o direito de sacar (side-out)
+    //   e seus jogadores devem rotacionar uma posição no sentido horário.
+    // - Se a equipe sacadora vence o rally, ela marca o ponto e continua sacando SEM rotação.
+    const isSideOut = servingTeam !== team;
+    if (isSideOut) {
+      setServingTeam(team);
       if (team === 'A') setRotationA(prev => (prev + 1) % 6);
       else setRotationB(prev => (prev + 1) % 6);
     }
+
+    if (matchStatus === 'warmup') setMatchStatus('in-progress');
   };
 
   const removePoint = (team: 'A' | 'B') => {
@@ -196,7 +203,44 @@ export function MatchSheetInterface({
   };
 
   const endSet = () => {
-    const winner: 'A' | 'B' = teamA.score > teamB.score ? 'A' : 'B';
+    const effectiveComp: CompetitionRecord = competition ?? {
+      id: match?.competitionId ?? 'comp-default',
+      name: 'Competição',
+      modality: modality ?? 'indoor',
+      format: 'round-robin',
+      playerFormat: '6x6',
+      setFormat: format ?? '3-sets',
+      genderCategory: 'mixed',
+      status: 'in-progress',
+    };
+
+    const formatConfig = CompetitionRulesService.resolveMatchFormat(
+      effectiveComp,
+      match?.phase,
+      match?.customSetFormat || format,
+    );
+    const isTiebreak = currentSet === formatConfig.maxSets;
+
+    const validation = CompetitionRulesService.validateSingleSet(
+      currentSet,
+      teamA.score,
+      teamB.score,
+      formatConfig,
+      isTiebreak,
+    );
+
+    if (!validation.valid) {
+      toast.error('Placar de set inválido:', {
+        description:
+          validation.error ||
+          `O set precisa respeitar as regras oficiais (${
+            isTiebreak ? formatConfig.tiebreakPoints : formatConfig.regularSetPoints
+          } pontos com vantagem mínima de ${formatConfig.minAdvantage}).`,
+      });
+      return;
+    }
+
+    const winner: 'A' | 'B' = validation.winner ?? (teamA.score > teamB.score ? 'A' : 'B');
     setSetHistory(prev => [...prev, { setNumber: currentSet, scoreA: teamA.score, scoreB: teamB.score, winner }]);
     setEvents(prev => [
       { id: Date.now(), icon: 'check', team: winner, text: `Fim do ${currentSet}º set`, score: `${Math.max(teamA.score, teamB.score)}-${Math.min(teamA.score, teamB.score)}` },
@@ -204,11 +248,18 @@ export function MatchSheetInterface({
     ]);
     if (winner === 'A') setTeamA(prev => ({ ...prev, sets: prev.sets + 1, score: 0 }));
     else setTeamB(prev => ({ ...prev, sets: prev.sets + 1, score: 0 }));
-    const setsToWin = format === '5-sets' ? 3 : format === '3-sets' || format === '2-sets' ? 2 : 1;
-    if (winner === 'A' && teamA.sets + 1 >= setsToWin) {
+
+    // Resetar posições de rotação entre sets
+    setRotationA(0);
+    setRotationB(0);
+    // Alternar saque inicial do próximo set conforme regra canônica
+    setServingTeam(currentSet % 2 === 1 ? 'B' : 'A');
+
+    const requiredWins = formatConfig.setsToWin;
+    if (winner === 'A' && teamA.sets + 1 >= requiredWins) {
       setMatchStatus('completed');
       toast.success(`${teamA.shortName} vence a partida!`);
-    } else if (winner === 'B' && teamB.sets + 1 >= setsToWin) {
+    } else if (winner === 'B' && teamB.sets + 1 >= requiredWins) {
       setMatchStatus('completed');
       toast.success(`${teamB.shortName} vence a partida!`);
     } else {
@@ -531,7 +582,7 @@ export function MatchSheetInterface({
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-4">
-                Posição 1 = sacador. A rotação avança quando a equipe pontua mantendo o saque.
+                Posição 1 = sacador. A rotação avança no side-out (quando a equipe receptora pontua e conquista o saque).
               </p>
             </CardContent>
           </Card>
