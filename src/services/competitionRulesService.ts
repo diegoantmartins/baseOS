@@ -631,4 +631,95 @@ export class CompetitionRulesService {
       homologatedBy: match.homologatedBy,
     };
   }
+
+  /**
+   * Avalia de forma canônica e determinística se a competição é de fase única (Round-Robin).
+   *
+   * Regras estritas do domínio BaseOS:
+   * 1. Se houver qualquer partida com fase eliminatória explícita, NÃO é fase única.
+   * 2. Se houver estágios configurados do tipo mata-mata (knockout, play-in, third-place), NÃO é fase única.
+   * 3. Se o formato macro for configurado para mata-mata/playoffs, NÃO é fase única.
+   * 4. Se o formato macro ou stages declararem explicitamente round-robin/fase-única (sem eliminatórias), É fase única.
+   */
+  public static isSingleStageRoundRobin(
+    competition?: CompetitionRecord | null,
+    matches: MatchRecord[] = [],
+  ): boolean {
+    const playoffPhases = [
+      'oitavas',
+      'quartas',
+      'semi',
+      'semifinal',
+      'final',
+      'terceiro_lugar',
+      'playoff',
+      'playoffs',
+      'repescagem',
+      'play-in',
+      'knockout',
+    ];
+
+    // 1. Partidas reais existentes com fase eliminatória desqualificam fase única
+    const hasPlayoffMatches = matches.some(
+      m => m.phase && playoffPhases.includes(m.phase.trim().toLowerCase()),
+    );
+    if (hasPlayoffMatches) {
+      return false;
+    }
+
+    // 2. Análise dos estágios declarados no rulesSnapshot ou config
+    const config = competition?.rulesSnapshot || competition?.config;
+    const stages = config?.format?.stages || [];
+    const hasPlayoffStages = stages.some(
+      s => s.type === 'knockout' || s.type === 'play-in' || s.type === 'third-place',
+    );
+    if (hasPlayoffStages) {
+      return false;
+    }
+
+    // 3. Formato macro estruturado
+    const macroFormat = (config?.format?.formatType || competition?.format || '').toLowerCase();
+    const knockoutFormats = [
+      'groups-knockout',
+      'knockout',
+      'groups-play-in-knockout',
+      'double-elimination',
+      'playoffs',
+    ];
+    if (knockoutFormats.includes(macroFormat)) {
+      return false;
+    }
+
+    // 4. Verificação de formato round-robin declarado
+    const isRoundRobinFormat =
+      macroFormat === 'round-robin' ||
+      competition?.format === 'round-robin' ||
+      (stages.length === 1 && (stages[0].type === 'round-robin' || stages[0].type === 'group-stage'));
+
+    if (isRoundRobinFormat) {
+      return true;
+    }
+
+    // 5. Fallback seguro: se não há estágios de mata-mata, formato sem playoffs e todas as partidas são regulares
+    if (
+      stages.length === 0 &&
+      !competition?.format?.includes('knockout') &&
+      !competition?.format?.includes('playoff') &&
+      matches.length > 0 &&
+      matches.every(
+        m =>
+          !m.phase ||
+          m.phase === 'regular' ||
+          m.phase === 'classificatória' ||
+          m.phase === 'group-stage' ||
+          m.phase === 'fase-unica',
+      )
+    ) {
+      return true;
+    }
+
+    return false;
+  }
 }
+
+export const isSingleStageRoundRobin = CompetitionRulesService.isSingleStageRoundRobin;

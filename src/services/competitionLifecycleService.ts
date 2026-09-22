@@ -293,6 +293,17 @@ export class CompetitionLifecycleService {
 
     // 6. ANY -> COMPLETED
     else if (targetStatus === 'completed') {
+      // Se estiver em andamento e possuir playoffs configurados, não permite pular os playoffs
+      if (currentStatus === 'in-progress' && !CompetitionRulesService.isSingleStageRoundRobin(competition, matches)) {
+        errors.push('Não é possível concluir diretamente a partir da fase inicial: a competição possui fase eliminatória (playoffs) configurada.');
+        checklist.push({
+          label: 'Fase eliminatória realizada',
+          passed: false,
+          critical: true,
+          detail: 'Competição com playoffs exige a realização da fase eliminatória antes da conclusão.',
+        });
+      }
+
       const pendingMatches = matches.filter(
         m => m.status !== 'completed' && m.status !== 'homologated' && m.status !== 'cancelled'
       );
@@ -336,8 +347,13 @@ export class CompetitionLifecycleService {
 
   /**
    * Retorna os próximos status recomendados a partir do status atual.
+   * Em competições de fase única (round-robin), in-progress avança diretamente para completed.
    */
-  public static getNextRecommendedStatus(current: CompetitionLifecycleStatus): CompetitionLifecycleStatus | null {
+  public static getNextRecommendedStatus(
+    current: CompetitionLifecycleStatus,
+    competition?: CompetitionRecord | null,
+    matches?: MatchRecord[],
+  ): CompetitionLifecycleStatus | null {
     switch (current) {
       case 'draft':
       case 'planning':
@@ -351,6 +367,9 @@ export class CompetitionLifecycleService {
       case 'groups-defined':
         return 'in-progress';
       case 'in-progress':
+        if (competition && CompetitionRulesService.isSingleStageRoundRobin(competition, matches)) {
+          return 'completed';
+        }
         return 'playoffs';
       case 'playoffs':
         return 'completed';

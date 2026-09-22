@@ -34,6 +34,7 @@ import { Label } from '@/components/ui/label';
 import { dataAccess } from '@/services/dataAccess';
 import { computeStandingsByGroup } from '@/services/standingsService';
 import { computePodium } from '@/services/playoffsService';
+import { sortScheduleMatches } from '@/services/scheduleService';
 import {
   generateMatchesBoletimPdf,
   generateStandingsReportPdf,
@@ -290,9 +291,7 @@ export function ReportsPage() {
   // 1. View Model: Boletim Geral de Jogos (MatchBoletimRow[])
   const boletimRows: MatchBoletimRow[] = useMemo(() => {
     if (!competition) return [];
-    return filteredMatches
-      .slice()
-      .sort((a, b) => (a.scheduledTime || '').localeCompare(b.scheduledTime || ''))
+    return sortScheduleMatches(filteredMatches)
       .map((m) => {
         const teamA = teams.find((t) => t.id === m.teamAId);
         const teamB = teams.find((t) => t.id === m.teamBId);
@@ -467,25 +466,7 @@ export function ReportsPage() {
   const refereesScheduleRows: RefereesScheduleRow[] = useMemo(() => {
     if (!competition) return [];
 
-    return filteredMatches
-      .slice()
-      .sort((a, b) => {
-        // 1. Data / Horário cronológico
-        const timeA = a.scheduledTime ? new Date(a.scheduledTime).getTime() : 0;
-        const timeB = b.scheduledTime ? new Date(b.scheduledTime).getTime() : 0;
-        if (timeA !== timeB) return timeA - timeB;
-
-        // 2. Ginásio / Local
-        const venueComp = (a.venue || '').localeCompare(b.venue || '');
-        if (venueComp !== 0) return venueComp;
-
-        // 3. Quadra
-        const courtComp = (a.court || '').localeCompare(b.court || '');
-        if (courtComp !== 0) return courtComp;
-
-        // 4. Número do jogo
-        return a.matchNumber - b.matchNumber;
-      })
+    return sortScheduleMatches(filteredMatches)
       .map((m) => {
         const teamA = teams.find((t) => t.id === m.teamAId);
         const teamB = teams.find((t) => t.id === m.teamBId);
@@ -545,25 +526,7 @@ export function ReportsPage() {
       }
     }
 
-    return filteredMatches
-      .slice()
-      .sort((a, b) => {
-        // 1. Data / Horário cronológico
-        const timeA = a.scheduledTime ? new Date(a.scheduledTime).getTime() : 0;
-        const timeB = b.scheduledTime ? new Date(b.scheduledTime).getTime() : 0;
-        if (timeA !== timeB) return timeA - timeB;
-
-        // 2. Ginásio / Local
-        const venueComp = (a.venue || '').localeCompare(b.venue || '');
-        if (venueComp !== 0) return venueComp;
-
-        // 3. Quadra
-        const courtComp = (a.court || '').localeCompare(b.court || '');
-        if (courtComp !== 0) return courtComp;
-
-        // 4. Número do jogo
-        return a.matchNumber - b.matchNumber;
-      })
+    return sortScheduleMatches(filteredMatches)
       .map((m) => {
         const teamA = teams.find((t) => t.id === m.teamAId);
         const teamB = teams.find((t) => t.id === m.teamBId);

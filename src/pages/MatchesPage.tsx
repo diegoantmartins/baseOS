@@ -88,6 +88,7 @@ import { CompetitionLifecycleService } from '@/services/competitionLifecycleServ
 import { CompetitionRulesService } from '@/services/competitionRulesService';
 import { OperationalAuditService } from '@/services/operationalAuditService';
 import { CompetitionRuntimeService } from '@/services/competitionRuntimeService';
+import { sortScheduleMatches } from '@/services/scheduleService';
 
 export interface MatchView {
   id: string;
@@ -251,7 +252,7 @@ export function MatchesPage() {
   const compById = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
 
   const matchViews = useMemo(() => {
-    return matches.map((m) => toMatchView(m, compById.get(m.competitionId) ?? null, teamById));
+    return sortScheduleMatches(matches).map((m) => toMatchView(m, compById.get(m.competitionId) ?? null, teamById));
   }, [matches, compById, teamById]);
 
   // Filtragem de partidas

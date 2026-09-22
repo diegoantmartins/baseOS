@@ -30,7 +30,7 @@ import type {
   EvaluateCompetitionData,
 } from '@/types/readiness';
 import { validateRosterMinimum, getRosterLimits } from '@/services/registrationService';
-import { computePodium } from '@/services/playoffsService';
+import { computePodium, isSingleStageRoundRobin } from '@/services/playoffsService';
 import { detectScheduleConflicts } from '@/services/scheduleConflictService';
 import {
   buildCompetitionUrl,
@@ -599,13 +599,16 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
   // =========================================================================
   // ETAPA 12 — FASES FINAIS (MATA-MATA)
   // =========================================================================
+  const isRoundRobin = isSingleStageRoundRobin(comp, matches);
   const playoffMatches = matches.filter(m => m.phase && ['oitavas', 'quartas', 'semifinal', 'terceiro_lugar', 'final'].includes(m.phase));
   const hasPlayoffs = playoffMatches.length > 0;
   const playoffCompleted = playoffMatches.filter(m => m.status === 'completed' || m.status === 'homologated').length;
 
   let step12Status: StepStatus = 'pending';
 
-  if (matches.length === 0 || completedCount < groupMatches.length) {
+  if (isRoundRobin) {
+    step12Status = 'completed';
+  } else if (matches.length === 0 || completedCount < groupMatches.length) {
     step12Status = 'blocked';
   } else if (!hasPlayoffs && groupMatches.length > 0 && completedCount >= groupMatches.length) {
     step12Status = 'pending';
@@ -628,14 +631,18 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
     stepNumber: '12',
     id: 'etapa-12-fases-finais',
     title: 'Fases Finais',
-    description: hasPlayoffs
+    description: isRoundRobin
+      ? 'Fase única (Round-Robin) sem mata-mata. Classificação direta por pontos corridos.'
+      : hasPlayoffs
       ? `${playoffCompleted} de ${playoffMatches.length} jogos eliminatórios concluídos.`
       : (completedCount >= groupMatches.length && groupMatches.length > 0 ? 'Fase de grupos encerrada. Pronta para mata-mata.' : 'Aguardando conclusão da fase classificatória.'),
     status: step12Status,
-    metrics: [
-      { label: 'Jogos Mata-mata', value: playoffMatches.length },
-      { label: 'Concluídos', value: playoffCompleted },
-    ],
+    metrics: isRoundRobin
+      ? [{ label: 'Fase Única', value: 'Pontos Corridos' }]
+      : [
+          { label: 'Jogos Mata-mata', value: playoffMatches.length },
+          { label: 'Concluídos', value: playoffCompleted },
+        ],
     articleId: 'fases-finais-mata-mata',
     route: buildCompetitionUrl(comp.id, 'matches'),
     actionLabel: 'Fases da Competição',
@@ -645,7 +652,7 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
   // =========================================================================
   // ETAPA 13 — HOMOLOGAÇÃO E ENCERRAMENTO
   // =========================================================================
-  const podium = computePodium(matches);
+  const podium = computePodium(matches, comp);
   const hasPodium = Boolean(podium.championTeamId || comp.championTeamId);
   const allMatchesFinished = matches.length > 0 && completedCount === matches.length;
   const noCriticalBlockers = pendingTasks.filter(t => t.severity === 'blocker').length === 0;

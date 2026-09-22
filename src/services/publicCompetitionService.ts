@@ -17,6 +17,7 @@ import { computeStandingsByGroup, type StandingsByGroup } from '@/services/stand
 import type { CompetitionRecord, CompetitionLifecycleStatus, CompetitionSupporter } from '@/types/entities';
 import { sanitizeExternalUrl } from '@/lib/security';
 import { normalizeSupporters } from '@/lib/supporters';
+import { sortScheduleMatches } from '@/services/scheduleService';
 
 // ============================================================================
 // Utilitários Puros de Slug
@@ -294,7 +295,9 @@ export const publicCompetitionService = {
     }
 
     // DTO de Partidas calculado exclusivamente via CompetitionRulesService.getCanonicalMatchResult
-    const publicMatches: PublicMatchDTO[] = matches.map(m => {
+    // Ordenação canônica via Schedule Engine unificado
+    const sortedMatches = sortScheduleMatches(matches);
+    const publicMatches: PublicMatchDTO[] = sortedMatches.map(m => {
       const canonical = CompetitionRulesService.getCanonicalMatchResult(rawComp, m);
       const teamA = masterTeamMap.get(m.teamAId);
       const teamB = masterTeamMap.get(m.teamBId);
@@ -378,8 +381,9 @@ export const publicCompetitionService = {
     ]);
 
     const masterTeamMap = new Map<string, typeof allMasterTeams[0]>(allMasterTeams.map(t => [t.id, t]));
+    const sortedMatches = sortScheduleMatches(matches);
 
-    return matches.map(m => {
+    return sortedMatches.map(m => {
       const canonical = CompetitionRulesService.getCanonicalMatchResult(rawComp, m);
       const teamA = masterTeamMap.get(m.teamAId);
       const teamB = masterTeamMap.get(m.teamBId);

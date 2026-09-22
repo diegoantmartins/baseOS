@@ -276,7 +276,7 @@ export default function CompetitionsPage() {
   // Pódio
   const podium = useMemo(() => {
     if (!selected) return null;
-    return computePodium(selectedMatches);
+    return computePodium(selectedMatches, selected);
   }, [selected, selectedMatches]);
 
   // Prontidão
@@ -352,6 +352,19 @@ export default function CompetitionsPage() {
       }
     }
 
+    // Ao finalizar a competição, persiste os campeões e pódio oficial apurados
+    if (newStatus === 'completed' && podium) {
+      if (podium.championTeamId && !selected.championTeamId) {
+        updates.championTeamId = podium.championTeamId;
+      }
+      if (podium.runnerUpTeamId && !selected.runnerUpTeamId) {
+        updates.runnerUpTeamId = podium.runnerUpTeamId;
+      }
+      if (podium.thirdPlaceTeamId && !selected.thirdPlaceTeamId) {
+        updates.thirdPlaceTeamId = podium.thirdPlaceTeamId;
+      }
+    }
+
     await dataAccess.updateCompetition(selected.id, updates);
     await OperationalAuditService.recordCompetitionTransition({
       competition: { ...selected, ...updates },
@@ -373,8 +386,8 @@ export default function CompetitionsPage() {
     const validation = CompetitionLifecycleService.validateTransition(selected, targetStatus, {
       teams: selectedTeams,
       matches: selectedMatches,
-      championTeamId: selected.championTeamId,
-      runnerUpTeamId: selected.runnerUpTeamId,
+      championTeamId: selected.championTeamId || podium?.championTeamId,
+      runnerUpTeamId: selected.runnerUpTeamId || podium?.runnerUpTeamId,
     });
 
     if (!validation.valid) {

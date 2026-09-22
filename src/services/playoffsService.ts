@@ -14,8 +14,10 @@
 //  3. Apuração do pódio (Campeão, Vice, 3º e 4º lugar).
 
 import type { CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
-import type { StandingsByGroup, BestThirdResult } from '@/services/standingsService';
-import { CompetitionRulesService } from './competitionRulesService';
+import { computeStandings, type StandingsByGroup, type BestThirdResult, type StandingInput } from '@/services/standingsService';
+import { CompetitionRulesService, isSingleStageRoundRobin } from './competitionRulesService';
+
+export { isSingleStageRoundRobin };
 
 export type PlayoffPhase = 'oitavas' | 'quartas' | 'semifinal' | 'terceiro_lugar' | 'final';
 
@@ -379,6 +381,10 @@ export function advancePlayoffMatches(
 /**
  * Calcula o pódio final da competição (Campeão, Vice, 3º lugar e 4º lugar)
  * com base no Resultado Canônico Oficial.
+ *
+ * Para competições eliminatórias (playoffs), avalia as partidas de final e 3º lugar.
+ * Para competições de fase única (round-robin), utiliza o StandingsService com TieBreakEngine
+ * oficial e mini-tabela.
  */
 export function computePodium(
   matches: MatchRecord[],
@@ -389,6 +395,55 @@ export function computePodium(
   thirdPlaceTeamId?: string;
   fourthPlaceTeamId?: string;
 } {
+  // 1. Se for competição de fase única round-robin
+  if (isSingleStageRoundRobin(competition, matches)) {
+    const pendingMatches = matches.filter(
+      m => m.status !== 'completed' && m.status !== 'homologated' && m.status !== 'cancelled',
+    );
+
+    // O pódio oficial em pontos corridos só é homologável após a conclusão de todas as partidas obrigatórias
+    if (matches.length === 0 || pendingMatches.length > 0) {
+      return {};
+    }
+
+    // Extrai equipes sintéticas dos participantes das partidas para alimentar o standingsService
+    // (A API de computePodium recebe apenas matches e competition; equipes sintéticas garantem
+    // que o StandingsService processe todos os critérios oficiais sem violar o contrato existente).
+    const teamsMap = new Map<string, TeamRecord>();
+    for (const m of matches) {
+      if (m.teamAId && !teamsMap.has(m.teamAId)) {
+        teamsMap.set(m.teamAId, {
+          id: m.teamAId,
+          name: m.teamAName || m.teamAId,
+          shortName: m.teamAShortName || m.teamAName || m.teamAId,
+          modality: competition?.modality || 'indoor',
+        });
+      }
+      if (m.teamBId && !teamsMap.has(m.teamBId)) {
+        teamsMap.set(m.teamBId, {
+          id: m.teamBId,
+          name: m.teamBName || m.teamBId,
+          shortName: m.teamBShortName || m.teamBName || m.teamBId,
+          modality: competition?.modality || 'indoor',
+        });
+      }
+    }
+
+    const standingInputs: StandingInput[] = Array.from(teamsMap.values()).map(team => ({ team }));
+    const standings = computeStandings(standingInputs, matches, {
+      competition,
+      useMiniTable: true,
+    });
+
+    return {
+      championTeamId: standings[0]?.teamId,
+      runnerUpTeamId: standings[1]?.teamId,
+      thirdPlaceTeamId: standings[2]?.teamId,
+      fourthPlaceTeamId: standings[3]?.teamId,
+    };
+  }
+
+  // 2. Fluxo oficial de Playoffs / Fases Finais
   const finalMatch = matches.find(m => m.phase === 'final' && (m.status === 'completed' || m.status === 'homologated'));
   const thirdMatch = matches.find(m => m.phase === 'terceiro_lugar' && (m.status === 'completed' || m.status === 'homologated'));
 
