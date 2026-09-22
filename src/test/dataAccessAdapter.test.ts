@@ -31,17 +31,20 @@ const TABLE_ALLOWED_COLUMNS: Record<string, Set<string>> = {
     'created_at', 'updated_at',
   ]),
   competition_athletes: new Set([
-    'id', 'competition_team_id', 'name', 'jersey_number', 'position',
+    'id', 'competition_team_id', 'athlete_id', 'name', 'jersey_number', 'position',
     'document_number', 'birth_date', 'is_captain', 'is_libero', 'gender',
     'created_at', 'updated_at',
   ]),
+  // Contrato de colunas físicas formalizado até a migration 20260921000001_match_homologation_and_details.sql.
+  // Valida que o adaptador converte para snake_case e envia apenas colunas existentes no schema.
   matches: new Set([
     'id', 'competition_id', 'round', 'match_number', 'team_a_id', 'team_b_id',
     'team_a_name', 'team_b_name', 'team_a_short_name', 'team_b_short_name',
     'venue', 'court', 'scheduled_time', 'status', 'sets', 'referees',
     'observations', 'winner_id', 'phase', 'group_name', 'lineups', 'slot_id',
     'stage_id', 'highlight_athlete_id', 'highlight_observations',
-    'homologated_at', 'homologated_by', 'created_at', 'updated_at',
+    'homologated_at', 'homologated_by', 'checked_in_athlete_ids', 'custom_set_format',
+    'is_wo', 'wo_reason', 'created_at', 'updated_at',
   ]),
 };
 
@@ -477,6 +480,50 @@ describe('adaptador Supabase', () => {
     expect(propRes.ok).toBe(true);
     expect(propRes.sourceSlotId).toBe('SLOT-SF-1');
     expect(propRes.updatedCount).toBe(1);
+  });
+
+  it('updateMatch persiste colunas de homologação formalizadas na migration 20260921000001 sem erro PGRST204', async () => {
+    state.rows['matches'] = {
+      id: 'match-homolog-1',
+      competition_id: 'comp-1',
+      round: 1,
+      match_number: 101,
+      team_a_id: 'team-1',
+      team_b_id: 'team-2',
+      team_a_name: 'Time A',
+      team_b_name: 'Time B',
+      team_a_short_name: 'TMA',
+      team_b_short_name: 'TMB',
+      venue: 'Quadra Central',
+      scheduled_time: '2026-09-20T14:00:00Z',
+      status: 'completed',
+      sets: [],
+      referees: [],
+    };
+
+    const updated = await dataAccess.updateMatch('match-homolog-1', {
+      homologatedAt: '2026-09-20T16:30:00Z',
+      homologatedBy: '00000000-0000-0000-0000-000000000001',
+      checkedInAthleteIds: ['ath-1', 'ath-2'],
+      customSetFormat: '3-sets',
+      isWo: false,
+      woReason: undefined,
+    });
+
+    expect(updated).not.toBeNull();
+    const persisted = state.rows['matches'] as Record<string, unknown>;
+    expect(persisted.homologated_at).toBe('2026-09-20T16:30:00Z');
+    expect(persisted.homologated_by).toBe('00000000-0000-0000-0000-000000000001');
+    expect(persisted.checked_in_athlete_ids).toEqual(['ath-1', 'ath-2']);
+    expect(persisted.custom_set_format).toBe('3-sets');
+    expect(persisted.is_wo).toBe(false);
+
+    // Comprova que tentativa de atualizar coluna inexistente dispara PGRST204 no mock
+    await expect(
+      dataAccess.updateMatch('match-homolog-1', {
+        unknownColumn: 'invalid',
+      } as unknown as Record<string, unknown>)
+    ).rejects.toThrow('PostgREST PGRST204');
   });
 });
 
