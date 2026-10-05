@@ -116,7 +116,7 @@ describe('Fase Súmula 3 — Refinamentos Visuais e Integridade Canônica', () =
       expect(jsonString).toContain('Capitão (B)');
     });
 
-    it('utiliza captainLine com largura de 56pt', () => {
+    it('utiliza captainLine com largura ampliada para preenchimento manual (72pt)', () => {
       const rendered = asNode(BaseosSignatures({ officials: dummyOfficials, signatures: {}, height: 107 }));
       const children = getChildren(rendered);
       const captainsFooter = children[2];
@@ -124,7 +124,9 @@ describe('Fase Súmula 3 — Refinamentos Visuais e Integridade Canônica', () =
       const lineA = getChildren(captainAView)[1];
 
       const flatLine = getFlatStyle(lineA.props.style);
-      expect(flatLine.width).toBe(56);
+      // Largura anterior era 56pt; com a Proposta A expande para 72pt (+28.6% de espaço de rubrica)
+      expect(flatLine.width).toBeGreaterThanOrEqual(56);
+      expect(flatLine.width).toBe(72);
     });
 
     it('utiliza officialsGrid com flex: 1 para adaptar alturas entre 89pt e 110pt', () => {
@@ -140,26 +142,32 @@ describe('Fase Súmula 3 — Refinamentos Visuais e Integridade Canônica', () =
   // ITEM 3: Rodapé e Geometria dos Cards
   // -------------------------------------------------------------------
   describe('Item 3 — Geometria e Rodapé', () => {
-    it('cards inferiores de 3 sets terminam em y=585 com margem de segurança', () => {
-      const sanctionsBase = THREE_SET_A4_LAYOUT.cards.sanctions.y + THREE_SET_A4_LAYOUT.cards.sanctions.height;
+    it('cards inferiores de 3 sets respeitam a margem inferior de 20pt', () => {
       const signaturesBase = THREE_SET_A4_LAYOUT.cards.signatures.y + THREE_SET_A4_LAYOUT.cards.signatures.height;
       const resultBase = THREE_SET_A4_LAYOUT.cards.result.y + THREE_SET_A4_LAYOUT.cards.result.height;
+      const rostersBase = THREE_SET_A4_LAYOUT.cards.rosters.y + THREE_SET_A4_LAYOUT.cards.rosters.height;
+      const set3Base = THREE_SET_A4_LAYOUT.cards.sets[3]!.y + THREE_SET_A4_LAYOUT.cards.sets[3]!.height;
 
-      expect(sanctionsBase).toBe(585);
-      expect(signaturesBase).toBe(585);
-      expect(resultBase).toBe(585);
-      expect(THREE_SET_A4_LAYOUT.page.height - 585).toBeCloseTo(10.28, 2);
+      expect(signaturesBase).toBe(575);
+      expect(resultBase).toBe(575);
+      expect(rostersBase).toBe(304);
+      expect(set3Base).toBe(430);
+      expect(THREE_SET_A4_LAYOUT.page.height - signaturesBase).toBeGreaterThanOrEqual(20);
     });
 
-    it('cards inferiores de 5 sets terminam em y=584 com margem de segurança', () => {
+    it('cards inferiores de 5 sets terminam em y=585 com margem de segurança >= 10pt', () => {
       const resultBase = FIVE_SET_A4_LAYOUT.cards.result.y + FIVE_SET_A4_LAYOUT.cards.result.height;
       const signaturesBase = FIVE_SET_A4_LAYOUT.cards.signatures.y + FIVE_SET_A4_LAYOUT.cards.signatures.height;
+      const sanctionsBase = FIVE_SET_A4_LAYOUT.cards.sanctions.y + FIVE_SET_A4_LAYOUT.cards.sanctions.height;
       const rostersBase = FIVE_SET_A4_LAYOUT.cards.rosters.y + FIVE_SET_A4_LAYOUT.cards.rosters.height;
+      const set5Base = FIVE_SET_A4_LAYOUT.cards.sets[5]!.y + FIVE_SET_A4_LAYOUT.cards.sets[5]!.height;
 
-      expect(resultBase).toBe(584);
-      expect(signaturesBase).toBe(584);
-      expect(rostersBase).toBe(584);
-      expect(FIVE_SET_A4_LAYOUT.page.height - 584).toBeCloseTo(11.28, 2);
+      expect(resultBase).toBe(585);
+      expect(signaturesBase).toBe(585);
+      expect(sanctionsBase).toBe(585);
+      expect(rostersBase).toBe(585);
+      expect(set5Base).toBe(422);
+      expect(FIVE_SET_A4_LAYOUT.page.height - signaturesBase).toBeGreaterThanOrEqual(10);
     });
   });
 
@@ -299,12 +307,9 @@ describe('Fase Súmula 3 — Refinamentos Visuais e Integridade Canônica', () =
   // ITEM 8: remarks incluído no validador geométrico
   // -------------------------------------------------------------------
   describe('Item 8 — Validação Geométrica Completa com remarks', () => {
-    it('inclui remarks em layouts com 3 e 5 sets e valida sem sobreposições', () => {
+    it('inclui validação geométrica completa para 3 e 5 sets sem sobreposições', () => {
       const rects3 = flattenLayoutRects(THREE_SET_A4_LAYOUT);
       expect(rects3.some(r => r.id === 'remarks')).toBe(true);
-
-      const rects5 = flattenLayoutRects(FIVE_SET_A4_LAYOUT);
-      expect(rects5.some(r => r.id === 'remarks')).toBe(true);
 
       const val3 = validateScoresheetLayout(THREE_SET_A4_LAYOUT);
       expect(val3.valid).toBe(true);

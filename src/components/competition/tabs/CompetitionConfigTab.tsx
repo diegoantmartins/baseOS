@@ -17,6 +17,15 @@ const TIEBREAK_CRITERIA_LABELS_PT: Record<string, string> = {
   'draw': 'Sorteio',
 };
 
+const STAGE_TYPE_LABELS: Record<string, string> = {
+  'group-stage': 'Fase de Grupos',
+  'round-robin': 'Pontos Corridos',
+  'play-in': 'Play-In (Repescagem)',
+  'knockout': 'Mata-Mata Eliminatório',
+  'third-place': 'Disputa de 3º Lugar',
+  'custom': 'Personalizado',
+};
+
 export interface CompetitionConfigTabProps {
   selected: CompetitionRecord;
   canEdit: boolean;
@@ -30,7 +39,10 @@ export function CompetitionConfigTab({
   onOpenEditConfig,
   onOpenFormatBuilder,
 }: CompetitionConfigTabProps) {
-  const stages = selected.config?.format?.stages || [];
+  const config = CompetitionRulesService.getConfig(selected);
+  const stages = selected.config?.format?.stages?.length
+    ? selected.config.format.stages
+    : config.format.stages || [];
 
   return (
     <SectionCard
@@ -76,25 +88,91 @@ export function CompetitionConfigTab({
           </div>
         </div>
 
-        <div className="space-y-2 pt-3 border-t border-border">
-          <h4 className="font-semibold text-foreground text-[10px] uppercase tracking-wider">Sets por Fase</h4>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-            <div className="p-2.5 rounded-lg bg-zinc-900/40 border border-border text-center">
-              <span className="text-muted-foreground block text-[10px]">Grupos</span>
-              <span className="font-semibold">{formatSetsToWinLabel(CompetitionRulesService.resolveMatchFormat(selected, 'fase_grupos').setsToWin)}</span>
-            </div>
-            <div className="p-2.5 rounded-lg bg-zinc-900/40 border border-border text-center">
-              <span className="text-muted-foreground block text-[10px]">Quartas</span>
-              <span className="font-semibold">{formatSetsToWinLabel(CompetitionRulesService.resolveMatchFormat(selected, 'quartas').setsToWin)}</span>
-            </div>
-            <div className="p-2.5 rounded-lg bg-zinc-900/40 border border-border text-center">
-              <span className="text-muted-foreground block text-[10px]">Semifinais</span>
-              <span className="font-semibold">{formatSetsToWinLabel(CompetitionRulesService.resolveMatchFormat(selected, 'semifinal').setsToWin)}</span>
-            </div>
-            <div className="p-2.5 rounded-lg bg-zinc-900/40 border border-border text-center">
-              <span className="text-muted-foreground block text-[10px]">Final</span>
-              <span className="font-semibold">{formatSetsToWinLabel(CompetitionRulesService.resolveMatchFormat(selected, 'final').setsToWin)}</span>
-            </div>
+        {/* Estrutura Dinâmica de Fases do Grafo (DAG) */}
+        <div className="space-y-2.5 pt-3 border-t border-border">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-[10px] uppercase tracking-wider flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-amber-400" />
+              Estrutura de Fases & Sets ({stages.length} {stages.length === 1 ? 'Fase' : 'Fases'})
+            </h4>
+            <Badge variant="outline" className="text-[10px] border-zinc-800 bg-zinc-900/60 text-zinc-400">
+              Formato: {config.format.formatType || 'Customizado'}
+            </Badge>
+          </div>
+
+          <div
+            className={`grid gap-2.5 text-xs ${
+              stages.length === 1
+                ? 'grid-cols-1'
+                : stages.length === 2
+                ? 'grid-cols-1 sm:grid-cols-2'
+                : stages.length === 3
+                ? 'grid-cols-1 sm:grid-cols-3'
+                : 'grid-cols-2 sm:grid-cols-4 lg:grid-cols-5'
+            }`}
+          >
+            {stages.map((stage, idx) => {
+              const stageId = getStageId(stage);
+              const resolvedMatchFormat = CompetitionRulesService.resolveMatchFormat(selected, stageId);
+              const setsLabel = formatSetsToWinLabel(resolvedMatchFormat.setsToWin);
+              const isGroup = stage.type === 'round-robin' || stage.type === 'group-stage';
+              const isKnockout = stage.type === 'knockout';
+              const isPlayIn = stage.type === 'play-in';
+
+              return (
+                <div
+                  key={stageId || idx}
+                  className="relative p-3 rounded-lg bg-zinc-900/50 border border-zinc-800/80 hover:border-zinc-700 transition-colors flex flex-col justify-between"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className="text-[10px] font-mono font-bold text-amber-400/90 uppercase tracking-wider">
+                        {String(stage.order || idx + 1).padStart(2, '0')}
+                      </span>
+                      <Badge
+                        variant="secondary"
+                        className="text-[9px] py-0 px-1.5 h-4 bg-zinc-800 text-zinc-300 font-normal"
+                      >
+                        {STAGE_TYPE_LABELS[stage.type] || stage.type}
+                      </Badge>
+                    </div>
+
+                    <h5 className="font-semibold text-foreground text-xs leading-tight line-clamp-1" title={stage.name}>
+                      {stage.name}
+                    </h5>
+
+                    <div className="text-[11px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5 pt-0.5">
+                      {isGroup && (
+                        <span>
+                          {stage.groupConfig?.groupsCount || stage.groupsCount || 1}{' '}
+                          {(stage.groupConfig?.groupsCount || stage.groupsCount || 1) === 1 ? 'grupo' : 'grupos'}
+                          {stage.groupConfig?.teamsPerGroup ? ` (${stage.groupConfig.teamsPerGroup} eq/grupo)` : ''}
+                        </span>
+                      )}
+                      {isKnockout && (
+                        <span>Chave de {stage.eliminationConfig?.bracketSize || stage.participantsCount || 4} equipes</span>
+                      )}
+                      {isPlayIn && (
+                        <span>Repescagem ({stage.participantsCount || 4} equipes)</span>
+                      )}
+                      {stage.advancingCount ? (
+                        <span className="text-emerald-400/90">Avançam: {stage.advancingCount}</span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5 pt-2 border-t border-zinc-800/60 flex items-center justify-between">
+                    <span className="text-[10px] text-zinc-400 uppercase font-medium">Sets</span>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] py-0 px-1.5 h-4 border-amber-500/30 bg-amber-500/10 text-amber-400 font-semibold"
+                    >
+                      {setsLabel}
+                    </Badge>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

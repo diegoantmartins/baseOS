@@ -43,7 +43,13 @@ import {
   Shield,
   MoreHorizontal,
   Table,
+  Loader2,
 } from 'lucide-react';
+import {
+  loadBaseosScoresheetData,
+  downloadBaseosBatchScoresheets,
+  type BaseosScoresheetData,
+} from '@/document-engine/baseos';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -368,6 +374,11 @@ export function MatchesPage() {
       winnerName: winnerTeam?.name,
     });
 
+    await CompetitionLifecycleService.syncLifecycleAfterMatchProgression(
+      currentMatch.competitionId,
+      operator,
+    );
+
     toast.success('Resultado homologado com sucesso! Chaveamento e classificação oficializados.');
     await refresh();
     await refetchBracket();
@@ -530,6 +541,36 @@ export function MatchesPage() {
     const doc = generateMatchesBoletimPdf(boletimRows, compName);
     downloadReportsPdf(doc, `boletim_jogos_${compName.toLowerCase().replace(/[^a-z0-9]/g, '_')}.pdf`);
     toast.success('Boletim oficial de jogos gerado com sucesso!');
+  };
+
+  const [batchLoading, setBatchLoading] = useState(false);
+
+  const handleDownloadBatchScoresheets = async () => {
+    if (filteredMatches.length === 0) {
+      toast.error('Nenhuma partida disponível para exportação em lote.');
+      return;
+    }
+    setBatchLoading(true);
+    try {
+      toast.info(`Gerando ${filteredMatches.length} súmulas oficiais BaseOS em arquivo compilado...`);
+      const scoresheetsData: BaseosScoresheetData[] = [];
+      for (const m of filteredMatches) {
+        const data = await loadBaseosScoresheetData(m.record.id);
+        if (data) scoresheetsData.push(data);
+      }
+      if (scoresheetsData.length === 0) {
+        throw new Error('Nenhuma súmula pôde ser carregada.');
+      }
+      const targetComp = competitions.find((c) => c.id === competitionFilter) || competitions[0];
+      const compName = targetComp ? targetComp.name : 'Todas_Competicoes';
+      await downloadBaseosBatchScoresheets(scoresheetsData, compName);
+      toast.success(`${scoresheetsData.length} súmulas oficiais geradas em arquivo único com sucesso!`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao gerar lote de súmulas oficiais.');
+    } finally {
+      setBatchLoading(false);
+    }
   };
 
   // Configuração das colunas da DataTable Oficial com larguras balanceadas
@@ -816,6 +857,21 @@ export function MatchesPage() {
               >
                 <Calendar className="w-3.5 h-3.5 text-amber-400" />
                 Programação Oficial
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadBatchScoresheets}
+                disabled={batchLoading || filteredMatches.length === 0}
+                className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium"
+                title="Baixar todas as súmulas dos confrontos em um único PDF compilado"
+              >
+                {batchLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                ) : (
+                  <FileText className="w-3.5 h-3.5 text-primary" />
+                )}
+                Súmulas em Lote
               </Button>
               <Button
                 variant="outline"

@@ -75,3 +75,119 @@ export function planLegacyTeamMembership(
     updatedAt: now,
   };
 }
+
+export type FullIdentityBackfillInput = {
+  competitions: readonly { id: string; organizationId?: string }[];
+  teams: readonly { id: string; organizationId?: string }[];
+  competitionTeams: readonly { id: string; competitionId: string; teamId: string }[];
+  competitionAthletes: readonly LegacyCompetitionAthlete[];
+  existingAthletes?: readonly AthleteIdentity[];
+  legacyProfiles?: readonly { id: string; competitionTeamId?: string; role?: string }[];
+  defaultOrganizationId?: string;
+  now?: string;
+};
+
+export type FullIdentityBackfillPlan = {
+  athletePlans: AthleteBackfillPlan[];
+  membershipPlans: UserMembership[];
+  ambiguousProfiles: { userId: string; competitionTeamId?: string; reason: string }[];
+  stats: {
+    totalLegacyAthletes: number;
+    reusedAthletes: number;
+    newAthletes: number;
+    athletesWithoutCpf: number;
+    totalLegacyProfiles: number;
+    createdMemberships: number;
+    ambiguousProfilesCount: number;
+  };
+};
+
+/**
+ * Produz um planejamento completo do backfill local (atletas e memberships).
+ * Determinístico, auditável e sem mutações de banco/storage.
+ */
+export function planFullIdentityBackfill(input: FullIdentityBackfillInput): FullIdentityBackfillPlan {
+  const now = input.now || new Date().toISOString();
+  const existingAthletes = input.existingAthletes || [];
+  const athletePlans = planAthleteBackfill(input.competitionAthletes, existingAthletes, now);
+
+  let reusedAthletes = 0;
+  let newAthletes = 0;
+  let athletesWithoutCpf = 0;
+
+  for (const plan of athletePlans) {
+    if (plan.reuseExistingIdentity) {
+      reusedAthletes++;
+    } else {
+      newAthletes++;
+    }
+    if (!plan.athlete.normalizedCpf) {
+      athletesWithoutCpf++;
+    }
+  }
+
+  const membershipPlans: UserMembership[] = [];
+  const ambiguousProfiles: { userId: string; competitionTeamId?: string; reason: string }[] = [];
+  const legacyProfiles = input.legacyProfiles || [];
+
+  for (const profile of legacyProfiles) {
+    if (!profile.competitionTeamId) {
+      if (profile.role === 'team') {
+        ambiguousProfiles.push({
+          userId: profile.id,
+          reason: 'Perfil de equipe sem competition_team_id associado',
+        });
+      }
+      continue;
+    }
+
+    const ct = input.competitionTeams.find(t => t.id === profile.competitionTeamId);
+    if (!ct) {
+      ambiguousProfiles.push({
+        userId: profile.id,
+        competitionTeamId: profile.competitionTeamId,
+        reason: 'competition_team_id não localizado em competition_teams',
+      });
+      continue;
+    }
+
+    const team = input.teams.find(t => t.id === ct.teamId);
+    const competition = input.competitions.find(c => c.id === ct.competitionId);
+    const orgId = team?.organizationId || competition?.organizationId || input.defaultOrganizationId;
+
+    if (!orgId) {
+      ambiguousProfiles.push({
+        userId: profile.id,
+        competitionTeamId: profile.competitionTeamId,
+        reason: 'Organização proprietária não identificada (ausente na equipe, na competição e sem default)',
+      });
+      continue;
+    }
+
+    membershipPlans.push(
+      planLegacyTeamMembership(
+        profile.id,
+        orgId,
+        ct.competitionId,
+        ct.teamId,
+        ct.id,
+        now,
+      ),
+    );
+  }
+
+  return {
+    athletePlans,
+    membershipPlans,
+    ambiguousProfiles,
+    stats: {
+      totalLegacyAthletes: input.competitionAthletes.length,
+      reusedAthletes,
+      newAthletes,
+      athletesWithoutCpf,
+      totalLegacyProfiles: legacyProfiles.length,
+      createdMemberships: membershipPlans.length,
+      ambiguousProfilesCount: ambiguousProfiles.length,
+    },
+  };
+}

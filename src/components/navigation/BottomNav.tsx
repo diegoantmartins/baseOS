@@ -122,7 +122,12 @@ export function BottomNav() {
       >
         <div className="flex items-stretch">
           {/* Itens primários */}
-          {PRIMARY_ITEMS.map((item) => {
+          {PRIMARY_ITEMS.filter((item) => {
+            if (session?.user?.role && ['team', 'viewer'].includes(session.user.role)) {
+              if (item.path === '/sumulas' || item.path === '/jogos') return false;
+            }
+            return true;
+          }).map((item) => {
             const active = isItemActive(item.matchPaths);
             const Icon = item.icon;
             return (

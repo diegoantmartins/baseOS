@@ -175,7 +175,12 @@ export function runDraw(
     .sort((a, b) => a.seed - b.seed);
 
   const groups = distributeTeamsIntoGroups(entries, config.groupsCount, config);
-  const matches = generateDrawMatches(groups);
+  const stage =
+    competition?.config?.format?.stages?.find(
+      (s) => s.type === 'group-stage' || (s.type as string) === 'round-robin'
+    ) ?? competition?.config?.format?.stages?.[0];
+  const stageName = stage?.name || stage?.id || 'classificatória';
+  const matches = generateDrawMatches(groups, stageName);
 
   return {
     competitionId: competition.id,

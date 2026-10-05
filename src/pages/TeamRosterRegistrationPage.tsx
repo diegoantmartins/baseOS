@@ -3,8 +3,9 @@
 // Inclui: Elenco, Jogos da Competição, Tabela de Classificação, Boletins e PWA.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/components/auth/useAuth';
 import { toast } from 'sonner';
 import {
   Volleyball,
@@ -53,6 +54,7 @@ import { CompetitionRulesService } from '@/services/competitionRulesService';
 import { dataAccess } from '@/services/dataAccess';
 import { notificationService } from '@/services/notificationService';
 import { computeStandingsByGroup } from '@/services/standingsService';
+import { sortScheduleMatches } from '@/services/scheduleService';
 import { GENDER_CATEGORY_LABELS, ROSTER_LIMITS, MAX_LIBEROS } from '@/types/registration';
 import {
   generateMatchesBoletimPdf,
@@ -77,6 +79,8 @@ function countdownText(deadlineIso: string, nowMs: number): { label: string; exp
 
 export function TeamRosterRegistrationPage() {
   const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
+  const { session } = useAuth();
   const [team, setTeam] = useState<CompetitionTeam | null>(null);
   const [teamRecord, setTeamRecord] = useState<TeamRecord | null>(null);
   const [competition, setCompetition] = useState<CompetitionRecord | null>(null);
@@ -85,6 +89,7 @@ export function TeamRosterRegistrationPage() {
   const [allTeams, setAllTeams] = useState<TeamRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [crossTeamDenied, setCrossTeamDenied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [activeTab, setActiveTab] = useState<'elenco' | 'jogos' | 'classificacao' | 'boletins'>('elenco');
 
@@ -103,6 +108,35 @@ export function TeamRosterRegistrationPage() {
       setLoading(false);
       return;
     }
+
+    // Isolamento entre equipes (Gate 2A.3 e Fase 11):
+    // Se a sessão autenticada for de perfil 'team', valida se a equipe atual pertence às
+    // memberships ativas do usuário ou ao vínculo legado profiles.competition_team_id.
+    let isAuthorized = true;
+    if (session?.user?.role === 'team') {
+      const isLegacyMatch = !!session.user.competitionTeamId && session.user.competitionTeamId === ct.id;
+      if (!isLegacyMatch) {
+        // Verifica memberships ativas na Fase 11
+        const memberships = session.user.id ? await dataAccess.listUserMemberships(session.user.id) : [];
+        const hasActiveMembership = memberships.some(
+          (m) =>
+            m.status === 'active' &&
+            (m.competitionTeamId === ct.id ||
+              (m.teamId === ct.teamId && (!m.competitionId || m.competitionId === ct.competitionId))),
+        );
+        // Se possui vínculo com outra equipe e não possui membership para este time, é cross-team não autorizado
+        if (!hasActiveMembership && session.user.competitionTeamId && session.user.competitionTeamId !== ct.id) {
+          isAuthorized = false;
+        }
+      }
+    }
+
+    if (!isAuthorized) {
+      setCrossTeamDenied(true);
+      setLoading(false);
+      return;
+    }
+
     const [latestCt, allT, allM] = await Promise.all([
       dataAccess.getCompetitionTeamById(ct.id),
       dataAccess.listTeams(),
@@ -120,8 +154,7 @@ export function TeamRosterRegistrationPage() {
     setAthletes(await listRoster(ct.id));
     setMatches(allM.filter(m => m.competitionId === ct.competitionId || m.teamAId === ct.teamId || m.teamBId === ct.teamId));
     setHasNotifPerm(notificationService.getPermission() === 'granted');
-    setLoading(false);
-  }, [token]);
+  }, [token, session?.user?.id, session?.user?.role, session?.user?.competitionTeamId]);
 
   useEffect(() => {
     refresh();
@@ -226,10 +259,9 @@ export function TeamRosterRegistrationPage() {
 
   const handleExportBoletim = () => {
     if (!competition) return;
-    const rows: MatchBoletimRow[] = matches
-      .filter(m => m.competitionId === competition.id)
-      .sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime))
-      .map(m => {
+    const rows: MatchBoletimRow[] = sortScheduleMatches(
+      matches.filter(m => m.competitionId === competition.id)
+    ).map(m => {
         const teamA = allTeams.find(t => t.id === m.teamAId);
         const teamB = allTeams.find(t => t.id === m.teamBId);
         const setsA = m.sets.filter(s => s.scoreA > s.scoreB).length;
@@ -273,6 +305,27 @@ export function TeamRosterRegistrationPage() {
           <Skeleton className="h-10 w-72 mx-auto" />
           <Skeleton className="h-64 w-full rounded-2xl" />
         </div>
+      </PublicShell>
+    );
+  }
+
+  if (crossTeamDenied) {
+    return (
+      <PublicShell>
+        <Card className="max-w-lg mx-auto text-center my-12 border-border shadow-lg">
+          <CardContent className="p-10 space-y-4">
+            <Lock className="w-14 h-14 text-destructive mx-auto" />
+            <h2 className="text-2xl font-display font-bold text-foreground">Acesso Não Autorizado</h2>
+            <p className="text-sm text-muted-foreground">
+              Sua sessão autenticada pertence a outra equipe. O acesso aos dados e inscrição deste time foi bloqueado por segurança.
+            </p>
+            <div className="flex gap-2 justify-center mt-2">
+              <Button asChild variant="outline">
+                <Link to="/equipe">Ir para Meu Time</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </PublicShell>
     );
   }
@@ -583,7 +636,7 @@ export function TeamRosterRegistrationPage() {
                   Nenhuma partida agendada para esta competição até o momento.
                 </Card>
               ) : (
-                matches.map((m) => {
+                sortScheduleMatches(matches).map((m) => {
                   const isCompleted = m.status === 'completed' || m.status === 'homologated';
                   const setsA = m.sets.filter(s => s.scoreA > s.scoreB).length;
                   const setsB = m.sets.filter(s => s.scoreB > s.scoreA).length;

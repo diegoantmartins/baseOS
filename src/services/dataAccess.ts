@@ -11,13 +11,16 @@ import type { CompetitionRecord, MatchAuditEntry, MatchRecord, ModalityRecord, P
 import type { ParticipantReference, ProgressionRoute } from '@/types/competitionConfig';
 import type { CompetitionAthlete, CompetitionAthleteInput, CompetitionTeam } from '@/types/registration';
 import type { DrawRecord, DrawResult } from '@/types/draw';
-import type { AthleteIdentity, UserMembership } from '@/types/identity';
+import type { AthleteIdentity, OrganizationInvitation, OrganizationMemberDetail, OrganizationRecord, UserMembership } from '@/types/identity';
 import type { DocumentEdit, DocumentEditKey, TemplateLayout } from '@/types/documentEdit';
-import { SEED_VERSION, seedCompetitionAthletes, seedCompetitionTeams, seedCompetitions, seedDraws, seedMatches, seedModalities, seedPersons, seedReferees, seedTeams, seedVenues } from '@/data/seed';
+import { SEED_VERSION, seedAthletes, seedCompetitionAthletes, seedCompetitionTeams, seedCompetitions, seedDraws, seedMatches, seedModalities, seedOrganizationInvitations, seedOrganizations, seedPersons, seedReferees, seedTeams, seedUserMemberships, seedVenues } from '@/data/seed';
 import { getSupabaseClient, isSupabaseConfigured, SUPABASE_TABLES } from '@/lib/supabaseClient';
 import { notificationService } from '@/services/notificationService';
 import { normalizeSupporters } from '@/lib/supporters';
 import { competitionMapper, teamMapper, competitionTeamMapper } from '@/services/mappers';
+import { getOrCreateAthleteIdentity, normalizeCpf } from '@/services/identityService';
+import { authService } from '@/services/authService';
+import { TenantSecurityService } from '@/services/tenantSecurityService';
 type CompetitionAthleteCreate = CompetitionAthleteInput & { competitionTeamId: string };
 
 export interface SaveStageDrawAndSlotsParams {
@@ -252,7 +255,11 @@ type CollectionName =
   | 'competition_stages'
   | 'competition_rounds'
   | 'competition_match_slots'
-  | 'user_memberships';
+  | 'user_memberships'
+  | 'organizations'
+  | 'athletes'
+  | 'organization_invitations';
+
 
 function storageKey(collection: CollectionName): string {
   return `${STORAGE_PREFIX}.${collection}`;
@@ -275,7 +282,26 @@ function writeCollection<T>(collection: CollectionName, items: T[]): void {
 }
 
 function ensureSeeded(): void {
-  if (localStorage.getItem(SEED_VERSION)) return;
+  if (localStorage.getItem(SEED_VERSION)) {
+    // Backfill sob demanda para coleções da Fase 11 se não existirem no localStorage
+    if (!localStorage.getItem(storageKey('organizations'))) {
+      writeCollection('organizations', seedOrganizations);
+    }
+    if (!localStorage.getItem(storageKey('athletes'))) {
+      writeCollection('athletes', seedAthletes);
+    }
+    if (!localStorage.getItem(storageKey('user_memberships'))) {
+      writeCollection('user_memberships', seedUserMemberships);
+    }
+    if (!localStorage.getItem(storageKey('organization_invitations'))) {
+      writeCollection('organization_invitations', seedOrganizationInvitations);
+    }
+    if (!localStorage.getItem('baseos.active_org_id') && !localStorage.getItem('baseos.active_tenant_id')) {
+      localStorage.setItem('baseos.active_org_id', 'org-1');
+      localStorage.setItem('baseos.active_tenant_id', 'org-1');
+    }
+    return;
+  }
 
   const isCleanBase = import.meta.env.VITE_EMPTY_DATABASE === 'true';
   if (isCleanBase) {
@@ -292,6 +318,10 @@ function ensureSeeded(): void {
     writeCollection('competition_stages', []);
     writeCollection('competition_rounds', []);
     writeCollection('competition_match_slots', []);
+    writeCollection('organizations', []);
+    writeCollection('athletes', []);
+    writeCollection('user_memberships', []);
+    writeCollection('organization_invitations', []);
     localStorage.setItem(SEED_VERSION, 'clean');
     return;
   }
@@ -309,6 +339,14 @@ function ensureSeeded(): void {
   writeCollection('competition_stages', []);
   writeCollection('competition_rounds', []);
   writeCollection('competition_match_slots', []);
+  writeCollection('organizations', seedOrganizations);
+  writeCollection('athletes', seedAthletes);
+  writeCollection('user_memberships', seedUserMemberships);
+  writeCollection('organization_invitations', seedOrganizationInvitations);
+  if (!localStorage.getItem('baseos.active_org_id') && !localStorage.getItem('baseos.active_tenant_id')) {
+    localStorage.setItem('baseos.active_org_id', 'org-1');
+    localStorage.setItem('baseos.active_tenant_id', 'org-1');
+  }
   localStorage.setItem(SEED_VERSION, '1');
 }
 
@@ -354,6 +392,7 @@ function normalizeCompetitionRecord(comp: CompetitionRecord): CompetitionRecord 
   }
   return {
     ...comp,
+    format: comp.format || comp.config?.format?.formatType || 'round-robin',
     slug: comp.slug || generateSlug(comp.name),
     status: normalizedStatus,
     logoUrl: comp.logoUrl ? String(comp.logoUrl) : undefined,
@@ -369,14 +408,29 @@ const localStorageAdapter = {
   async listCompetitions(): Promise<CompetitionRecord[]> {
     ensureSeeded();
     const raw = readCollection<CompetitionRecord>('competitions');
-    return raw.map(normalizeCompetitionRecord);
+    const normalized = raw.map(normalizeCompetitionRecord);
+    if (this.isPlatformAdminGlobalMode()) {
+      return normalized;
+    }
+    const activeOrgId = this.getActiveOrganizationId();
+    if (!activeOrgId) return [];
+    return normalized.filter(c => c.organizationId === activeOrgId);
   },
 
   async getCompetition(id: string): Promise<CompetitionRecord | null> {
     ensureSeeded();
     const all = readCollection<CompetitionRecord>('competitions');
     const comp = all.find(c => c.id === id);
-    return comp ? normalizeCompetitionRecord(comp) : null;
+    if (!comp) return null;
+    const normalized = normalizeCompetitionRecord(comp);
+    if (this.isPlatformAdminGlobalMode()) {
+      return normalized;
+    }
+    const activeOrgId = this.getActiveOrganizationId();
+    if (activeOrgId && normalized.organizationId && normalized.organizationId !== activeOrgId) {
+      return null;
+    }
+    return normalized;
   },
 
   async getCompetitionBySlug(slug: string): Promise<CompetitionRecord | null> {
@@ -412,7 +466,13 @@ const localStorageAdapter = {
       uniqueSlug = `${baseSlug}-${counter}`;
       counter++;
     }
-    const record: CompetitionRecord = { ...input, slug: uniqueSlug, id: (input as { id?: string }).id || generateId('comp') };
+    const activeOrgId = this.getActiveOrganizationId() || 'org-1';
+    const record: CompetitionRecord = {
+      ...input,
+      organizationId: input.organizationId || activeOrgId,
+      slug: uniqueSlug,
+      id: (input as { id?: string }).id || generateId('comp'),
+    };
     const normalized = normalizeCompetitionRecord(record);
     all.push(normalized);
     writeCollection('competitions', all);
@@ -441,13 +501,247 @@ const localStorageAdapter = {
     return record;
   },
 
+  // --- Organizations (Fase 11.3) ---
+  async listOrganizations(): Promise<OrganizationRecord[]> {
+    ensureSeeded();
+    return readCollection<OrganizationRecord>('organizations');
+  },
+
+  async getOrganizationById(id: string): Promise<OrganizationRecord | null> {
+    ensureSeeded();
+    const org = readCollection<OrganizationRecord>('organizations').find(o => o.id === id);
+    return org ?? null;
+  },
+
+  async createOrganization(input: Omit<OrganizationRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<OrganizationRecord> {
+    const now = new Date().toISOString();
+    const record: OrganizationRecord = {
+      ...input,
+      id: input.id || generateId('org'),
+      status: input.status || 'active',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const all = readCollection<OrganizationRecord>('organizations');
+    all.push(record);
+    writeCollection('organizations', all);
+    return record;
+  },
+
+  async updateOrganization(id: string, updates: Partial<OrganizationRecord>): Promise<OrganizationRecord> {
+    ensureSeeded();
+    const all = readCollection<OrganizationRecord>('organizations');
+    const idx = all.findIndex(o => o.id === id);
+    if (idx === -1) throw new Error('Organização não encontrada.');
+    const updated = { ...all[idx], ...updates, updatedAt: new Date().toISOString() };
+    all[idx] = updated;
+    writeCollection('organizations', all);
+    return updated;
+  },
+
+  async listOrganizationMembers(organizationId: string): Promise<OrganizationMemberDetail[]> {
+    ensureSeeded();
+    const memberships = readCollection<UserMembership>('user_memberships').filter(m => m.organizationId === organizationId);
+    const teams = readCollection<TeamRecord>('teams');
+    const persons = readCollection<PersonRecord>('persons');
+
+    return memberships.map(m => {
+      const person = persons.find(p => p.id === m.userId);
+      const team = m.teamId ? teams.find(t => t.id === m.teamId) : undefined;
+      return {
+        ...m,
+        userName: person?.fullName || (m.userId === 'demo-admin' ? 'Administrador BaseOS' : m.userId === 'demo-organizer' ? 'Organizador' : m.userId === 'demo-team' ? 'Dirigente de Equipe' : m.userId),
+        userEmail: person?.email || (m.userId === 'demo-admin' ? 'admin@baseos.com' : m.userId === 'demo-organizer' ? 'organizer@baseos.com' : m.userId === 'demo-team' ? 'team@baseos.com' : undefined),
+        teamName: team?.name,
+      };
+    });
+  },
+
+  async updateUserMembership(id: string, updates: Partial<UserMembership>): Promise<UserMembership> {
+    ensureSeeded();
+    const all = readCollection<UserMembership>('user_memberships');
+    const idx = all.findIndex(m => m.id === id);
+    if (idx === -1) throw new Error('Vínculo de membro não encontrado.');
+    const updated = { ...all[idx], ...updates, updatedAt: new Date().toISOString() };
+    all[idx] = updated;
+    writeCollection('user_memberships', all);
+    return updated;
+  },
+
+  async deleteUserMembership(id: string): Promise<void> {
+    ensureSeeded();
+    const all = readCollection<UserMembership>('user_memberships').filter(m => m.id !== id);
+    writeCollection('user_memberships', all);
+  },
+
+  async listOrganizationTeams(organizationId: string): Promise<TeamRecord[]> {
+    ensureSeeded();
+    return readCollection<TeamRecord>('teams').filter(t => t.organizationId === organizationId);
+  },
+
+  async listOrganizationCompetitions(organizationId: string): Promise<CompetitionRecord[]> {
+    ensureSeeded();
+    return readCollection<CompetitionRecord>('competitions').filter(c => c.organizationId === organizationId);
+  },
+
+  async listOrganizationInvitations(organizationId: string): Promise<OrganizationInvitation[]> {
+    ensureSeeded();
+    return readCollection<OrganizationInvitation>('organization_invitations').filter(inv => inv.organizationId === organizationId);
+  },
+
+  getActiveOrganizationId(): string | null {
+    try {
+      const stored = localStorage.getItem('baseos.active_org_id') || localStorage.getItem('baseos.active_tenant_id');
+      if (stored) return stored;
+      const session = authService.getStoredSession();
+      if (session?.user?.organizationId) return session.user.organizationId;
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  isPlatformAdminGlobalMode(): boolean {
+    try {
+      const isMaster = authService.isPlatformAdmin();
+      if (!isMaster) return false;
+      const globalFlag = localStorage.getItem('baseos.global_view') === 'true';
+      const activeOrg = localStorage.getItem('baseos.active_org_id') || localStorage.getItem('baseos.active_tenant_id');
+      return globalFlag || activeOrg === 'all' || activeOrg === 'global' || !activeOrg;
+    } catch {
+      return false;
+    }
+  },
+
+  setActiveOrganizationId(orgId: string | null): void {
+    try {
+      if (orgId) {
+        localStorage.setItem('baseos.active_org_id', orgId);
+        localStorage.setItem('baseos.active_tenant_id', orgId);
+      } else {
+        localStorage.removeItem('baseos.active_org_id');
+        localStorage.removeItem('baseos.active_tenant_id');
+      }
+    } catch {
+      // fallback
+    }
+  },
+
+
+  async createOrganizationInvitation(input: Omit<OrganizationInvitation, 'id' | 'createdAt' | 'token' | 'status' | 'expiresAt'> & { id?: string; token?: string; expiresAt?: string }): Promise<OrganizationInvitation> {
+    ensureSeeded();
+    const now = new Date().toISOString();
+    const record: OrganizationInvitation = {
+      ...input,
+      id: input.id || generateId('inv'),
+      token: input.token || ('tok_' + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2)),
+      status: 'pending',
+      createdAt: now,
+      expiresAt: input.expiresAt || new Date(Date.now() + 7 * 86400000).toISOString(),
+    };
+    const all = readCollection<OrganizationInvitation>('organization_invitations');
+    all.push(record);
+    writeCollection('organization_invitations', all);
+    return record;
+  },
+
+  async cancelOrganizationInvitation(invitationId: string): Promise<void> {
+    ensureSeeded();
+    const all = readCollection<OrganizationInvitation>('organization_invitations');
+    const inv = all.find(i => i.id === invitationId);
+    if (inv) {
+      inv.status = 'canceled';
+      writeCollection('organization_invitations', all);
+    }
+  },
+
+  async acceptOrganizationInvitation(token: string, userId: string): Promise<{ ok: boolean; membershipId?: string; error?: string }> {
+    ensureSeeded();
+    const all = readCollection<OrganizationInvitation>('organization_invitations');
+    const inv = all.find(i => i.token === token.trim());
+    if (!inv) return { ok: false, error: 'Convite não encontrado.' };
+    if (inv.status !== 'pending') return { ok: false, error: 'Este convite já foi utilizado ou cancelado.' };
+    if (new Date(inv.expiresAt).getTime() < Date.now()) {
+      inv.status = 'expired';
+      writeCollection('organization_invitations', all);
+      return { ok: false, error: 'Este convite expirou.' };
+    }
+
+    const membership = await this.createUserMembership({
+      userId,
+      organizationId: inv.organizationId,
+      teamId: inv.teamId,
+      role: inv.role,
+      status: 'active',
+    });
+
+    inv.status = 'accepted';
+    inv.usedAt = new Date().toISOString();
+    writeCollection('organization_invitations', all);
+
+    return { ok: true, membershipId: membership.id };
+  },
+
+  // --- Athletes (Fase 11.3) ---
+  async listAthletes(): Promise<AthleteIdentity[]> {
+    ensureSeeded();
+    return readCollection<AthleteIdentity>('athletes');
+  },
+
+  async getAthleteById(id: string): Promise<AthleteIdentity | null> {
+    ensureSeeded();
+    const athlete = readCollection<AthleteIdentity>('athletes').find(a => a.id === id);
+    return athlete ?? null;
+  },
+
+  async getAthleteByCpf(cpf: string): Promise<AthleteIdentity | null> {
+    ensureSeeded();
+    const normalized = normalizeCpf(cpf);
+    if (!normalized) return null;
+    const athlete = readCollection<AthleteIdentity>('athletes').find(a => a.normalizedCpf === normalized);
+    return athlete ?? null;
+  },
+
+  async createAthlete(input: Omit<AthleteIdentity, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<AthleteIdentity> {
+    const normalizedCpf = normalizeCpf(input.normalizedCpf);
+    const all = readCollection<AthleteIdentity>('athletes');
+    if (normalizedCpf) {
+      const exists = all.some(a => a.normalizedCpf === normalizedCpf);
+      if (exists) {
+        throw new Error('Violação de unicidade: CPF já cadastrado (uq_athletes_normalized_cpf).');
+      }
+    }
+    const now = new Date().toISOString();
+    const record: AthleteIdentity = {
+      ...input,
+      normalizedCpf,
+      id: input.id || generateId('athlete'),
+      createdAt: now,
+      updatedAt: now,
+    };
+    all.push(record);
+    writeCollection('athletes', all);
+    return record;
+  },
+
   async listTeams(): Promise<TeamRecord[]> {
     ensureSeeded();
-    return readCollection<TeamRecord>('teams');
+    const all = readCollection<TeamRecord>('teams');
+    if (this.isPlatformAdminGlobalMode()) {
+      return all;
+    }
+    const activeOrgId = this.getActiveOrganizationId();
+    if (!activeOrgId) return [];
+    return all.filter(t => t.organizationId === activeOrgId);
   },
 
   async createTeam(input: Omit<TeamRecord, 'id'> & { id?: string }): Promise<TeamRecord> {
-    const record: TeamRecord = { ...input, id: input.id || generateId('team') };
+    const activeOrgId = this.getActiveOrganizationId() || 'org-1';
+    const record: TeamRecord = {
+      ...input,
+      organizationId: input.organizationId || activeOrgId,
+      id: input.id || generateId('team'),
+    };
     const all = readCollection<TeamRecord>('teams');
     all.push(record);
     writeCollection('teams', all);
@@ -505,12 +799,20 @@ const localStorageAdapter = {
 
   async listVenues(): Promise<VenueRecord[]> {
     ensureSeeded();
-    return readCollection<VenueRecord>('venues');
+    const all = readCollection<VenueRecord>('venues');
+    if (this.isPlatformAdminGlobalMode()) {
+      return all;
+    }
+    const activeOrgId = this.getActiveOrganizationId();
+    if (!activeOrgId) return [];
+    return all.filter(v => v.organizationId === activeOrgId);
   },
 
-  async createVenue(input: Omit<VenueRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<VenueRecord> {
+  async createVenue(input: Omit<VenueRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; organizationId?: string }): Promise<VenueRecord> {
+    const activeOrgId = this.getActiveOrganizationId() || 'org-1';
     const record: VenueRecord = {
       ...input,
+      organizationId: input.organizationId || activeOrgId,
       id: generateId('venue'),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -559,7 +861,37 @@ const localStorageAdapter = {
   async listMatches(competitionId?: string): Promise<MatchRecord[]> {
     ensureSeeded();
     const all = readCollection<MatchRecord>('matches');
-    return competitionId ? all.filter(m => m.competitionId === competitionId) : all;
+    let filtered = all;
+    if (!this.isPlatformAdminGlobalMode()) {
+      const activeOrgId = this.getActiveOrganizationId();
+      if (activeOrgId) {
+        const allowedCompetitions = readCollection<CompetitionRecord>('competitions')
+          .filter(c => c.organizationId === activeOrgId);
+        const allowedCompIds = new Set(allowedCompetitions.map(c => c.id));
+        filtered = filtered.filter(m => allowedCompIds.has(m.competitionId));
+      }
+    }
+    if (competitionId) {
+      filtered = filtered.filter(m => m.competitionId === competitionId);
+    }
+    return filtered.slice().sort((a, b) => {
+      const hasTimeA = Boolean(a.scheduledTime && a.scheduledTime.trim());
+      const hasTimeB = Boolean(b.scheduledTime && b.scheduledTime.trim());
+      if (hasTimeA && hasTimeB) {
+        const timeA = new Date(a.scheduledTime).getTime();
+        const timeB = new Date(b.scheduledTime).getTime();
+        const validA = !Number.isNaN(timeA);
+        const validB = !Number.isNaN(timeB);
+        if (validA && validB && timeA !== timeB) return timeA - timeB;
+        if (validA && !validB) return -1;
+        if (!validA && validB) return 1;
+      } else if (hasTimeA && !hasTimeB) {
+        return -1;
+      } else if (!hasTimeA && hasTimeB) {
+        return 1;
+      }
+      return 0;
+    });
   },
 
   async getMatch(id: string): Promise<MatchRecord | null> {
@@ -584,6 +916,53 @@ const localStorageAdapter = {
     const all = readCollection<MatchRecord>('matches');
     const idx = all.findIndex(m => m.id === id);
     if (idx === -1) return null;
+
+    // Defesa em Profundidade de Aplicação: valida autorização da sessão ativa (se houver)
+    const session = authService.getStoredSession();
+    if (session?.user) {
+      const user = session.user;
+      if (user.role === 'team' || user.role === 'viewer') {
+        throw new Error(`Acesso negado: perfil '${user.role}' não possui permissão para alterar partidas.`);
+      }
+      if (user.role === 'referee' || user.role === 'scorer') {
+        const targetMatch = all[idx];
+        if (!TenantSecurityService.canSubmitMatchScore(user, targetMatch)) {
+          throw new Error('Acesso negado: árbitro/mesário não está escalado nesta partida.');
+        }
+
+        // Blindagem de campos administrativos (espelhando trg_protect_match_admin_fields)
+        const adminFields: (keyof MatchRecord)[] = [
+          'competitionId',
+          'teamAId',
+          'teamBId',
+          'teamAName',
+          'teamBName',
+          'teamAShortName',
+          'teamBShortName',
+          'venue',
+          'court',
+          'scheduledTime',
+          'round',
+          'matchNumber',
+          'phase',
+          'groupName',
+          'slotId',
+          'referees',
+        ];
+
+        for (const field of adminFields) {
+          if (
+            field in updates &&
+            updates[field] !== undefined &&
+            targetMatch[field] !== undefined &&
+            JSON.stringify(updates[field]) !== JSON.stringify(targetMatch[field])
+          ) {
+            throw new Error(`Acesso negado: árbitro/mesário não possui permissão para alterar o campo '${field}' de partidas.`);
+          }
+        }
+      }
+    }
+
     const prevStatus = all[idx].status;
     all[idx] = patch(all[idx], updates);
     writeCollection('matches', all);
@@ -794,9 +1173,18 @@ const localStorageAdapter = {
     return competitionTeamId ? all.filter(a => a.competitionTeamId === competitionTeamId) : all;
   },
 
-  async createCompetitionAthlete(input: CompetitionAthleteCreate): Promise<CompetitionAthlete> {
+  async createCompetitionAthlete(input: CompetitionAthleteCreate & { athleteId?: string }): Promise<CompetitionAthlete> {
+    let athleteId = input.athleteId;
+    if (!athleteId) {
+      const identity = await getOrCreateAthleteIdentity(
+        { name: input.name, documentNumber: input.documentNumber, birthDate: input.birthDate },
+        this,
+      );
+      athleteId = identity.id;
+    }
     const record: CompetitionAthlete = {
       ...input,
+      athleteId,
       id: generateId('ath'),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -805,6 +1193,38 @@ const localStorageAdapter = {
     all.push(record);
     writeCollection('competition_athletes', all);
     return record;
+  },
+
+  async registerCompetitionAthleteAuth(
+    competitionTeamId: string,
+    input: CompetitionAthleteInput,
+    options?: { userId?: string },
+  ): Promise<{ ok: boolean; athlete?: CompetitionAthlete; error?: string }> {
+    const team = await this.getCompetitionTeamById(competitionTeamId);
+    if (!team) return { ok: false, error: 'Equipe da competição não encontrada.' };
+
+    if (options?.userId) {
+      const memberships = await this.listUserMemberships(options.userId);
+      const isAuthorized = memberships.some(
+        m => m.status === 'active' && (m.competitionTeamId === competitionTeamId || m.teamId === team.teamId),
+      );
+      if (!isAuthorized) {
+        return { ok: false, error: 'Não autorizado a cadastrar atletas nesta equipe.' };
+      }
+    }
+
+    const athlete = await this.createCompetitionAthlete({
+      ...input,
+      competitionTeamId,
+      name: input.name.trim(),
+      position: input.position.trim(),
+    });
+
+    if (team.status === 'invited') {
+      await this.updateCompetitionTeam(team.id, { status: 'in_progress' });
+    }
+
+    return { ok: true, athlete };
   },
 
   async registerAthletePublic(token: string, input: CompetitionAthleteInput): Promise<{ ok: boolean; athlete?: CompetitionAthlete; error?: string }> {
@@ -816,6 +1236,9 @@ const localStorageAdapter = {
       name: input.name.trim(),
       position: input.position.trim(),
     });
+    if (team.status === 'invited') {
+      await this.updateCompetitionTeam(team.id, { status: 'in_progress' });
+    }
     return { ok: true, athlete };
   },
 
@@ -1992,7 +2415,13 @@ const supabaseAdapter = {
   async listCompetitions(): Promise<CompetitionRecord[]> {
     const supabase = await getSupabaseClient();
     if (!supabase) return [];
-    const { data, error } = await supabase.from(SUPABASE_TABLES.competitions).select('*');
+    let query = supabase.from(SUPABASE_TABLES.competitions).select('*');
+    if (!this.isPlatformAdminGlobalMode()) {
+      const activeOrgId = this.getActiveOrganizationId();
+      if (!activeOrgId) return [];
+      query = query.eq('organization_id', activeOrgId);
+    }
+    const { data, error } = await query;
     if (error) {
       throw new Error(`Falha ao listar competições: [${error.code}] ${error.message}`);
     }
@@ -2002,7 +2431,14 @@ const supabaseAdapter = {
   async getCompetition(id: string): Promise<CompetitionRecord | null> {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
-    const { data, error } = await supabase.from(SUPABASE_TABLES.competitions).select('*').eq('id', id).maybeSingle();
+    let query = supabase.from(SUPABASE_TABLES.competitions).select('*').eq('id', id);
+    if (!this.isPlatformAdminGlobalMode()) {
+      const activeOrgId = this.getActiveOrganizationId();
+      if (activeOrgId) {
+        query = query.eq('organization_id', activeOrgId);
+      }
+    }
+    const { data, error } = await query.maybeSingle();
     if (error) {
       throw new Error(`Falha ao buscar competição "${id}": [${error.code}] ${error.message}`);
     }
@@ -2075,10 +2511,257 @@ const supabaseAdapter = {
     return mapRow<UserMembership>(result) ?? (result as unknown as UserMembership);
   },
 
+  // --- Organizations (Fase 11.3) ---
+  async listOrganizations(): Promise<OrganizationRecord[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(SUPABASE_TABLES.organizations).select('*');
+    if (error) throw new Error(`Falha ao listar organizações: [${error.code}] ${error.message}`);
+    return mapRows<OrganizationRecord>(data ?? []);
+  },
+
+  async getOrganizationById(id: string): Promise<OrganizationRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data, error } = await supabase.from(SUPABASE_TABLES.organizations).select('*').eq('id', id).maybeSingle();
+    if (error) throw new Error(`Falha ao buscar organização "${id}": [${error.code}] ${error.message}`);
+    return mapRow<OrganizationRecord>(data);
+  },
+
+  async createOrganization(input: Omit<OrganizationRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<OrganizationRecord> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const now = new Date().toISOString();
+    const payload = toSnake({
+      ...input,
+      id: input.id || generateId('org'),
+      status: input.status || 'active',
+      createdAt: now,
+      updatedAt: now,
+    });
+    const { data, error } = await supabase.from(SUPABASE_TABLES.organizations).insert(payload).select().single();
+    const result = assertSupabaseSuccess(data, error, { operation: 'createOrganization', table: SUPABASE_TABLES.organizations });
+    return mapRow<OrganizationRecord>(result) ?? (result as unknown as OrganizationRecord);
+  },
+
+  async updateOrganization(id: string, updates: Partial<OrganizationRecord>): Promise<OrganizationRecord> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const now = new Date().toISOString();
+    const payload = toSnake({ ...updates, updatedAt: now });
+    const { data, error } = await supabase.from(SUPABASE_TABLES.organizations).update(payload).eq('id', id).select().maybeSingle();
+    const result = assertSupabaseUpdateSuccess(data, error, { operation: 'updateOrganization', table: SUPABASE_TABLES.organizations });
+    return mapRow<OrganizationRecord>(result) ?? (result as unknown as OrganizationRecord);
+  },
+
+  async listOrganizationMembers(organizationId: string): Promise<OrganizationMemberDetail[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.userMemberships)
+      .select('*, profiles:user_id(name, email), teams:team_id(name)')
+      .eq('organization_id', organizationId);
+    if (error) {
+      const fallback = await supabase.from(SUPABASE_TABLES.userMemberships).select('*').eq('organization_id', organizationId);
+      if (fallback.error) throw new Error(`Falha ao listar membros: [${fallback.error.code}] ${fallback.error.message}`);
+      return mapRows<OrganizationMemberDetail>(fallback.data ?? []);
+    }
+    return (data ?? []).map((row: Record<string, unknown>) => {
+      const mapped = mapRow<UserMembership>(row);
+      const profiles = row.profiles as { name?: string; email?: string } | undefined;
+      const teams = row.teams as { name?: string } | undefined;
+      return {
+        ...mapped!,
+        userName: profiles?.name,
+        userEmail: profiles?.email,
+        teamName: teams?.name,
+      };
+    });
+  },
+
+  async updateUserMembership(id: string, updates: Partial<UserMembership>): Promise<UserMembership> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const now = new Date().toISOString();
+    const payload = toSnake({ ...updates, updatedAt: now });
+    const { data, error } = await supabase.from(SUPABASE_TABLES.userMemberships).update(payload).eq('id', id).select().maybeSingle();
+    const result = assertSupabaseUpdateSuccess(data, error, { operation: 'updateUserMembership', table: SUPABASE_TABLES.userMemberships });
+    return mapRow<UserMembership>(result) ?? (result as unknown as UserMembership);
+  },
+
+  async deleteUserMembership(id: string): Promise<void> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const { error } = await supabase.from(SUPABASE_TABLES.userMemberships).delete().eq('id', id);
+    if (error) throw new Error(`Falha ao remover vínculo de membro: [${error.code}] ${error.message}`);
+  },
+
+  async listOrganizationTeams(organizationId: string): Promise<TeamRecord[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(SUPABASE_TABLES.teams).select('*').eq('organization_id', organizationId);
+    if (error) throw new Error(`Falha ao listar equipes da organização: [${error.code}] ${error.message}`);
+    return mapRows<TeamRecord>(data ?? []);
+  },
+
+  async listOrganizationCompetitions(organizationId: string): Promise<CompetitionRecord[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(SUPABASE_TABLES.competitions).select('*').eq('organization_id', organizationId);
+    if (error) throw new Error(`Falha ao listar competições da organização: [${error.code}] ${error.message}`);
+    return mapRows<CompetitionRecord>(data ?? []);
+  },
+
+  async listOrganizationInvitations(organizationId: string): Promise<OrganizationInvitation[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(SUPABASE_TABLES.organizationInvitations).select('*').eq('organization_id', organizationId);
+    if (error) throw new Error(`Falha ao listar convites: [${error.code}] ${error.message}`);
+    return mapRows<OrganizationInvitation>(data ?? []);
+  },
+
+  getActiveOrganizationId(): string | null {
+    try {
+      const stored = localStorage.getItem('baseos.active_org_id') || localStorage.getItem('baseos.active_tenant_id');
+      if (stored) return stored;
+      const session = authService.getStoredSession();
+      if (session?.user?.organizationId) return session.user.organizationId;
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  isPlatformAdminGlobalMode(): boolean {
+    try {
+      const isMaster = authService.isPlatformAdmin();
+      if (!isMaster) return false;
+      const globalFlag = localStorage.getItem('baseos.global_view') === 'true';
+      const activeOrg = localStorage.getItem('baseos.active_org_id') || localStorage.getItem('baseos.active_tenant_id');
+      return globalFlag || activeOrg === 'all' || activeOrg === 'global' || !activeOrg;
+    } catch {
+      return false;
+    }
+  },
+
+  setActiveOrganizationId(orgId: string | null): void {
+    try {
+      if (orgId) {
+        localStorage.setItem('baseos.active_org_id', orgId);
+        localStorage.setItem('baseos.active_tenant_id', orgId);
+      } else {
+        localStorage.removeItem('baseos.active_org_id');
+        localStorage.removeItem('baseos.active_tenant_id');
+      }
+    } catch {
+      // fallback
+    }
+  },
+
+
+  async createOrganizationInvitation(input: Omit<OrganizationInvitation, 'id' | 'createdAt' | 'token' | 'status' | 'expiresAt'> & { id?: string; token?: string; expiresAt?: string }): Promise<OrganizationInvitation> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const { data, error } = await supabase.rpc('create_organization_invitation', {
+      p_organization_id: input.organizationId,
+      p_email: input.email,
+      p_role: input.role,
+      p_team_id: input.teamId || null,
+    });
+    if (error) throw new Error(`Falha ao criar convite: [${error.code}] ${error.message}`);
+    if (data && !data.ok) throw new Error(data.error || 'Falha ao criar convite.');
+
+    return {
+      id: data.id,
+      organizationId: input.organizationId,
+      email: input.email,
+      role: input.role,
+      teamId: input.teamId,
+      token: data.token,
+      status: 'pending',
+      invitedBy: input.invitedBy,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+    };
+  },
+
+  async cancelOrganizationInvitation(invitationId: string): Promise<void> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const { error } = await supabase.from(SUPABASE_TABLES.organizationInvitations).update({ status: 'canceled' }).eq('id', invitationId);
+    if (error) throw new Error(`Falha ao cancelar convite: [${error.code}] ${error.message}`);
+  },
+
+  async acceptOrganizationInvitation(token: string, userId: string): Promise<{ ok: boolean; membershipId?: string; error?: string }> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const { data, error } = await supabase.rpc('accept_organization_invitation', {
+      p_token: token.trim(),
+    });
+    if (error) throw new Error(`Falha ao aceitar convite: [${error.code}] ${error.message}`);
+    return data;
+  },
+
+  // --- Athletes (Fase 11.3) ---
+  async listAthletes(): Promise<AthleteIdentity[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(SUPABASE_TABLES.athletes).select('*');
+    if (error) throw new Error(`Falha ao listar atletas: [${error.code}] ${error.message}`);
+    return mapRows<AthleteIdentity>(data ?? []);
+  },
+
+  async getAthleteById(id: string): Promise<AthleteIdentity | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data, error } = await supabase.from(SUPABASE_TABLES.athletes).select('*').eq('id', id).maybeSingle();
+    if (error) throw new Error(`Falha ao buscar atleta "${id}": [${error.code}] ${error.message}`);
+    return mapRow<AthleteIdentity>(data);
+  },
+
+  async getAthleteByCpf(cpf: string): Promise<AthleteIdentity | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const normalized = normalizeCpf(cpf);
+    if (!normalized) return null;
+    const { data, error } = await supabase.from(SUPABASE_TABLES.athletes).select('*').eq('normalized_cpf', normalized).maybeSingle();
+    if (error) throw new Error(`Falha ao buscar atleta por CPF: [${error.code}] ${error.message}`);
+    return mapRow<AthleteIdentity>(data);
+  },
+
+  async createAthlete(input: Omit<AthleteIdentity, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<AthleteIdentity> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const normalizedCpf = normalizeCpf(input.normalizedCpf);
+    const now = new Date().toISOString();
+    const payload = toSnake({
+      ...input,
+      normalizedCpf,
+      id: input.id || generateId('athlete'),
+      createdAt: now,
+      updatedAt: now,
+    });
+    const { data, error } = await supabase.from(SUPABASE_TABLES.athletes).insert(payload).select().single();
+    if (error) {
+      if (error.code === '23505') {
+        throw new Error(`Violação de unicidade: CPF já cadastrado [${error.code}] ${error.message}`);
+      }
+      throw new Error(`Falha ao criar atleta: [${error.code}] ${error.message}`);
+    }
+    const result = assertSupabaseSuccess(data, error, { operation: 'createAthlete', table: SUPABASE_TABLES.athletes });
+    return mapRow<AthleteIdentity>(result) ?? (result as unknown as AthleteIdentity);
+  },
+
   async listTeams(): Promise<TeamRecord[]> {
     const supabase = await getSupabaseClient();
     if (!supabase) return [];
-    const { data, error } = await supabase.from(SUPABASE_TABLES.teams).select('*');
+    let query = supabase.from(SUPABASE_TABLES.teams).select('*');
+    if (!this.isPlatformAdminGlobalMode()) {
+      const activeOrgId = this.getActiveOrganizationId();
+      if (!activeOrgId) return [];
+      query = query.eq('organization_id', activeOrgId);
+    }
+    const { data, error } = await query;
     if (error) {
       throw new Error(`Falha ao listar equipes: [${error.code}] ${error.message}`);
     }
@@ -2089,7 +2772,12 @@ const supabaseAdapter = {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
     const id = input.id || generateId('team');
-    const payload = teamMapper.toPersistence({ ...input, id });
+    const activeOrgId = this.getActiveOrganizationId() || 'org-1';
+    const payload = teamMapper.toPersistence({
+      ...input,
+      organizationId: input.organizationId || activeOrgId,
+      id,
+    });
     const { data, error } = await supabase.from(SUPABASE_TABLES.teams).insert(payload).select().single();
     const res = assertSupabaseSuccess(data, error, { operation: 'createTeam', table: SUPABASE_TABLES.teams });
     return teamMapper.toDomain(res as Record<string, unknown>);
@@ -2144,7 +2832,13 @@ const supabaseAdapter = {
   async listVenues(): Promise<VenueRecord[]> {
     const supabase = await getSupabaseClient();
     if (!supabase) return [];
-    const { data } = await supabase.from(SUPABASE_TABLES.venues).select('*');
+    let query = supabase.from(SUPABASE_TABLES.venues).select('*');
+    if (!this.isPlatformAdminGlobalMode()) {
+      const activeOrgId = this.getActiveOrganizationId();
+      if (!activeOrgId) return [];
+      query = query.eq('organization_id', activeOrgId);
+    }
+    const { data } = await query;
     return mapRows<VenueRecord>(data ?? []);
   },
 
@@ -2153,7 +2847,14 @@ const supabaseAdapter = {
     if (!supabase) throw new Error('Supabase não configurado');
     const id = input.id || generateId('venue');
     const now = new Date().toISOString();
-    const { data } = await supabase.from(SUPABASE_TABLES.venues).insert(toSnake({ ...input, id, createdAt: now, updatedAt: now })).select().single();
+    const activeOrgId = this.getActiveOrganizationId() || 'org-1';
+    const { data } = await supabase.from(SUPABASE_TABLES.venues).insert(toSnake({
+      ...input,
+      organizationId: input.organizationId || activeOrgId,
+      id,
+      createdAt: now,
+      updatedAt: now,
+    })).select().single();
     return mapRow<VenueRecord>(data) ?? (data as unknown as VenueRecord);
   },
 
@@ -2201,7 +2902,25 @@ const supabaseAdapter = {
     const supabase = await getSupabaseClient();
     if (!supabase) return [];
     let query = supabase.from(SUPABASE_TABLES.matches).select('*');
-    if (competitionId) query = query.eq('competition_id', competitionId);
+    if (competitionId) {
+      if (!this.isPlatformAdminGlobalMode()) {
+        const activeOrgId = this.getActiveOrganizationId();
+        if (activeOrgId) {
+          const comp = await this.getCompetition(competitionId);
+          if (!comp) return [];
+        }
+      }
+      query = query.eq('competition_id', competitionId);
+    } else if (!this.isPlatformAdminGlobalMode()) {
+      const activeOrgId = this.getActiveOrganizationId();
+      if (activeOrgId) {
+        const comps = await this.listCompetitions();
+        const compIds = comps.map(c => c.id);
+        if (compIds.length === 0) return [];
+        query = query.in('competition_id', compIds);
+      }
+    }
+    query = query.order('scheduled_time', { ascending: true, nullsFirst: false });
     const { data } = await query;
     return mapRows<MatchRecord>(data ?? []);
   },
@@ -2210,7 +2929,17 @@ const supabaseAdapter = {
     const supabase = await getSupabaseClient();
     if (!supabase) return null;
     const { data } = await supabase.from(SUPABASE_TABLES.matches).select('*').eq('id', id).maybeSingle();
-    return mapRow<MatchRecord>(data);
+    if (!data) return null;
+    const match = mapRow<MatchRecord>(data);
+    if (!match) return null;
+    if (!this.isPlatformAdminGlobalMode()) {
+      const activeOrgId = this.getActiveOrganizationId();
+      if (activeOrgId) {
+        const comp = await this.getCompetition(match.competitionId);
+        if (!comp) return null;
+      }
+    }
+    return match;
   },
 
   async createMatch(match: Omit<MatchRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<MatchRecord> {
@@ -2443,13 +3172,49 @@ const supabaseAdapter = {
     return mapRows<CompetitionAthlete>(data ?? []);
   },
 
-  async createCompetitionAthlete(input: CompetitionAthleteCreate & { id?: string }): Promise<CompetitionAthlete> {
+  async createCompetitionAthlete(input: CompetitionAthleteCreate & { id?: string; athleteId?: string }): Promise<CompetitionAthlete> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
+    let athleteId = input.athleteId;
+    if (!athleteId) {
+      const identity = await getOrCreateAthleteIdentity(
+        { name: input.name, documentNumber: input.documentNumber, birthDate: input.birthDate },
+        this,
+      );
+      athleteId = identity.id;
+    }
     const id = input.id || generateId('ath');
-    const { data, error } = await supabase.from(SUPABASE_TABLES.competitionAthletes).insert(toSnake({ ...input, id })).select().single();
+    const { data, error } = await supabase.from(SUPABASE_TABLES.competitionAthletes).insert(toSnake({ ...input, athleteId, id })).select().single();
     const res = assertSupabaseSuccess(data, error, { operation: 'createCompetitionAthlete', table: SUPABASE_TABLES.competitionAthletes });
     return mapRow<CompetitionAthlete>(res) ?? (res as unknown as CompetitionAthlete);
+  },
+
+  async registerCompetitionAthleteAuth(
+    competitionTeamId: string,
+    input: CompetitionAthleteInput,
+  ): Promise<{ ok: boolean; athlete?: CompetitionAthlete; error?: string }> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Supabase não configurado');
+    const { data, error } = await supabase.rpc('register_competition_athlete_auth', {
+      p_competition_team_id: competitionTeamId,
+      p_name: input.name.trim(),
+      p_position: input.position.trim(),
+      p_jersey_number: input.jerseyNumber ?? null,
+      p_is_captain: input.isCaptain ?? false,
+      p_is_libero: input.isLibero ?? false,
+      p_gender: input.gender ?? 'female',
+      p_document_number: input.documentNumber ? input.documentNumber.trim() : null,
+      p_birth_date: input.birthDate ?? null,
+    });
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    const res = data as { ok?: boolean; athlete?: unknown; error?: string } | null;
+    if (!res || !res.ok) {
+      return { ok: false, error: res?.error || 'Falha ao inscrever atleta na equipe.' };
+    }
+    const mappedAthlete = mapRow<CompetitionAthlete>(res.athlete) ?? (res.athlete as unknown as CompetitionAthlete);
+    return { ok: true, athlete: mappedAthlete };
   },
 
   async registerAthletePublic(token: string, input: CompetitionAthleteInput): Promise<{ ok: boolean; athlete?: CompetitionAthlete; error?: string }> {
@@ -3093,6 +3858,9 @@ export function clearEntireDatabase(): void {
   writeCollection('competition_stages', []);
   writeCollection('competition_rounds', []);
   writeCollection('competition_match_slots', []);
+  writeCollection('organizations', []);
+  writeCollection('athletes', []);
+  writeCollection('user_memberships', []);
   localStorage.setItem(SEED_VERSION, 'clean');
 }
 
@@ -3101,6 +3869,8 @@ export function resetLocalData(): void {
     .filter(k => k.startsWith(STORAGE_PREFIX))
     .forEach(k => localStorage.removeItem(k));
   localStorage.removeItem(SEED_VERSION);
+  localStorage.removeItem('baseos.active_org_id');
+  localStorage.removeItem('baseos.active_tenant_id');
   ensureSeeded();
 }
 

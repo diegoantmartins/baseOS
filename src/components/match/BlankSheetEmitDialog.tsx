@@ -23,21 +23,23 @@ export function BlankSheetEmitDialog({ open, onOpenChange, defaultFormat = '3-se
   const [docType, setDocType] = useState<BlankDocumentType>(
     defaultFormat === '5-sets' ? 'sumula-5' : 'sumula-3',
   );
+  const [copies, setCopies] = useState<number>(1);
   const [loading, setLoading] = useState(false);
 
   const getFilename = () => {
-    if (docType === 'sumula-3') return 'sumula_oficial_baseos_3sets_em_branco.pdf';
-    if (docType === 'sumula-5') return 'sumula_oficial_baseos_5sets_em_branco.pdf';
-    return 'fichas_ordem_de_saque_em_branco.pdf';
+    const qtySuffix = copies > 1 ? `_${copies}_copias` : '';
+    if (docType === 'sumula-3') return `sumula_oficial_baseos_3sets_em_branco${qtySuffix}.pdf`;
+    if (docType === 'sumula-5') return `sumula_oficial_baseos_5sets_em_branco${qtySuffix}.pdf`;
+    return `fichas_ordem_de_saque_em_branco${qtySuffix}.pdf`;
   };
 
   const getPdfBlob = async (): Promise<Blob> => {
     if (docType === 'sumula-3') {
-      return generateBlankBaseosPdfBlob('3-sets');
+      return generateBlankBaseosPdfBlob('3-sets', 'print-a4', copies);
     } else if (docType === 'sumula-5') {
-      return generateBlankBaseosPdfBlob('5-sets');
+      return generateBlankBaseosPdfBlob('5-sets', 'print-a4', copies);
     } else {
-      return generateBlankServeOrderPdfBlob(defaultFormat);
+      return generateBlankServeOrderPdfBlob(defaultFormat, copies);
     }
   };
 
@@ -47,7 +49,7 @@ export function BlankSheetEmitDialog({ open, onOpenChange, defaultFormat = '3-se
       const blob = await getPdfBlob();
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
-      toast.success('Visualizando súmula oficial BaseOS em nova aba.');
+      toast.success('Visualizando documento oficial BaseOS em nova aba.');
     } catch (error) {
       console.error(error);
       toast.error('Erro ao carregar modelo oficial.');
@@ -74,7 +76,7 @@ export function BlankSheetEmitDialog({ open, onOpenChange, defaultFormat = '3-se
         iframe.contentWindow?.print();
         setTimeout(() => document.body.removeChild(iframe), 60000);
       };
-      toast.success('Enviado para impressão!');
+      toast.success(`Enviado para impressão (${copies} ${copies === 1 ? 'cópia' : 'cópias'})!`);
     } catch (error) {
       console.error(error);
       toast.error('Erro ao imprimir modelo.');
@@ -95,7 +97,7 @@ export function BlankSheetEmitDialog({ open, onOpenChange, defaultFormat = '3-se
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success('Download do modelo oficial BaseOS concluído!');
+      toast.success(`Download concluído (${copies} ${copies === 1 ? 'cópia' : 'cópias'})!`);
     } catch (error) {
       console.error(error);
       toast.error('Erro ao baixar documento.');
@@ -114,10 +116,10 @@ export function BlankSheetEmitDialog({ open, onOpenChange, defaultFormat = '3-se
             </div>
             <div>
               <DialogTitle className="text-sm font-semibold text-foreground">
-                Emissão de Súmula Oficial em Branco
+                Emissão de Documentos Oficiais em Branco
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Gere o modelo oficial vetorial limpo para impressão e anotação manual na quadra.
+                Gere modelos oficiais vetoriais limpos com quantidade personalizada para preenchimento manual na quadra.
               </DialogDescription>
             </div>
           </div>
@@ -145,7 +147,7 @@ export function BlankSheetEmitDialog({ open, onOpenChange, defaultFormat = '3-se
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Documento oficial com 3 sets, troca de quadra no tie-break e tabela para 16 atletas.
+                    Documento oficial com 3 sets, troca de quadra no tie-break e tabela para 14 atletas + 2 líberos.
                   </p>
                 </div>
               </Label>
@@ -184,16 +186,77 @@ export function BlankSheetEmitDialog({ open, onOpenChange, defaultFormat = '3-se
               >
                 <RadioGroupItem value="fichas" id="opt-fichas" className="mt-0.5" />
                 <div className="flex-1 space-y-0.5 min-w-0">
-                  <span className="font-medium text-xs text-foreground">
-                    Ficha de Posição / Ordem de Saque
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-xs text-foreground">
+                      Ficha de Posição / Ordem de Saque
+                    </span>
+                    <span className="text-[9px] uppercase font-semibold tracking-wider text-amber-400 bg-amber-950/60 border border-amber-800/50 px-1.5 py-0.2 rounded">
+                      Independente
+                    </span>
+                  </div>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Fichas regulamentares para entrega da formação inicial pelos técnicos.
+                    Folhas A4 Paisagem com filipetas oficiais prontas para entrega e anotação manual pelos técnicos em cada quadra.
                   </p>
                 </div>
               </Label>
             </div>
           </RadioGroup>
+
+          {/* Seletor de Quantidade de Cópias */}
+          <div className="p-3 rounded-lg bg-zinc-900/80 border border-zinc-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-foreground">Quantidade de Cópias</span>
+                <p className="text-[11px] text-muted-foreground">
+                  {docType === 'fichas'
+                    ? 'Número de folhas de ordem de saque a imprimir para as equipes'
+                    : 'Número de súmulas em branco a imprimir'}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={loading || copies <= 1}
+                  onClick={() => setCopies(c => Math.max(1, c - 1))}
+                  className="h-7 w-7 p-0 text-xs font-bold border-zinc-700 hover:bg-zinc-800"
+                >
+                  -
+                </Button>
+                <span className="font-mono text-xs font-bold w-6 text-center text-foreground">
+                  {copies}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={loading || copies >= 20}
+                  onClick={() => setCopies(c => Math.min(20, c + 1))}
+                  className="h-7 w-7 p-0 text-xs font-bold border-zinc-700 hover:bg-zinc-800"
+                >
+                  +
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 pt-1">
+              {[1, 2, 4, 8, 12].map(qty => (
+                <button
+                  key={qty}
+                  type="button"
+                  onClick={() => setCopies(qty)}
+                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                    copies === qty
+                      ? 'bg-zinc-800 border-zinc-600 font-bold text-foreground'
+                      : 'border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+                  }`}
+                >
+                  {qty} {qty === 1 ? 'cópia' : 'cópias'}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
@@ -220,14 +283,14 @@ export function BlankSheetEmitDialog({ open, onOpenChange, defaultFormat = '3-se
             className="h-8 text-xs rounded-md gap-1.5 border-border hover:bg-zinc-800/60 font-medium text-zinc-300 hover:text-foreground"
           >
             <Printer className="w-3.5 h-3.5 text-zinc-400" />
-            Imprimir
+            Imprimir ({copies})
           </Button>
 
           <Button
             size="sm"
             onClick={handleDownload}
             disabled={loading}
-            className="h-8 text-xs rounded-md gap-1.5 font-medium shadow-none"
+            className="h-8 text-xs rounded-md gap-1.5 font-medium shadow-none bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
           >
             <Download className="w-3.5 h-3.5" />
             Baixar PDF

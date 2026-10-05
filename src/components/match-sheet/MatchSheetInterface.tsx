@@ -62,6 +62,7 @@ interface MatchSheetInterfaceProps {
   competition?: CompetitionRecord | null;
   teamARoster?: CompetitionAthlete[];
   teamBRoster?: CompetitionAthlete[];
+  readOnly?: boolean;
   onPersist?: (updates: Partial<MatchRecord>) => Promise<unknown>;
 }
 
@@ -72,6 +73,7 @@ export function MatchSheetInterface({
   competition = null,
   teamARoster = [],
   teamBRoster = [],
+  readOnly = false,
   onPersist,
 }: MatchSheetInterfaceProps) {
   const matchId = match?.id ?? null;
@@ -130,7 +132,7 @@ export function MatchSheetInterface({
 
   // Persiste placar, sets, status, vencedor e escalações a cada alteração.
   useEffect(() => {
-    if (!matchId || !onPersist) return;
+    if (!matchId || !onPersist || readOnly) return;
     const completedSets = setHistory.map(s => ({ setNumber: s.setNumber, scoreA: s.scoreA, scoreB: s.scoreB }));
     const liveSets = teamA.score > 0 || teamB.score > 0
       ? [...completedSets, { setNumber: currentSet, scoreA: teamA.score, scoreB: teamB.score }]
@@ -143,7 +145,7 @@ export function MatchSheetInterface({
       lineups: { teamA: lineupA, teamB: lineupB },
     }).catch(() => toast.error('Falha ao salvar a súmula.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, onPersist, teamA.score, teamB.score, teamA.sets, teamB.sets, setHistory, currentSet, matchStatus, lineupA, lineupB]);
+  }, [matchId, onPersist, readOnly, teamA.score, teamB.score, teamA.sets, teamB.sets, setHistory, currentSet, matchStatus, lineupA, lineupB]);
 
   const liveMatch: MatchRecord | null = match
     ? {
@@ -161,6 +163,7 @@ export function MatchSheetInterface({
   const startersB = useMemo(() => lineupB.starterIds.map(id => teamBRoster.find(a => a.id === id)!).filter(Boolean), [lineupB.starterIds, teamBRoster]);
 
   const addPoint = (team: 'A' | 'B') => {
+    if (readOnly) return;
     if (team === 'A') {
       setTeamA(prev => ({ ...prev, score: prev.score + 1 }));
     } else {
@@ -182,6 +185,7 @@ export function MatchSheetInterface({
   };
 
   const removePoint = (team: 'A' | 'B') => {
+    if (readOnly) return;
     if (team === 'A' && teamA.score > 0) {
       setTeamA(prev => ({ ...prev, score: prev.score - 1 }));
     } else if (team === 'B' && teamB.score > 0) {
@@ -190,6 +194,7 @@ export function MatchSheetInterface({
   };
 
   const callTimeout = (team: 'A' | 'B') => {
+    if (readOnly) return;
     if (team === 'A' && teamA.timeouts > 0) {
       setTeamA(prev => ({ ...prev, timeouts: prev.timeouts - 1 }));
     } else if (team === 'B' && teamB.timeouts > 0) {
@@ -203,6 +208,7 @@ export function MatchSheetInterface({
   };
 
   const endSet = () => {
+    if (readOnly) return;
     const effectiveComp: CompetitionRecord = competition ?? {
       id: match?.competitionId ?? 'comp-default',
       name: 'Competição',
@@ -350,6 +356,16 @@ export function MatchSheetInterface({
         </div>
       </motion.div>
 
+      {/* Banner de Modo Somente Leitura */}
+      {readOnly && (
+        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2.5">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>
+            <strong>Visualização Oficial (Modo Somente Leitura):</strong> A pontuação e alteração em tempo real estão desabilitadas para seu perfil ou escala nesta partida.
+          </span>
+        </div>
+      )}
+
       {/* Escalação Inicial */}
       {(matchStatus === 'warmup' || matchStatus === 'set-break') && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -358,6 +374,7 @@ export function MatchSheetInterface({
             roster={teamARoster}
             lineup={lineupA}
             color="teamA"
+            readOnly={readOnly}
             onChange={setLineupA}
           />
           <LineupCard
@@ -365,6 +382,7 @@ export function MatchSheetInterface({
             roster={teamBRoster}
             lineup={lineupB}
             color="teamB"
+            readOnly={readOnly}
             onChange={setLineupB}
           />
         </div>
@@ -398,7 +416,7 @@ export function MatchSheetInterface({
               </div>
 
               <div className="flex items-center justify-center gap-4">
-                <Button variant="outline" size="icon" className="rounded-full w-11 h-11" onClick={() => removePoint('A')}>
+                <Button variant="outline" size="icon" className="rounded-full w-11 h-11" onClick={() => removePoint('A')} disabled={readOnly || teamA.score === 0}>
                   <Minus className="w-5 h-5" />
                 </Button>
                 <motion.div
@@ -409,7 +427,7 @@ export function MatchSheetInterface({
                 >
                   <span className="font-display text-6xl text-teamA-foreground">{teamA.score}</span>
                 </motion.div>
-                <Button variant="default" size="icon" className="rounded-full w-11 h-11" onClick={() => addPoint('A')} disabled={matchStatus === 'completed'}>
+                <Button variant="default" size="icon" className="rounded-full w-11 h-11" onClick={() => addPoint('A')} disabled={readOnly || matchStatus === 'completed'}>
                   <Plus className="w-5 h-5" />
                 </Button>
               </div>
@@ -431,11 +449,11 @@ export function MatchSheetInterface({
               </div>
 
               <div className="mt-6 flex items-center justify-center gap-3">
-                <Button variant="outline" size="sm" className="gap-2" onClick={() => callTimeout('A')} disabled={teamA.timeouts === 0}>
+                <Button variant="outline" size="sm" className="gap-2" onClick={() => callTimeout('A')} disabled={readOnly || teamA.timeouts === 0}>
                   <Clock className="w-4 h-4" />
                   Tempo ({teamA.timeouts})
                 </Button>
-                <Button variant="outline" size="sm" className="gap-2" onClick={endSet} disabled={matchStatus === 'completed'}>
+                <Button variant="outline" size="sm" className="gap-2" onClick={endSet} disabled={readOnly || matchStatus === 'completed'}>
                   <Check className="w-4 h-4" />
                   Encerrar Set
                 </Button>
@@ -484,7 +502,7 @@ export function MatchSheetInterface({
               </div>
 
               <div className="flex items-center justify-center gap-4">
-                <Button variant="outline" size="icon" className="rounded-full w-11 h-11" onClick={() => removePoint('B')}>
+                <Button variant="outline" size="icon" className="rounded-full w-11 h-11" onClick={() => removePoint('B')} disabled={readOnly || teamB.score === 0}>
                   <Minus className="w-5 h-5" />
                 </Button>
                 <motion.div
@@ -495,7 +513,7 @@ export function MatchSheetInterface({
                 >
                   <span className="font-display text-6xl text-teamB-foreground">{teamB.score}</span>
                 </motion.div>
-                <Button variant="default" size="icon" className="rounded-full w-11 h-11" onClick={() => addPoint('B')} disabled={matchStatus === 'completed'}>
+                <Button variant="default" size="icon" className="rounded-full w-11 h-11" onClick={() => addPoint('B')} disabled={readOnly || matchStatus === 'completed'}>
                   <Plus className="w-5 h-5" />
                 </Button>
               </div>
@@ -517,11 +535,11 @@ export function MatchSheetInterface({
               </div>
 
               <div className="mt-6 flex items-center justify-center gap-3">
-                <Button variant="outline" size="sm" className="gap-2" onClick={() => callTimeout('B')} disabled={teamB.timeouts === 0}>
+                <Button variant="outline" size="sm" className="gap-2" onClick={() => callTimeout('B')} disabled={readOnly || teamB.timeouts === 0}>
                   <Clock className="w-4 h-4" />
                   Tempo ({teamB.timeouts})
                 </Button>
-                <Button variant="outline" size="sm" className="gap-2" onClick={endSet} disabled={matchStatus === 'completed'}>
+                <Button variant="outline" size="sm" className="gap-2" onClick={endSet} disabled={readOnly || matchStatus === 'completed'}>
                   <Check className="w-4 h-4" />
                   Encerrar Set
                 </Button>
@@ -651,11 +669,13 @@ interface LineupCardProps {
   roster: CompetitionAthlete[];
   lineup: TeamLineup;
   color: 'teamA' | 'teamB';
+  readOnly?: boolean;
   onChange: (lineup: TeamLineup) => void;
 }
 
-function LineupCard({ title, roster, lineup, color, onChange }: LineupCardProps) {
+function LineupCard({ title, roster, lineup, color, readOnly = false, onChange }: LineupCardProps) {
   const toggleStarter = (id: string) => {
+    if (readOnly) return;
     const isStarter = lineup.starterIds.includes(id);
     if (isStarter) {
       onChange({ ...lineup, starterIds: lineup.starterIds.filter(s => s !== id) });
@@ -712,6 +732,7 @@ function LineupCard({ title, roster, lineup, color, onChange }: LineupCardProps)
             <label className="text-xs text-muted-foreground">Capitão</label>
             <Select
               value={lineup.captainId ?? ''}
+              disabled={readOnly}
               onValueChange={v => onChange({ ...lineup, captainId: v || undefined })}
             >
               <SelectTrigger className="h-9 text-sm">
@@ -730,6 +751,7 @@ function LineupCard({ title, roster, lineup, color, onChange }: LineupCardProps)
             <label className="text-xs text-muted-foreground">Líbero</label>
             <Select
               value={lineup.liberoId ?? ''}
+              disabled={readOnly}
               onValueChange={v => onChange({ ...lineup, liberoId: v || undefined })}
             >
               <SelectTrigger className="h-9 text-sm">

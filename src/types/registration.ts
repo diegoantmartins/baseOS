@@ -59,6 +59,8 @@ export type CompetitionAthlete = {
   isCaptain: boolean;
   isLibero: boolean;
   gender: 'male' | 'female';
+  /** FK aditiva para a identidade global de atleta (athletes.id). */
+  athleteId?: string;
   createdAt: string;
   updatedAt: string;
 };

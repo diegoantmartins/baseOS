@@ -14,13 +14,12 @@ import {
   generateBaseosPdfBlob,
   generateBlankBaseosPdfBlob,
   generateServeOrderPdfBlob,
-  generateGamePackagePdfBlob,
   mapScoresheetToServeOrderData,
   type BaseosScoresheetData,
 } from '@/document-engine/baseos';
 import type { MatchRecord, CompetitionRecord } from '@/types/entities';
 
-type Tab = 'sumula' | 'ordem' | 'pacote' | 'blank';
+type Tab = 'sumula' | 'blank' | 'ordem';
 
 interface Props {
   match: MatchRecord | null;
@@ -63,8 +62,6 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
           } else if (tab === 'ordem') {
             const serveOrderData = mapScoresheetToServeOrderData(data);
             blob = await generateServeOrderPdfBlob(serveOrderData);
-          } else if (tab === 'pacote') {
-            blob = await generateGamePackagePdfBlob(data);
           } else {
             blob = await generateBaseosPdfBlob(data);
           }
@@ -92,7 +89,6 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
   const getDocumentTitle = () => {
     const formatBadge = scoresheetData?.document.format === '5-sets' ? '5 Sets' : '3 Sets';
     if (tab === 'ordem') return `Ordem de Saque BaseOS (${formatBadge})`;
-    if (tab === 'pacote') return `Pacote Oficial do Jogo (Súmula + Ordem de Saque)`;
     if (tab === 'blank') return `Súmula Oficial em Branco (${formatBadge})`;
     return `Súmula Oficial BaseOS (${formatBadge})`;
   };
@@ -100,7 +96,6 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
   const getDownloadFileName = () => {
     const matchNum = match?.matchNumber || '1';
     if (tab === 'ordem') return `Ordem_de_Saque_BaseOS_Jogo_${matchNum}.pdf`;
-    if (tab === 'pacote') return `Pacote_Completo_Jogo_${matchNum}_BaseOS.pdf`;
     if (tab === 'blank') return `Sumula_Oficial_BaseOS_${scoresheetData?.document.format || '3-sets'}_Em_Branco.pdf`;
     return `Sumula_Oficial_BaseOS_Jogo_${matchNum}.pdf`;
   };
@@ -169,22 +164,18 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
 
         <div className="flex-1 flex flex-col min-h-0 gap-3">
           <Tabs value={tab} onValueChange={v => setTab(v as Tab)} className="w-full shrink-0">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="sumula" className="text-xs gap-1.5 font-medium">
                 <Sparkles className="w-3.5 h-3.5" />
                 Súmula Oficial
               </TabsTrigger>
-              <TabsTrigger value="ordem" className="text-xs gap-1.5 font-medium">
-                <ClipboardList className="w-3.5 h-3.5" />
-                Ordem de Saque
-              </TabsTrigger>
-              <TabsTrigger value="pacote" className="text-xs gap-1.5 font-medium">
-                <Layers className="w-3.5 h-3.5 text-amber-500" />
-                Pacote do Jogo
-              </TabsTrigger>
               <TabsTrigger value="blank" className="text-xs gap-1.5 font-medium">
                 <FileText className="w-3.5 h-3.5" />
                 Súmula em Branco
+              </TabsTrigger>
+              <TabsTrigger value="ordem" className="text-xs gap-1.5 font-medium">
+                <ClipboardList className="w-3.5 h-3.5" />
+                Ordem de Saque
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -209,10 +200,10 @@ export function MatchSheetEmitDialog({ match, open, onOpenChange }: Props) {
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border shrink-0">
             <p className="text-[11px] text-muted-foreground">
               {tab === 'ordem'
-                ? 'Fichas regulamentares A4 Paisagem prontas para entrega da formação inicial.'
-                : tab === 'pacote'
-                  ? 'Arquivo unificado: Súmula Oficial + Fichas de Ordem de Saque da partida.'
-                  : 'Documento vetorial de alta definição com regras esportivas homologadas.'}
+                ? 'Ficha regulamentar independente para preenchimento da formação inicial pelos técnicos.'
+                : tab === 'blank'
+                  ? 'Súmula limpa oficial para anotação manual com os dados da partida.'
+                  : 'Súmula Oficial regulamentar da partida (impressa de forma independente, sem ordem de saque agregada).'}
             </p>
 
             <div className="flex items-center gap-2">

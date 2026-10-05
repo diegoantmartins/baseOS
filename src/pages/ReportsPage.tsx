@@ -63,6 +63,11 @@ import { ClassificationProbabilityService } from '@/services/classificationProba
 import type { CompetitionProbabilityResult } from '@/types/classificationProbability';
 import { BlankSheetEmitDialog } from '@/components/match/BlankSheetEmitDialog';
 import { MatchSheetEmitDialog } from '@/components/match/MatchSheetEmitDialog';
+import {
+  loadBaseosScoresheetData,
+  downloadBaseosBatchScoresheets,
+  type BaseosScoresheetData,
+} from '@/document-engine/baseos';
 import { ReportPreviewDialog } from '@/components/report/ReportPreviewDialog';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import {
@@ -433,11 +438,25 @@ export function ReportsPage() {
     if (!competition) {
       return { competitionName: 'Competição' };
     }
-    const podium = computePodium(filteredMatches, competition);
-    const champion = teams.find((t) => t.id === podium.championTeamId);
-    const runnerUp = teams.find((t) => t.id === podium.runnerUpTeamId);
-    const third = teams.find((t) => t.id === podium.thirdPlaceTeamId);
-    const fourth = teams.find((t) => t.id === podium.fourthPlaceTeamId);
+    const compMatches = matches.filter((m) => m.competitionId === competition.id);
+    const podium = computePodium(compMatches, competition);
+
+    const getTeamInfo = (teamId?: string) => {
+      if (!teamId) return undefined;
+      const found = teams.find((t) => t.id === teamId);
+      if (found) {
+        return { name: found.name, shortName: found.shortName, logoUrl: found.logoUrl };
+      }
+      const match = compMatches.find((m) => m.teamAId === teamId || m.teamBId === teamId);
+      if (match) {
+        const isA = match.teamAId === teamId;
+        const name = (isA ? match.teamAName : match.teamBName) || teamId;
+        const shortName = (isA ? match.teamAShortName : match.teamBShortName) || name;
+        return { name, shortName, logoUrl: undefined };
+      }
+      return { name: teamId, shortName: teamId, logoUrl: undefined };
+    };
+
     const catName =
       competition.genderCategory === 'male'
         ? 'Masculino'
@@ -447,20 +466,12 @@ export function ReportsPage() {
     return {
       competitionName: competition.name,
       categoryName: catName,
-      champion: champion
-        ? { name: champion.name, shortName: champion.shortName, logoUrl: champion.logoUrl }
-        : undefined,
-      runnerUp: runnerUp
-        ? { name: runnerUp.name, shortName: runnerUp.shortName, logoUrl: runnerUp.logoUrl }
-        : undefined,
-      third: third
-        ? { name: third.name, shortName: third.shortName, logoUrl: third.logoUrl }
-        : undefined,
-      fourth: fourth
-        ? { name: fourth.name, shortName: fourth.shortName, logoUrl: fourth.logoUrl }
-        : undefined,
+      champion: getTeamInfo(podium.championTeamId),
+      runnerUp: getTeamInfo(podium.runnerUpTeamId),
+      third: getTeamInfo(podium.thirdPlaceTeamId),
+      fourth: getTeamInfo(podium.fourthPlaceTeamId),
     };
-  }, [competition, filteredMatches, teams]);
+  }, [competition, matches, teams]);
 
   // 5. View Model: Escala Oficial de Arbitragem e Oficiais de Mesa (RefereesScheduleRow[])
   const refereesScheduleRows: RefereesScheduleRow[] = useMemo(() => {
@@ -702,6 +713,34 @@ export function ReportsPage() {
       toast.error('Erro ao exportar PDF do relatório.');
     } finally {
       setIsPdfLoading(false);
+    }
+  };
+
+  const [batchLoading, setBatchLoading] = useState(false);
+
+  const handleDownloadAllScoresheets = async () => {
+    if (!competition || matches.length === 0) {
+      toast.error('Nenhuma partida disponível nesta competição.');
+      return;
+    }
+    setBatchLoading(true);
+    try {
+      toast.info(`Gerando ${matches.length} súmulas oficiais BaseOS em arquivo compilado...`);
+      const scoresheets: BaseosScoresheetData[] = [];
+      for (const m of matches) {
+        const data = await loadBaseosScoresheetData(m.id);
+        if (data) scoresheets.push(data);
+      }
+      if (scoresheets.length === 0) {
+        throw new Error('Falha ao carregar as súmulas.');
+      }
+      await downloadBaseosBatchScoresheets(scoresheets, competition.name);
+      toast.success(`${scoresheets.length} súmulas oficiais geradas em arquivo único com sucesso!`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao gerar lote de súmulas oficiais.');
+    } finally {
+      setBatchLoading(false);
     }
   };
 
@@ -984,9 +1023,11 @@ export function ReportsPage() {
               size="sm"
               className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium no-print"
               onClick={() => setBlankDialogOpen(true)}
+              title="Emitir Súmulas e Ordens de Saque em Branco"
+              aria-label="Súmula em Branco / Documentos em Branco"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-zinc-400" />
-              Súmula em Branco
+              Documentos em Branco
             </Button>
           }
           secondaryActions={
@@ -1195,6 +1236,8 @@ export function ReportsPage() {
                       : undefined
                   }
                   isPdfLoading={isPdfLoading}
+                  onBatchScoresheets={activeReport === 'boletim' ? handleDownloadAllScoresheets : undefined}
+                  isBatchLoading={batchLoading}
                 />
 
                 {/* Identidade da Competição, Apoiadores e Powered by BaseOS */}
@@ -1205,7 +1248,19 @@ export function ReportsPage() {
 
                 {/* Visualização HTML Nativa Conforme o Relatório Selecionado */}
                 <div className="pt-2">
-                  {activeReport === 'boletim' && <MatchesBoletimView rows={boletimRows} />}
+                  {activeReport === 'boletim' && (
+                    <MatchesBoletimView
+                      rows={boletimRows}
+                      onEmitMatchSheet={(matchNum) => {
+                        const found = matches.find((m) => String(m.matchNumber) === String(matchNum));
+                        if (found) {
+                          setSelectedMatch(found);
+                        } else {
+                          toast.error(`Partida #${matchNum} não encontrada.`);
+                        }
+                      }}
+                    />
+                  )}
                   {activeReport === 'standings' && (
                     <StandingsReportView
                       groups={standingsGroups}

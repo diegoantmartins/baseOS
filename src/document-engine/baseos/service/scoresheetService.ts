@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { pdf } from '@react-pdf/renderer';
+import { PDFDocument } from 'pdf-lib';
 import { dataAccess } from '@/services/dataAccess';
 import type { BaseosScoresheetData, DocumentState, ScoresheetFormat, ScoresheetOutput } from '../types/scoresheet';
 import { mapMatchRecordToBaseosScoresheet, createBlankBaseosScoresheetData } from '../mapper/match.mapper';
@@ -113,13 +114,28 @@ export async function generateBaseosPdfBlob(data: BaseosScoresheetData): Promise
   return pdfInstance.toBlob();
 }
 
-/** Gera a Súmula em Branco (modelo limpo para impressão) */
+/** Gera a Súmula em Branco (modelo limpo para impressão) com suporte a quantidade personalizada de cópias */
 export async function generateBlankBaseosPdfBlob(
   format: ScoresheetFormat = '3-sets',
   output: ScoresheetOutput = 'print-a4',
+  copies: number = 1,
 ): Promise<Blob> {
   const blankData = createBlankBaseosScoresheetData(format, output);
-  return generateBaseosPdfBlob(blankData);
+  const singleBlob = await generateBaseosPdfBlob(blankData);
+  if (copies <= 1) return singleBlob;
+
+  const singleBytes = await singleBlob.arrayBuffer();
+  const srcDoc = await PDFDocument.load(singleBytes);
+  const outDoc = await PDFDocument.create();
+
+  for (let c = 0; c < copies; c++) {
+    const pageIndices = srcDoc.getPageIndices();
+    const copiedPages = await outDoc.copyPages(srcDoc, pageIndices);
+    copiedPages.forEach(p => outDoc.addPage(p));
+  }
+
+  const outBytes = await outDoc.save();
+  return new Blob([outBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
 }
 
 /** Executa o download direto do PDF no navegador */

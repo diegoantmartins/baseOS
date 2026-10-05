@@ -3,9 +3,10 @@
 // =====================================================================
 
 import React from 'react';
-import { View, Text, StyleSheet } from '@react-pdf/renderer';
+import { View, Text, StyleSheet, Image } from '@react-pdf/renderer';
 import type { BaseosServeOrderData } from '../types/serveOrder';
 import { BASEOS_TOKENS } from '../theme/tokens';
+import { BASEOS_LOGO_LIGHT_PNG } from '../assets/baseosLogos';
 
 const styles = StyleSheet.create({
   container: {
@@ -25,49 +26,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: 170,
   },
-  logoBars: {
-    width: 14,
-    height: 13,
-    justifyContent: 'space-between',
-    marginRight: 5,
-  },
-  logoBarTop: {
-    height: 2.3,
-    width: 10,
-    backgroundColor: '#CBD5E1',
-    borderRadius: 1.1,
-  },
-  logoBarMid: {
-    height: 2.3,
-    width: 14,
-    marginLeft: 3,
-    backgroundColor: '#F59E0B',
-    borderRadius: 1.1,
-  },
-  logoBarBot: {
-    height: 2.3,
-    width: 10,
-    backgroundColor: '#CBD5E1',
-    borderRadius: 1.1,
-  },
-  brandTextContainer: {
-    flexDirection: 'column',
-  },
-  brandTitle: {
-    fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 9.5,
-    color: '#000000',
-    letterSpacing: 0.5,
-  },
-  brandAccent: {
-    color: '#F59E0B',
-  },
-  brandSubtitle: {
-    fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 4.5,
-    color: '#71717A',
-    letterSpacing: 0.2,
-    textTransform: 'uppercase',
+  brandLogo: {
+    width: 78,
+    height: 20,
+    objectFit: 'contain',
   },
   centerSection: {
     flex: 1,
@@ -137,17 +99,7 @@ export const BaseosServeOrderHeader: React.FC<Props> = ({ data, pageNumber, tota
     <View style={styles.container}>
       {/* Esquerda: Identidade Canônica BaseOS */}
       <View style={styles.leftSection}>
-        <View style={styles.logoBars}>
-          <View style={styles.logoBarTop} />
-          <View style={styles.logoBarMid} />
-          <View style={styles.logoBarBot} />
-        </View>
-        <View style={styles.brandTextContainer}>
-          <Text style={styles.brandTitle}>
-            BASE<Text style={styles.brandAccent}>OS</Text>
-          </Text>
-          <Text style={styles.brandSubtitle}>Document Engine · Vôlei</Text>
-        </View>
+        <Image src={{ uri: BASEOS_LOGO_LIGHT_PNG }} style={styles.brandLogo} />
       </View>
 
       {/* Centro: Título do Documento e Confronto */}

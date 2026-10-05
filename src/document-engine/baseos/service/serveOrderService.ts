@@ -233,13 +233,28 @@ export async function generateServeOrderPdfBlob(data: BaseosServeOrderData): Pro
 }
 
 /**
- * Gera o Blob da Ordem de Saque em Branco.
+ * Gera o Blob da Ordem de Saque em Branco com suporte a quantidade personalizada de cópias.
  */
 export async function generateBlankServeOrderPdfBlob(
   format: ServeOrderFormat = '3-sets',
+  copies: number = 1,
 ): Promise<Blob> {
   const blankData = createBlankBaseosServeOrderData(format);
-  return generateServeOrderPdfBlob(blankData);
+  const singleBlob = await generateServeOrderPdfBlob(blankData);
+  if (copies <= 1) return singleBlob;
+
+  const singleBytes = await singleBlob.arrayBuffer();
+  const srcDoc = await PDFDocument.load(singleBytes);
+  const outDoc = await PDFDocument.create();
+
+  for (let c = 0; c < copies; c++) {
+    const pageIndices = srcDoc.getPageIndices();
+    const copiedPages = await outDoc.copyPages(srcDoc, pageIndices);
+    copiedPages.forEach(p => outDoc.addPage(p));
+  }
+
+  const outBytes = await outDoc.save();
+  return new Blob([outBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
 }
 
 /**

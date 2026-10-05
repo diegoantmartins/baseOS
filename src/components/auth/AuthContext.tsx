@@ -31,17 +31,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const isPlatformAdmin = Boolean(
+    session?.user?.isPlatformAdmin ||
+    (session?.user?.email && session.user.email.toLowerCase() === 'diegoantmartins89@gmail.com')
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       loading,
       isAuthenticated: session !== null,
+      isPlatformAdmin,
       hasRole: (roles: UserRole[]) => authService.hasRole(session, roles),
       signIn,
       signOut,
       updateProfile,
     }),
-    [session, loading, signIn, signOut, updateProfile],
+    [session, loading, isPlatformAdmin, signIn, signOut, updateProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -42,7 +42,7 @@ on conflict (id) do nothing;
 -- Elencos completos (12 atletas, 1 capitão, 1 líbero, camisas 1-12)
 -- ============================================================================
 
-with roster(name, ct, offset) as (
+with roster(name, ct, "offset") as (
   values
     ('ath-1', 'ct-1', 0), ('ath-2', 'ct-2', 4), ('ath-3', 'ct-3', 8), ('ath-4', 'ct-4', 12),
     ('ath-5', 'ct-5', 16), ('ath-6', 'ct-6', 20), ('ath-7', 'ct-7', 2), ('ath-8', 'ct-8', 6)
@@ -52,13 +52,13 @@ insert into public.competition_athletes
 select
   r.name || '-' || lpad(n::text, 2, '0'),
   r.ct,
-  (array['Lucas Silva','Gabriel Santos','Rafael Oliveira','Matheus Costa','João Pedro Alves','Thiago Almeida','Bruno Rodrigues','Felipe Cardoso','André Pereira','Diego Martins','Vitor Hugo','Caio Rocha','Rodrigo Nunes','Paulo Henrique','Marcos Vinícius','Eduardo Lima','Gustavo Moraes','Igor Freitas','Leonardo Barbosa','Renan Ribeiro','Fábio Teixeira','Daniel Souza','Hugo Carvalho','Alex Barreto'])[1 + ((r.offset + n - 1) % 24)],
+  (array['Lucas Silva','Gabriel Santos','Rafael Oliveira','Matheus Costa','João Pedro Alves','Thiago Almeida','Bruno Rodrigues','Felipe Cardoso','André Pereira','Diego Martins','Vitor Hugo','Caio Rocha','Rodrigo Nunes','Paulo Henrique','Marcos Vinícius','Eduardo Lima','Gustavo Moraes','Igor Freitas','Leonardo Barbosa','Renan Ribeiro','Fábio Teixeira','Daniel Souza','Hugo Carvalho','Alex Barreto'])[1 + ((r."offset" + n - 1) % 24)],
   n,
   (array['Levantador','Ponteira','Central','Oposta','Ponteira','Líbero','Ponteira','Central','Oposta','Levantador','Central','Ponteira'])[n],
   n = 1,
   n = 6,
   'male',
-  lpad((10000000000 + (r.offset * 12 + n - 1) * 137)::text, 11, '0') as document_number,
+  lpad((10000000000 + (r."offset" * 12 + n - 1) * 137)::text, 11, '0') as document_number,
   now() - interval '2 days',
   now() - interval '2 days'
 from roster r

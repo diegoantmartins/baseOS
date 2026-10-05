@@ -75,7 +75,6 @@ export interface MatchSheetData {
 export interface PdfTimeout {
   set: number;
   team: 'A' | 'B';
-  'B';
   score: string;
 }
 

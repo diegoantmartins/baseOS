@@ -18,6 +18,10 @@ export type UserProfile = {
   role: UserRole;
   /** Obrigatório apenas para o perfil de equipe: vínculo com competition_team. */
   competitionTeamId?: string;
+  /** Identificador da organização primária do usuário */
+  organizationId?: string;
+  /** Chave-mestra: Platform Admin (Master Control) */
+  isPlatformAdmin?: boolean;
 };
 
 export type SystemUser = {
@@ -27,6 +31,8 @@ export type SystemUser = {
   role: UserRole;
   status: 'active' | 'inactive';
   competitionTeamId?: string;
+  organizationId?: string;
+  isPlatformAdmin?: boolean;
   createdAt: string;
   lastLoginAt?: string;
 };

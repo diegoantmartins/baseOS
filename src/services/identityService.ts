@@ -23,3 +23,54 @@ export function findAthleteByCpf(
   if (!normalizedCpf) return undefined;
   return athletes.find((athlete) => athlete.normalizedCpf === normalizedCpf);
 }
+
+export type AthleteIdentityDataAccess = {
+  getAthleteByCpf: (cpf: string) => Promise<AthleteIdentity | null>;
+  createAthlete: (input: Omit<AthleteIdentity, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<AthleteIdentity>;
+};
+
+/**
+ * Resolução canônica de identidade de atleta.
+ * Regras obrigatórias:
+ * 1. CPF normalizado é a chave canônica quando disponível.
+ * 2. Se o CPF existir na base global, reutiliza a identidade existente (athletes.id).
+ * 3. Se o CPF não existir, cria nova AthleteIdentity com tratamento de concorrência.
+ * 4. Se não houver CPF, gera SEMPRE nova identidade isolada (mesmo nome NÃO significa mesma pessoa).
+ */
+export async function getOrCreateAthleteIdentity(
+  input: {
+    name: string;
+    documentNumber?: string;
+    birthDate?: string;
+  },
+  dataAccessLayer: AthleteIdentityDataAccess,
+): Promise<AthleteIdentity> {
+  const normalizedCpf = normalizeCpf(input.documentNumber);
+
+  if (normalizedCpf) {
+    const existing = await dataAccessLayer.getAthleteByCpf(normalizedCpf);
+    if (existing) {
+      return existing;
+    }
+    try {
+      return await dataAccessLayer.createAthlete({
+        name: input.name.trim(),
+        normalizedCpf,
+        birthDate: input.birthDate,
+      });
+    } catch (error) {
+      // Concorrência: se outra operação inseriu simultaneamente o mesmo CPF, busca novamente
+      const retry = await dataAccessLayer.getAthleteByCpf(normalizedCpf);
+      if (retry) {
+        return retry;
+      }
+      throw error;
+    }
+  }
+
+  // Atletas sem CPF: SEMPRE criar nova identidade isolada (mesmo nome ≠ mesma identidade)
+  return dataAccessLayer.createAthlete({
+    name: input.name.trim(),
+    birthDate: input.birthDate,
+  });
+}

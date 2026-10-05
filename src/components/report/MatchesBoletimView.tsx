@@ -1,11 +1,13 @@
 import type { MatchBoletimRow } from '@/lib/pdf/reportsPdf';
-import { Calendar, MapPin, Trophy } from 'lucide-react';
+import { Calendar, MapPin, Trophy, FileText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface MatchesBoletimViewProps {
   rows: MatchBoletimRow[];
+  onEmitMatchSheet?: (matchNumber: number | string) => void;
 }
 
-export function MatchesBoletimView({ rows }: MatchesBoletimViewProps) {
+export function MatchesBoletimView({ rows, onEmitMatchSheet }: MatchesBoletimViewProps) {
   if (rows.length === 0) {
     return (
       <div className="p-8 text-center rounded-xl bg-card border border-border text-muted-foreground text-xs">
@@ -28,6 +30,7 @@ export function MatchesBoletimView({ rows }: MatchesBoletimViewProps) {
               <th className="py-2.5 px-3 w-28 text-center font-mono">Placar</th>
               <th className="py-2.5 px-3 text-left">Visitante (Equipe B)</th>
               <th className="py-2.5 px-3 w-28 text-center">Status</th>
+              {onEmitMatchSheet && <th className="py-2.5 px-3 w-24 text-center no-print">Súmula</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-border/60">
@@ -127,6 +130,20 @@ export function MatchesBoletimView({ rows }: MatchesBoletimViewProps) {
                       )}
                     </div>
                   </td>
+                  {onEmitMatchSheet && (
+                    <td className="py-2 px-3 text-center no-print">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1 font-medium border-border hover:bg-zinc-800/60"
+                        onClick={() => onEmitMatchSheet(row.matchNumber)}
+                        title={`Emitir Súmula Oficial BaseOS - Jogo #${row.matchNumber}`}
+                      >
+                        <FileText className="w-3 h-3 text-primary" />
+                        <span>Súmula</span>
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               );
             })}

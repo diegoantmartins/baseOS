@@ -600,7 +600,16 @@ export function evaluateCompetitionReadiness(data: EvaluateCompetitionData): Com
   // ETAPA 12 — FASES FINAIS (MATA-MATA)
   // =========================================================================
   const isRoundRobin = isSingleStageRoundRobin(comp, matches);
-  const playoffMatches = matches.filter(m => m.phase && ['oitavas', 'quartas', 'semifinal', 'terceiro_lugar', 'final'].includes(m.phase));
+  const configStages = comp.config?.format?.stages ?? [];
+  const playoffMatches = matches.filter(m => {
+    if (m.phase && configStages.length > 0) {
+      const stage = configStages.find(
+        s => s.id === m.phase || s.stageId === m.phase || s.name.toLowerCase() === m.phase?.toLowerCase()
+      );
+      if (stage) return stage.type === 'knockout' || stage.type === 'play-in' || stage.type === 'third-place';
+    }
+    return !groupMatches.includes(m);
+  });
   const hasPlayoffs = playoffMatches.length > 0;
   const playoffCompleted = playoffMatches.filter(m => m.status === 'completed' || m.status === 'homologated').length;
 

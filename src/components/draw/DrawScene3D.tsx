@@ -35,8 +35,8 @@ function useReducedMotionPreference() {
   return reducedMotion;
 }
 
-function getBallStyle(teamId: string, index: number) {
-  const angle = (index / 12) * Math.PI * 2;
+function getBallStyle(teamId: string, index: number, totalCount = 18) {
+  const angle = (index / Math.max(1, totalCount)) * Math.PI * 2;
   const radius = 110 + (index % 4) * 16;
   return {
     left: `calc(50% + ${Math.cos(angle) * radius}px)`,
@@ -120,7 +120,7 @@ export function DrawScene3D({
   const progressLabel = totalTeams > 0 ? `${String(progressCount).padStart(2, '0')} / ${String(totalTeams).padStart(2, '0')}` : '00 / 00';
 
   const urnTeams = useMemo(() => {
-    return result.groups.flatMap(group => group.teams).slice(0, 18);
+    return result.groups.flatMap(group => group.teams);
   }, [result.groups]);
 
   return (
@@ -186,21 +186,20 @@ export function DrawScene3D({
               <div className="absolute inset-[15%] rounded-full border border-[#f6c76b]/30 bg-[#050c1d]/80 shadow-[0_0_80px_rgba(59,130,246,0.17)]" />
               <div className="absolute inset-[26%] rounded-full border border-[#f6c76b]/20 bg-[radial-gradient(circle_at_center,_rgba(168,85,247,0.14),_rgba(15,23,42,0)_60%)]" />
 
-              {[...Array(18)].map((_, index) => {
-                const ball = urnTeams[index];
-                const team = ball ? teams.find(item => item.id === ball.teamId) : undefined;
-                const position = getBallStyle(ball?.teamId ?? `ball-${index}`, index);
+              {urnTeams.map((ball, index) => {
+                const team = teams.find(item => item.id === ball.teamId);
+                const position = getBallStyle(ball.teamId ?? `ball-${index}`, index, urnTeams.length);
 
                 return (
                   <motion.div
-                    key={ball?.teamId ?? `seed-${index}`}
+                    key={ball.teamId ?? `seed-${index}`}
                     initial={{ opacity: 0.1, scale: 0.7 }}
                     animate={{
-                      opacity: currentTeam?.id === ball?.teamId ? 1 : 0.75,
-                      scale: currentTeam?.id === ball?.teamId ? 1.1 : 0.95,
+                      opacity: currentTeam?.id === ball.teamId ? 1 : 0.75,
+                      scale: currentTeam?.id === ball.teamId ? 1.1 : 0.95,
                       y: reducedMotion ? 0 : [0, -6, 0],
                     }}
-                    transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: index * 0.08 }}
+                    transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: (index % 18) * 0.08 }}
                     className="absolute h-8 w-8 rounded-full border border-white/30 shadow-[0_0_14px_rgba(255,255,255,0.18)] md:h-10 md:w-10"
                     style={{
                       ...position,
@@ -243,7 +242,7 @@ export function DrawScene3D({
           </div>
 
           {/* Group Arena — grid adaptativo (responsivo por quantidade/breakpoint) */}
-          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2">
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 max-h-[60vh] overflow-y-auto pr-1 scrollbar-thin">
             {result.groups.map(group => {
               const isCurrent = group.name === currentDraw?.groupName;
               return (
@@ -299,7 +298,9 @@ export function DrawScene3D({
                 >
                   <motion.div
                     animate={{
-                      x: currentTargetGroupIndex === 0 ? -180 : currentTargetGroupIndex === 1 ? 0 : currentTargetGroupIndex === 2 ? 180 : 0,
+                      x: currentTargetGroupIndex >= 0 && result.groups.length > 1
+                        ? Math.round(((currentTargetGroupIndex / (result.groups.length - 1)) - 0.5) * 360)
+                        : 0,
                       y: 180,
                       scale: [1, 1.08, 1],
                     }}

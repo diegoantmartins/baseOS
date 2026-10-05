@@ -14,7 +14,7 @@
  * Este serviço é PURO, determinístico e não possui dependências de UI/React.
  */
 
-import type { CompetitionRecord, MatchRecord, SetScoreRecord } from '@/types/entities';
+import type { CompetitionRecord, MatchRecord, SetScoreRecord, StageRecord } from '@/types/entities';
 import type {
   CanonicalMatchResult,
   CompetitionConfig,
@@ -190,22 +190,30 @@ export class CompetitionRulesService {
     if (customSetFormat) {
       setsToWin = parseLegacySetFormat(customSetFormat);
     } else if (phase) {
-      const p = phase.trim().toLowerCase();
-      const overrides = config.format.phaseOverrides;
+      // 1. Prioriza sobrescrita de regras definida no próprio estágio do DAG
+      const matchedStage = config.format.stages?.find(
+        s => s.id === phase || s.stageId === phase || s.name.toLowerCase() === phase.trim().toLowerCase()
+      );
+      if (matchedStage?.matchRulesOverride?.setsToWin) {
+        setsToWin = matchedStage.matchRulesOverride.setsToWin;
+      } else {
+        const p = phase.trim().toLowerCase();
+        const overrides = config.format.phaseOverrides;
 
-      if (overrides) {
-        if ((p === 'final' || p === 'finais') && overrides.final) {
-          setsToWin = overrides.final;
-        } else if ((p === 'semifinal' || p === 'semifinais' || p === 'semifinals') && overrides.semifinals) {
-          setsToWin = overrides.semifinals;
-        } else if ((p === 'terceiro_lugar' || p === 'thirdplace' || p === 'third-place' || p === 'third_place') && (overrides.thirdPlace || overrides.semifinals)) {
-          setsToWin = overrides.thirdPlace ?? overrides.semifinals!;
-        } else if ((p === 'quartas' || p === 'quarterfinals' || p === 'playoffs') && (overrides.quarterfinals || overrides.playoffs)) {
-          setsToWin = overrides.quarterfinals ?? overrides.playoffs!;
-        } else if ((p === 'oitavas' || p === 'roundof16' || p === 'round-of-16') && overrides.roundOf16) {
-          setsToWin = overrides.roundOf16;
-        } else if ((p === 'group-stage' || p === 'groupstage' || p === 'groups' || p === 'classificatória' || p === 'classificatoria') && overrides.groupStage) {
-          setsToWin = overrides.groupStage;
+        if (overrides) {
+          if ((p === 'final' || p === 'finais') && overrides.final) {
+            setsToWin = overrides.final;
+          } else if ((p === 'semifinal' || p === 'semifinais' || p === 'semifinals') && overrides.semifinals) {
+            setsToWin = overrides.semifinals;
+          } else if ((p === 'terceiro_lugar' || p === 'thirdplace' || p === 'third-place' || p === 'third_place') && (overrides.thirdPlace || overrides.semifinals)) {
+            setsToWin = overrides.thirdPlace ?? overrides.semifinals!;
+          } else if ((p === 'quartas' || p === 'quarterfinals' || p === 'playoffs') && (overrides.quarterfinals || overrides.playoffs)) {
+            setsToWin = overrides.quarterfinals ?? overrides.playoffs!;
+          } else if ((p === 'oitavas' || p === 'roundof16' || p === 'round-of-16') && overrides.roundOf16) {
+            setsToWin = overrides.roundOf16;
+          } else if ((p === 'group-stage' || p === 'groupstage' || p === 'groups' || p === 'classificatória' || p === 'classificatoria') && overrides.groupStage) {
+            setsToWin = overrides.groupStage;
+          }
         }
       }
     }
@@ -635,50 +643,75 @@ export class CompetitionRulesService {
   /**
    * Avalia de forma canônica e determinística se a competição é de fase única (Round-Robin).
    *
-   * Regras estritas do domínio BaseOS:
-   * 1. Se houver qualquer partida com fase eliminatória explícita, NÃO é fase única.
-   * 2. Se houver estágios configurados do tipo mata-mata (knockout, play-in, third-place), NÃO é fase única.
-   * 3. Se o formato macro for configurado para mata-mata/playoffs, NÃO é fase única.
-   * 4. Se o formato macro ou stages declararem explicitamente round-robin/fase-única (sem eliminatórias), É fase única.
+   * Regras estritas do domínio BaseOS (Configuration-Driven via DAG de Fases):
+   * 1. Se houver estágios persistidos (competition_stages) ou estágios declarados no DAG da configuração:
+   *    - Rejeita se houver qualquer estágio do tipo eliminatório ('knockout', 'play-in', 'third-place').
+   *    - Rejeita se houver mais de 1 estágio (ex: grupos + mata-mata, repescagem, etc.).
+   *    - Confirma se houver exatamente 1 estágio e for do tipo 'round-robin' ou 'group-stage'.
+   * 2. Se não houver estágios explícitos no DAG, avalia o formato macro declarado:
+   *    - Rejeita formatos com eliminatórias ('groups-knockout', 'knockout', 'groups-play-in-knockout', 'double-elimination', 'playoffs').
+   *    - Confirma se o formato macro for 'round-robin'.
+   * 3. Fallback de compatibilidade segura para competições legadas sem estágios explícitos.
+   *
+   * NUNCA depende de "match strings" ou traduções em português (ex: 'oitavas', 'quartas', 'semi', 'final').
    */
   public static isSingleStageRoundRobin(
     competition?: CompetitionRecord | null,
-    matches: MatchRecord[] = [],
+    matchesOrStages?: MatchRecord[] | StageRecord[],
+    persistedStages?: StageRecord[],
   ): boolean {
-    const playoffPhases = [
-      'oitavas',
-      'quartas',
-      'semi',
-      'semifinal',
-      'final',
-      'terceiro_lugar',
-      'playoff',
-      'playoffs',
-      'repescagem',
-      'play-in',
-      'knockout',
-    ];
-
-    // 1. Partidas reais existentes com fase eliminatória desqualificam fase única
-    const hasPlayoffMatches = matches.some(
-      m => m.phase && playoffPhases.includes(m.phase.trim().toLowerCase()),
-    );
-    if (hasPlayoffMatches) {
+    if (!competition) {
       return false;
     }
 
-    // 2. Análise dos estágios declarados no rulesSnapshot ou config
-    const config = competition?.rulesSnapshot || competition?.config;
+    // 1. Decisão estrita com base nos estágios reais do banco (competition_stages)
+    const stageRecords: StageRecord[] = Array.isArray(persistedStages)
+      ? persistedStages
+      : Array.isArray(matchesOrStages) && matchesOrStages.length > 0 && 'stageType' in matchesOrStages[0]
+      ? (matchesOrStages as StageRecord[])
+      : [];
+
+    if (stageRecords.length > 0) {
+      const hasKnockout = stageRecords.some(
+        s => s.stageType === 'knockout' || s.stageType === 'play-in' || s.stageType === 'third-place'
+      );
+      if (hasKnockout) {
+        return false;
+      }
+      if (
+        stageRecords.length === 1 &&
+        (stageRecords[0].stageType === 'round-robin' || stageRecords[0].stageType === 'group-stage')
+      ) {
+        return true;
+      }
+      if (stageRecords.length > 1) {
+        return false;
+      }
+    }
+
+    // 2. Decisão estrita orientada a metadados do DAG de Estágios da configuração
+    const config = competition.rulesSnapshot || competition.config;
     const stages = config?.format?.stages || [];
-    const hasPlayoffStages = stages.some(
-      s => s.type === 'knockout' || s.type === 'play-in' || s.type === 'third-place',
-    );
-    if (hasPlayoffStages) {
-      return false;
+
+    if (stages.length > 0) {
+      const hasKnockoutStage = stages.some(
+        s => s.type === 'knockout' || s.type === 'play-in' || s.type === 'third-place'
+      );
+      if (hasKnockoutStage) {
+        return false;
+      }
+
+      if (stages.length === 1 && (stages[0].type === 'round-robin' || stages[0].type === 'group-stage')) {
+        return true;
+      }
+
+      if (stages.length > 1) {
+        return false;
+      }
     }
 
-    // 3. Formato macro estruturado
-    const macroFormat = (config?.format?.formatType || competition?.format || '').toLowerCase();
+    // 3. Decisão baseada no Formato Macro oficial
+    const macroFormat = (config?.format?.formatType || competition.format || '').toLowerCase();
     const knockoutFormats = [
       'groups-knockout',
       'knockout',
@@ -690,32 +723,23 @@ export class CompetitionRulesService {
       return false;
     }
 
-    // 4. Verificação de formato round-robin declarado
-    const isRoundRobinFormat =
-      macroFormat === 'round-robin' ||
-      competition?.format === 'round-robin' ||
-      (stages.length === 1 && (stages[0].type === 'round-robin' || stages[0].type === 'group-stage'));
-
-    if (isRoundRobinFormat) {
+    if (macroFormat === 'round-robin' || competition.format === 'round-robin') {
       return true;
     }
 
-    // 5. Fallback seguro: se não há estágios de mata-mata, formato sem playoffs e todas as partidas são regulares
+    // 4. Fallback seguro para competições legadas sem estágios explícitos
+    const matchesList =
+      Array.isArray(matchesOrStages) && matchesOrStages.length > 0 && !('stageType' in matchesOrStages[0])
+        ? (matchesOrStages as MatchRecord[])
+        : [];
+
     if (
       stages.length === 0 &&
-      !competition?.format?.includes('knockout') &&
-      !competition?.format?.includes('playoff') &&
-      matches.length > 0 &&
-      matches.every(
-        m =>
-          !m.phase ||
-          m.phase === 'regular' ||
-          m.phase === 'classificatória' ||
-          m.phase === 'group-stage' ||
-          m.phase === 'fase-unica',
-      )
+      !competition.format?.toLowerCase().includes('knockout') &&
+      !competition.format?.toLowerCase().includes('playoff') &&
+      matchesList.length > 0
     ) {
-      return true;
+      return macroFormat === 'round-robin';
     }
 
     return false;

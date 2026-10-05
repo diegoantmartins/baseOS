@@ -3,9 +3,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./components/auth/AuthContext";
 import { RequireAuth } from "./components/auth/RequireAuth";
+import { useAuth } from "./components/auth/useAuth";
+import { TeamContextRedirector } from "./components/auth/TeamContextRedirector";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { RouteLoadingFallback } from "./components/layout/RouteLoadingFallback";
 
@@ -35,34 +37,118 @@ const TeamRosterRegistrationPage = lazy(() => import("./pages/TeamRosterRegistra
 const HelpCenterPage = lazy(() => import("./pages/HelpCenterPage"));
 const DocumentEditorPage = lazy(() => import("./pages/DocumentEditorPage"));
 const PublicCompetitionPage = lazy(() => import("./pages/PublicCompetitionPage"));
+const OrganizationsPage = lazy(() => import("./pages/OrganizationsPage"));
+const OrganizationDetailPage = lazy(() => import("./pages/OrganizationDetailPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+// Portal Unificado por Perfil (Fase 10)
+const PortalRouter = lazy(() =>
+  import("./components/portal/PortalRouter").then((m) => ({ default: m.PortalRouter }))
+);
+const TeamPortalGuard = lazy(() =>
+  import("./components/portal/TeamPortalGuard").then((m) => ({ default: m.TeamPortalGuard }))
+);
+const TeamPortalLayout = lazy(() =>
+  import("./components/portal/TeamPortalLayout").then((m) => ({ default: m.TeamPortalLayout }))
+);
+const TeamPortalPage = lazy(() =>
+  import("./pages/portal/TeamPortalPage").then((m) => ({ default: m.TeamPortalPage }))
+);
+
 const queryClient = new QueryClient();
+
+import { RootRedirector } from "./components/routing/RootRedirector";
+import { TenantRouteGuard } from "./components/routing/TenantRouteGuard";
+import { TenantProvider } from "./contexts/TenantContext";
+import { RequirePlatformAdmin } from "./components/auth/RequirePlatformAdmin";
+
+const MasterDashboard = lazy(() => import("./pages/master/MasterDashboard"));
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <TooltipProvider>
         <AuthProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <Suspense fallback={<RouteLoadingFallback />}>
+          <TenantProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <Suspense fallback={<RouteLoadingFallback />}>
               <Routes>
-                {/* Públicas */}
+                {/* Públicas: resultados, classificação, portal da equipe */}
                 <Route path="/c/:slug" element={<PublicCompetitionPage />} />
-                <Route path="/" element={<ActiveCompetitionsPage />} />
+                <Route path="/" element={<RootRedirector />} />
                 <Route path="/competicoes-ativas" element={<ActiveCompetitionsPage />} />
-                <Route path="/dashboard" element={<Index />} />
-                <Route path="/jogos" element={<MatchesPage />} />
                 <Route path="/classificacao" element={<StandingsPage />} />
                 <Route path="/standings" element={<StandingsPage />} />
-                <Route path="/sumulas" element={<MatchSheetPage />} />
-                <Route path="/sumulas/:matchId" element={<MatchSheetPage />} />
+                {/* Rota Central de Entrada por Perfil (Fase 10) */}
+                <Route path="/portal" element={<PortalRouter />} />
+
+                {/* Portal Exclusivo da Equipe (Fase 10) */}
+                <Route
+                  path="/portal/equipe"
+                  element={
+                    <TeamPortalGuard>
+                      <TeamPortalLayout>
+                        <TeamPortalPage />
+                      </TeamPortalLayout>
+                    </TeamPortalGuard>
+                  }
+                />
+                <Route
+                  path="/portal/equipe/*"
+                  element={
+                    <TeamPortalGuard>
+                      <TeamPortalLayout>
+                        <TeamPortalPage />
+                      </TeamPortalLayout>
+                    </TeamPortalGuard>
+                  }
+                />
+
+                {/* Team Context Redirector e Links canônicos por token (Gate 2A.3) */}
+                <Route path="/equipe" element={<TeamContextRedirector />} />
+                <Route path="/equipe/:token" element={<TeamRosterRegistrationPage />} />
                 <Route path="/equipe/inscricao/:token" element={<TeamRosterRegistrationPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/ajuda" element={<HelpCenterPage />} />
                 <Route path="/help" element={<HelpCenterPage />} />
+
+                {/* Operacionais: /dashboard exclusivo para administradores e organizadores */}
+                <Route
+                  path="/dashboard"
+                  element={
+                    <RequireAuth roles={['admin', 'organizer']}>
+                      <Index />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/jogos"
+                  element={
+                    <RequireAuth roles={['admin', 'organizer', 'referee', 'scorer']}>
+                      <MatchesPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/sumulas"
+                  element={
+                    <RequireAuth roles={['admin', 'organizer', 'referee', 'scorer']}>
+                      <MatchSheetPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/sumulas/:matchId"
+                  element={
+                    <RequireAuth roles={['admin', 'organizer', 'referee', 'scorer']}>
+                      <TenantRouteGuard>
+                        <MatchSheetPage />
+                      </TenantRouteGuard>
+                    </RequireAuth>
+                  }
+                />
 
                 {/* Gestão (apenas organizador) */}
                 <Route
@@ -77,7 +163,29 @@ const App = () => (
                   path="/competicoes"
                   element={
                     <RequireAuth roles={['organizer']}>
-                      <CompetitionsPage />
+                      <TenantRouteGuard>
+                        <CompetitionsPage />
+                      </TenantRouteGuard>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/competicoes/:id"
+                  element={
+                    <RequireAuth roles={['organizer']}>
+                      <TenantRouteGuard>
+                        <CompetitionsPage />
+                      </TenantRouteGuard>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/competicoes/:id/*"
+                  element={
+                    <RequireAuth roles={['organizer']}>
+                      <TenantRouteGuard>
+                        <CompetitionsPage />
+                      </TenantRouteGuard>
                     </RequireAuth>
                   }
                 />
@@ -85,7 +193,48 @@ const App = () => (
                   path="/competicoes/:id/inscricoes"
                   element={
                     <RequireAuth roles={['organizer']}>
-                      <CompetitionRegistrationsPage />
+                      <TenantRouteGuard>
+                        <CompetitionRegistrationsPage />
+                      </TenantRouteGuard>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/organizacoes"
+                  element={
+                    <RequireAuth roles={['organizer']}>
+                      <OrganizationsPage />
+                    </RequireAuth>
+                  }
+                />
+                {/* Master Control Layer (Exclusivo Platform Admin) */}
+                <Route
+                  path="/master"
+                  element={
+                    <RequireAuth roles={['admin']}>
+                      <RequirePlatformAdmin>
+                        <MasterDashboard />
+                      </RequirePlatformAdmin>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/organizacoes/:organizationId"
+                  element={
+                    <RequireAuth roles={['organizer']}>
+                      <TenantRouteGuard>
+                        <OrganizationDetailPage />
+                      </TenantRouteGuard>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/organizacoes/:organizationId/membros"
+                  element={
+                    <RequireAuth roles={['organizer']}>
+                      <TenantRouteGuard>
+                        <OrganizationDetailPage defaultTab="members" />
+                      </TenantRouteGuard>
                     </RequireAuth>
                   }
                 />
@@ -189,7 +338,9 @@ const App = () => (
                   path="/sorteio/:competitionId"
                   element={
                     <RequireAuth roles={['organizer']}>
-                      <DrawPage />
+                      <TenantRouteGuard>
+                        <DrawPage />
+                      </TenantRouteGuard>
                     </RequireAuth>
                   }
                 />
@@ -215,14 +366,32 @@ const App = () => (
                   path="/documentos/editor/:matchId"
                   element={
                     <RequireAuth roles={['organizer']}>
-                      <DocumentEditorPage />
+                      <TenantRouteGuard>
+                        <DocumentEditorPage />
+                      </TenantRouteGuard>
                     </RequireAuth>
                   }
                 />
 
                 {/* Legacy routes (manutenção de redirecionamentos antigos) */}
-                <Route path="/matches" element={<MatchesPage />} />
-                <Route path="/match-sheets" element={<MatchSheetPage />} />
+                {/* /matches: operacional — bloqueia role='team' */}
+                <Route
+                  path="/matches"
+                  element={
+                    <RequireAuth roles={['admin', 'organizer', 'referee', 'scorer']}>
+                      <MatchesPage />
+                    </RequireAuth>
+                  }
+                />
+                {/* /match-sheets: operacional — súmulas digitais exigem papel operacional */}
+                <Route
+                  path="/match-sheets"
+                  element={
+                    <RequireAuth roles={['admin', 'organizer', 'referee', 'scorer']}>
+                      <MatchSheetPage />
+                    </RequireAuth>
+                  }
+                />
                 <Route
                   path="/competitions"
                   element={
@@ -276,6 +445,7 @@ const App = () => (
               </Routes>
             </Suspense>
           </BrowserRouter>
+          </TenantProvider>
         </AuthProvider>
       </TooltipProvider>
     </ThemeProvider>

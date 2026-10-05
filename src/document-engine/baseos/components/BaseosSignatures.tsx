@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     fontSize: 4.8,
   },
   captainLine: {
-    width: 56,
+    width: 72,
     borderBottomWidth: BASEOS_TOKENS.borders.HAIRLINE,
     borderBottomColor: BASEOS_TOKENS.colors.BLACK,
     marginLeft: 4,

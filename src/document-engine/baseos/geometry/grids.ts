@@ -7,6 +7,7 @@ export interface PointRulerGrid {
   col1: number[];
   col2?: number[];
   col3?: number[];
+  col4?: number[];
 }
 
 /**
@@ -14,6 +15,7 @@ export interface PointRulerGrid {
  * - maxPoints = 8: 1 coluna única de 1 a 8 (Tie-Break Quadrante 1 antes da troca)
  * - maxPoints = 30: 3 colunas (1-10, 11-20, 21-30) (Tie-Break Quadrantes 2 e 3)
  * - maxPoints = 36: 3 colunas (1-12, 13-24, 25-36) (Sets 1 a 4 Regulares)
+ * - maxPoints = 48: 4 colunas (1-12, 13-24, 25-36, 37-48) (Sets 1 a 2 Modelo Comercial)
  */
 export function generatePointRulerColumns(maxPoints = 36): PointRulerGrid {
   if (maxPoints <= 8) {
@@ -32,10 +34,20 @@ export function generatePointRulerColumns(maxPoints = 36): PointRulerGrid {
     };
   }
 
+  if (maxPoints <= 36) {
+    return {
+      isSingleCol: false,
+      col1: Array.from({ length: 12 }, (_, i) => i + 1),
+      col2: Array.from({ length: 12 }, (_, i) => i + 13),
+      col3: Array.from({ length: 12 }, (_, i) => i + 25),
+    };
+  }
+
   return {
     isSingleCol: false,
     col1: Array.from({ length: 12 }, (_, i) => i + 1),
     col2: Array.from({ length: 12 }, (_, i) => i + 13),
     col3: Array.from({ length: 12 }, (_, i) => i + 25),
+    col4: Array.from({ length: 12 }, (_, i) => i + 37),
   };
 }

@@ -27,7 +27,13 @@ export function RequireAuth({ children, roles }: RequireAuthProps) {
   }
 
   if (roles && !hasRole(roles)) {
-    return <Navigate to="/" replace />;
+    if (session?.user.role === 'team') {
+      return <Navigate to="/equipe" replace />;
+    }
+    if (session?.user.role === 'referee' || session?.user.role === 'scorer') {
+      return <Navigate to="/jogos" replace />;
+    }
+    return <Navigate to="/competicoes-ativas" replace />;
   }
 
   return <>{children}</>;

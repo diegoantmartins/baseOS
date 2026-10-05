@@ -5,6 +5,18 @@ import { afterEach, vi } from "vitest";
 // Configure testing-library asyncUtilTimeout to 5000ms for reliable testing under load
 configure({ asyncUtilTimeout: 5000 });
 
+import fs from 'node:fs';
+
+// Fix JSDOM cross-realm Buffer handling in pdfkit when rendering embedded base64 images
+const originalReadFileSync = fs.readFileSync;
+fs.readFileSync = function (path: unknown, options?: unknown) {
+  if (path && (Buffer.isBuffer(path) || (typeof path === 'object' && 'buffer' in path && 'byteLength' in path))) {
+    return path as unknown as Buffer;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return originalReadFileSync.call(this, path as any, options as any);
+} as typeof fs.readFileSync;
+
 // Mock matchMedia
 if (typeof window !== 'undefined') {
   Object.defineProperty(window, "matchMedia", {

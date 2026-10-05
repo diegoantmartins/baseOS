@@ -22,7 +22,7 @@ export const DemoModeBanner: React.FC = () => {
         <span className="truncate">
           {isDev ? (
             <>
-              <strong>Supabase Local Não Configurado:</strong> O ambiente de homologação exige o backend real (PostgreSQL/Supabase em http://localhost:8400). Inicialize o Supabase local antes de continuar.
+              <strong>Supabase Não Configurado:</strong> O ambiente de homologação exige o backend configurado (Supabase em {import.meta.env.VITE_SUPABASE_URL || 'servidor configurado'}). Inicialize o backend antes de continuar.
             </>
           ) : (
             <>

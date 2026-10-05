@@ -5,6 +5,7 @@ export interface AuthContextValue {
   session: AuthSession | null;
   loading: boolean;
   isAuthenticated: boolean;
+  isPlatformAdmin?: boolean;
   hasRole: (roles: UserRole[]) => boolean;
   signIn: (email: string, password: string) => Promise<SignInResult>;
   signOut: () => Promise<void>;

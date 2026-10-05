@@ -10,9 +10,10 @@
  *  - Controla o congelamento idempotente e imutável de rulesSnapshot.
  */
 
-import type { CompetitionLifecycleStatus, CompetitionRecord, MatchRecord, TeamRecord } from '@/types/entities';
+import type { CompetitionLifecycleStatus, CompetitionRecord, MatchRecord, StageRecord, TeamRecord } from '@/types/entities';
 import type { CompetitionTeam } from '@/types/registration';
 import { CompetitionRulesService } from './competitionRulesService';
+import { computePodium } from './playoffsService';
 import { dataAccess } from './dataAccess';
 import { OperationalAuditService } from './operationalAuditService';
 
@@ -36,6 +37,7 @@ export type LifecycleValidationContext = {
   matches?: MatchRecord[];
   championTeamId?: string;
   runnerUpTeamId?: string;
+  stages?: StageRecord[];
 };
 
 export class CompetitionLifecycleService {
@@ -255,9 +257,17 @@ export class CompetitionLifecycleService {
 
     // 5. IN-PROGRESS -> PLAYOFFS
     else if (targetStatus === 'playoffs') {
-      const groupMatches = matches.filter(
-        m => m.phase === 'group-stage' || m.phase === 'classificatória' || !m.phase
-      );
+      const configStages = competition.config?.format?.stages ?? [];
+
+      const groupMatches = matches.filter(m => {
+        if (m.phase && configStages.length > 0) {
+          const s = configStages.find(
+            st => st.id === m.phase || st.stageId === m.phase || st.name.toLowerCase() === m.phase?.toLowerCase()
+          );
+          if (s) return s.type === 'round-robin' || s.type === 'group-stage';
+        }
+        return Boolean(m.groupName) || m.phase === 'group-stage' || m.phase === 'classificatória' || !m.phase;
+      });
 
       const pendingGroupMatches = groupMatches.filter(
         m => m.status !== 'completed' && m.status !== 'homologated' && m.status !== 'cancelled'
@@ -266,23 +276,21 @@ export class CompetitionLifecycleService {
       const allGroupsDone = groupMatches.length > 0 && pendingGroupMatches.length === 0;
 
       checklist.push({
-        label: `Todos os jogos da fase de grupos finalizados/homologados (${groupMatches.length - pendingGroupMatches.length}/${groupMatches.length})`,
-        passed: allGroupsDone,
+        label: `Todos os jogos da fase inicial/grupos finalizados/homologados (${groupMatches.length - pendingGroupMatches.length}/${groupMatches.length})`,
+        passed: allGroupsDone || groupMatches.length === 0,
         critical: true,
-        detail: allGroupsDone
+        detail: allGroupsDone || groupMatches.length === 0
           ? undefined
-          : `Restam ${pendingGroupMatches.length} jogos pendentes na fase de grupos.`,
+          : `Restam ${pendingGroupMatches.length} jogos pendentes na fase inicial.`,
       });
 
       if (!allGroupsDone && groupMatches.length > 0) {
-        errors.push(`Não é possível avançar para os Playoffs: restam ${pendingGroupMatches.length} jogos da fase de grupos sem resultado homologado.`);
+        errors.push(`Não é possível avançar para as fases eliminatórias: restam ${pendingGroupMatches.length} jogos da fase inicial sem resultado homologado.`);
       }
 
-      const playoffMatches = matches.filter(
-        m => m.phase && m.phase !== 'group-stage' && m.phase !== 'classificatória'
-      );
+      const playoffMatches = matches.filter(m => !groupMatches.includes(m));
       checklist.push({
-        label: `Confrontos de mata-mata estruturados (${playoffMatches.length} jogos)`,
+        label: `Confrontos das fases seguintes estruturados (${playoffMatches.length} jogos)`,
         passed: playoffMatches.length > 0,
         critical: false,
       });
@@ -293,8 +301,11 @@ export class CompetitionLifecycleService {
 
     // 6. ANY -> COMPLETED
     else if (targetStatus === 'completed') {
-      // Se estiver em andamento e possuir playoffs configurados, não permite pular os playoffs
-      if (currentStatus === 'in-progress' && !CompetitionRulesService.isSingleStageRoundRobin(competition, matches)) {
+      // Se estiver em andamento ou grupos definidos e possuir playoffs configurados, não permite pular os playoffs
+      if (
+        (currentStatus === 'in-progress' || currentStatus === 'groups-defined') &&
+        !CompetitionRulesService.isSingleStageRoundRobin(competition, matches, context.stages)
+      ) {
         errors.push('Não é possível concluir diretamente a partir da fase inicial: a competição possui fase eliminatória (playoffs) configurada.');
         checklist.push({
           label: 'Fase eliminatória realizada',
@@ -325,11 +336,11 @@ export class CompetitionLifecycleService {
       const hasChampion = !!competition.championTeamId || !!context.championTeamId;
       checklist.push({
         label: 'Campeão e pódio final consolidados',
-        passed: hasChampion || matches.length === 0,
+        passed: hasChampion || allMatchesFinished || matches.length === 0,
         critical: true,
       });
 
-      if (!hasChampion && matches.length > 0) {
+      if (!hasChampion && !allMatchesFinished && matches.length > 0) {
         warnings.push('O campeão do torneio ainda não foi formalmente atribuído no pódio.');
       }
     }
@@ -354,6 +365,8 @@ export class CompetitionLifecycleService {
     competition?: CompetitionRecord | null,
     matches?: MatchRecord[],
   ): CompetitionLifecycleStatus | null {
+    const isSingleStage = competition ? CompetitionRulesService.isSingleStageRoundRobin(competition, matches) : false;
+
     switch (current) {
       case 'draft':
       case 'planning':
@@ -365,9 +378,17 @@ export class CompetitionLifecycleService {
         return 'draw-pending';
       case 'draw-pending':
       case 'groups-defined':
+        if (
+          isSingleStage &&
+          matches &&
+          matches.length > 0 &&
+          matches.every(m => m.status === 'completed' || m.status === 'homologated' || m.status === 'cancelled')
+        ) {
+          return 'completed';
+        }
         return 'in-progress';
       case 'in-progress':
-        if (competition && CompetitionRulesService.isSingleStageRoundRobin(competition, matches)) {
+        if (isSingleStage) {
           return 'completed';
         }
         return 'playoffs';
@@ -457,10 +478,17 @@ export class CompetitionLifecycleService {
       };
     }
 
-    // 2. Confirmar que existem partidas salvas correspondentes à fase de grupos
+    // 2. Confirmar que existem partidas salvas correspondentes à fase de grupos / fase inicial
     const matches = await dataAccess.listMatches(competitionId);
     const groupMatches = (matches || []).filter(
-      m => m.groupName || m.phase === 'Fase de Grupos' || m.phase?.toLowerCase().includes('classificat') || m.phase?.toLowerCase().includes('grupo')
+      m =>
+        m.groupName ||
+        m.phase === 'Fase de Grupos' ||
+        m.phase?.toLowerCase().includes('classificat') ||
+        m.phase?.toLowerCase().includes('grupo') ||
+        m.phase?.toLowerCase().includes('turno') ||
+        CompetitionRulesService.isSingleStageRoundRobin(competition, matches) ||
+        matches.length > 0
     );
 
     if (groupMatches.length === 0) {
@@ -515,6 +543,153 @@ export class CompetitionLifecycleService {
     });
 
     return { ok: true, competition: updated, errors: [] };
+  }
+
+  /**
+   * Sincroniza e avança automaticamente o status do ciclo de vida da competição
+   * com base no progresso das partidas (ex: após homologação de partidas).
+   *
+   * Garante que:
+   * 1. Cada estágio individual do DAG (competition_stages.status) transiciona de
+   *    'pending' -> 'in-progress' -> 'completed' conforme suas respectivas partidas/slots.
+   * 2. Quando 100% dos MatchSlots/partidas reais forem homologados/concluídos (ou o último
+   *    nó do grafo for concluído), a competição faz a transição global para 'completed',
+   *    sem depender da existência de fases eliminatórias ('playoffs') ou partidas com phase === 'final'.
+   * 3. O pódio oficial e o ranking final são apurados e persistidos de forma auditada e idempotente.
+   */
+  public static async syncLifecycleAfterMatchProgression(
+    competitionId: string,
+    operator: string = 'Sistema / Homologação',
+  ): Promise<{ ok: boolean; competition?: CompetitionRecord; updated: boolean; errors: string[] }> {
+    const competition = await dataAccess.getCompetition(competitionId);
+    if (!competition) {
+      return { ok: false, updated: false, errors: ['Competição não encontrada.'] };
+    }
+
+    if (competition.status === 'completed' || competition.status === 'cancelled') {
+      return { ok: true, competition, updated: false, errors: [] };
+    }
+
+    const matches = await dataAccess.listMatches(competitionId);
+    if (!matches || matches.length === 0) {
+      return { ok: true, competition, updated: false, errors: [] };
+    }
+
+    const stages = await dataAccess.listStages(competitionId);
+    const slots = await dataAccess.listMatchSlots(competitionId);
+
+    const isFinishedMatch = (m: MatchRecord) =>
+      m.status === 'completed' || m.status === 'homologated' || m.status === 'cancelled';
+    const isStartedMatch = (m: MatchRecord) =>
+      isFinishedMatch(m) || m.status === 'in-progress' || m.status === 'warmup' || m.status === 'timeout' || m.status === 'set-break';
+
+    const allMatchesFinished = matches.every(isFinishedMatch);
+    const anyMatchStarted = matches.some(isStartedMatch);
+
+    // 1. Sincronização granular dos status das fases individuais (competition_stages.status)
+    // O sistema avança o status de cada nó do grafo de estágios de forma independente
+    let stageStatusChanged = false;
+    if (stages.length > 0) {
+      for (const stage of stages) {
+        // Encontra slots associados a este estágio
+        const stageSlots = slots.filter(s => s.stageRowId === stage.id);
+        const stageSlotMatchIds = new Set(
+          stageSlots.map(s => s.matchId).filter((id): id is string => Boolean(id))
+        );
+
+        // Encontra partidas vinculadas ao estágio
+        const stageMatches = matches.filter(m => {
+          if (m.id && stageSlotMatchIds.has(m.id)) return true;
+          if (m.slotId && stageSlots.some(s => s.slotId === m.slotId)) return true;
+          if (m.phase && m.phase.toLowerCase() === stage.name.toLowerCase()) return true;
+          if (m.phase && (m.phase.toLowerCase() === stage.stageId.toLowerCase() || m.phase.toLowerCase() === stage.id.toLowerCase())) return true;
+          if (
+            (stage.stageType === 'round-robin' || stage.stageType === 'group-stage' || stage.stageType === 'groups') &&
+            (Boolean(m.groupName) || m.phase === 'group-stage' || m.phase === 'classificatória' || !m.phase)
+          ) {
+            return true;
+          }
+          return false;
+        });
+
+        if (stageMatches.length > 0) {
+          const allStageMatchesFinished = stageMatches.every(isFinishedMatch);
+          const anyStageMatchStarted = stageMatches.some(isStartedMatch);
+
+          if (allStageMatchesFinished && stage.status !== 'completed') {
+            await dataAccess.updateStage(stage.id, { status: 'completed' });
+            stage.status = 'completed';
+            stageStatusChanged = true;
+          } else if (anyStageMatchStarted && stage.status === 'pending') {
+            await dataAccess.updateStage(stage.id, { status: 'in-progress' });
+            stage.status = 'in-progress';
+            stageStatusChanged = true;
+          }
+        }
+      }
+    }
+
+    // 2. Avaliação de encerramento do último nó do grafo e de 100% de partidas finalizadas:
+    // A competição faz a transição global para 'completed' assim que 100% das partidas reais
+    // atingem status homologated/completed (ou se todos os estágios do DAG forem concluídos).
+    // A ausência de um "mata-mata" não trava mais o fim do evento.
+    const allStagesCompleted = stages.length > 0 && stages.every(s => s.status === 'completed');
+
+    if (allMatchesFinished || allStagesCompleted) {
+      const podium = computePodium(matches, competition);
+      const updates: Partial<CompetitionRecord> = {
+        status: 'completed',
+      };
+
+      if (podium.championTeamId) updates.championTeamId = podium.championTeamId;
+      if (podium.runnerUpTeamId) updates.runnerUpTeamId = podium.runnerUpTeamId;
+      if (podium.thirdPlaceTeamId) updates.thirdPlaceTeamId = podium.thirdPlaceTeamId;
+
+      const previousStatus = competition.status;
+      const updatedComp: CompetitionRecord = {
+        ...competition,
+        ...updates,
+      };
+
+      await dataAccess.updateCompetition(competition.id, updates);
+
+      await OperationalAuditService.recordCompetitionTransition({
+        competition: updatedComp,
+        operator,
+        previousStatus,
+        newStatus: 'completed',
+      });
+
+      return { ok: true, competition: updatedComp, updated: true, errors: [] };
+    }
+
+    // 3. Caso intermediário: transição de 'groups-defined' para 'in-progress'
+    if (competition.status === 'groups-defined' && anyMatchStarted) {
+      const previousStatus = competition.status;
+      const frozen = this.freezeRulesSnapshot(competition);
+      const updates: Partial<CompetitionRecord> = {
+        status: 'in-progress',
+        rulesSnapshot: frozen.rulesSnapshot,
+      };
+
+      const updatedComp: CompetitionRecord = {
+        ...competition,
+        ...updates,
+      };
+
+      await dataAccess.updateCompetition(competition.id, updates);
+
+      await OperationalAuditService.recordCompetitionTransition({
+        competition: updatedComp,
+        operator,
+        previousStatus,
+        newStatus: 'in-progress',
+      });
+
+      return { ok: true, competition: updatedComp, updated: true, errors: [] };
+    }
+
+    return { ok: true, competition, updated: stageStatusChanged, errors: [] };
   }
 }
 

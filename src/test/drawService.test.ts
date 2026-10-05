@@ -14,6 +14,7 @@ import {
 import { buildGroupArena } from '@/components/draw/cinematic/groupArena';
 import type { DrawConfig, DrawGroup, DrawTeamEntry } from '@/types/draw';
 import type { CompetitionRecord, TeamRecord } from '@/types/entities';
+import type { CompetitionConfig } from '@/types/competitionConfig';
 
 const teams: TeamRecord[] = Array.from({ length: 6 }, (_, i) => ({
   id: `team-${i + 1}`,
@@ -196,6 +197,39 @@ describe('runDraw', () => {
     expect(result.matches.length).toBe(roundRobinMatchCount(6));
     const maxRound = Math.max(...result.matches.map(m => m.round));
     expect(maxRound).toBe(5);
+  });
+
+  it('injeta o nome da fase configurada no grafo (DAG) nas propostas de partidas', () => {
+    const dagCompetition: CompetitionRecord = {
+      ...competition,
+      config: {
+        format: {
+          stages: [
+            {
+              id: 'stage-custom-1',
+              stageId: 'stage-custom-1',
+              order: 1,
+              name: 'Fase de Classificação Especial',
+              type: 'group-stage',
+              groupConfig: {
+                groupsCount: 2,
+                teamsPerGroup: 3,
+                rounds: 'single',
+              },
+              pairingConfig: {
+                type: 'round-robin',
+                rounds: 'single',
+              },
+            },
+          ],
+        },
+      } as unknown as CompetitionConfig,
+    };
+
+    const config: DrawConfig = { groupsCount: 2, seedingMode: 'random', seed: 123, headSeeds: [] };
+    const result = runDraw(dagCompetition, teams, config);
+    expect(result.matches.length).toBeGreaterThan(0);
+    expect(result.matches.every(m => m.phase === 'Fase de Classificação Especial')).toBe(true);
   });
 });
 

@@ -240,7 +240,7 @@ export function DrawArenaHUD({
       {/* ── PALCO PRINCIPAL (ALAS LATERAIS + PALCO 3D CENTRAL + CARD REVELAÇÃO) ── */}
       <div className="relative flex flex-1 items-stretch justify-between px-3 sm:px-6 py-2 overflow-hidden">
         {/* ── ALA ESQUERDA: GRUPOS (Desktop) ─────────────────────────────────── */}
-        <aside className="pointer-events-auto hidden lg:flex flex-col justify-center gap-4 w-64 xl:w-72 shrink-0 z-10">
+        <aside className="pointer-events-auto hidden lg:flex flex-col justify-start my-auto gap-4 w-64 xl:w-72 shrink-0 z-10 max-h-[calc(100vh-180px)] overflow-y-auto pr-1 scrollbar-thin">
           {leftGroups.map((card) => {
             const isTarget = card.isCurrentGroup && (state === 'REVEAL' || state === 'GROUP_UPDATE');
             return (
@@ -522,7 +522,7 @@ export function DrawArenaHUD({
         </main>
 
         {/* ── ALA DIREITA: GRUPOS (Desktop) ─────────────────────────────────── */}
-        <aside className="pointer-events-auto hidden lg:flex flex-col justify-center gap-4 w-64 xl:w-72 shrink-0 z-10">
+        <aside className="pointer-events-auto hidden lg:flex flex-col justify-start my-auto gap-4 w-64 xl:w-72 shrink-0 z-10 max-h-[calc(100vh-180px)] overflow-y-auto pr-1 scrollbar-thin">
           {rightGroups.map((card) => {
             const isTarget = card.isCurrentGroup && (state === 'REVEAL' || state === 'GROUP_UPDATE');
             return (

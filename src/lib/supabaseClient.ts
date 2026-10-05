@@ -60,4 +60,6 @@ export const SUPABASE_TABLES = {
   competitionMatchSlots: 'competition_match_slots',
   userMemberships: 'user_memberships',
   athletes: 'athletes',
+  organizations: 'organizations',
+  organizationInvitations: 'organization_invitations',
 } as const;

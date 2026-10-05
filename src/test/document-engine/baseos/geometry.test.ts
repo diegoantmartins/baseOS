@@ -46,7 +46,7 @@ describe('BaseOS Document Engine - geometria fixa da súmula', () => {
     expect(getScoresheetLayout('5-sets', 'master').page.name).toBe('A3');
   });
 
-  it('inclui remarks no flattenLayoutRects e valida contra sobreposições', () => {
+  it('inclui remarks no flattenLayoutRects para 5 sets e valida contra sobreposições', () => {
     const layout3 = THREE_SET_A4_LAYOUT;
     const layout5 = FIVE_SET_A4_LAYOUT;
 
@@ -56,42 +56,53 @@ describe('BaseOS Document Engine - geometria fixa da súmula', () => {
     expect(remarks3?.rect).toEqual(layout3.cards.remarks);
 
     const rects5 = flattenLayoutRects(layout5);
-    const remarks5 = rects5.find(r => r.id === 'remarks');
-    expect(remarks5).toBeDefined();
-    expect(remarks5?.rect).toEqual(layout5.cards.remarks);
+    const rosters5 = rects5.find(r => r.id === 'rosters');
+    expect(rosters5).toBeDefined();
+    expect(rosters5?.rect).toEqual(layout5.cards.rosters);
 
-    // Valida que sobreposição envolvendo remarks é detectada
+    // Valida que sobreposição em 3 sets é detectada se houver colisão
     const mutatedLayout = {
       ...layout3,
       cards: {
         ...layout3.cards,
-        remarks: { ...layout3.cards.signatures }, // colide diretamente com signatures
+        result: { ...layout3.cards.sanctions }, // colide diretamente com sanctions
       },
     };
     const invalidResult = validateScoresheetLayout(mutatedLayout);
     expect(invalidResult.valid).toBe(false);
-    expect(invalidResult.errors.some(e => e.includes('remarks sobrepõe') || e.includes('sobrepõe remarks'))).toBe(true);
+    expect(invalidResult.errors.some(e => e.includes('result sobrepõe') || e.includes('sobrepõe result'))).toBe(true);
   });
 
   it('garante alinhamento inferior dos cards para respeitar o rodapé em bottom 3.5', () => {
-    // 3 sets: cards inferiores terminam em y=585 (folha = 595.28)
-    const base3Sanctions = THREE_SET_A4_LAYOUT.cards.sanctions.y + THREE_SET_A4_LAYOUT.cards.sanctions.height;
+    // 3 sets: cards inferiores terminam em y=575 (folha = 595.28, margem = 20pt)
     const base3Signatures = THREE_SET_A4_LAYOUT.cards.signatures.y + THREE_SET_A4_LAYOUT.cards.signatures.height;
-    const base3Remarks = THREE_SET_A4_LAYOUT.cards.remarks ? THREE_SET_A4_LAYOUT.cards.remarks.y + THREE_SET_A4_LAYOUT.cards.remarks.height : 0;
     const base3Result = THREE_SET_A4_LAYOUT.cards.result.y + THREE_SET_A4_LAYOUT.cards.result.height;
+    const base3Sanctions = THREE_SET_A4_LAYOUT.cards.sanctions.y + THREE_SET_A4_LAYOUT.cards.sanctions.height;
+    const base3Rosters = THREE_SET_A4_LAYOUT.cards.rosters.y + THREE_SET_A4_LAYOUT.cards.rosters.height;
 
-    expect(base3Sanctions).toBeCloseTo(585, 1);
-    expect(base3Signatures).toBeCloseTo(585, 1);
-    expect(base3Remarks).toBeCloseTo(585, 1);
-    expect(base3Result).toBeCloseTo(585, 1);
+    const base3Set3 = THREE_SET_A4_LAYOUT.cards.sets[3]!.y + THREE_SET_A4_LAYOUT.cards.sets[3]!.height;
+    const base3Remarks = THREE_SET_A4_LAYOUT.cards.remarks!.y + THREE_SET_A4_LAYOUT.cards.remarks!.height;
 
-    // 5 sets: cards inferiores terminam em y=584 (folha = 595.28)
+    expect(base3Signatures).toBeCloseTo(575, 1);
+    expect(base3Result).toBeCloseTo(575, 1);
+    expect(base3Sanctions).toBeCloseTo(575, 1);
+    expect(base3Rosters).toBeCloseTo(304, 1);
+    expect(base3Set3).toBeCloseTo(430, 1);
+    expect(base3Remarks).toBeCloseTo(430, 1);
+    expect(THREE_SET_A4_LAYOUT.page.height - base3Signatures).toBeGreaterThanOrEqual(20);
+
+    // 5 sets: cards inferiores terminam em y=585 (folha = 595.28, margem >= 10pt)
     const base5Result = FIVE_SET_A4_LAYOUT.cards.result.y + FIVE_SET_A4_LAYOUT.cards.result.height;
     const base5Signatures = FIVE_SET_A4_LAYOUT.cards.signatures.y + FIVE_SET_A4_LAYOUT.cards.signatures.height;
+    const base5Sanctions = FIVE_SET_A4_LAYOUT.cards.sanctions.y + FIVE_SET_A4_LAYOUT.cards.sanctions.height;
     const base5Rosters = FIVE_SET_A4_LAYOUT.cards.rosters.y + FIVE_SET_A4_LAYOUT.cards.rosters.height;
+    const base5Set5 = FIVE_SET_A4_LAYOUT.cards.sets[5]!.y + FIVE_SET_A4_LAYOUT.cards.sets[5]!.height;
 
-    expect(base5Result).toBeCloseTo(584, 1);
-    expect(base5Signatures).toBeCloseTo(584, 1);
-    expect(base5Rosters).toBeCloseTo(584, 1);
+    expect(base5Result).toBeCloseTo(585, 1);
+    expect(base5Signatures).toBeCloseTo(585, 1);
+    expect(base5Sanctions).toBeCloseTo(585, 1);
+    expect(base5Rosters).toBeCloseTo(585, 1);
+    expect(base5Set5).toBeCloseTo(422, 1);
+    expect(FIVE_SET_A4_LAYOUT.page.height - base5Signatures).toBeGreaterThanOrEqual(10);
   });
 });

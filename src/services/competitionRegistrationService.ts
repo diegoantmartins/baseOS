@@ -18,6 +18,7 @@ import type {
 } from '@/types/registration';
 import { CompetitionRulesService } from './competitionRulesService';
 import { isRegistrationLocked } from './registrationService';
+import { normalizeCpf } from './identityService';
 
 export interface IntegrityCheckResult {
   ok: boolean;
@@ -267,23 +268,31 @@ export class CompetitionRegistrationService {
     }
 
     // 7. Unicidade de atleta no mesmo torneio (não pode jogar por duas equipes)
-    const normalizedInputName = input.name.trim().toLowerCase();
-    const normalizedInputDoc = input.documentNumber?.trim().toLowerCase();
+    let inputCpf: string | undefined;
+    try {
+      inputCpf = normalizeCpf(input.documentNumber);
+    } catch {
+      inputCpf = undefined;
+    }
+    const rawInputDoc = input.documentNumber?.trim().toLowerCase();
 
     for (const otherAthlete of allCompetitionAthletes) {
       if (otherAthlete.competitionTeamId === competitionTeam.id) continue;
       if (otherAthlete.id === excludeAthleteId) continue;
 
-      const sameDoc =
-        Boolean(normalizedInputDoc) &&
-        Boolean(otherAthlete.documentNumber?.trim()) &&
-        otherAthlete.documentNumber!.trim().toLowerCase() === normalizedInputDoc;
+      let otherCpf: string | undefined;
+      try {
+        otherCpf = normalizeCpf(otherAthlete.documentNumber);
+      } catch {
+        otherCpf = undefined;
+      }
+      const rawOtherDoc = otherAthlete.documentNumber?.trim().toLowerCase();
 
-      const sameName =
-        otherAthlete.name.trim().toLowerCase() === normalizedInputName &&
-        Boolean(normalizedInputDoc && otherAthlete.documentNumber);
+      const sameCpf = Boolean(inputCpf && otherCpf && inputCpf === otherCpf);
+      const sameAthleteId = Boolean(input.athleteId && otherAthlete.athleteId && input.athleteId === otherAthlete.athleteId);
+      const sameExactDoc = Boolean(rawInputDoc && rawOtherDoc && rawInputDoc === rawOtherDoc);
 
-      if (sameDoc || sameName) {
+      if (sameCpf || sameAthleteId || sameExactDoc) {
         errors.push(`O atleta "${input.name}" já está inscrito por outra equipe nesta mesma competição.`);
         break;
       }

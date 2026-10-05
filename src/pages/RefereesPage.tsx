@@ -57,6 +57,7 @@ import {
 } from '@/components/ui/dialog';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import { dataAccess } from '@/services/dataAccess';
+import { sortScheduleMatches } from '@/services/scheduleService';
 import type { CompetitionRecord, MatchRecord, RefereeRecord } from '@/types/entities';
 
 export type RefereeLevel = 'regional' | 'national' | 'international';
@@ -103,9 +104,9 @@ export function RefereesPage() {
         dataAccess.listCompetitions(),
       ]);
 
-      const upcoming = matches
-        .filter((m) => new Date(m.scheduledTime).getTime() > Date.now())
-        .sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
+      const upcoming = sortScheduleMatches(
+        matches.filter((m) => new Date(m.scheduledTime).getTime() > Date.now())
+      );
       setSchedule(upcoming);
       setCompetitions(comps);
 
@@ -121,9 +122,9 @@ export function RefereesPage() {
             m.status === 'timeout' ||
             m.status === 'set-break',
         );
-        const next = mine
-          .filter((m) => m.status !== 'completed' && m.status !== 'homologated' && new Date(m.scheduledTime).getTime() > now)
-          .sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime))[0];
+        const next = sortScheduleMatches(
+          mine.filter((m) => m.status !== 'completed' && m.status !== 'homologated' && new Date(m.scheduledTime).getTime() > now)
+        )[0];
 
         return {
           ...r,

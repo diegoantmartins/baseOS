@@ -14,6 +14,7 @@ import { CompetitionRulesService } from './competitionRulesService';
 import { CompetitionRegistrationService } from './competitionRegistrationService';
 import { dataAccess, generateToken } from './dataAccess';
 import { OperationalAuditService } from './operationalAuditService';
+import { getOrCreateAthleteIdentity } from './identityService';
 
 export function isDeadlineExpired(competitionTeam: CompetitionTeam, now: Date = new Date()): boolean {
   return now.getTime() > new Date(competitionTeam.registrationDeadline).getTime();
@@ -198,17 +199,21 @@ export async function addAthlete(
     return { ok: false, errors: ['Prazo de inscrição do elenco desta equipe encerrado ou bloqueado pela organização.'] };
   }
 
-  const [existing, allAthletes] = await Promise.all([
+  const [existing, compTeams, allAthletes] = await Promise.all([
     listRoster(competitionTeamId),
+    dataAccess.listCompetitionTeams(team.competitionId),
     dataAccess.listCompetitionAthletes(),
   ]);
+
+  const compTeamIds = new Set(compTeams.map(t => t.id));
+  const sameCompAthletes = allAthletes.filter(a => compTeamIds.has(a.competitionTeamId));
 
   const validation = CompetitionRegistrationService.validateAthleteRegistration(
     comp,
     team,
     input,
     existing,
-    allAthletes,
+    sameCompAthletes,
   );
   if (!validation.valid) return { ok: false, errors: validation.errors };
 
@@ -221,6 +226,16 @@ export async function addAthlete(
     });
     if (!res.ok || !res.athlete) {
       return { ok: false, errors: [res.error || 'Falha ao registrar atleta via inscrição pública.'] };
+    }
+    athlete = res.athlete;
+  } else if (typeof dataAccess.registerCompetitionAthleteAuth === 'function') {
+    const res = await dataAccess.registerCompetitionAthleteAuth(competitionTeamId, {
+      ...input,
+      name: input.name.trim(),
+      position: input.position.trim(),
+    });
+    if (!res.ok || !res.athlete) {
+      return { ok: false, errors: [res.error || 'Falha ao registrar atleta.'] };
     }
     athlete = res.athlete;
   } else {
@@ -258,23 +273,43 @@ export async function updateAthlete(
     return { ok: false, errors: ['Prazo de inscrição do elenco desta equipe encerrado ou bloqueado pela organização.'] };
   }
 
-  const [siblings, allAthletes] = await Promise.all([
+  const [siblings, compTeams, allAthletes] = await Promise.all([
     listRoster(current.competitionTeamId),
+    dataAccess.listCompetitionTeams(team.competitionId),
     dataAccess.listCompetitionAthletes(),
   ]);
+
+  const compTeamIds = new Set(compTeams.map(t => t.id));
+  const sameCompAthletes = allAthletes.filter(a => compTeamIds.has(a.competitionTeamId));
 
   const validation = CompetitionRegistrationService.validateAthleteRegistration(
     comp,
     team,
     input,
     siblings,
-    allAthletes,
+    sameCompAthletes,
     id,
   );
   if (!validation.valid) return { ok: false, errors: validation.errors };
 
-  const athlete = await dataAccess.updateCompetitionAthlete(id, input);
-  return { ok: true, errors: [], athlete };
+  let athleteId = current.athleteId;
+  if (input.documentNumber !== undefined && input.documentNumber !== current.documentNumber) {
+    const identity = await getOrCreateAthleteIdentity(
+      {
+        name: input.name.trim(),
+        documentNumber: input.documentNumber,
+        birthDate: input.birthDate,
+      },
+      dataAccess,
+    );
+    athleteId = identity.id;
+  }
+
+  const athlete = await dataAccess.updateCompetitionAthlete(id, {
+    ...input,
+    ...(athleteId ? { athleteId } : {}),
+  });
+  return { ok: true, errors: [], athlete: athlete ?? undefined };
 }
 
 export async function removeAthlete(

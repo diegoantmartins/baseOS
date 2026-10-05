@@ -87,6 +87,7 @@ SELECT
 FROM public.competitions;
 
 -- View pública de equipes: omite estruturalmente access_token e registration_deadline
+ALTER TABLE public.teams ADD COLUMN IF NOT EXISTS city text, ADD COLUMN IF NOT EXISTS state text;
 CREATE OR REPLACE VIEW public.public_competition_teams AS
 SELECT
   ct.id,

@@ -31,9 +31,29 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const from = (location.state as { from?: string } | null)?.from ?? '/';
+  const from = (location.state as { from?: string } | null)?.from;
 
-  if (!loading && session) return <Navigate to={from} replace />;
+  const getSafeDestination = (userRole: string, targetPath?: string): string => {
+    // Usuário 'team' NUNCA deve ir para rotas administrativas como fallback ou retorno de from
+    if (userRole === 'team') {
+      return '/equipe';
+    }
+    if (userRole === 'referee' || userRole === 'scorer') {
+      if (targetPath && (targetPath.startsWith('/jogos') || targetPath.startsWith('/sumulas'))) {
+        return targetPath;
+      }
+      return '/jogos';
+    }
+    // Perfis administrativos (admin / organizer)
+    if (targetPath && targetPath !== '/' && targetPath !== '/login' && targetPath !== '/equipe') {
+      return targetPath;
+    }
+    return '/competicoes-ativas';
+  };
+
+  if (!loading && session) {
+    return <Navigate to={getSafeDestination(session.user.role, from)} replace />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +62,8 @@ export default function LoginPage() {
     const result = await signIn(email, password);
     setSubmitting(false);
     if (result.ok) {
-      navigate(from, { replace: true });
+      const dest = getSafeDestination(result.session.user.role, from);
+      navigate(dest, { replace: true });
     } else {
       setError(result.error);
     }

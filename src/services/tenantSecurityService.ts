@@ -8,10 +8,11 @@
 import type { UserProfile, UserRole } from '@/types/auth';
 import type { MatchRecord } from '@/types/entities';
 import type { CompetitionTeam } from '@/types/registration';
+import type { UserMembership } from '@/types/identity';
 
 export type TenantContext = {
   organizationId: string;
-  organizationName: string;
+  organizationName?: string;
 };
 
 export type SystemCapability =
@@ -164,9 +165,13 @@ export class TenantSecurityService {
   public static validateTenantAccess<T extends { organizationId?: string }>(
     tenant: TenantContext,
     resource: T,
+    isPlatformAdmin?: boolean,
   ): boolean {
-    if (!resource.organizationId) {
+    if (isPlatformAdmin) {
       return true;
+    }
+    if (!resource || !resource.organizationId) {
+      return false;
     }
     return resource.organizationId === tenant.organizationId;
   }
@@ -174,19 +179,84 @@ export class TenantSecurityService {
   /**
    * Proteção IDOR / BOLA (Broken Object Level Authorization):
    * Verifica se um usuário com perfil 'team' pode editar a inscrição ou elenco da equipe.
+   * Suporta autorização via membership ativa (Fase 11) ou compatibilidade com vínculo legado (profiles.competition_team_id).
    */
   public static canManageRoster(
     user: UserProfile | null | undefined,
     targetCompetitionTeam: CompetitionTeam,
+    activeMemberships?: UserMembership[],
   ): boolean {
     if (!user) return false;
 
     // Administradores e Organizadores podem gerenciar qualquer equipe
     if (user.role === 'admin' || user.role === 'organizer') return true;
 
-    // Representante de Equipe só pode gerenciar o time explicitamente vinculado ao seu perfil
+    // Representante de Equipe
     if (user.role === 'team') {
-      return user.competitionTeamId === targetCompetitionTeam.id;
+      // 1. Vínculo legado direto
+      if (user.competitionTeamId && user.competitionTeamId === targetCompetitionTeam.id) {
+        return true;
+      }
+
+      // 2. Vínculo via memberships ativas da Fase 11
+      if (activeMemberships && activeMemberships.length > 0) {
+        return activeMemberships.some(
+          (m) =>
+            m.userId === user.id &&
+            m.status === 'active' &&
+            (m.competitionTeamId === targetCompetitionTeam.id ||
+              (m.teamId === targetCompetitionTeam.teamId &&
+                (!m.competitionId || m.competitionId === targetCompetitionTeam.competitionId))),
+        );
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Validação de chaveamento de equipe ativa (Fase 11):
+   * Impede que o usuário assuma o contexto de uma equipe para a qual não possui membership ativa.
+   */
+  public static canSwitchToTeam(
+    user: UserProfile | null | undefined,
+    targetCompetitionTeamId: string,
+    activeMemberships?: UserMembership[],
+  ): boolean {
+    if (!user) return false;
+    if (user.role === 'admin' || user.role === 'organizer') return true;
+
+    if (user.role === 'team') {
+      if (user.competitionTeamId === targetCompetitionTeamId) return true;
+      if (activeMemberships && activeMemberships.length > 0) {
+        return activeMemberships.some(
+          (m) =>
+            m.userId === user.id &&
+            m.status === 'active' &&
+            (m.competitionTeamId === targetCompetitionTeamId || m.teamId === targetCompetitionTeamId),
+        );
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Validação de fronteira de organização (Tenancy):
+   * Impede acesso cross-organization a dados privados.
+   */
+  public static canAccessOrganization(
+    user: UserProfile | null | undefined,
+    targetOrgId: string,
+    activeMemberships?: UserMembership[],
+  ): boolean {
+    if (!user) return false;
+    if (user.role === 'admin' || user.role === 'organizer') return true;
+
+    if (activeMemberships && activeMemberships.length > 0) {
+      return activeMemberships.some(
+        (m) => m.userId === user.id && m.status === 'active' && m.organizationId === targetOrgId,
+      );
     }
 
     return false;
@@ -266,5 +336,159 @@ export class TenantSecurityService {
   public static canPerformDatabaseMaintenance(user: UserProfile | null | undefined): boolean {
     if (!user) return false;
     return user.role === 'admin';
+  }
+
+  /**
+   * Fase 12 — Permissão de visualização de Organização:
+   * Apenas Platform Admins (role = 'admin' ou isPlatformAdmin = true) têm acesso global irrestrito.
+   * Organizadores e demais usuários exigem membership ativa atrelada ao tenant alvo.
+   */
+  public static canViewOrganization(
+    user: UserProfile | null | undefined,
+    organizationId: string,
+    memberships?: UserMembership[],
+  ): boolean {
+    if (!user) return false;
+    if (user.role === 'admin' || Boolean(user.isPlatformAdmin)) return true;
+
+    if (memberships && memberships.length > 0) {
+      return memberships.some(
+        (m) => m.userId === user.id && m.status === 'active' && m.organizationId === organizationId,
+      );
+    }
+
+    if (user.organizationId && user.organizationId === organizationId) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Fase 12 — Permissão de Gestão de Membros de Organização:
+   * Apenas Platform Admins (role = 'admin' ou isPlatformAdmin = true) têm acesso global irrestrito.
+   * Organizadores e Org Admins exigem membership ativa com papel administrativo no tenant alvo.
+   */
+  public static canManageOrganizationMembers(
+    user: UserProfile | null | undefined,
+    organizationId: string,
+    memberships?: UserMembership[],
+  ): boolean {
+    if (!user) return false;
+    if (user.role === 'admin' || Boolean(user.isPlatformAdmin)) return true;
+
+    if (memberships && memberships.length > 0) {
+      return memberships.some(
+        (m) =>
+          m.userId === user.id &&
+          m.organizationId === organizationId &&
+          (m.role === 'admin' || m.role === 'organizer') &&
+          m.status === 'active',
+      );
+    }
+
+    return false;
+  }
+
+  /**
+   * Fase 12 — Proteção contra Escalada de Privilégios em Convites:
+   * - Não permite usuário comum convidar.
+   * - Não permite team_manager convidar admin ou organizer.
+   * - Garante que equipe vinculada pertence estritamente à mesma organização.
+   */
+  public static canInviteMember(
+    user: UserProfile | null | undefined,
+    organizationId: string,
+    targetRole: string,
+    memberships?: UserMembership[],
+    targetTeamId?: string | null,
+    teams?: Array<{ id: string; organizationId?: string }>,
+  ): boolean {
+    if (!user) return false;
+
+    // Se fornecida equipe, ela deve pertencer à mesma organização
+    if (targetTeamId && teams && teams.length > 0) {
+      const team = teams.find((t) => t.id === targetTeamId);
+      if (team && team.organizationId && team.organizationId !== organizationId) {
+        return false;
+      }
+    }
+
+    // Admin global / Platform Admin podem convidar em qualquer organização
+    if (user.role === 'admin' || Boolean(user.isPlatformAdmin)) return true;
+
+    if (!memberships || memberships.length === 0) return false;
+
+    const userOrgMemberships = memberships.filter(
+      (m) => m.userId === user.id && m.organizationId === organizationId && m.status === 'active',
+    );
+
+    const isOrgAdminOrOrganizer = userOrgMemberships.some((m) => m.role === 'admin' || m.role === 'organizer');
+    if (isOrgAdminOrOrganizer) {
+      return true;
+    }
+
+    const teamManagerMembership = userOrgMemberships.find((m) => m.role === 'team_manager');
+    if (teamManagerMembership) {
+      // team_manager não pode convidar para admin ou organizer
+      if (targetRole === 'admin' || targetRole === 'organizer') {
+        return false;
+      }
+      // team_manager só pode convidar para a sua própria equipe
+      if (targetTeamId && teamManagerMembership.teamId && targetTeamId !== teamManagerMembership.teamId) {
+        return false;
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Fase 12 — Proteção contra alteração do próprio papel ou alteração não autorizada.
+   */
+  public static canUpdateMemberRole(
+    user: UserProfile | null | undefined,
+    organizationId: string,
+    targetUserId: string,
+    newRole: string,
+    memberships?: UserMembership[],
+  ): boolean {
+    if (!user) return false;
+
+    // Jamais permite alterar o próprio papel (prevenção de auto-escalada ou lockout)
+    if (user.id === targetUserId) {
+      return false;
+    }
+
+    if (user.role === 'admin' || Boolean(user.isPlatformAdmin)) {
+      return true;
+    }
+
+    // Org Admin / Organizer local pode alterar papéis de membros da sua organização
+    return this.canManageOrganizationMembers(user, organizationId, memberships);
+  }
+
+  /**
+   * Fase 12 — Proteção para suspensão / bloqueio / reativação de membro.
+   */
+  public static canChangeMemberStatus(
+    user: UserProfile | null | undefined,
+    organizationId: string,
+    targetUserId: string,
+    memberships?: UserMembership[],
+  ): boolean {
+    if (!user) return false;
+
+    // Jamais permite suspender a si próprio
+    if (user.id === targetUserId) {
+      return false;
+    }
+
+    if (user.role === 'admin' || Boolean(user.isPlatformAdmin)) {
+      return true;
+    }
+
+    return this.canManageOrganizationMembers(user, organizationId, memberships);
   }
 }

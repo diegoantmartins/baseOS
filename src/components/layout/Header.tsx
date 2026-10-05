@@ -29,6 +29,7 @@ import {
   FileText,
   HelpCircle,
   Download,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/auth/useAuth';
@@ -45,6 +46,7 @@ import { NotificationsMenu } from '@/components/pwa/NotificationsMenu';
 import { PwaInstallButton } from '@/components/pwa/PwaInstallButton';
 import { BlankSheetEmitDialog } from '@/components/match/BlankSheetEmitDialog';
 import { BaseOsLogo } from '@/components/common/BaseOsLogo';
+import { TenantSwitcher } from '@/components/tenant/TenantSwitcher';
 
 export function Header() {
   const navigate = useNavigate();
@@ -72,8 +74,13 @@ export function Header() {
             </Link>
           </div>
 
+          {/* Tenant Switcher — Exclusivo para Platform Admin */}
+          <div className="flex items-center gap-2">
+            <TenantSwitcher />
+          </div>
+
           {/* Spacer — empurra ações para a direita em desktop */}
-          <div className="hidden lg:block flex-1" />
+          <div className="flex-1" />
 
           {/* ── Ações à direita ── */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -152,6 +159,15 @@ export function Header() {
                     <Settings className="w-3.5 h-3.5 mr-2 text-zinc-400" aria-hidden="true" />
                     Configurações e Usuários
                   </DropdownMenuItem>
+                  {session.user.isPlatformAdmin && (
+                    <DropdownMenuItem
+                      onClick={() => navigate('/master')}
+                      className="text-xs rounded-md cursor-pointer text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 focus:bg-orange-500/15 font-medium"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 mr-2 text-orange-500" aria-hidden="true" />
+                      Painel Master (Plataforma)
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator className="bg-border my-1" />
                   <DropdownMenuItem
                     onClick={handleSignOut}

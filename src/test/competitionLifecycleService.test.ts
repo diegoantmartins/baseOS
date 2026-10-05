@@ -144,7 +144,7 @@ describe('Fase 2 — CompetitionLifecycleService (Travas e Ciclo de Vida)', () =
         { teams: sampleTeams, matches: groupMatches }
       );
       expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('restam 2 jogos da fase de grupos sem resultado');
+      expect(result.errors[0]).toContain('restam 2 jogos da fase inicial sem resultado homologado');
     });
 
     it('deve permitir avanço para playoffs quando todos os jogos da fase de grupos estiverem concluídos/homologados', () => {

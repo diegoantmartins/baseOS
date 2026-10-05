@@ -45,7 +45,25 @@ export {
   printMatchSheetPdf,
   generateMatchSheetsBatchPdf,
   downloadMatchSheetsBatchPdf,
+  downloadOfficialBaseosMatchSheet,
+  generateOfficialBaseosScoresheetBlob,
 } from './matchSheetPdf';
+
+// --- Motor Documental Canônico Oficial BaseOS ---
+export {
+  loadBaseosScoresheetData,
+  generateBaseosPdfBlob,
+  generateBlankBaseosPdfBlob,
+  downloadBaseosScoresheet,
+  printBaseosScoresheet,
+  downloadBaseosBatchScoresheets,
+  generateBaseosBatchPdfBlob,
+  createBaseosDocumentElement,
+  mapMatchRecordToBaseosScoresheet,
+  mapMatchSheetDataToBaseos,
+  createBlankBaseosScoresheetData,
+} from '@/document-engine/baseos';
+export type { BaseosScoresheetData } from '@/document-engine/baseos';
 
 export {
   generateOfficialMatchSheetPdf,

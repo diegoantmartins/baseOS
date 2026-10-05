@@ -6,6 +6,7 @@ import type { MatchRecord, TeamRecord, CompetitionRecord } from '@/types/entitie
 import type { CompetitionAthlete } from '@/types/registration';
 import type { SetFormatConfig } from '@/types/competitionConfig';
 import type { BaseosScoresheetData, ScoresheetFormat, DocumentState, ScoresheetOutput, MatchResultData } from '../types/scoresheet';
+import type { MatchSheetData, PdfAthlete } from '@/lib/pdf/types';
 import { mapTeam, createBlankTeam } from './team.mapper';
 import { createBlankSetData, mapLiveSetData } from './set.mapper';
 import { CompetitionRulesService } from '@/services/competitionRulesService';
@@ -231,5 +232,167 @@ export function mapMatchRecordToBaseosScoresheet(
       return text;
     })(),
     rules: formatConfig,
+  };
+}
+
+/**
+ * Converte a estrutura MatchSheetData (legado/unificado) para a estrutura canônica BaseosScoresheetData
+ * permitindo que qualquer emissão de súmula no sistema use o motor oficial BaseOS.
+ */
+export function mapMatchSheetDataToBaseos(
+  data: MatchSheetData,
+  forcedState?: DocumentState,
+  output: ScoresheetOutput = 'print-a4',
+): BaseosScoresheetData {
+  const is5Sets = data.format === '5-sets';
+  const format: ScoresheetFormat = is5Sets ? '5-sets' : '3-sets';
+  const state: DocumentState =
+    forcedState ||
+    (data.sheetMode === 'post' || data.winner || (data.finalScoreA > 0 || data.finalScoreB > 0)
+      ? 'completed'
+      : data.sheetMode === 'pre'
+      ? 'prefilled'
+      : 'prefilled');
+
+  const regularA = (data.teamA.athletes || []).filter((a) => !a.libero);
+  const liberosA = (data.teamA.athletes || []).filter((a) => a.libero);
+  const regularB = (data.teamB.athletes || []).filter((a) => !a.libero);
+  const liberosB = (data.teamB.athletes || []).filter((a) => a.libero);
+
+  const mapAthletes = (athletes: PdfAthlete[]) =>
+    athletes.map((ath, idx) => ({
+      id: `ath-${idx + 1}`,
+      jerseyNumber: ath.jerseyNumber,
+      name: ath.name,
+      isCaptain: Boolean(ath.captain),
+      isLibero: Boolean(ath.libero),
+      position: ath.position,
+      documentNumber: ath.documentNumber,
+    }));
+
+  const setsData: BaseosScoresheetData['sets'] = {
+    set1: createBlankSetData(1, format),
+    set2: createBlankSetData(2, format),
+    set3: createBlankSetData(3, format),
+    ...(format === '5-sets'
+      ? {
+          set4: createBlankSetData(4, format),
+          set5: createBlankSetData(5, format),
+        }
+      : {}),
+  };
+
+  if (data.sets && data.sets.length > 0) {
+    data.sets.forEach((set) => {
+      const key = `set${set.setNumber}` as keyof typeof setsData;
+      if (setsData[key]) {
+        const existing = setsData[key]!;
+        setsData[key] = {
+          ...existing,
+          status: set.scoreA > 0 || set.scoreB > 0 ? 'completed' : 'not-started',
+          score: { teamA: set.scoreA, teamB: set.scoreB },
+          points: {
+            teamA: { ...existing.points.teamA, currentScore: set.scoreA },
+            teamB: { ...existing.points.teamB, currentScore: set.scoreB },
+          },
+        };
+      }
+    });
+  }
+
+  const resultData: MatchResultData | undefined =
+    state === 'completed' || data.finalScoreA > 0 || data.finalScoreB > 0 || data.winner
+      ? {
+          winnerSide: data.winner,
+          winnerTeamName: data.winner === 'A' ? data.teamA.name : data.winner === 'B' ? data.teamB.name : undefined,
+          finalScoreSetsA: data.finalScoreA,
+          finalScoreSetsB: data.finalScoreB,
+          setResults: (data.sets || []).map((s) => ({
+            setNumber: s.setNumber,
+            scoreA: s.scoreA,
+            scoreB: s.scoreB,
+            timeOutsA: data.timeouts?.filter((t) => t.team === 'A' && t.set === s.setNumber).length || 0,
+            timeOutsB: data.timeouts?.filter((t) => t.team === 'B' && t.set === s.setNumber).length || 0,
+            substitutionsA: data.substitutions?.filter((sub) => sub.team === 'A' && sub.set === s.setNumber).length || 0,
+            substitutionsB: data.substitutions?.filter((sub) => sub.team === 'B' && sub.set === s.setNumber).length || 0,
+          })),
+        }
+      : undefined;
+
+  return {
+    document: {
+      type: 'BASEOS_VOLLEYBALL_SCORESHEET',
+      version: '1.0',
+      state,
+      format,
+      output,
+      generatedAt: new Date().toISOString(),
+    },
+    competition: {
+      name: data.competition || '',
+      phase: data.phase || '',
+      round: data.round || 1,
+      date: data.date || '',
+      location: data.venue || '',
+      court: data.court || '',
+      city: data.city || data.venue || '',
+    },
+    match: {
+      id: `match-${data.matchNumber || 1}`,
+      number: data.matchNumber || 1,
+      category: data.category || data.playerFormat || '6x6',
+      gender: data.genderCategory || 'mixed',
+      scheduledTime: data.time || '',
+    },
+    teams: {
+      A: {
+        id: 'team-a',
+        name: data.teamA.name,
+        shortName: data.teamA.shortName,
+        logoUrl: data.teamA.logoUrl,
+        athletes: mapAthletes(regularA),
+        liberos: mapAthletes(liberosA),
+        staff: [
+          ...(data.teamA.coach ? [{ roleCode: 'T' as const, roleLabel: 'Técnico', name: data.teamA.coach }] : []),
+          ...(data.teamA.assistantCoach ? [{ roleCode: 'AT1' as const, roleLabel: 'Assistente', name: data.teamA.assistantCoach }] : []),
+          ...(data.teamA.physicalTrainer ? [{ roleCode: 'PF' as const, roleLabel: 'Prep. Físico', name: data.teamA.physicalTrainer }] : []),
+          ...(data.teamA.doctor ? [{ roleCode: 'M/F' as const, roleLabel: 'Médico', name: data.teamA.doctor }] : []),
+        ],
+      },
+      B: {
+        id: 'team-b',
+        name: data.teamB.name,
+        shortName: data.teamB.shortName,
+        logoUrl: data.teamB.logoUrl,
+        athletes: mapAthletes(regularB),
+        liberos: mapAthletes(liberosB),
+        staff: [
+          ...(data.teamB.coach ? [{ roleCode: 'T' as const, roleLabel: 'Técnico', name: data.teamB.coach }] : []),
+          ...(data.teamB.assistantCoach ? [{ roleCode: 'AT1' as const, roleLabel: 'Assistente', name: data.teamB.assistantCoach }] : []),
+          ...(data.teamB.physicalTrainer ? [{ roleCode: 'PF' as const, roleLabel: 'Prep. Físico', name: data.teamB.physicalTrainer }] : []),
+          ...(data.teamB.doctor ? [{ roleCode: 'M/F' as const, roleLabel: 'Médico', name: data.teamB.doctor }] : []),
+        ],
+      },
+    },
+    sets: setsData,
+    sanctions: (data.sanctions || []).map((s) => ({
+      type: s.type.toLowerCase().includes('vermelh') ? ('penalty' as const) : ('warning' as const),
+      typeCode: s.type.toLowerCase().includes('vermelh') ? ('P' as const) : ('A' as const),
+      teamSide: s.team,
+      teamName: s.team === 'A' ? data.teamA.name : data.teamB.name,
+      individualNameOrJersey: s.player,
+      setNumber: s.set,
+      scoreAtSanction: '00:00',
+    })),
+    improperRequests: { teamA: false, teamB: false },
+    officials: {
+      referee1: data.referees?.find((r) => r.role.includes('1'))?.name,
+      referee2: data.referees?.find((r) => r.role.includes('2'))?.name,
+      scorer: data.referees?.find((r) => r.role.toLowerCase().includes('pont') || r.role.toLowerCase().includes('anot'))?.name,
+      assistantScorer: data.referees?.find((r) => r.role.toLowerCase().includes('assist'))?.name,
+    },
+    signatures: {},
+    result: resultData,
+    observations: data.observations || '',
   };
 }

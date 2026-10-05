@@ -5,15 +5,16 @@
  * Garante paridade em todos os consumidores do sistema (Admin, Público, Relatórios, Portal).
  *
  * Critérios canônicos de ordenação:
- *  1. round ASC (Rodada - default 1 se ausente)
- *  2. scheduledTime ASC (Data/Hora - partidas sem horário alocadas no final da rodada)
+ *  1. scheduledTime ASC (Data/Hora - partidas sem horário alocadas no final)
+ *  2. round ASC (Rodada - default 1 se ausente, desempate secundário)
  *  3. court ASC natural (Quadra - ordenação alfanumérica natural, ex: "Quadra 2" antes de "Quadra 10")
  *  4. matchNumber ASC (Número do jogo - desempate final preservando a identidade oficial da partida)
  *
  * Regras:
  *  - Função puramente declarativa e idempotente;
  *  - Não muta o array de entrada (retorna shallow copy ordenada);
- *  - Preserva o matchNumber intacto sem renumerar partidas.
+ *  - Preserva o matchNumber intacto sem renumerar partidas;
+ *  - Jogos reagendados ou antecipados respeitam a linha do tempo cronológica real.
  */
 
 import type { MatchRecord } from '@/types/entities';
@@ -22,12 +23,7 @@ export function sortScheduleMatches(matches: MatchRecord[]): MatchRecord[] {
   if (!matches || matches.length === 0) return [];
 
   return [...matches].sort((a, b) => {
-    // 1. Rodada (round) ASC
-    const roundA = a.round ?? 1;
-    const roundB = b.round ?? 1;
-    if (roundA !== roundB) return roundA - roundB;
-
-    // 2. Horário agendado (scheduledTime) ASC
+    // 1. Horário agendado (scheduledTime) ASC — prioridade absoluta cronológica
     const hasTimeA = Boolean(a.scheduledTime && a.scheduledTime.trim());
     const hasTimeB = Boolean(b.scheduledTime && b.scheduledTime.trim());
 
@@ -47,6 +43,11 @@ export function sortScheduleMatches(matches: MatchRecord[]): MatchRecord[] {
     } else if (!hasTimeA && hasTimeB) {
       return 1;
     }
+
+    // 2. Rodada (round) ASC — desempate cronológico secundário quando horários coincidem ou estão ausentes
+    const roundA = a.round ?? 1;
+    const roundB = b.round ?? 1;
+    if (roundA !== roundB) return roundA - roundB;
 
     // 3. Quadra (court) ASC natural
     const courtA = (a.court ?? '').trim();

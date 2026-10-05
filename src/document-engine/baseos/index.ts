@@ -32,6 +32,8 @@ export * from './validation/validator';
 
 export * from './templates/BaseosThreeSetScoresheet';
 export * from './templates/BaseosFiveSetScoresheet';
+export * from './templates/BaseosFiveSetScoresheetLegacy';
+export * from './templates/BaseosFiveSetScoresheet.legacy';
 export * from './templates/BaseosBatchScoresheetDocument';
 
 export * from './service/scoresheetService';

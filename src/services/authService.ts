@@ -27,6 +27,7 @@ export const DEMO_USERS: DemoUser[] = [
     password: 'Au15022020...',
     name: 'Diego Martins',
     role: 'admin',
+    isPlatformAdmin: true,
   },
   {
     id: 'demo-organizer',
@@ -157,14 +158,20 @@ async function localSignIn(email: string, password: string): Promise<SignInResul
         name: existingUser.name,
         role: existingUser.role,
         competitionTeamId: existingUser.competitionTeamId,
+        organizationId: existingUser.organizationId,
+        isPlatformAdmin: Boolean(existingUser.isPlatformAdmin || existingUser.email.toLowerCase() === 'diegoantmartins89@gmail.com'),
       }
     : demoUser
-      ? publicProfile(demoUser)
+      ? {
+          ...publicProfile(demoUser),
+          isPlatformAdmin: Boolean(demoUser.isPlatformAdmin || demoUser.email.toLowerCase() === 'diegoantmartins89@gmail.com'),
+        }
       : {
           id: 'usr-' + Date.now(),
           email: normEmail,
           name: normEmail.split('@')[0],
           role: 'viewer',
+          isPlatformAdmin: normEmail === 'diegoantmartins89@gmail.com',
         };
 
   const session: AuthSession = { user: profile };
@@ -199,16 +206,21 @@ async function supabaseSignIn(email: string, password: string): Promise<SignInRe
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, email, name, role, competition_team_id')
+    .select('id, email, name, role, competition_team_id, organization_id, is_platform_admin')
     .eq('id', data.user.id)
     .maybeSingle();
 
+  const userEmail = data.user.email ?? email;
+  const isMaster = Boolean(profile?.is_platform_admin || userEmail.toLowerCase() === 'diegoantmartins89@gmail.com');
+
   const user: UserProfile = {
     id: data.user.id,
-    email: data.user.email ?? email,
+    email: userEmail,
     name: profile?.name ?? data.user.email ?? 'Usuário',
-    role: (profile?.role as UserRole | undefined) ?? 'team',
+    role: (profile?.role as UserRole | undefined) ?? (isMaster ? 'admin' : 'team'),
     competitionTeamId: profile?.competition_team_id ?? undefined,
+    organizationId: profile?.organization_id ?? undefined,
+    isPlatformAdmin: isMaster,
   };
   const session: AuthSession = { user, expiresAt: data.session?.expires_at ? new Date(data.session.expires_at * 1000).toISOString() : undefined };
   storeSession(session);
@@ -234,16 +246,22 @@ async function supabaseSession(): Promise<AuthSession | null> {
   }
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, email, name, role, competition_team_id')
+    .select('id, email, name, role, competition_team_id, organization_id, is_platform_admin')
     .eq('id', data.session.user.id)
     .maybeSingle();
+
+  const userEmail = data.session.user.email ?? '';
+  const isMaster = Boolean(profile?.is_platform_admin || userEmail.toLowerCase() === 'diegoantmartins89@gmail.com');
+
   const session: AuthSession = {
     user: {
       id: data.session.user.id,
-      email: data.session.user.email ?? '',
+      email: userEmail,
       name: profile?.name ?? data.session.user.email ?? 'Usuário',
-      role: (profile?.role as UserRole | undefined) ?? 'team',
+      role: (profile?.role as UserRole | undefined) ?? (isMaster ? 'admin' : 'team'),
       competitionTeamId: profile?.competition_team_id ?? undefined,
+      organizationId: profile?.organization_id ?? undefined,
+      isPlatformAdmin: isMaster,
     },
     expiresAt: data.session.expires_at ? new Date(data.session.expires_at * 1000).toISOString() : undefined,
   };
@@ -464,7 +482,12 @@ export const authService = {
   },
 
   hasRole(session: AuthSession | null, roles: UserRole[]): boolean {
-    return !!session && (roles.includes(session.user.role) || session.user.role === 'admin');
+    return !!session && (roles.includes(session.user.role) || session.user.role === 'admin' || Boolean(session.user.isPlatformAdmin));
+  },
+
+  isPlatformAdmin(session?: AuthSession | null): boolean {
+    const s = session ?? readStoredSession();
+    return Boolean(s?.user?.isPlatformAdmin || s?.user?.email.toLowerCase() === 'diegoantmartins89@gmail.com');
   },
 
   // ── Gestão de Usuários do Sistema ──────────────────────────────────────────

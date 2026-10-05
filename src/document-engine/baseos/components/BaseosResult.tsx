@@ -126,7 +126,7 @@ export const BaseosResult: React.FC<BaseosResultProps> = ({
 }) => {
   const setRows = Array.from({ length: maxSets }, (_, i) => {
     const setNo = i + 1;
-    const res = result?.setResults.find(r => r.setNumber === setNo);
+    const res = result?.setResults?.find(r => r.setNumber === setNo);
     return { setNo, res };
   });
 
@@ -148,15 +148,19 @@ export const BaseosResult: React.FC<BaseosResultProps> = ({
       </View>
 
       <View style={styles.teamHeadersRow}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', width: '48%', overflow: 'hidden' }}>
           <Text style={styles.teamHeaderText}>EQUIPE  </Text>
           <View style={{ width: 5, height: 5, borderRadius: 2.5, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.WHITE, marginHorizontal: 2 }} />
           <Text style={styles.teamHeaderText}> A  </Text>
           <View style={{ width: 5, height: 5, borderRadius: 2.5, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.WHITE, marginHorizontal: 2 }} />
-          <Text style={styles.teamHeaderText}> B    {teamA.name ? teamA.name.toUpperCase() : ''}</Text>
+          <Text style={[styles.teamHeaderText, { flex: 1, fontSize: 4.2 }]}>
+            {teamA.shortName ? teamA.shortName.toUpperCase() : (teamA.name ? teamA.name.slice(0, 22).toUpperCase() : '')}
+          </Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={styles.teamHeaderText}>{teamB.name ? teamB.name.toUpperCase() : ''}    </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', width: '48%', overflow: 'hidden' }}>
+          <Text style={[styles.teamHeaderText, { flex: 1, textAlign: 'right', fontSize: 4.2 }]}>
+            {teamB.shortName ? teamB.shortName.toUpperCase() : (teamB.name ? teamB.name.slice(0, 22).toUpperCase() : '')}
+          </Text>
           <View style={{ width: 5, height: 5, borderRadius: 2.5, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.WHITE, marginHorizontal: 2 }} />
           <Text style={styles.teamHeaderText}> A  </Text>
           <View style={{ width: 5, height: 5, borderRadius: 2.5, borderWidth: 1, borderColor: BASEOS_TOKENS.colors.WHITE, marginHorizontal: 2 }} />

@@ -7,13 +7,20 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { CompetitionRecord, ModalityRecord, VenueRecord, CompetitionSupporter } from '@/types/entities';
-import type { CompetitionConfig, SetsToWin } from '@/types/competitionConfig';
+import type {
+  CompetitionConfig,
+  CompetitionFormatType,
+  SetsToWin,
+  StageDefinition,
+  StageType,
+} from '@/types/competitionConfig';
 import {
   DEFAULT_BEACH_COMPETITION_CONFIG,
   DEFAULT_INDOOR_COMPETITION_CONFIG,
   deriveMaxSets,
   formatSetsToWinLabel,
 } from '@/types/competitionConfig';
+import { CompetitionStageBuilder, FormatTemplateSelector } from '@/components/competition/format-builder';
 import { CompetitionTemplateService } from '@/services/competitionTemplateService';
 import { CompetitionIdentityEditor } from './CompetitionIdentityEditor';
 import {
@@ -53,12 +60,11 @@ export function CompetitionFormDialog({
   const [endDate, setEndDate] = useState('');
   const [defaultDeadline, setDefaultDeadline] = useState('');
 
-  // Aba 2 — Sistema de Disputa (Carregamento dinâmico via CompetitionTemplateService.listTemplates())
-  const templates = CompetitionTemplateService.listTemplates();
+  // Aba 2 — Sistema de Disputa (Grafo Progressivo de Fases em Linha do Tempo e Templates Dinâmicos)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('groups-knockout-standard');
-  const [groupsCount, setGroupsCount] = useState<number>(2);
-  const [advancingPerGroup, setAdvancingPerGroup] = useState<number>(2);
-  const [bestThirdsCount, setBestThirdsCount] = useState<number>(0);
+  const [stages, setStages] = useState<StageDefinition[]>(() =>
+    CompetitionTemplateService.createConfigFromTemplate('groups-knockout-standard', { modality: 'indoor' }).format.stages
+  );
 
   // Aba 3 — Sets & Pontuação (baseado em CompetitionConfig)
   const [setsToWin, setSetsToWin] = useState<SetsToWin>(2);
@@ -82,25 +88,39 @@ export function CompetitionFormDialog({
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Função utilitária para aplicar template dinâmico no Grafo de Fases
+  const handleSelectTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const tplConfig = CompetitionTemplateService.createConfigFromTemplate(templateId, {
+      modality,
+      setsToWin,
+    });
+    setStages(tplConfig.format.stages);
+  };
+
   // Função utilitária para aplicar clone seguro do preset ao alternar modalidade
   const applyModalityPreset = (targetModality: 'indoor' | 'beach') => {
     setModality(targetModality);
-    const preset = JSON.parse(
-      JSON.stringify(targetModality === 'indoor' ? DEFAULT_INDOOR_COMPETITION_CONFIG : DEFAULT_BEACH_COMPETITION_CONFIG),
-    ) as CompetitionConfig;
+    const defaultTemplate = targetModality === 'indoor' ? 'groups-knockout-standard' : 'round-robin-standard';
+    setSelectedTemplateId(defaultTemplate);
 
-    setSetsToWin(preset.format.defaultSetsToWin);
-    setRegularSetPoints(preset.format.setRules.regularSetPoints);
-    setTiebreakPoints(preset.format.setRules.tiebreakPoints);
-    setMinAdvantage(preset.format.setRules.minAdvantage);
-    setHasFinalPhaseOverride(targetModality === 'indoor'); // Indoor usa semis/final em melhor de 5; praia melhor de 3 uniforme
+    const templateConfig = CompetitionTemplateService.createConfigFromTemplate(defaultTemplate, {
+      modality: targetModality,
+    });
 
-    setMinAthletes(preset.registration.minAthletes);
-    setMaxAthletes(preset.registration.maxAthletes);
-    setMaxLiberos(preset.registration.maxLiberos);
-    setMaxCaptains(preset.registration.maxCaptains);
-    setRequireJerseyNumber(preset.registration.requireJerseyNumberOnRegistration);
+    setSetsToWin(templateConfig.format.defaultSetsToWin);
+    setRegularSetPoints(templateConfig.format.setRules.regularSetPoints);
+    setTiebreakPoints(templateConfig.format.setRules.tiebreakPoints);
+    setMinAdvantage(templateConfig.format.setRules.minAdvantage);
+    setHasFinalPhaseOverride(targetModality === 'indoor');
+
+    setMinAthletes(templateConfig.registration.minAthletes);
+    setMaxAthletes(templateConfig.registration.maxAthletes);
+    setMaxLiberos(templateConfig.registration.maxLiberos);
+    setMaxCaptains(templateConfig.registration.maxCaptains);
+    setRequireJerseyNumber(templateConfig.registration.requireJerseyNumberOnRegistration);
     setMaxTeams(targetModality === 'indoor' ? 16 : 8);
+    setStages(templateConfig.format.stages);
   };
 
   useEffect(() => {
@@ -112,10 +132,6 @@ export function CompetitionFormDialog({
       setStartDate('');
       setEndDate('');
       setDefaultDeadline('');
-      setSelectedTemplateId('groups-knockout-standard');
-      setGroupsCount(2);
-      setAdvancingPerGroup(2);
-      setBestThirdsCount(0);
       setLogoUrl(undefined);
       setSupporters([]);
       setMaxTeams(16);
@@ -123,32 +139,40 @@ export function CompetitionFormDialog({
     }
   }, [open, venues]);
 
-  const selectedTemplate = templates.find(t => t.id === selectedTemplateId) || templates[0];
-  const isGroupBasedTemplate =
-    selectedTemplate?.formatType === 'groups-knockout' ||
-    selectedTemplate?.formatType === 'groups-play-in-knockout' ||
-    selectedTemplate?.id.includes('groups');
-
-  const canSubmit = name.trim().length >= 3;
+  const canSubmit = name.trim().length >= 3 && stages.length > 0;
 
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
     setSubmitting(true);
 
     try {
-      // 1. Cria a configuração canônica a partir do template de disputa selecionado
-      const canonicalConfig = CompetitionTemplateService.createConfigFromTemplate(selectedTemplateId, {
-        modality,
-        setsToWin,
-      });
+      // 1. Cria a configuração canônica inicial a partir da modalidade
+      const canonicalConfig: CompetitionConfig = JSON.parse(
+        JSON.stringify(modality === 'indoor' ? DEFAULT_INDOOR_COMPETITION_CONFIG : DEFAULT_BEACH_COMPETITION_CONFIG),
+      );
 
-      // 2. Aplica as customizações regulamentares informadas pelo organizador
+      // Determina o formato macro da competição a partir do template selecionado ou composição do grafo
+      const tpl = CompetitionTemplateService.getTemplate(selectedTemplateId);
+      const hasRoundRobin = stages.some((s) => s.type === 'round-robin' || s.type === 'group-stage');
+      const hasKnockout = stages.some((s) => s.type === 'knockout');
+      const derivedFormat: CompetitionFormatType = tpl?.formatType || (hasRoundRobin && hasKnockout
+        ? 'groups-knockout'
+        : hasRoundRobin
+        ? 'round-robin'
+        : hasKnockout
+        ? 'knockout'
+        : 'custom');
+
+      canonicalConfig.format.formatType = derivedFormat;
       canonicalConfig.format.defaultSetsToWin = setsToWin;
       canonicalConfig.format.setRules = {
         regularSetPoints,
         tiebreakPoints,
         minAdvantage,
       };
+
+      // O grafo declarativo de fases é atribuído diretamente ao config da competição
+      canonicalConfig.format.stages = stages;
 
       if (hasFinalPhaseOverride) {
         canonicalConfig.format.phaseOverrides = {
@@ -193,15 +217,6 @@ export function CompetitionFormDialog({
         };
       }
 
-      canonicalConfig.standings = {
-        ...canonicalConfig.standings,
-        advancingPerGroup,
-        bestThirds: {
-          enabled: bestThirdsCount > 0,
-          count: bestThirdsCount,
-        },
-      };
-
       canonicalConfig.registration = {
         minAthletes,
         maxAthletes,
@@ -211,43 +226,31 @@ export function CompetitionFormDialog({
         maxTeams,
       };
 
-      // 3. Monta baseRecord mantendo campos legados sincronizados para retrocompatibilidade
+      // 4. Monta o payload eliminando campos planos legados de formato (groupsCount, advancingPerGroup, bestThirdsCount, format)
+      // Delegando toda a modelagem esportiva exclusivamente para o CompetitionConfig (config)
       const legacySetFormat = setsToWin === 3 ? '5-sets' : setsToWin === 1 ? '1-set' : '3-sets';
-      const legacyPhaseSetFormat: '3-sets' | '5-sets' = setsToWin === 3 ? '5-sets' : '3-sets';
       const playerFormat = modality === 'beach' ? '2x2' : '6x6';
 
       const baseRecord: Omit<CompetitionRecord, 'id'> = {
         name: name.trim(),
         modality,
-        format: selectedTemplateId,
         playerFormat,
         setFormat: legacySetFormat,
         genderCategory,
         status: 'registration-open',
         logoUrl: logoUrl || undefined,
         supporters: supporters.length > 0 ? supporters : [],
-        groupsCount: isGroupBasedTemplate ? groupsCount : 1,
-        advancingPerGroup: isGroupBasedTemplate ? advancingPerGroup : 1,
-        bestThirdsCount: isGroupBasedTemplate ? bestThirdsCount : 0,
         venue: venue.trim() || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         defaultDeadline: defaultDeadline || undefined,
         defaultMatchIntervalMinutes: 75,
         minTeamRestMinutes: 30,
-        tiebreakCriteriaOrder: canonicalConfig.standings.tiebreakCriteriaOrder,
-        phaseSetRules: hasFinalPhaseOverride
-          ? {
-              groupStage: legacyPhaseSetFormat,
-              playoffs: legacyPhaseSetFormat,
-              semifinals: '5-sets',
-              final: '5-sets',
-            }
-          : undefined,
         config: canonicalConfig,
       };
 
       await onSubmit(baseRecord);
+      onOpenChange(false);
     } finally {
       setSubmitting(false);
     }
@@ -255,7 +258,7 @@ export function CompetitionFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[92vh] flex flex-col p-5 bg-zinc-950 border-zinc-800 rounded-xl shadow-none">
+      <DialogContent className="sm:max-w-3xl max-h-[92vh] flex flex-col p-5 bg-zinc-950 border-zinc-800 rounded-xl shadow-none">
         <DialogHeader className="pb-2 border-b border-zinc-800">
           <div className="flex items-center gap-2">
             <Trophy className="w-4 h-4 text-primary" />
@@ -396,83 +399,22 @@ export function CompetitionFormDialog({
             </TabsContent>
 
             {/* ABA 2 — SISTEMA DE DISPUTA */}
-            <TabsContent value="disputa" className="space-y-3.5 mt-0">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-semibold text-muted-foreground">
-                  Modelo de Disputa (Template Oficial)
-                </Label>
-                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                  <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800 max-h-56">
-                    {templates.map((t) => (
-                      <SelectItem key={t.id} value={t.id} className="text-xs">
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <TabsContent value="disputa" className="space-y-4 mt-0">
+              <div className="space-y-4">
+                {/* Seletor Declarativo de Templates */}
+                <FormatTemplateSelector
+                  selectedTemplateId={selectedTemplateId}
+                  onSelectTemplate={handleSelectTemplate}
+                />
+
+                {/* Linha do Tempo e Customizador de Fases (Grafo DAG) */}
+                <div className="pt-3 border-t border-zinc-800">
+                  <CompetitionStageBuilder
+                    stages={stages}
+                    onChange={setStages}
+                  />
+                </div>
               </div>
-
-              {selectedTemplate && (
-                <div className="p-3 rounded-lg bg-zinc-900/60 border border-zinc-800 space-y-2">
-                  <p className="text-xs text-zinc-300 leading-relaxed">{selectedTemplate.description}</p>
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded">
-                      Recomendado: {selectedTemplate.recommendedTeamsMin} a {selectedTemplate.recommendedTeamsMax} equipes
-                    </span>
-                    {selectedTemplate.tags.map((tag) => (
-                      <span key={tag} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-medium">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {isGroupBasedTemplate && (
-                <div className="space-y-2 pt-1 border-t border-zinc-800">
-                  <Label className="text-[10px] uppercase font-semibold text-muted-foreground">
-                    Parâmetros da Fase de Grupos
-                  </Label>
-                  <div className="grid grid-cols-3 gap-2.5">
-                    <div className="space-y-1">
-                      <Label className="text-[10px] text-zinc-400">Nº de Grupos</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={8}
-                        value={groupsCount}
-                        onChange={(e) => setGroupsCount(Number(e.target.value))}
-                        className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] text-zinc-400">Classificados / Grupo</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={4}
-                        value={advancingPerGroup}
-                        onChange={(e) => setAdvancingPerGroup(Number(e.target.value))}
-                        className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] text-zinc-400">Melhores 3ºs</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={4}
-                        value={bestThirdsCount}
-                        onChange={(e) => setBestThirdsCount(Number(e.target.value))}
-                        className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
             </TabsContent>
 
             {/* ABA 3 — SETS & PONTUAÇÃO */}

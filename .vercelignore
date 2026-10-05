@@ -1,0 +1,12 @@
+node_modules
+.git
+.vercel
+dist
+coverage
+docs
+scratch
+backups
+sumulas exemplo - /
+modelos de sumulas/
+vgpu
+supabase/.temp

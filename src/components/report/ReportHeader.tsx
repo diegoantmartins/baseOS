@@ -23,6 +23,8 @@ interface ReportHeaderProps {
   onExportPdf: () => void;
   onExportCsv?: () => void;
   isPdfLoading?: boolean;
+  onBatchScoresheets?: () => void;
+  isBatchLoading?: boolean;
 }
 
 export function ReportHeader({
@@ -34,6 +36,8 @@ export function ReportHeader({
   onExportPdf,
   onExportCsv,
   isPdfLoading = false,
+  onBatchScoresheets,
+  isBatchLoading = false,
 }: ReportHeaderProps) {
   const navigate = useNavigate();
 
@@ -96,6 +100,25 @@ export function ReportHeader({
           <Share2 className="w-3.5 h-3.5 text-primary" />
           Compartilhar
         </Button>
+
+        {/* Súmulas em Lote BaseOS */}
+        {onBatchScoresheets && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-8 border-border hover:bg-zinc-800/60 font-medium"
+            onClick={onBatchScoresheets}
+            disabled={isBatchLoading}
+            title="Baixar todas as súmulas oficiais BaseOS em um único arquivo PDF compilado"
+          >
+            {isBatchLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+            ) : (
+              <FileText className="w-3.5 h-3.5 text-primary" />
+            )}
+            <span>Súmulas em Lote</span>
+          </Button>
+        )}
 
         {/* Imprimir HTML */}
         <Button

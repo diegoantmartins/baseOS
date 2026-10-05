@@ -39,6 +39,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Volleyball,
+  Landmark,
+  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -54,8 +56,14 @@ interface NavItem {
   icon: React.ElementType;
   label: string;
   path: string;
-  /** Se true, requer session.user.role === 'organizer' */
+  /** Se true, requer session.user.role === 'organizer' ou 'admin' */
   requiresOrganizer?: boolean;
+  /** Se true, oculta para papéis não operacionais como team e viewer */
+  requiresOperational?: boolean;
+  /** Se true, exibe apenas para role === 'team' */
+  requiresTeam?: boolean;
+  /** Se true, exibe apenas para Platform Admins (is_platform_admin) */
+  requiresPlatformAdmin?: boolean;
 }
 
 interface NavGroup {
@@ -67,10 +75,11 @@ interface NavGroup {
 const NAV_GROUPS: NavGroup[] = [
   {
     id: 'painel',
-    label: 'Painel & Competições',
+    label: 'Painel e Competições',
     items: [
       { icon: Flame, label: 'Competições Ativas', path: '/competicoes-ativas' },
-      { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+      { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', requiresOrganizer: true },
+      { icon: Users, label: 'Meu Time', path: '/equipe', requiresTeam: true },
       { icon: Trophy, label: 'Campeonatos', path: '/competicoes', requiresOrganizer: true },
     ],
   },
@@ -78,9 +87,9 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'operacao',
     label: 'Operação de Quadra',
     items: [
-      { icon: Calendar, label: 'Partidas', path: '/jogos' },
+      { icon: Calendar, label: 'Partidas', path: '/jogos', requiresOperational: true },
       { icon: Trophy, label: 'Classificação', path: '/classificacao' },
-      { icon: ClipboardList, label: 'Súmulas', path: '/sumulas' },
+      { icon: ClipboardList, label: 'Súmulas', path: '/sumulas', requiresOperational: true },
       { icon: Dices, label: 'Sorteio', path: '/sorteio', requiresOrganizer: true },
     ],
   },
@@ -88,6 +97,8 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'cadastros',
     label: 'Cadastros de Base',
     items: [
+      { icon: Landmark, label: 'Organizações', path: '/organizacoes', requiresOrganizer: true },
+      { icon: ShieldCheck, label: 'Painel Master', path: '/master', requiresPlatformAdmin: true },
       { icon: Users, label: 'Equipes', path: '/equipes', requiresOrganizer: true },
       { icon: UserCheck, label: 'Atletas', path: '/atletas', requiresOrganizer: true },
       { icon: Building2, label: 'Locais', path: '/locais', requiresOrganizer: true },
@@ -165,7 +176,7 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { session, signOut } = useAuth();
+  const { session, signOut, isPlatformAdmin } = useAuth();
   const isOrganizer =
     session?.user?.role === 'organizer' || session?.user?.role === 'admin';
 
@@ -196,9 +207,9 @@ export function Sidebar() {
       {/* ── Logo / Branding ── */}
       <div className="h-14 flex items-center px-4 border-b border-sidebar-border shrink-0">
         <Link
-          to="/competicoes-ativas"
+          to={session?.user?.role === 'team' ? '/equipe' : '/competicoes-ativas'}
           className={cn('flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md', collapsed && 'justify-center w-full')}
-          aria-label="BaseOS — Ir para Competições Ativas"
+          aria-label={session?.user?.role === 'team' ? 'BaseOS — Ir para o Portal da Equipe' : 'BaseOS — Ir para Competições Ativas'}
         >
           <BaseOsLogo size="md" showText={!collapsed} showSubtitle={!collapsed} />
         </Link>
@@ -208,9 +219,19 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto scrollbar-thin py-3" aria-label="Menu de navegação">
         {NAV_GROUPS.map((group) => {
           // Filtra itens de acordo com o papel do usuário
-          const visibleItems = group.items.filter(
-            (item) => !item.requiresOrganizer || isOrganizer,
-          );
+          const visibleItems = group.items.filter((item) => {
+            if (item.requiresOrganizer && !isOrganizer) return false;
+            if (item.requiresOperational && session?.user?.role && ['team', 'viewer'].includes(session.user.role)) {
+              return false;
+            }
+            if (item.requiresTeam && session?.user?.role !== 'team') {
+              return false;
+            }
+            if (item.requiresPlatformAdmin && !isPlatformAdmin) {
+              return false;
+            }
+            return true;
+          });
 
           if (visibleItems.length === 0) return null;
 

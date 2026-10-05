@@ -7,6 +7,13 @@ import type {
   ProgressionRoute,
   ParticipantResolutionStatus,
 } from './competitionConfig';
+export type {
+  OrganizationRecord,
+  OrganizationStatus,
+  AthleteIdentity,
+  UserMembership,
+  ActiveContext,
+} from './identity';
 
 export type CompetitionLifecycleStatus =
   | 'planning'
@@ -72,9 +79,9 @@ export type CompetitionRecord = {
   slug?: string;
   modality: 'indoor' | 'beach';
   modalityId?: string;
-  format: string;
-  playerFormat: string;
-  setFormat: string;
+  format?: string;
+  playerFormat?: string;
+  setFormat?: string;
   genderCategory: 'male' | 'female' | 'mixed';
   defaultDeadline?: string;
   groupName?: string;
@@ -116,6 +123,8 @@ export type CompetitionRecord = {
   /** Snapshot imutável de regras congelado no início/homologação dos jogos */
   rulesSnapshot?: CompetitionConfig;
   /** Pódios finais */
+  /** FK aditiva da organização proprietária (organizations.id). */
+  organizationId?: string;
   championTeamId?: string;
   runnerUpTeamId?: string;
   thirdPlaceTeamId?: string;
@@ -128,6 +137,10 @@ export type TeamRecord = {
   name: string;
   shortName: string;
   modality: 'indoor' | 'beach';
+  /** FK aditiva da organização proprietária (organizations.id). */
+  organizationId?: string;
+  /** Categoria de gênero persistente da equipe (male, female, mixed). */
+  genderCategory?: 'male' | 'female' | 'mixed';
   city?: string;
   state?: string;
   managerName?: string;
@@ -159,6 +172,7 @@ export type CourtDetail = {
 export type VenueRecord = {
   id: string;
   name: string;
+  organizationId?: string;
   address?: string;
   responsible?: string;
   notes?: string;

@@ -158,8 +158,9 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({
   ];
 
   const availableHeight = height - 12 - 10;
-  const dividerHeight = isCompact ? 7 : 10;
-  const sigHeight = isCompact ? 16 : Math.max(25, height * 0.12);
+  const compactMode = isCompact || height < 350;
+  const dividerHeight = compactMode ? 6 : 10;
+  const sigHeight = compactMode ? 16 : Math.max(25, height * 0.12);
   const remainingForRows = availableHeight - (2 * dividerHeight) - sigHeight;
   const rowHeight = remainingForRows / 20;
 
@@ -208,7 +209,7 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({
                 marginHorizontal: 2,
               }}
             />
-            <Text style={styles.headerLabel}> B    {team.name ? team.name.toUpperCase() : ''}{team.shortName ? ` [${team.shortName.toUpperCase()}]` : ''}</Text>
+            <Text style={[styles.headerLabel, { fontSize: team.name && team.name.length > 20 ? 3.6 : 4.2 }]}> B    {team.name ? team.name.toUpperCase() : ''}{team.shortName ? ` [${team.shortName.toUpperCase()}]` : ''}</Text>
           </View>
         </View>
 
@@ -230,7 +231,7 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({
                 )}
               </View>
               <View style={styles.cellName}>
-                <Text style={styles.cellText}>
+                <Text style={[styles.cellText, { fontSize: ath && ath.name.length > 24 ? 4.4 : 5.2 }]}>
                   {ath ? ath.name : ''}
                 </Text>
               </View>
@@ -252,7 +253,7 @@ export const BaseosRosters: React.FC<BaseosRostersProps> = ({
                 </Text>
               </View>
               <View style={styles.cellName}>
-                <Text style={styles.cellText}>
+                <Text style={[styles.cellText, { fontSize: lib && lib.name.length > 24 ? 4.4 : 5.2 }]}>
                   {lib ? `${lib.name} [L]` : ''}
                 </Text>
               </View>

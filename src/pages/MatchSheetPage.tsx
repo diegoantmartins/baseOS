@@ -37,7 +37,13 @@ import {
   Trophy,
   Plus,
   Filter,
+  Loader2,
 } from 'lucide-react';
+import {
+  loadBaseosScoresheetData,
+  downloadBaseosBatchScoresheets,
+  type BaseosScoresheetData,
+} from '@/document-engine/baseos';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -63,11 +69,34 @@ import { getMatchRosters } from '@/services/registrationService';
 import { buildMatchSheetData, type MatchSheetData } from '@/lib/pdf/matchSheetDataBuilder';
 import type { MatchRecord, CompetitionRecord } from '@/types/entities';
 import type { CompetitionAthlete } from '@/types/registration';
+import { useAuth } from '@/components/auth/useAuth';
+import { useCapability } from '@/hooks/useCapability';
 import { cn } from '@/lib/utils';
 
 export function MatchSheetPage() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
+
+  const { session, loading: authLoading } = useAuth();
+  const user = session?.user;
+  const { canSubmitMatchScore, hasCapability } = useCapability();
+
+  // Defesa de aplicação (Camada 2 - Page Guard)
+  useEffect(() => {
+    if (authLoading) return;
+    if (!session) {
+      navigate('/login', { replace: true });
+      return;
+    }
+    if (user?.role === 'team') {
+      navigate('/portal/equipe', { replace: true });
+      return;
+    }
+    if (user?.role === 'viewer') {
+      navigate('/', { replace: true });
+      return;
+    }
+  }, [session, authLoading, user?.role, navigate]);
 
   // Estados de dados da listagem geral
   const [matches, setMatches] = useState<MatchRecord[]>([]);
@@ -82,6 +111,7 @@ export function MatchSheetPage() {
   // Estados de modais da listagem
   const [blankSheetOpen, setBlankSheetOpen] = useState(false);
   const [emitDialogMatch, setEmitDialogMatch] = useState<MatchRecord | null>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
 
   // Estados da súmula individual (/sumulas/:matchId)
   const [match, setMatch] = useState<MatchRecord | null>(null);
@@ -164,9 +194,18 @@ export function MatchSheetPage() {
     }
   }, [matchId, loadSingleMatch, loadListData]);
 
+  const canEdit = useMemo(() => {
+    if (!match) return false;
+    return canSubmitMatchScore(match) || hasCapability('scoresheet:edit');
+  }, [match, canSubmitMatchScore, hasCapability]);
+
   const handlePersist = useCallback(
     async (updates: Partial<MatchRecord>) => {
       if (!match) return;
+      if (!canEdit) {
+        toast.error('Acesso negado: você não tem permissão para alterar esta súmula.');
+        return;
+      }
       const updated = await dataAccess.updateMatch(match.id, updates);
       if (updated) {
         setMatch(updated);
@@ -174,7 +213,7 @@ export function MatchSheetPage() {
         toast.success('Súmula atualizada com sucesso!');
       }
     },
-    [match, competition, teamARoster, teamBRoster],
+    [match, canEdit, competition, teamARoster, teamBRoster],
   );
 
   const compById = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
@@ -203,6 +242,36 @@ export function MatchSheetPage() {
   );
   const liveSheets = useMemo(() => matches.filter((m) => m.status === 'in-progress').length, [matches]);
   const homologatedSheets = useMemo(() => matches.filter((m) => m.status === 'homologated').length, [matches]);
+
+  const handleDownloadBatch = async () => {
+    if (filteredMatches.length === 0) {
+      toast.error('Nenhuma partida disponível para exportação em lote.');
+      return;
+    }
+    setBatchLoading(true);
+    try {
+      toast.info(`Gerando ${filteredMatches.length} súmulas oficiais BaseOS em arquivo único...`);
+      const scoresheetsData: BaseosScoresheetData[] = [];
+      for (const m of filteredMatches) {
+        const data = await loadBaseosScoresheetData(m.id);
+        if (data) scoresheetsData.push(data);
+      }
+      if (scoresheetsData.length === 0) {
+        throw new Error('Nenhuma súmula pôde ser carregada.');
+      }
+      const compName =
+        competitionFilter !== 'all'
+          ? compById.get(competitionFilter)?.name || 'Competicao'
+          : 'Todas_Competicoes';
+      await downloadBaseosBatchScoresheets(scoresheetsData, compName);
+      toast.success(`${scoresheetsData.length} súmulas oficiais geradas em lote com sucesso!`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao gerar lote de súmulas oficiais.');
+    } finally {
+      setBatchLoading(false);
+    }
+  };
 
   // Colunas da DataTable de Súmulas
   const columns: DataTableColumn<MatchRecord>[] = [
@@ -433,7 +502,8 @@ export function MatchSheetPage() {
                           competition={competition}
                           teamARoster={teamARoster}
                           teamBRoster={teamBRoster}
-                          onPersist={handlePersist}
+                          readOnly={!canEdit}
+                          onPersist={canEdit ? handlePersist : undefined}
                         />
                       </TabsContent>
 
@@ -534,15 +604,32 @@ export function MatchSheetPage() {
           title="Súmulas Oficiais"
           description="Emissão, acompanhamento, preenchimento digital e homologação das súmulas das competições."
           primaryAction={
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium"
-              onClick={() => setBlankSheetOpen(true)}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-zinc-400" />
-              Súmula em Branco
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium"
+                onClick={handleDownloadBatch}
+                disabled={batchLoading || filteredMatches.length === 0}
+                title="Baixar todas as súmulas da lista em lote em um único PDF compilado"
+              >
+                {batchLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                ) : (
+                  <FileText className="w-3.5 h-3.5 text-primary" />
+                )}
+                Súmulas em Lote ({filteredMatches.length})
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium"
+                onClick={() => setBlankSheetOpen(true)}
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-zinc-400" />
+                Súmula em Branco
+              </Button>
+            </div>
           }
           secondaryActions={
             <ContextualHelpButton

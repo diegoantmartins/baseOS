@@ -32,6 +32,7 @@ import {
 import {
   CompetitionDrawEligibilityService,
 } from '@/services/competitionDrawEligibilityService';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
 import {
   buildRegistrationsUrl,
   buildDrawUrl,
@@ -275,12 +276,23 @@ export function evaluateCompetitionActionGuide(
     scenario = 'CANCELLED';
   } else if (status === 'completed') {
     scenario = 'COMPLETED';
+  } else if (
+    (status === 'in-progress' || status === 'groups-defined') &&
+    totalMatches > 0 &&
+    completedMatches === totalMatches &&
+    CompetitionRulesService.isSingleStageRoundRobin(competition, matches)
+  ) {
+    scenario = 'COMPLETED';
   } else if (status === 'playoffs') {
     scenario = 'PLAYOFFS';
   } else if (status === 'in-progress') {
     scenario = 'IN_PROGRESS';
   } else if (status === 'groups-defined') {
-    scenario = 'GROUPS_DEFINED';
+    if (totalMatches > 0 && completedMatches > 0) {
+      scenario = 'IN_PROGRESS';
+    } else {
+      scenario = 'GROUPS_DEFINED';
+    }
   } else if (status === 'draw-pending' || status === 'registration-closed') {
     if (drawReport.canExecuteDraw) {
       scenario = 'READY_FOR_DRAW';

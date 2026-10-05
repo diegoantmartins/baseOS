@@ -408,6 +408,14 @@ export interface StageDefinition {
   matchRulesOverride?: Partial<SetFormatConfig>;
   /** Critérios de desempate específicos para esta fase */
   tieBreakCriteriaOverride?: TiebreakCriterionId[];
+  /** Quantidade declarativa de participantes nesta fase (UI / Grafo) */
+  participantsCount?: number;
+  /** Origem dos participantes da fase (global, stage-position, overall-ranking) */
+  participantsOrigin?: 'global' | 'stage-position' | 'overall-ranking';
+  /** Quantidade de grupos/chaves declaradas nesta fase */
+  groupsCount?: number;
+  /** Quantidade de participantes que avançam desta fase */
+  advancingCount?: number;
 }
 
 /**

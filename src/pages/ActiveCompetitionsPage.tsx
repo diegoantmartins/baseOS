@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/components/auth/useAuth';
 import { dataAccess } from '@/services/dataAccess';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import { evaluateCompetitionReadiness } from '@/services/competitionReadinessService';
@@ -58,6 +59,8 @@ const STATUS_LABELS: Record<string, { label: string; dot: string }> = {
 
 export default function ActiveCompetitionsPage() {
   const navigate = useNavigate();
+  const { session } = useAuth();
+  const isOrganizer = session?.user?.role === 'organizer' || session?.user?.role === 'admin';
   const [competitions, setCompetitions] = useState<CompetitionRecord[]>([]);
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [teams, setTeams] = useState<TeamRecord[]>([]);
@@ -114,14 +117,16 @@ export default function ActiveCompetitionsPage() {
           title="Competições Ativas"
           description="Acompanhe e gerencie as competições em andamento, jogos, classificações e súmulas oficiais."
           primaryAction={
-            <Button
-              size="sm"
-              className="gap-1.5 text-xs h-8 rounded-md font-medium"
-              onClick={() => navigate('/competicoes?new=1')}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Nova Competição
-            </Button>
+            isOrganizer ? (
+              <Button
+                size="sm"
+                className="gap-1.5 text-xs h-8 rounded-md font-medium"
+                onClick={() => navigate('/competicoes?new=1')}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Nova Competição
+              </Button>
+            ) : undefined
           }
           secondaryActions={
             <ContextualHelpButton

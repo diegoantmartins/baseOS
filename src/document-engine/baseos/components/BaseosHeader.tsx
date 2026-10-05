@@ -3,9 +3,10 @@
 // =====================================================================
 
 import React from 'react';
-import { View, Text, StyleSheet } from '@react-pdf/renderer';
+import { View, Text, StyleSheet, Image } from '@react-pdf/renderer';
 import type { BaseosCompetitionData, BaseosMatchInfo } from '../types/competition';
 import { BASEOS_TOKENS } from '../theme/tokens';
+import { BASEOS_LOGO_LIGHT_PNG } from '../assets/baseosLogos';
 
 const styles = StyleSheet.create({
   container: {
@@ -28,48 +29,12 @@ const styles = StyleSheet.create({
   brandSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 140,
+    width: 120,
   },
-  logoBars: {
-    width: 14,
-    height: 13,
-    justifyContent: 'space-between',
-    marginRight: 4.5,
-  },
-  logoBarTop: {
-    height: 2.3,
-    width: 10,
-    backgroundColor: '#CBD5E1',
-    borderRadius: 1.1,
-  },
-  logoBarMid: {
-    height: 2.3,
-    width: 14,
-    marginLeft: 3,
-    backgroundColor: '#F59E0B',
-    borderRadius: 1.1,
-  },
-  logoBarBot: {
-    height: 2.3,
-    width: 10,
-    backgroundColor: '#CBD5E1',
-    borderRadius: 1.1,
-  },
-  brandName: {
-    fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 9.2,
-    color: '#000000',
-    letterSpacing: 0.5,
-  },
-  brandNameAccent: {
-    fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    color: '#F59E0B',
-  },
-  brandSubtitle: {
-    fontFamily: BASEOS_TOKENS.fonts.BOLD,
-    fontSize: 4.2,
-    color: '#71717A',
-    letterSpacing: 0.2,
+  brandLogo: {
+    width: 78,
+    height: 20,
+    objectFit: 'contain',
   },
   centerSection: {
     flex: 1,
@@ -91,7 +56,7 @@ const styles = StyleSheet.create({
     marginTop: 0.5,
   },
   rightSection: {
-    width: 110,
+    width: 95,
     alignItems: 'flex-end',
     justifyContent: 'center',
   },
@@ -163,29 +128,22 @@ export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
   const nameA = teamAName ? teamAName.toUpperCase() : 'EQUIPE A';
   const nameB = teamBName ? teamBName.toUpperCase() : 'EQUIPE B';
 
+  const compFontSize = compName.length > 40 ? 5.2 : compName.length > 25 ? 6.0 : 6.8;
+  const confrontationFontSize = (nameA.length + nameB.length) > 40 ? 6.5 : (nameA.length + nameB.length) > 28 ? 7.5 : 8.5;
+
   return (
     <View style={[styles.container, height ? { height } : {}]}>
       {/* Linha Superior: Branding BaseOS + Súmula Oficial + Confronto + Selo */}
       <View style={styles.topRow}>
         {/* Esquerda: Branding BaseOS */}
         <View style={styles.brandSection}>
-          <View style={styles.logoBars}>
-            <View style={styles.logoBarTop} />
-            <View style={styles.logoBarMid} />
-            <View style={styles.logoBarBot} />
-          </View>
-          <View>
-            <Text style={styles.brandName}>
-              Base<Text style={styles.brandNameAccent}>OS</Text>
-            </Text>
-            <Text style={styles.brandSubtitle}>GESTÃO DE COMPETIÇÕES</Text>
-          </View>
+          <Image src={{ uri: BASEOS_LOGO_LIGHT_PNG }} style={styles.brandLogo} />
         </View>
 
         {/* Centro: Título do Documento e Confronto */}
         <View style={styles.centerSection}>
-          <Text style={styles.docTitle}>SÚMULA OFICIAL • {compName}</Text>
-          <Text style={styles.confrontationTitle}>{nameA}   ×   {nameB}</Text>
+          <Text style={[styles.docTitle, { fontSize: compFontSize }]}>SÚMULA OFICIAL • {compName}</Text>
+          <Text style={[styles.confrontationTitle, { fontSize: confrontationFontSize }]}>{nameA}   ×   {nameB}</Text>
         </View>
 
         {/* Direita: Selo Padrão CBV / FIVB */}

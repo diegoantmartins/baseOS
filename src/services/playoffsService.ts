@@ -444,8 +444,26 @@ export function computePodium(
   }
 
   // 2. Fluxo oficial de Playoffs / Fases Finais
-  const finalMatch = matches.find(m => m.phase === 'final' && (m.status === 'completed' || m.status === 'homologated'));
-  const thirdMatch = matches.find(m => m.phase === 'terceiro_lugar' && (m.status === 'completed' || m.status === 'homologated'));
+  const isFinished = (m: MatchRecord) => m.status === 'completed' || m.status === 'homologated';
+  const finalMatch = matches.find(
+    m =>
+      (m.phase === 'final' ||
+        m.phase === 'Grande Final' ||
+        m.phase?.toLowerCase() === 'final' ||
+        (m.phase?.toLowerCase().includes('final') &&
+          !m.phase.toLowerCase().includes('semi') &&
+          !m.phase.toLowerCase().includes('quart') &&
+          !m.phase.toLowerCase().includes('oitav'))) &&
+      isFinished(m)
+  );
+  const thirdMatch = matches.find(
+    m =>
+      (m.phase === 'terceiro_lugar' ||
+        m.phase === 'Disputa de 3º Lugar' ||
+        m.phase?.toLowerCase().includes('3') ||
+        m.phase?.toLowerCase().includes('terceiro')) &&
+      isFinished(m)
+  );
 
   let championTeamId: string | undefined;
   let runnerUpTeamId: string | undefined;
@@ -462,6 +480,47 @@ export function computePodium(
     const canonical = CompetitionRulesService.getCanonicalMatchResult(competition, thirdMatch);
     thirdPlaceTeamId = canonical.winnerId ?? thirdMatch.winnerId;
     fourthPlaceTeamId = canonical.loserId ?? (thirdMatch.winnerId === thirdMatch.teamAId ? thirdMatch.teamBId : thirdMatch.teamAId);
+  }
+
+  // 3. Fallback de Segurança Universal: se não houver partida explicitamente com phase === 'final',
+  // mas 100% das partidas do torneio estiverem finalizadas (ex: Turno Único, grupos, ou formatos customizados),
+  // calcula o ranking final oficial via StandingsService para que o torneio nunca fique sem campeão / pódio.
+  if (!championTeamId && matches.length > 0) {
+    const pendingMatches = matches.filter(
+      m => m.status !== 'completed' && m.status !== 'homologated' && m.status !== 'cancelled'
+    );
+    if (pendingMatches.length === 0) {
+      const teamsMap = new Map<string, TeamRecord>();
+      for (const m of matches) {
+        if (m.teamAId && !teamsMap.has(m.teamAId)) {
+          teamsMap.set(m.teamAId, {
+            id: m.teamAId,
+            name: m.teamAName || m.teamAId,
+            shortName: m.teamAShortName || m.teamAName || m.teamAId,
+            modality: competition?.modality || 'indoor',
+          });
+        }
+        if (m.teamBId && !teamsMap.has(m.teamBId)) {
+          teamsMap.set(m.teamBId, {
+            id: m.teamBId,
+            name: m.teamBName || m.teamBId,
+            shortName: m.teamBShortName || m.teamBName || m.teamBId,
+            modality: competition?.modality || 'indoor',
+          });
+        }
+      }
+
+      const standingInputs: StandingInput[] = Array.from(teamsMap.values()).map(team => ({ team }));
+      const standings = computeStandings(standingInputs, matches, {
+        competition,
+        useMiniTable: true,
+      });
+
+      championTeamId = standings[0]?.teamId;
+      runnerUpTeamId = standings[1]?.teamId;
+      thirdPlaceTeamId = standings[2]?.teamId;
+      fourthPlaceTeamId = standings[3]?.teamId;
+    }
   }
 
   return { championTeamId, runnerUpTeamId, thirdPlaceTeamId, fourthPlaceTeamId };

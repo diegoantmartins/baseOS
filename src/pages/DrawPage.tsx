@@ -87,7 +87,7 @@ const DrawPage = () => {
   const [isClosingRegs, setIsClosingRegs] = useState(false);
   const [isLiveModalOpen, setIsLiveModalOpen] = useState(false);
 
-  const [groupsCount, setGroupsCount] = useState(2);
+  const [groupsCount, setGroupsCount] = useState<number>(1);
   const [seedingMode, setSeedingMode] = useState<DrawConfig['seedingMode']>('seeded');
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 100000));
   const [headSeeds, setHeadSeeds] = useState<string[]>([]);
@@ -99,6 +99,23 @@ const DrawPage = () => {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
   );
+
+  const selected = competitions.find(c => c.id === selectedId) ?? null;
+  const selectedCompetitionName = selected?.name ?? 'Nenhuma competição selecionada';
+
+  // Sincronização dinâmica do número de grupos a partir do DAG do Motor de Competições
+  useEffect(() => {
+    if (!selected) return;
+    const dagGroups =
+      selected?.config?.format?.stages?.[0]?.groupConfig?.groupsCount ??
+      selected?.config?.format?.stages?.find(
+        (s) => s.type === 'group-stage' || (s.type as string) === 'round-robin'
+      )?.groupConfig?.groupsCount;
+
+    if (typeof dagGroups === 'number' && dagGroups > 0) {
+      setGroupsCount(dagGroups);
+    }
+  }, [selected]);
 
   const handleGroupDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -124,7 +141,12 @@ const DrawPage = () => {
       return g;
     });
 
-    const newMatches = generateDrawMatches(newGroups);
+    const stage =
+      selected?.config?.format?.stages?.find(
+        (s) => s.type === 'group-stage' || (s.type as string) === 'round-robin'
+      ) ?? selected?.config?.format?.stages?.[0];
+    const stageName = stage?.name || stage?.id || 'classificatória';
+    const newMatches = generateDrawMatches(newGroups, stageName);
     setPreview({ groups: newGroups, matches: newMatches });
     toast.info(`Equipe movida para o ${targetGroupName} e tabela recalculada!`);
   };
@@ -157,9 +179,6 @@ const DrawPage = () => {
     refresh();
   }, [refresh]);
 
-  const selected = competitions.find(c => c.id === selectedId) ?? null;
-  const selectedCompetitionName = selected?.name ?? 'Nenhuma competição selecionada';
-
   // Avaliação Canônica de Elegibilidade Oficial para Sorteio (Fase 3)
   const eligibilityReport = useMemo(() => {
     if (!selected) return null;
@@ -179,10 +198,22 @@ const DrawPage = () => {
   }, [eligibilityReport, teams]);
 
   const registeredMatchCount = useMemo(() => {
-    if (!selected || registeredTeams.length < 2) return 0;
-    const perGroup = Math.ceil(registeredTeams.length / groupsCount);
-    return roundRobinMatchCount(perGroup) * Math.min(groupsCount, registeredTeams.length);
-  }, [selected, registeredTeams, groupsCount]);
+    if (!selected || registeredTeams.length < 2 || groupsCount < 1) return 0;
+    // Se o sorteio já gerou preview ou grupos reais, soma as partidas reais de cada grupo
+    if (preview && preview.groups && preview.groups.length > 0) {
+      return preview.groups.reduce((acc, g) => acc + roundRobinMatchCount(g.teams.length), 0);
+    }
+    // Distribuição matemática real das equipes nos grupos:
+    const actualGroups = Math.min(groupsCount, registeredTeams.length);
+    const basePerGroup = Math.floor(registeredTeams.length / actualGroups);
+    const remainder = registeredTeams.length % actualGroups;
+    let totalMatches = 0;
+    for (let i = 0; i < actualGroups; i++) {
+      const teamsInThisGroup = i < remainder ? basePerGroup + 1 : basePerGroup;
+      totalMatches += roundRobinMatchCount(teamsInThisGroup);
+    }
+    return totalMatches;
+  }, [selected, registeredTeams, groupsCount, preview]);
 
   const canDraw = Boolean(
     eligibilityReport?.canExecuteDraw &&
@@ -532,7 +563,10 @@ const DrawPage = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-zinc-900 border-zinc-800">
-                      {Array.from({ length: Math.max(1, Math.min(8, registeredTeams.length)) }, (_, i) => i + 1).map(n => (
+                      {Array.from(
+                        { length: Math.max(1, groupsCount, Math.floor(registeredTeams.length / 2)) },
+                        (_, i) => i + 1
+                      ).map(n => (
                         <SelectItem key={n} value={String(n)} className="text-xs">
                           {n} {n === 1 ? 'grupo' : 'grupos'}
                         </SelectItem>

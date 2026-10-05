@@ -10,11 +10,25 @@ export type MembershipRole =
   | 'admin'
   | 'organizer'
   | 'team_manager'
+  | 'coach'
+  | 'athlete'
   | 'referee'
   | 'scorer'
   | 'viewer';
 
 export type MembershipStatus = 'pending' | 'active' | 'blocked' | 'ended';
+
+export type OrganizationStatus = 'active' | 'blocked' | 'archived';
+
+export type OrganizationRecord = {
+  id: string;
+  name: string;
+  legalName?: string;
+  documentNumber?: string;
+  status: OrganizationStatus;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type AthleteIdentity = {
   id: string;
@@ -46,4 +60,26 @@ export type ActiveContext = Pick<
   'id' | 'organizationId' | 'competitionId' | 'teamId' | 'competitionTeamId' | 'role'
 > & {
   membershipId: string;
+};
+
+export type OrganizationInvitationStatus = 'pending' | 'accepted' | 'expired' | 'canceled';
+
+export type OrganizationInvitation = {
+  id: string;
+  organizationId: string;
+  email: string;
+  role: MembershipRole;
+  teamId?: string;
+  token: string;
+  status: OrganizationInvitationStatus;
+  invitedBy: string;
+  createdAt: string;
+  expiresAt: string;
+  usedAt?: string;
+};
+
+export type OrganizationMemberDetail = UserMembership & {
+  userName?: string;
+  userEmail?: string;
+  teamName?: string;
 };

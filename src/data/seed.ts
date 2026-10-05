@@ -4,6 +4,7 @@
 import type { CompetitionRecord, MatchRecord, ModalityRecord, PersonRecord, RefereeRecord, TeamRecord, VenueRecord } from '@/types/entities';
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
 import type { DrawRecord } from '@/types/draw';
+import type { AthleteIdentity, OrganizationInvitation, OrganizationRecord, UserMembership } from '@/types/identity';
 
 export const SEED_VERSION = 'voleipro.v15_fase5_probability_demo_2026';
 
@@ -72,12 +73,43 @@ export const seedVenues: VenueRecord[] = [
   },
 ];
 
+export const seedOrganizations: OrganizationRecord[] = [
+  {
+    id: 'org-1',
+    name: 'Liga Nacional de Voleibol',
+    legalName: 'Liga Nacional de Voleibol Profissional do Brasil',
+    documentNumber: '12.345.678/0001-90',
+    status: 'active',
+    createdAt: iso(-60 * DAY),
+    updatedAt: iso(-10 * DAY),
+  },
+  {
+    id: 'org-vortex',
+    name: 'Associação Vortex Esportes',
+    legalName: 'Associação Desportiva e Cultural Vortex Vôlei',
+    documentNumber: '45.678.901/0001-23',
+    status: 'active',
+    createdAt: iso(-60 * DAY),
+    updatedAt: iso(-10 * DAY),
+  },
+  {
+    id: 'org-federacao',
+    name: 'Federação Metropolitana de Vôlei',
+    legalName: 'Federação Metropolitana de Voleibol e Desportos',
+    documentNumber: '98.765.432/0001-10',
+    status: 'active',
+    createdAt: iso(-60 * DAY),
+    updatedAt: iso(-10 * DAY),
+  },
+];
+
 export const seedCompetitions: CompetitionRecord[] = [
   {
     id: 'comp-masculino-2026',
     name: 'Liga Nacional Pro 2026 - Masculino',
     slug: 'liga-nacional-pro-masculino-2026',
     modality: 'indoor',
+    organizationId: 'org-1',
     format: 'round-robin',
     playerFormat: '6x6',
     setFormat: '5-sets',
@@ -92,6 +124,7 @@ export const seedCompetitions: CompetitionRecord[] = [
     name: 'Liga Nacional Pro 2026 - Feminino',
     slug: 'liga-nacional-pro-feminino-2026',
     modality: 'indoor',
+    organizationId: 'org-1',
     format: 'round-robin',
     playerFormat: '6x6',
     setFormat: '5-sets',
@@ -100,6 +133,22 @@ export const seedCompetitions: CompetitionRecord[] = [
     endDate: iso(7 * DAY).slice(0, 10),
     venue: 'Arena Multiuso Olímpica',
     status: 'in-progress',
+  },
+  // Cenário D: Segunda competição para validar reuso da mesma equipe sem duplicar entidade
+  {
+    id: 'comp-copa-pro-2026',
+    name: 'Copa Regional Pro 2026',
+    slug: 'copa-regional-pro-2026',
+    modality: 'indoor',
+    organizationId: 'org-1',
+    format: 'round-robin',
+    playerFormat: '6x6',
+    setFormat: '5-sets',
+    genderCategory: 'male',
+    startDate: iso(30 * DAY).slice(0, 10),
+    endDate: iso(45 * DAY).slice(0, 10),
+    venue: 'Ginásio Poliesportivo Central',
+    status: 'planning',
   },
 ];
 
@@ -110,6 +159,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Vortex Vôlei Clube',
     shortName: 'VVC',
     modality: 'indoor',
+    organizationId: 'org-vortex',
+    genderCategory: 'male',
     coachName: 'Ricardo Valente',
     assistantCoach: 'Marcio Fontes',
     physicalTrainer: 'Bruno Medeiros',
@@ -119,11 +170,30 @@ export const seedTeams: TeamRecord[] = [
     managerEmail: 'contato@vortexvolei.com',
     logoUrl: teamLogo('VVC', '#0284c7'),
   },
+  // Cenário C: Equipe feminina da mesma organização (org-vortex) sob o mesmo gestor
+  {
+    id: 'team-f-vortex',
+    name: 'Vortex Vôlei Feminino',
+    shortName: 'VVF',
+    modality: 'indoor',
+    organizationId: 'org-vortex',
+    genderCategory: 'female',
+    coachName: 'Helena Matos',
+    assistantCoach: 'Patrícia Prado',
+    physicalTrainer: 'Gisele Frota',
+    doctor: 'Dra. Lucia Brandão',
+    managerName: 'Diego Martins',
+    managerPhone: '(11) 98765-4321',
+    managerEmail: 'contato@vortexvolei.com',
+    logoUrl: teamLogo('VVF', '#0284c7'),
+  },
   {
     id: 'team-m-2',
     name: 'Titanium Voleibol',
     shortName: 'TIT',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'male',
     coachName: 'Marcos Silveira',
     assistantCoach: 'André Nogueira',
     physicalTrainer: 'Lucas Rezende',
@@ -138,6 +208,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Fênix Vôlei Brasil',
     shortName: 'FNX',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'male',
     coachName: 'Alexandre Prado',
     assistantCoach: 'Gustavo Paiva',
     physicalTrainer: 'Rafael Duarte',
@@ -149,6 +221,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Águias do Planalto',
     shortName: 'AGP',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'male',
     coachName: 'Eduardo Fontes',
     assistantCoach: 'Felipe Barreto',
     physicalTrainer: 'Rodrigo Salles',
@@ -160,6 +234,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Aurora Esporte Clube',
     shortName: 'AEC',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'male',
     coachName: 'Sérgio Ramos',
     assistantCoach: 'Leandro Vilela',
     physicalTrainer: 'Tiago Drummond',
@@ -171,6 +247,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Guarani Voleibol',
     shortName: 'GVC',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'male',
     coachName: 'Fabiano Toledo',
     assistantCoach: 'Marcelo Pires',
     physicalTrainer: 'Danilo Alcantara',
@@ -182,6 +260,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Siderúrgica Vôlei',
     shortName: 'SID',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'male',
     coachName: 'Leandro Castro',
     assistantCoach: 'Valmir Santos',
     physicalTrainer: 'Emerson Rocha',
@@ -193,6 +273,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Trovão da Serra',
     shortName: 'TSV',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'male',
     coachName: 'André Medina',
     assistantCoach: 'Cássio Brito',
     physicalTrainer: 'Matheus Antunes',
@@ -206,6 +288,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Estrela do Sul Voleibol',
     shortName: 'EDS',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'female',
     coachName: 'Renata Zanetti',
     assistantCoach: 'Carla Silveira',
     physicalTrainer: 'Fernanda Lemos',
@@ -220,6 +304,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Valkírias Vôlei Clube',
     shortName: 'VAL',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'female',
     coachName: 'Camila Albuquerque',
     assistantCoach: 'Julio Miranda',
     physicalTrainer: 'Patrícia Prado',
@@ -231,6 +317,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Serena Vôlei Clube',
     shortName: 'SRN',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'female',
     coachName: 'Juliana Paes',
     assistantCoach: 'Helena Matos',
     physicalTrainer: 'Gisele Frota',
@@ -242,6 +330,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Magnólias Esporte Clube',
     shortName: 'MEC',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'female',
     coachName: 'Fabiana Claudino',
     assistantCoach: 'Lauro Peixoto',
     physicalTrainer: 'Tatiana Rios',
@@ -253,6 +343,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Harmonia Vôlei Brasil',
     shortName: 'HVB',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'female',
     coachName: 'Patrícia Meneghel',
     assistantCoach: 'Douglas Maia',
     physicalTrainer: 'Lorena Guimarães',
@@ -264,6 +356,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Império das Quadras',
     shortName: 'IDQ',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'female',
     coachName: 'Talita Antunes',
     assistantCoach: 'Vicente Cruz',
     physicalTrainer: 'Aline Moura',
@@ -275,6 +369,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Vanguarda Feminina Vôlei',
     shortName: 'VFV',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'female',
     coachName: 'Bárbara Seixas',
     assistantCoach: 'Maurício Tavares',
     physicalTrainer: 'Débora Diniz',
@@ -286,6 +382,8 @@ export const seedTeams: TeamRecord[] = [
     name: 'Lótus Voleibol Clube',
     shortName: 'LVC',
     modality: 'indoor',
+    organizationId: 'org-1',
+    genderCategory: 'female',
     coachName: 'Mariana Steinbrecher',
     assistantCoach: 'Estêvão Gomes',
     physicalTrainer: 'Clara Meireles',
@@ -347,6 +445,10 @@ export const seedCompetitionTeams: CompetitionTeam[] = [
   makeCompetitionTeam('ct-f-6', 'comp-feminino-2026', 'team-f-6', 10 * DAY, 'approved', false),
   makeCompetitionTeam('ct-f-7', 'comp-feminino-2026', 'team-f-7', 10 * DAY, 'approved', false),
   makeCompetitionTeam('ct-f-8', 'comp-feminino-2026', 'team-f-8', 10 * DAY, 'approved', false),
+  // Cenário C: Equipe feminina do Clube X / Vortex
+  makeCompetitionTeam('ct-f-vortex', 'comp-feminino-2026', 'team-f-vortex', 10 * DAY, 'approved', false),
+  // Cenário D: Mesma equipe (team-m-1) participando de uma segunda competição (comp-copa-pro-2026)
+  makeCompetitionTeam('ct-m-1-copa', 'comp-copa-pro-2026', 'team-m-1', 40 * DAY, 'approved', false),
 ];
 
 const MALE_NAMES = [
@@ -406,6 +508,7 @@ function makeRoster(
   namePool: string[],
   offset: number,
   gender: CompetitionAthlete['gender'],
+  baseOffset = 100,
 ): CompetitionAthlete[] {
   return ROSTER_POSITIONS.map((position, i) => {
     const name = namePool[(offset + i) % namePool.length];
@@ -414,16 +517,23 @@ function makeRoster(
       ? position.replace('Levantador', 'Levantadora').replace('Ponteiro', 'Ponteira').replace('Oposto', 'Oposta').replace('Líbero', 'Líbera')
       : position;
 
+    let athleteId: string | undefined;
+    if (idPrefix === 'ath-m1' && i === 0) athleteId = 'athlete-001';
+    else if (idPrefix === 'ath-m1' && i === 1) athleteId = 'athlete-002';
+    else if (idPrefix === 'ath-m1' && i === 2) athleteId = 'athlete-003';
+    else if (idPrefix === 'ath-f1' && i === 0) athleteId = 'athlete-f-001';
+
     return {
       id: `${idPrefix}-${String(i + 1).padStart(2, '0')}`,
       competitionTeamId,
+      athleteId,
       name,
       jerseyNumber: i + 1,
       position: posLabel,
       isCaptain: i === 0,
       isLibero: i === 5 || i === 11,
       gender,
-      documentNumber: docNumber(offset * 12 + i + 100),
+      documentNumber: docNumber(offset * 12 + i + baseOffset),
       createdAt: iso(-7 * DAY),
       updatedAt: iso(-1 * DAY),
     };
@@ -432,24 +542,68 @@ function makeRoster(
 
 export const seedCompetitionAthletes: CompetitionAthlete[] = [
   // ── ATLETAS LIGA NACIONAL MASCULINA (8 Elencos x 12 Atletas) ──
-  ...makeRoster('ath-m1', 'ct-m-1', MALE_NAMES, 0, 'male'),
-  ...makeRoster('ath-m2', 'ct-m-2', MALE_NAMES, 7, 'male'),
-  ...makeRoster('ath-m3', 'ct-m-3', MALE_NAMES, 14, 'male'),
-  ...makeRoster('ath-m4', 'ct-m-4', MALE_NAMES, 21, 'male'),
-  ...makeRoster('ath-m5', 'ct-m-5', MALE_NAMES, 28, 'male'),
-  ...makeRoster('ath-m6', 'ct-m-6', MALE_NAMES, 35, 'male'),
-  ...makeRoster('ath-m7', 'ct-m-7', MALE_NAMES, 42, 'male'),
-  ...makeRoster('ath-m8', 'ct-m-8', MALE_NAMES, 49, 'male'),
+  ...makeRoster('ath-m1', 'ct-m-1', MALE_NAMES, 0, 'male', 100),
+  ...makeRoster('ath-m2', 'ct-m-2', MALE_NAMES, 7, 'male', 100),
+  ...makeRoster('ath-m3', 'ct-m-3', MALE_NAMES, 14, 'male', 100),
+  ...makeRoster('ath-m4', 'ct-m-4', MALE_NAMES, 21, 'male', 100),
+  ...makeRoster('ath-m5', 'ct-m-5', MALE_NAMES, 28, 'male', 100),
+  ...makeRoster('ath-m6', 'ct-m-6', MALE_NAMES, 35, 'male', 100),
+  ...makeRoster('ath-m7', 'ct-m-7', MALE_NAMES, 42, 'male', 100),
+  ...makeRoster('ath-m8', 'ct-m-8', MALE_NAMES, 49, 'male', 100),
 
   // ── ATLETAS LIGA NACIONAL FEMININA (8 Elencos x 12 Atletas) ──
-  ...makeRoster('ath-f1', 'ct-f-1', FEMALE_NAMES, 0, 'female'),
-  ...makeRoster('ath-f2', 'ct-f-2', FEMALE_NAMES, 7, 'female'),
-  ...makeRoster('ath-f3', 'ct-f-3', FEMALE_NAMES, 14, 'female'),
-  ...makeRoster('ath-f4', 'ct-f-4', FEMALE_NAMES, 21, 'female'),
-  ...makeRoster('ath-f5', 'ct-f-5', FEMALE_NAMES, 28, 'female'),
-  ...makeRoster('ath-f6', 'ct-f-6', FEMALE_NAMES, 35, 'female'),
-  ...makeRoster('ath-f7', 'ct-f-7', FEMALE_NAMES, 42, 'female'),
-  ...makeRoster('ath-f8', 'ct-f-8', FEMALE_NAMES, 49, 'female'),
+  ...makeRoster('ath-f1', 'ct-f-1', FEMALE_NAMES, 0, 'female', 1000),
+  ...makeRoster('ath-f2', 'ct-f-2', FEMALE_NAMES, 7, 'female', 1000),
+  ...makeRoster('ath-f3', 'ct-f-3', FEMALE_NAMES, 14, 'female', 1000),
+  ...makeRoster('ath-f4', 'ct-f-4', FEMALE_NAMES, 21, 'female', 1000),
+  ...makeRoster('ath-f5', 'ct-f-5', FEMALE_NAMES, 28, 'female', 1000),
+  ...makeRoster('ath-f6', 'ct-f-6', FEMALE_NAMES, 35, 'female', 1000),
+  ...makeRoster('ath-f7', 'ct-f-7', FEMALE_NAMES, 42, 'female', 1000),
+  ...makeRoster('ath-f8', 'ct-f-8', FEMALE_NAMES, 49, 'female', 1000),
+
+  // ── CENÁRIO E: Mesmo atleta (Lucas Silveira - athlete-001) em 2ª competição (Copa Regional Pro) ──
+  {
+    id: 'ath-copa-01',
+    competitionTeamId: 'ct-m-1-copa',
+    athleteId: 'athlete-001',
+    name: 'Lucas Silveira',
+    jerseyNumber: 1,
+    position: 'Levantador',
+    isCaptain: true,
+    isLibero: false,
+    gender: 'male',
+    documentNumber: '100.000.137-00',
+    createdAt: iso(-3 * DAY),
+    updatedAt: iso(-1 * DAY),
+  },
+
+  // ── CENÁRIO F: Atletas com o mesmo nome SEM CPF (não devem sofrer merge) ──
+  {
+    id: 'ath-nocpf-part-1',
+    competitionTeamId: 'ct-m-1-copa',
+    athleteId: 'athlete-nocpf-1',
+    name: 'Pedro Sem CPF',
+    jerseyNumber: 9,
+    position: 'Ponteiro',
+    isCaptain: false,
+    isLibero: false,
+    gender: 'male',
+    createdAt: iso(-3 * DAY),
+    updatedAt: iso(-1 * DAY),
+  },
+  {
+    id: 'ath-nocpf-part-2',
+    competitionTeamId: 'ct-f-vortex',
+    athleteId: 'athlete-nocpf-2',
+    name: 'Pedro Sem CPF',
+    jerseyNumber: 10,
+    position: 'Ponteiro',
+    isCaptain: false,
+    isLibero: false,
+    gender: 'male',
+    createdAt: iso(-3 * DAY),
+    updatedAt: iso(-1 * DAY),
+  },
 ];
 
 function makeMatch(
@@ -881,5 +1035,186 @@ export const seedPersons: PersonRecord[] = [
     email: 'carlos.arbitro@cbv.com',
     createdAt: iso(-30 * DAY),
     updatedAt: iso(-30 * DAY),
+  },
+];
+
+export const seedAthletes: AthleteIdentity[] = [
+  // Cenário E: Atleta permanente que participa de múltiplas competições (Liga Nacional e Copa Pro)
+  {
+    id: 'athlete-001',
+    normalizedCpf: '10000013700',
+    name: 'Lucas Silveira',
+    birthDate: '1995-04-12',
+    createdAt: iso(-60 * DAY),
+    updatedAt: iso(-5 * DAY),
+  },
+  {
+    id: 'athlete-002',
+    normalizedCpf: '10000013837',
+    name: 'Gabriel Santos',
+    birthDate: '1996-08-20',
+    createdAt: iso(-60 * DAY),
+    updatedAt: iso(-5 * DAY),
+  },
+  {
+    id: 'athlete-003',
+    normalizedCpf: '10000013974',
+    name: 'Rafael Oliveira',
+    birthDate: '1994-01-15',
+    createdAt: iso(-60 * DAY),
+    updatedAt: iso(-5 * DAY),
+  },
+  {
+    id: 'athlete-f-001',
+    normalizedCpf: '10000137000',
+    name: 'Gabriela Guimarães',
+    birthDate: '1994-05-19',
+    createdAt: iso(-60 * DAY),
+    updatedAt: iso(-5 * DAY),
+  },
+  // Cenário F: Atletas com o mesmo nome SEM CPF (identidades distintas — não sofrem merge por nome)
+  {
+    id: 'athlete-nocpf-1',
+    name: 'Pedro Sem CPF',
+    birthDate: '1998-03-10',
+    createdAt: iso(-30 * DAY),
+    updatedAt: iso(-5 * DAY),
+  },
+  {
+    id: 'athlete-nocpf-2',
+    name: 'Pedro Sem CPF',
+    birthDate: '2001-11-25',
+    createdAt: iso(-25 * DAY),
+    updatedAt: iso(-5 * DAY),
+  },
+];
+
+export const seedUserMemberships: UserMembership[] = [
+  // Cenário A: Usuário com 1 membership ativa em 1 equipe e 1 competição
+  {
+    id: 'mem-user-single-team',
+    userId: 'demo-team',
+    organizationId: 'org-1',
+    competitionId: 'comp-masculino-2026',
+    teamId: 'team-m-2',
+    competitionTeamId: 'ct-m-2',
+    role: 'team_manager',
+    status: 'active',
+    createdAt: iso(-30 * DAY),
+    updatedAt: iso(-5 * DAY),
+  },
+
+  // Cenário B: Mesmo usuário com 2 memberships ativas em 2 equipes diferentes
+  {
+    id: 'mem-multi-team-1',
+    userId: 'user-manager-multi',
+    organizationId: 'org-1',
+    competitionId: 'comp-masculino-2026',
+    teamId: 'team-m-3',
+    competitionTeamId: 'ct-m-3',
+    role: 'team_manager',
+    status: 'active',
+    createdAt: iso(-20 * DAY),
+    updatedAt: iso(-2 * DAY),
+  },
+  {
+    id: 'mem-multi-team-2',
+    userId: 'user-manager-multi',
+    organizationId: 'org-1',
+    competitionId: 'comp-masculino-2026',
+    teamId: 'team-m-4',
+    competitionTeamId: 'ct-m-4',
+    role: 'team_manager',
+    status: 'active',
+    createdAt: iso(-20 * DAY),
+    updatedAt: iso(-2 * DAY),
+  },
+
+  // Cenário C: Mesmo usuário administrando Clube X Masculino e Clube X Feminino
+  {
+    id: 'mem-vortex-masculino',
+    userId: 'demo-admin',
+    organizationId: 'org-vortex',
+    competitionId: 'comp-masculino-2026',
+    teamId: 'team-m-1',
+    competitionTeamId: 'ct-m-1',
+    role: 'team_manager',
+    status: 'active',
+    createdAt: iso(-45 * DAY),
+    updatedAt: iso(-5 * DAY),
+  },
+  {
+    id: 'mem-vortex-feminino',
+    userId: 'demo-admin',
+    organizationId: 'org-vortex',
+    competitionId: 'comp-feminino-2026',
+    teamId: 'team-f-vortex',
+    competitionTeamId: 'ct-f-vortex',
+    role: 'team_manager',
+    status: 'active',
+    createdAt: iso(-30 * DAY),
+    updatedAt: iso(-5 * DAY),
+  },
+
+  // Membership de Administrador Global da Federação
+  {
+    id: 'mem-admin-federacao',
+    userId: 'demo-admin',
+    organizationId: 'org-federacao',
+    role: 'admin',
+    status: 'active',
+    createdAt: iso(-60 * DAY),
+    updatedAt: iso(-10 * DAY),
+  },
+
+  // Membership de Organizador da Competição
+  {
+    id: 'mem-organizer-comp',
+    userId: 'demo-organizer',
+    organizationId: 'org-federacao',
+    competitionId: 'comp-masculino-2026',
+    role: 'organizer',
+    status: 'active',
+    createdAt: iso(-40 * DAY),
+    updatedAt: iso(-5 * DAY),
+  },
+
+  // Membership bloqueada (para validação de segurança e regras de contexto inativo)
+  {
+    id: 'mem-blocked-user',
+    userId: 'user-blocked-test',
+    organizationId: 'org-1',
+    teamId: 'team-m-5',
+    competitionTeamId: 'ct-m-5',
+    role: 'team_manager',
+    status: 'blocked',
+    createdAt: iso(-20 * DAY),
+    updatedAt: iso(-1 * DAY),
+  },
+];
+
+export const seedOrganizationInvitations: OrganizationInvitation[] = [
+  {
+    id: 'inv-vortex-coach',
+    organizationId: 'org-vortex',
+    email: 'coach.vortex@example.com',
+    role: 'team_manager',
+    teamId: 'team-m-1',
+    token: 'tok-vortex-coach-2026',
+    status: 'pending',
+    invitedBy: 'demo-admin',
+    createdAt: iso(-5 * DAY),
+    expiresAt: iso(2 * DAY),
+  },
+  {
+    id: 'inv-federacao-organizer',
+    organizationId: 'org-federacao',
+    email: 'organizer.fed@example.com',
+    role: 'organizer',
+    token: 'tok-fed-org-2026',
+    status: 'pending',
+    invitedBy: 'demo-admin',
+    createdAt: iso(-10 * DAY),
+    expiresAt: iso(-3 * DAY), // expired
   },
 ];

@@ -27,16 +27,16 @@ function createDummyMatch(partial: Partial<MatchRecord>): MatchRecord {
 }
 
 describe('sortScheduleMatches (Schedule Engine Canônico)', () => {
-  it('ordena primariamente por rodada (round ASC)', () => {
+  it('ordena primariamente por horário agendado (scheduledTime ASC)', () => {
     const m1 = createDummyMatch({ id: 'm1', round: 2, scheduledTime: '2026-09-22T08:00:00Z', matchNumber: 1 });
     const m2 = createDummyMatch({ id: 'm2', round: 1, scheduledTime: '2026-09-22T14:00:00Z', matchNumber: 2 });
     const sorted = sortScheduleMatches([m1, m2]);
-    expect(sorted.map(m => m.id)).toEqual(['m2', 'm1']);
+    expect(sorted.map(m => m.id)).toEqual(['m1', 'm2']);
   });
 
-  it('ordena secundariamente por horário agendado (scheduledTime ASC)', () => {
-    const m1 = createDummyMatch({ id: 'm1', round: 1, scheduledTime: '2026-09-22T14:00:00Z', matchNumber: 1 });
-    const m2 = createDummyMatch({ id: 'm2', round: 1, scheduledTime: '2026-09-22T09:00:00Z', matchNumber: 2 });
+  it('ordena secundariamente por rodada (round ASC) quando horários coincidem', () => {
+    const m1 = createDummyMatch({ id: 'm1', round: 2, scheduledTime: '2026-09-22T10:00:00Z', matchNumber: 1 });
+    const m2 = createDummyMatch({ id: 'm2', round: 1, scheduledTime: '2026-09-22T10:00:00Z', matchNumber: 2 });
     const sorted = sortScheduleMatches([m1, m2]);
     expect(sorted.map(m => m.id)).toEqual(['m2', 'm1']);
   });

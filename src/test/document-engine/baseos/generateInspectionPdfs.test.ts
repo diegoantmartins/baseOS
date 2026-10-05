@@ -185,6 +185,26 @@ describe('Geração de PDFs reais para inspeção visual — Fase Súmula 3', ()
     expect(fs.existsSync(fileFilled5)).toBe(true);
     expect(bufFilled5.length).toBeGreaterThan(10000);
 
+    // Atualizar cópias oficiais na pasta public
+    const publicDir = path.resolve(process.cwd(), 'public');
+    fs.writeFileSync(path.join(publicDir, 'sumula_5sets_oficial_em_branco.pdf'), bufBlank5);
+    fs.writeFileSync(path.join(publicDir, 'sumula_5sets_oficial_preenchida.pdf'), bufFilled5);
+
+    // Gerar imagens PNG de alta resolução para visualização imediata
+    try {
+      const { execSync } = await import('child_process');
+      execSync(`pdftoppm -png -r 150 -singlefile "${fileBlank5}" "${path.join(outputDir, 'sumula_5sets_blank')}"`);
+      execSync(`pdftoppm -png -r 150 -singlefile "${fileFilled5}" "${path.join(outputDir, 'sumula_5sets_preenchida')}"`);
+
+      const artifactDir = '/home/diego-martins/.gemini/antigravity-ide/brain/e77df1d6-ede3-426f-b3ec-08dcfd5a2409';
+      if (fs.existsSync(artifactDir)) {
+        fs.copyFileSync(path.join(outputDir, 'sumula_5sets_blank.png'), path.join(artifactDir, 'sumula_5sets_blank.png'));
+        fs.copyFileSync(path.join(outputDir, 'sumula_5sets_preenchida.png'), path.join(artifactDir, 'sumula_5sets_preenchida.png'));
+      }
+    } catch (err) {
+      console.warn('Aviso na conversão para PNG:', err);
+    }
+
     // 5. 5 sets - Blank (A3 Master)
     const blank5A3Data = generateBlankBaseosScoresheetData('5-sets', 'master');
     const fileBlank5A3 = path.join(outputDir, 'sumula_5sets_blank_a3.pdf');

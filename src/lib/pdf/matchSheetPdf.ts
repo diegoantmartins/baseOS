@@ -7,6 +7,11 @@
  */
 
 import jsPDF from 'jspdf';
+import {
+  mapMatchSheetDataToBaseos,
+  generateBaseosPdfBlob,
+  downloadBaseosScoresheet,
+} from '@/document-engine/baseos';
 
 // Types for PDF generation
 interface TeamInfo {
@@ -761,3 +766,26 @@ export function downloadMatchSheetsBatchPdf(matches: MatchSheetData[], competiti
   const safeName = competitionName.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase();
   doc.save(`sumulas_${safeName || 'competicao'}.pdf`);
 }
+
+/**
+ * Emite e faz o download direto da Súmula Oficial BaseOS correspondente aos dados da partida.
+ * Esta é a geração oficial e canônica do sistema.
+ */
+export async function downloadOfficialBaseosMatchSheet(
+  data: MatchSheetData,
+  filename?: string,
+): Promise<void> {
+  const baseosData = mapMatchSheetDataToBaseos(data);
+  await downloadBaseosScoresheet(baseosData, filename);
+}
+
+/**
+ * Gera o Blob binário da Súmula Oficial BaseOS correspondente aos dados da partida.
+ */
+export async function generateOfficialBaseosScoresheetBlob(
+  data: MatchSheetData,
+): Promise<Blob> {
+  const baseosData = mapMatchSheetDataToBaseos(data);
+  return generateBaseosPdfBlob(baseosData);
+}
+

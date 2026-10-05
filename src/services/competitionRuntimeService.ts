@@ -21,6 +21,7 @@ import type {
   StageDefinition,
 } from '@/types/competitionConfig';
 import type { CompetitionRecord, MatchRecord, MatchSlotRecord, TeamRecord } from '@/types/entities';
+import { CompetitionLifecycleService } from './competitionLifecycleService';
 import { CompetitionRulesService } from './competitionRulesService';
 import { dataAccess, isArtificialTeamId, type MaterializeSlotMatchResult, type PropagateSlotOutcomeResult } from './dataAccess';
 import { GenericProgressionEngine, type AdvancementEntry } from './genericProgressionEngine';
@@ -383,6 +384,12 @@ export class CompetitionRuntimeService {
     // 7.6. Avaliação de eventuais BYEs desbloqueados
     const byeCount = await this.advanceByes(competitionId);
 
+    // 7.7. Sincronização do ciclo de vida da competição (Turno Único auto-conclusão / groups-defined)
+    await CompetitionLifecycleService.syncLifecycleAfterMatchProgression(
+      competitionId,
+      'Runtime Progression Engine',
+    );
+
     return {
       ok: true,
       competitionId,
@@ -516,9 +523,16 @@ export class CompetitionRuntimeService {
     if (competition) {
       const stages = await dataAccess.listStages(competition.id);
       for (const stage of stages) {
-        if (stage.stageType === 'groups' || stage.stageType === 'round-robin') {
+        if (stage.stageType === 'groups' || stage.stageType === 'round-robin' || stage.stageType === 'group-stage') {
           // Calcula classificação de grupos via computeStandingsByGroup
-          const groupMatches = matches.filter(m => m.phase === stage.name || m.phase === 'groups' || m.phase === 'classificatória');
+          const groupMatches = matches.filter(
+            m =>
+              m.phase === stage.name ||
+              m.phase === stage.stageId ||
+              m.phase === 'groups' ||
+              m.phase === 'classificatória' ||
+              (m.slotId && slots.some(s => s.slotId === m.slotId && s.stageRowId === stage.id))
+          );
 
           // Mapeia os grupos das equipes a partir dos matches ou metadados
           const teamGroupMap = new Map<string, string>();

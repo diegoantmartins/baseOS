@@ -1,3 +1,4 @@
+// @vitest-environment node
 // =====================================================================
 // BaseOS Tests - Suíte de Testes da Ordem de Saque Canônica
 // =====================================================================
@@ -17,6 +18,18 @@ import {
 } from '@/document-engine/baseos';
 import { dataAccess } from '@/services/dataAccess';
 import { DEFAULT_INDOOR_COMPETITION_CONFIG } from '@/types/competitionConfig';
+
+if (typeof globalThis.localStorage === 'undefined') {
+  const store: Record<string, string> = {};
+  globalThis.localStorage = {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => { store[key] = String(value); },
+    removeItem: (key: string) => { delete store[key]; },
+    clear: () => { Object.keys(store).forEach(k => delete store[k]); },
+    key: (i: number) => Object.keys(store)[i] || null,
+    length: 0,
+  } as unknown as Storage;
+}
 
 describe('BaseOS Ordem de Saque Canônica - Testes de Regras e Formato', () => {
   describe('1. Resolução Canônica de Formato (setsToWin / maxSets)', () => {
