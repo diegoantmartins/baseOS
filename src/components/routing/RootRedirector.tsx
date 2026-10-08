@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/components/auth/useAuth';
 import { dataAccess } from '@/services/dataAccess';
 import { RouteLoadingFallback } from '@/components/layout/RouteLoadingFallback';
-import PublicPortal from '@/pages/PublicPortal';
+import LandingPage from '@/pages/LandingPage';
 import type { UserMembership } from '@/types/identity';
 
 /**
@@ -63,15 +63,20 @@ export function RootRedirector() {
     return <RouteLoadingFallback />;
   }
 
-  // 1. Sem sessão ativa -> Renderiza rota '/' (Portal Público)
+  // 1. Sem sessão ativa -> Renderiza rota '/' (Portal Público / Landing)
   if (!session) {
-    return <PublicPortal />;
+    return <LandingPage />;
+  }
+
+  // 1.5. Platform Admin → sempre para /master (camada de controle global)
+  if (session.user.isPlatformAdmin) {
+    return <Navigate to="/master" replace />;
   }
 
   // Filtra apenas memberships ativas
   const activeMemberships = memberships.filter((m) => m.status === 'active');
 
-  // 2. Se o usuário tiver qualquer membership com role 'admin' ou 'organizer'
+  // 2. Se o usuário tiver membership com role 'admin' na organização → dashboard
   const hasAdminOrOrganizer =
     activeMemberships.some((m) => m.role === 'admin' || m.role === 'organizer') ||
     session.user.role === 'admin' ||
@@ -107,8 +112,8 @@ export function RootRedirector() {
     return <Navigate to="/jogos" replace />;
   }
 
-  // 4. Se autenticado, mas sem vínculos (ex: fã logado ou viewer) -> Renderiza '/' (Portal Público)
-  return <PublicPortal />;
+  // 4. Se autenticado, mas sem vínculos (ex: fã logado ou viewer) -> Renderiza Landing
+  return <LandingPage />;
 }
 
 export default RootRedirector;

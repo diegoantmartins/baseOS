@@ -682,6 +682,37 @@ const localStorageAdapter = {
     return { ok: true, membershipId: membership.id };
   },
 
+
+  /**
+   * setupOrganizationAdmin — Fase 1A
+   * Chama a Edge Function segura 'provision-admin' para provisionar o administrador.
+   * Evita a exposição de SUPABASE_SERVICE_ROLE_KEY no frontend.
+   */
+  async setupOrganizationAdmin(input: {
+    organizationId: string;
+    email: string;
+    name: string;
+    password: string;
+    invitedBy: string;
+  }): Promise<{ ok: boolean; userId: string; membershipId: string }> {
+    const supabase = await getSupabaseClient();
+    
+    // Tenta invocar a Edge Function primeiro (Caminho Oficial)
+    const { data, error } = await supabase.functions.invoke('provision-admin', {
+      body: input,
+    });
+
+    if (error) {
+      throw new Error(`Falha ao provisionar administrador: [${error.context || error.name}] ${error.message}`);
+    }
+
+    if (data && !data.ok) {
+      throw new Error(data.error || 'Falha desconhecida ao provisionar administrador.');
+    }
+
+    return { ok: true, userId: data.userId, membershipId: data.membershipId };
+  },
+
   // --- Athletes (Fase 11.3) ---
   async listAthletes(): Promise<AthleteIdentity[]> {
     ensureSeeded();
@@ -2711,6 +2742,64 @@ const supabaseAdapter = {
     });
     if (error) throw new Error(`Falha ao aceitar convite: [${error.code}] ${error.message}`);
     return data;
+  },
+
+
+  /**
+   * setupOrganizationAdmin — Fase 1
+   * Cria usuário Auth + profile(role=admin) + membership(admin) em sequência.
+   */
+  async setupOrganizationAdmin(input: {
+    organizationId: string;
+    email: string;
+    name: string;
+    password: string;
+    invitedBy: string;
+  }): Promise<{ ok: boolean; userId: string; membershipId: string }> {
+    const supabase = await getSupabaseClient();
+    const { organizationId, email, name, password, invitedBy } = input;
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 1. Criar usuário Auth
+    let userId: string;
+    const { data: createData, error: createError } = await supabase.auth.admin.createUser({
+      email: normalizedEmail,
+      password,
+      user_metadata: { name },
+      email_confirm: true,
+    });
+    if (createError) {
+      if (createError.message?.toLowerCase().includes('already been registered') || createError.code === 'email_exists') {
+        const { data: profileData } = await supabase.from('profiles').select('id').eq('email', normalizedEmail).maybeSingle();
+        userId = profileData.id;
+      } else {
+        throw new Error(`Falha ao criar usuário: ${createError.message}`);
+      }
+    } else {
+      userId = createData.user.id;
+    }
+
+    // 2. Upsert profile com role=admin
+    const { error: profileError } = await supabase.from('profiles').upsert(
+      { id: userId, email: normalizedEmail, name, role: 'admin', organization_id: organizationId, updated_at: new Date().toISOString() },
+      { onConflict: 'id' }
+    );
+    if (profileError) throw new Error(`Falha ao configurar profile: ${profileError.message}`);
+
+    // 3. Membership ativo
+    const { data: existingMship } = await supabase.from('user_memberships').select('id').eq('user_id', userId).eq('organization_id', organizationId).maybeSingle();
+    let membershipId: string;
+    if (existingMship?.id) {
+      await supabase.from('user_memberships').update({ role: 'admin', status: 'active', updated_at: new Date().toISOString() }).eq('id', existingMship.id);
+      membershipId = existingMship.id;
+    } else {
+      const now = new Date().toISOString();
+      const payload = { id: generateId('membership'), user_id: userId, organization_id: organizationId, role: 'admin', status: 'active', invited_by: invitedBy, created_at: now, updated_at: now };
+      const { data: mshipData, error: mshipError } = await supabase.from('user_memberships').insert(payload).select('id').single();
+      if (mshipError) throw new Error(`Falha ao criar membership: ${mshipError.message}`);
+      membershipId = mshipData.id;
+    }
+    return { ok: true, userId, membershipId };
   },
 
   // --- Athletes (Fase 11.3) ---

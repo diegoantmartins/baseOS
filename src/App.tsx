@@ -39,6 +39,7 @@ const DocumentEditorPage = lazy(() => import("./pages/DocumentEditorPage"));
 const PublicCompetitionPage = lazy(() => import("./pages/PublicCompetitionPage"));
 const OrganizationsPage = lazy(() => import("./pages/OrganizationsPage"));
 const OrganizationDetailPage = lazy(() => import("./pages/OrganizationDetailPage"));
+const OrganizationPortalPage = lazy(() => import("./pages/OrganizationPortalPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Portal Unificado por Perfil (Fase 10)
@@ -225,6 +226,15 @@ const App = () => (
                       <TenantRouteGuard>
                         <OrganizationDetailPage />
                       </TenantRouteGuard>
+                    </RequireAuth>
+                  }
+                />
+                {/* Portal da Organização — /org/:organizationId */}
+                <Route
+                  path="/org/:organizationId"
+                  element={
+                    <RequireAuth roles={['admin', 'organizer']}>
+                      <OrganizationPortalPage />
                     </RequireAuth>
                   }
                 />

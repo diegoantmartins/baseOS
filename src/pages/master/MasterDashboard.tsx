@@ -54,6 +54,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { dataAccess } from '@/services/dataAccess';
 import { useTenant } from '@/contexts/TenantContext';
+import { useAuth } from '@/components/auth/useAuth';
+import { AdminSetupDialog } from '@/components/master/AdminSetupDialog';
 import type { OrganizationRecord } from '@/types/identity';
 import { toast } from 'sonner';
 
@@ -65,12 +67,16 @@ export default function MasterDashboard() {
     refreshOrganizations,
     isPlatformAdmin,
   } = useTenant();
+  const { session } = useAuth();
 
   const [organizations, setOrganizations] = useState<OrganizationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'blocked' | 'archived'>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Modal: Configurar Admin de Organização
+  const [adminSetupTarget, setAdminSetupTarget] = useState<OrganizationRecord | null>(null);
 
   // Modal: Nova Empresa / Base
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -461,6 +467,17 @@ export default function MasterDashboard() {
                       <TableCell className="text-right pr-6">
                         <div className="flex items-center justify-end gap-2">
                           <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAdminSetupTarget(org)}
+                            className="text-xs h-8 px-3 rounded-lg border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                            title="Configurar administrador desta organização"
+                          >
+                            <Users className="w-3.5 h-3.5 mr-1" />
+                            <span className="hidden sm:inline">Config. Admin</span>
+                          </Button>
+
+                          <Button
                             variant={isCurrent ? 'secondary' : 'default'}
                             size="sm"
                             onClick={() => handleSwitchAndNavigate(org)}
@@ -572,6 +589,21 @@ export default function MasterDashboard() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Modal: Configurar Admin de Organização */}
+        {adminSetupTarget && session?.user && (
+          <AdminSetupDialog
+            open={!!adminSetupTarget}
+            onOpenChange={(open) => { if (!open) setAdminSetupTarget(null); }}
+            organizationId={adminSetupTarget.id}
+            organizationName={adminSetupTarget.name}
+            currentUserId={session.user.id}
+            onSuccess={async () => {
+              await loadData();
+              await refreshOrganizations();
+            }}
+          />
+        )}
       </div>
     </MainLayout>
   );

@@ -33,7 +33,9 @@ export default function LoginPage() {
 
   const from = (location.state as { from?: string } | null)?.from;
 
-  const getSafeDestination = (userRole: string, targetPath?: string): string => {
+  const getSafeDestination = (userRole: string, targetPath?: string, isPlatformAdmin?: boolean): string => {
+    // Platform Admin → sempre para /master
+    if (isPlatformAdmin) return '/master';
     // Usuário 'team' NUNCA deve ir para rotas administrativas como fallback ou retorno de from
     if (userRole === 'team') {
       return '/equipe';
@@ -48,7 +50,7 @@ export default function LoginPage() {
     if (targetPath && targetPath !== '/' && targetPath !== '/login' && targetPath !== '/equipe') {
       return targetPath;
     }
-    return '/competicoes-ativas';
+    return '/dashboard';
   };
 
   if (!loading && session) {
