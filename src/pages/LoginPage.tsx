@@ -139,7 +139,7 @@ export default function LoginPage() {
                 <div className="space-y-1.5">
                   {DEMO_USERS.map(user => {
                     const Icon = DEMO_ROLE_ICONS[user.role as keyof typeof DEMO_ROLE_ICONS] ?? UserRound;
-                    const pass = user.email === 'diegoantmartins89@gmail.com' ? 'Au15022020...' : 'demo123';
+                    const pass = (user.email === 'diegoantmartins89@gmail.com' || user.email === 'diegomartins@baseos.online') ? 'Au15022020...' : 'demo123';
                     return (
                       <Button
                         key={user.id}

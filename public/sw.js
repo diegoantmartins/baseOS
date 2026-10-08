@@ -1,6 +1,6 @@
 // Service Worker para VolleyPro PWA e Notificações de Resultados
 
-const CACHE_NAME = 'volleypro-v1';
+const CACHE_NAME = 'baseos-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -44,7 +44,15 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        return new Response('Offline / Network error', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'text/plain' },
+        });
+      })
   );
 });
 

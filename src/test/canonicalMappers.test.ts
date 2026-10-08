@@ -18,7 +18,7 @@ describe('competitionMapper (Fase 8.3)', () => {
   const allowedCompetitionColumns = new Set([
     'id', 'name', 'slug', 'modality', 'format', 'player_format', 'set_format',
     'gender_category', 'default_deadline', 'group_name', 'start_date', 'end_date',
-    'venue', 'status', 'config', 'rules_snapshot', 'organizer_id', 'logo_url',
+    'venue', 'status', 'config', 'rules_snapshot', 'organizer_id', 'organization_id', 'logo_url',
     'supporters', 'created_at', 'updated_at',
   ]);
 
@@ -111,6 +111,39 @@ describe('competitionMapper (Fase 8.3)', () => {
     expect(domain.teamsPerGroup).toBe(3);
     expect(domain.advancingPerGroup).toBe(1);
     expect(domain.config?.registration?.maxTeams).toBe(6);
+  });
+
+  it('toPersistence mapeia organizationId para organization_id e toDomain mapeia organization_id para organizationId', () => {
+    const orgId = 'org-d700228a-3f04-4add-bc12-02fb83909afb';
+    const domainInput: Partial<CompetitionRecord> = {
+      id: 'comp-voltz-1',
+      name: 'Copa Voltz 2026',
+      organizationId: orgId,
+    };
+
+    const persistenceRow = competitionMapper.toPersistence(domainInput);
+    expect(persistenceRow.organization_id).toBe(orgId);
+
+    const backToDomain = competitionMapper.toDomain({
+      id: 'comp-voltz-1',
+      name: 'Copa Voltz 2026',
+      organization_id: orgId,
+    });
+    expect(backToDomain.organizationId).toBe(orgId);
+  });
+
+  it('assertCompetitionOrganization valida obrigatoriedade do tenant e bloqueia se ausente', () => {
+    const validOrgId = 'org-d700228a-3f04-4add-bc12-02fb83909afb';
+    expect(competitionMapper.assertCompetitionOrganization({ organizationId: validOrgId })).toBe(validOrgId);
+
+    expect(() => competitionMapper.assertCompetitionOrganization({ organizationId: undefined }))
+      .toThrow('Não foi possível criar a competição porque nenhuma organização está ativa.');
+
+    expect(() => competitionMapper.assertCompetitionOrganization({ organizationId: null as unknown as string }))
+      .toThrow('Não foi possível criar a competição porque nenhuma organização está ativa.');
+
+    expect(() => competitionMapper.assertCompetitionOrganization({ organizationId: '   ' }))
+      .toThrow('Não foi possível criar a competição porque nenhuma organização está ativa.');
   });
 });
 

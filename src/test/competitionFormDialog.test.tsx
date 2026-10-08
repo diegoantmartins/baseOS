@@ -57,6 +57,7 @@ describe('CompetitionFormDialog — Integração do Construtor de Fases (Grafo D
         onSubmit={handleSubmit}
         modalities={[]}
         venues={mockVenues}
+        organizationId="org-d700228a-3f04-4add-bc12-02fb83909afb"
       />
     );
 
@@ -74,6 +75,9 @@ describe('CompetitionFormDialog — Integração do Construtor de Fases (Grafo D
     });
 
     const submittedRecord: Omit<CompetitionRecord, 'id'> = handleSubmit.mock.calls[0][0];
+
+    // Verifica que organizationId foi propagado corretamente para o domínio
+    expect(submittedRecord.organizationId).toBe('org-d700228a-3f04-4add-bc12-02fb83909afb');
 
     // Verifica que campos legados planos NÃO são mais enviados
     expect(submittedRecord.name).toBe('Torneio Aberto Regional 2026');
@@ -94,6 +98,34 @@ describe('CompetitionFormDialog — Integração do Construtor de Fases (Grafo D
       order: 2,
       name: 'Fase Final (Playoffs)',
       type: 'knockout',
+    });
+  });
+
+  it('3. Bloqueia a submissão e não chama onSubmit quando nenhuma organização está ativa', async () => {
+    const handleSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <CompetitionFormDialog
+        open={true}
+        onOpenChange={() => {}}
+        onSubmit={handleSubmit}
+        modalities={[]}
+        venues={mockVenues}
+      />
+    );
+
+    // Preenche o nome da competição
+    const nameInput = screen.getByLabelText(/Nome da Competição \*/i);
+    fireEvent.change(nameInput, { target: { value: 'Competição Sem Organização' } });
+
+    // Dispara submissão
+    const submitBtn = screen.getByRole('button', { name: /Criar Competição/i });
+    expect(submitBtn).toBeEnabled();
+    fireEvent.click(submitBtn);
+
+    // Como nenhuma organização está ativa nem foi passada por prop, onSubmit NÃO deve ser chamado
+    await waitFor(() => {
+      expect(handleSubmit).not.toHaveBeenCalled();
     });
   });
 });

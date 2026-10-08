@@ -20,6 +20,12 @@ const USERS_STORAGE_KEY = 'voleipro.system.users.v1';
 
 type DemoUser = UserProfile & { password: string };
 
+export function isMasterEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const norm = email.toLowerCase().trim();
+  return norm === 'diegoantmartins89@gmail.com' || norm === 'diegomartins@baseos.online';
+}
+
 export const DEMO_USERS: DemoUser[] = [
   {
     id: 'demo-admin',
@@ -159,19 +165,19 @@ async function localSignIn(email: string, password: string): Promise<SignInResul
         role: existingUser.role,
         competitionTeamId: existingUser.competitionTeamId,
         organizationId: existingUser.organizationId,
-        isPlatformAdmin: Boolean(existingUser.isPlatformAdmin || existingUser.email.toLowerCase() === 'diegoantmartins89@gmail.com'),
+        isPlatformAdmin: Boolean(existingUser.isPlatformAdmin || isMasterEmail(existingUser.email)),
       }
     : demoUser
       ? {
           ...publicProfile(demoUser),
-          isPlatformAdmin: Boolean(demoUser.isPlatformAdmin || demoUser.email.toLowerCase() === 'diegoantmartins89@gmail.com'),
+          isPlatformAdmin: Boolean(demoUser.isPlatformAdmin || isMasterEmail(demoUser.email)),
         }
       : {
           id: 'usr-' + Date.now(),
           email: normEmail,
           name: normEmail.split('@')[0],
           role: 'viewer',
-          isPlatformAdmin: normEmail === 'diegoantmartins89@gmail.com',
+          isPlatformAdmin: isMasterEmail(normEmail),
         };
 
   const session: AuthSession = { user: profile };
@@ -211,7 +217,7 @@ async function supabaseSignIn(email: string, password: string): Promise<SignInRe
     .maybeSingle();
 
   const userEmail = data.user.email ?? email;
-  const isMaster = Boolean(profile?.is_platform_admin || userEmail.toLowerCase() === 'diegoantmartins89@gmail.com');
+  const isMaster = Boolean(profile?.is_platform_admin || isMasterEmail(userEmail));
 
   const user: UserProfile = {
     id: data.user.id,
@@ -251,7 +257,7 @@ async function supabaseSession(): Promise<AuthSession | null> {
     .maybeSingle();
 
   const userEmail = data.session.user.email ?? '';
-  const isMaster = Boolean(profile?.is_platform_admin || userEmail.toLowerCase() === 'diegoantmartins89@gmail.com');
+  const isMaster = Boolean(profile?.is_platform_admin || isMasterEmail(userEmail));
 
   const session: AuthSession = {
     user: {
@@ -487,7 +493,7 @@ export const authService = {
 
   isPlatformAdmin(session?: AuthSession | null): boolean {
     const s = session ?? readStoredSession();
-    return Boolean(s?.user?.isPlatformAdmin || s?.user?.email.toLowerCase() === 'diegoantmartins89@gmail.com');
+    return Boolean(s?.user?.isPlatformAdmin || isMasterEmail(s?.user?.email));
   },
 
   // ── Gestão de Usuários do Sistema ──────────────────────────────────────────

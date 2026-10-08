@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AuthSession, SignInResult, UserProfile, UserRole } from '@/types/auth';
-import { authService } from '@/services/authService';
+import { authService, isMasterEmail } from '@/services/authService';
 import { AuthContext, type AuthContextValue } from './useAuth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isPlatformAdmin = Boolean(
     session?.user?.isPlatformAdmin ||
-    (session?.user?.email && session.user.email.toLowerCase() === 'diegoantmartins89@gmail.com')
+    isMasterEmail(session?.user?.email)
   );
 
   const value = useMemo<AuthContextValue>(

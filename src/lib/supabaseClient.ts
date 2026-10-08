@@ -6,6 +6,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const isSupabaseConfigured = (): boolean => {
+  if (typeof process !== 'undefined' && (process.env.VITEST || process.env.NODE_ENV === 'test')) {
+    return false;
+  }
   const env = (typeof import.meta !== 'undefined' && import.meta.env) || (typeof process !== 'undefined' && process.env) || {};
   const url = (env.VITE_SUPABASE_URL as string | undefined) ?? '';
   const key = (env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? '';

@@ -44,6 +44,7 @@ describe('BaseOS — Golden Path E2E Lifecycle Suite (Passo 10)', () => {
     };
 
     const organization = await dataAccess.createOrganization(orgInput);
+    dataAccess.setActiveOrganizationId(organization.id);
     expect(organization).toBeDefined();
     expect(organization.id).toBe('org-golden-voltz');
     expect(organization.status).toBe('active');

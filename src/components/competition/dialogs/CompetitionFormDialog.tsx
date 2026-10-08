@@ -23,6 +23,8 @@ import {
 import { CompetitionStageBuilder, FormatTemplateSelector } from '@/components/competition/format-builder';
 import { CompetitionTemplateService } from '@/services/competitionTemplateService';
 import { CompetitionIdentityEditor } from './CompetitionIdentityEditor';
+import { useTenant } from '@/contexts/TenantContext';
+import { toast } from 'sonner';
 import {
   Calendar,
   Layers,
@@ -40,6 +42,7 @@ export interface CompetitionFormDialogProps {
   onSubmit: (input: Omit<CompetitionRecord, 'id'>) => Promise<void>;
   modalities: ModalityRecord[];
   venues: VenueRecord[];
+  organizationId?: string;
 }
 
 export function CompetitionFormDialog({
@@ -47,7 +50,10 @@ export function CompetitionFormDialog({
   onOpenChange,
   onSubmit,
   venues,
+  organizationId: propOrganizationId,
 }: CompetitionFormDialogProps) {
+  const { currentOrganizationId } = useTenant();
+  const effectiveOrganizationId = (propOrganizationId || currentOrganizationId || '').trim();
   // Aba ativa
   const [activeTab, setActiveTab] = useState<'geral' | 'disputa' | 'sets' | 'inscricao' | 'identidade'>('geral');
 
@@ -143,6 +149,10 @@ export function CompetitionFormDialog({
 
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
+    if (!effectiveOrganizationId) {
+      toast.error('Não foi possível criar a competição porque nenhuma organização está ativa.');
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -233,6 +243,7 @@ export function CompetitionFormDialog({
 
       const baseRecord: Omit<CompetitionRecord, 'id'> = {
         name: name.trim(),
+        organizationId: effectiveOrganizationId,
         modality,
         playerFormat,
         setFormat: legacySetFormat,

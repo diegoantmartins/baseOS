@@ -38,6 +38,7 @@ import { evaluateCompetitionReadiness } from '@/services/competitionReadinessSer
 import type { CompetitionRecord, MatchRecord, TeamRecord, ModalityRecord, VenueRecord, CompetitionLifecycleStatus } from '@/types/entities';
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
 import { useAuth } from '@/components/auth/useAuth';
+import { useTenant } from '@/contexts/TenantContext';
 import { useCapability } from '@/hooks/useCapability';
 import { ConfirmActionDialog } from '@/components/common/ConfirmActionDialog';
 import { AuditService } from '@/lib/security';
@@ -79,6 +80,7 @@ export default function CompetitionsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { session } = useAuth();
+  const { currentOrganizationId } = useTenant();
   const { can } = useCapability();
 
   // Estados de dados
@@ -774,6 +776,7 @@ export default function CompetitionsPage() {
         onSubmit={handleCreate}
         modalities={modalities}
         venues={venues}
+        organizationId={currentOrganizationId || undefined}
       />
 
       <ConfirmActionDialog

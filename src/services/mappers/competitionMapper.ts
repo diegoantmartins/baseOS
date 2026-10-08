@@ -6,10 +6,10 @@
  * e as colunas físicas reais da tabela `public.competitions` no PostgreSQL 17.6.
  *
  * Diretriz: NO CODE BEFORE CONTRACT
- * - A tabela `public.competitions` possui EXATAMENTE 21 colunas físicas:
+ * - A tabela `public.competitions` possui EXATAMENTE 22 colunas físicas:
  *   id, name, slug, modality, format, player_format, set_format, gender_category,
  *   default_deadline, group_name, start_date, end_date, venue, status,
- *   config, rules_snapshot, organizer_id, logo_url, supporters, created_at, updated_at.
+ *   config, rules_snapshot, organizer_id, organization_id, logo_url, supporters, created_at, updated_at.
  *
  * - Nenhum campo regulatório (groupsCount, advancingPerGroup, bestThirdsCount, etc.)
  *   deve ser persistido como coluna física. Todos pertencem exclusivamente ao JSONB `config`.
@@ -40,6 +40,7 @@ export const COMPETITION_PHYSICAL_COLUMNS = [
   'config',
   'rules_snapshot',
   'organizer_id',
+  'organization_id',
   'logo_url',
   'supporters',
   'created_at',
@@ -71,6 +72,10 @@ export function toPersistence(domain: Partial<CompetitionRecord>): Record<string
   if (domain.venue !== undefined) payload.venue = domain.venue?.trim() || null;
   if (domain.status !== undefined) payload.status = domain.status;
   if ((domain as Record<string, unknown>).organizerId !== undefined) payload.organizer_id = (domain as Record<string, unknown>).organizerId || null;
+  if (domain.organizationId !== undefined && domain.organizationId !== null) {
+    const orgId = String(domain.organizationId).trim();
+    if (orgId) payload.organization_id = orgId;
+  }
   if (domain.logoUrl !== undefined) payload.logo_url = domain.logoUrl || null;
   if (domain.supporters !== undefined) payload.supporters = normalizeSupporters(domain.supporters);
   if (domain.rulesSnapshot !== undefined) payload.rules_snapshot = domain.rulesSnapshot;
@@ -230,6 +235,9 @@ export function toDomain(row: Record<string, unknown>): CompetitionRecord {
   if (row.organizer_id) {
     (record as Record<string, unknown>).organizerId = String(row.organizer_id);
   }
+  if (row.organization_id) {
+    record.organizationId = String(row.organization_id);
+  }
 
   // Capacidade explícita
   if (typeof registration.maxTeams === 'number') {
@@ -239,8 +247,20 @@ export function toDomain(row: Record<string, unknown>): CompetitionRecord {
   return record;
 }
 
+/**
+ * Valida a presença obrigatória de organizationId antes da persistência de uma nova competição.
+ */
+export function assertCompetitionOrganization(domain: { organizationId?: string | null }): string {
+  const orgId = domain.organizationId?.trim();
+  if (!orgId) {
+    throw new Error('Não foi possível criar a competição porque nenhuma organização está ativa.');
+  }
+  return orgId;
+}
+
 export const competitionMapper = {
   toPersistence,
   toDomain,
+  assertCompetitionOrganization,
   PHYSICAL_COLUMNS: COMPETITION_PHYSICAL_COLUMNS,
 };

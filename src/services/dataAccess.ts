@@ -458,6 +458,7 @@ const localStorageAdapter = {
   },
 
   async createCompetition(input: Omit<CompetitionRecord, 'id'> & { id?: string }): Promise<CompetitionRecord> {
+    const orgId = input.organizationId?.trim() || this.getActiveOrganizationId()?.trim() || 'org-1';
     const all = readCollection<CompetitionRecord>('competitions');
     const baseSlug = input.slug || generateSlug(input.name);
     let uniqueSlug = baseSlug;
@@ -466,10 +467,9 @@ const localStorageAdapter = {
       uniqueSlug = `${baseSlug}-${counter}`;
       counter++;
     }
-    const activeOrgId = this.getActiveOrganizationId() || 'org-1';
     const record: CompetitionRecord = {
       ...input,
-      organizationId: input.organizationId || activeOrgId,
+      organizationId: orgId,
       slug: uniqueSlug,
       id: (input as { id?: string }).id || generateId('comp'),
     };
@@ -2474,11 +2474,15 @@ const supabaseAdapter = {
   },
 
   async createCompetition(input: Omit<CompetitionRecord, 'id'> & { id?: string }): Promise<CompetitionRecord> {
+    const orgId = input.organizationId?.trim() || this.getActiveOrganizationId()?.trim();
+    if (!orgId) {
+      throw new Error('Não foi possível criar a competição porque nenhuma organização está ativa.');
+    }
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
     const id = input.id || generateId('comp');
     const slug = input.slug || generateSlug(input.name);
-    const payload = competitionMapper.toPersistence({ ...input, id, slug });
+    const payload = competitionMapper.toPersistence({ ...input, organizationId: orgId, id, slug });
     const { data, error } = await supabase.from(SUPABASE_TABLES.competitions).insert(payload).select().single();
     const res = assertSupabaseSuccess(data, error, { operation: 'createCompetition', table: SUPABASE_TABLES.competitions });
     return competitionMapper.toDomain(res as Record<string, unknown>);
