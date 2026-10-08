@@ -66,6 +66,7 @@ import { compressImageToDataUrl } from '@/lib/imageUtils';
 import { TeamCreatedShareDialog } from '@/components/registration/TeamCreatedShareDialog';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import { useCapability } from '@/hooks/useCapability';
+import { useTenant } from '@/contexts/TenantContext';
 import { sortRosterAthletes } from '@/services/registrationService';
 import type { TeamRecord } from '@/types/entities';
 import type { CompetitionAthlete } from '@/types/registration';
@@ -84,6 +85,7 @@ export interface TeamView extends TeamRecord {
 }
 export function TeamsPage() {
   const { can } = useCapability();
+  const { currentOrganizationId } = useTenant();
 
   // Estados de dados
   const [teams, setTeams] = useState<TeamView[]>([]);
@@ -185,8 +187,16 @@ export function TeamsPage() {
   const totalAthletes = useMemo(() => teams.reduce((acc, t) => acc + t.athletes, 0), [teams]);
 
   const handleCreate = async (input: Omit<TeamRecord, 'id'>) => {
+    const orgId = input.organizationId || currentOrganizationId || dataAccess.getActiveOrganizationId?.();
+    if (!orgId) {
+      toast.error('Não foi possível cadastrar a equipe porque nenhuma organização está ativa.');
+      return;
+    }
     try {
-      const created = await dataAccess.createTeam(input);
+      const created = await dataAccess.createTeam({
+        ...input,
+        organizationId: orgId,
+      });
       toast.success(`Equipe "${input.name}" criada com sucesso!`);
       setCreateOpen(false);
       await refresh();
@@ -537,6 +547,7 @@ export function TeamsPage() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         onSubmit={handleCreate}
+        organizationId={currentOrganizationId || undefined}
       />
 
       <TeamFormDialog
@@ -605,9 +616,12 @@ interface TeamFormDialogProps {
   onSubmit: (input: Omit<TeamRecord, 'id'>) => Promise<void>;
   initial?: TeamRecord;
   isEdit?: boolean;
+  organizationId?: string;
 }
 
-function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamFormDialogProps) {
+function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit, organizationId: propOrgId }: TeamFormDialogProps) {
+  const { currentOrganizationId } = useTenant();
+  const effectiveOrgId = (propOrgId || currentOrganizationId || initial?.organizationId || dataAccess.getActiveOrganizationId?.() || '').trim();
   const [name, setName] = useState('');
   const [shortName, setShortName] = useState('');
   const [modality, setModality] = useState<'indoor' | 'beach'>('indoor');
@@ -663,12 +677,17 @@ function TeamFormDialog({ open, onOpenChange, onSubmit, initial, isEdit }: TeamF
 
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
+    if (!isEdit && !effectiveOrgId) {
+      toast.error('Não foi possível cadastrar a equipe porque nenhuma organização está ativa.');
+      return;
+    }
     setSubmitting(true);
     try {
       await onSubmit({
         name: name.trim(),
         shortName: shortName.trim().toUpperCase(),
         modality,
+        organizationId: effectiveOrgId || undefined,
         city: city.trim() || undefined,
         state: state.trim() || undefined,
         coachName: coachName.trim() || undefined,

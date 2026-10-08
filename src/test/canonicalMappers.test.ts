@@ -149,7 +149,7 @@ describe('competitionMapper (Fase 8.3)', () => {
 
 describe('teamMapper (Fase 8.3)', () => {
   const allowedTeamColumns = new Set([
-    'id', 'name', 'short_name', 'modality', 'coach_name', 'city', 'logo_url',
+    'id', 'name', 'short_name', 'modality', 'coach_name', 'city', 'organization_id', 'gender_category', 'logo_url',
     'created_at', 'updated_at',
   ]);
 
@@ -196,6 +196,7 @@ describe('teamMapper (Fase 8.3)', () => {
       modality: 'indoor',
       coach_name: 'Filipe Ferraz',
       city: 'Belo Horizonte',
+      organization_id: 'org-d700228a-3f04-4add-bc12-02fb83909afb',
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     };
@@ -205,6 +206,31 @@ describe('teamMapper (Fase 8.3)', () => {
     expect(domain.name).toBe('Cruzeiro');
     expect(domain.shortName).toBe('CRU');
     expect(domain.coachName).toBe('Filipe Ferraz');
+    expect(domain.organizationId).toBe('org-d700228a-3f04-4add-bc12-02fb83909afb');
+  });
+
+  it('toPersistence mapeia organizationId para organization_id', () => {
+    const orgId = 'org-d700228a-3f04-4add-bc12-02fb83909afb';
+    const row = teamMapper.toPersistence({
+      id: 'team-voltz-1',
+      name: 'Voltz Voleibol Clube',
+      organizationId: orgId,
+    });
+    expect(row.organization_id).toBe(orgId);
+  });
+
+  it('assertTeamOrganization valida obrigatoriedade do tenant e bloqueia se ausente', () => {
+    const validOrgId = 'org-d700228a-3f04-4add-bc12-02fb83909afb';
+    expect(teamMapper.assertTeamOrganization({ organizationId: validOrgId })).toBe(validOrgId);
+
+    expect(() => teamMapper.assertTeamOrganization({ organizationId: undefined }))
+      .toThrow('Não foi possível cadastrar a equipe porque nenhuma organização está ativa.');
+
+    expect(() => teamMapper.assertTeamOrganization({ organizationId: null as unknown as string }))
+      .toThrow('Não foi possível cadastrar a equipe porque nenhuma organização está ativa.');
+
+    expect(() => teamMapper.assertTeamOrganization({ organizationId: '   ' }))
+      .toThrow('Não foi possível cadastrar a equipe porque nenhuma organização está ativa.');
   });
 });
 

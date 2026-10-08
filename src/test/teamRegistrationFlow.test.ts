@@ -241,5 +241,27 @@ describe('teamRegistrationFlow — registerTeamInCompetition', () => {
       expect(missingManager.ok).toBe(false);
       expect(missingManager.errors).toContain('O nome do responsável é obrigatório.');
     });
+
+    it('deve bloquear tentativa de vincular equipe pertencente a outra organização', async () => {
+      // Cria uma equipe na Organização X
+      const foreignTeam = await dataAccess.createTeam({
+        name: 'Clube Rival Estrangeiro',
+        shortName: 'CRE',
+        modality: 'indoor',
+        organizationId: 'org-outra-qualquer',
+      });
+
+      // Competição pertence à organização padrão (org-1)
+      const result = await registerTeamInCompetition({
+        competitionId: competition.id,
+        teamId: foreignTeam.id,
+        name: foreignTeam.name,
+        shortName: foreignTeam.shortName,
+        managerName: 'Gestor Estrangeiro',
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.errors[0]).toContain('pertence a outra organização');
+    });
   });
 });

@@ -24,6 +24,8 @@ export const TEAM_PHYSICAL_COLUMNS = [
   'modality',
   'coach_name',
   'city',
+  'organization_id',
+  'gender_category',
   'logo_url',
   'created_at',
   'updated_at',
@@ -33,7 +35,7 @@ export type TeamPhysicalColumn = typeof TEAM_PHYSICAL_COLUMNS[number];
 
 /**
  * Converte um TeamRecord de domínio para o payload físico de public.teams.
- * Filtra estritamente as 9 colunas físicas reais.
+ * Filtra estritamente as colunas físicas reais.
  */
 export function toPersistence(domain: Partial<TeamRecord>): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
@@ -44,6 +46,11 @@ export function toPersistence(domain: Partial<TeamRecord>): Record<string, unkno
   if (domain.modality !== undefined) payload.modality = domain.modality;
   if (domain.coachName !== undefined) payload.coach_name = domain.coachName?.trim() || null;
   if (domain.city !== undefined) payload.city = domain.city?.trim() || null;
+  if (domain.organizationId !== undefined && domain.organizationId !== null) {
+    const orgId = String(domain.organizationId).trim();
+    if (orgId) payload.organization_id = orgId;
+  }
+  if (domain.genderCategory !== undefined) payload.gender_category = domain.genderCategory || null;
   if (domain.logoUrl !== undefined) payload.logo_url = domain.logoUrl || null;
   if (domain.createdAt !== undefined) payload.created_at = domain.createdAt;
   if (domain.updatedAt !== undefined) payload.updated_at = domain.updatedAt;
@@ -62,21 +69,40 @@ export function toPersistence(domain: Partial<TeamRecord>): Record<string, unkno
  * Converte uma linha física de public.teams para TeamRecord de domínio.
  */
 export function toDomain(row: Record<string, unknown>): TeamRecord {
-  return {
+  const record: TeamRecord = {
     id: String(row.id || ''),
     name: String(row.name || ''),
     shortName: String(row.short_name || ''),
     modality: (row.modality as 'indoor' | 'beach') || 'indoor',
     coachName: row.coach_name ? String(row.coach_name) : undefined,
     city: row.city ? String(row.city) : undefined,
+    genderCategory: row.gender_category ? (row.gender_category as TeamRecord['genderCategory']) : undefined,
     logoUrl: row.logo_url ? String(row.logo_url) : undefined,
     createdAt: row.created_at ? String(row.created_at) : undefined,
     updatedAt: row.updated_at ? String(row.updated_at) : undefined,
   };
+
+  if (row.organization_id) {
+    record.organizationId = String(row.organization_id);
+  }
+
+  return record;
+}
+
+/**
+ * Valida a presença obrigatória de organizationId antes da persistência de uma equipe.
+ */
+export function assertTeamOrganization(domain: { organizationId?: string | null }): string {
+  const orgId = domain.organizationId?.trim();
+  if (!orgId) {
+    throw new Error('Não foi possível cadastrar a equipe porque nenhuma organização está ativa.');
+  }
+  return orgId;
 }
 
 export const teamMapper = {
   toPersistence,
   toDomain,
+  assertTeamOrganization,
   PHYSICAL_COLUMNS: TEAM_PHYSICAL_COLUMNS,
 };

@@ -484,7 +484,22 @@ export async function registerTeamInCompetition(
   if (input.teamId) {
     targetTeam = allTeams.find(t => t.id === input.teamId);
     if (!targetTeam) {
-      return { ok: false, errors: ['Equipe selecionada não encontrada no sistema.'] };
+      const directTeam = await dataAccess.getTeam(input.teamId);
+      if (directTeam) {
+        if (
+          directTeam.organizationId &&
+          competition.organizationId &&
+          directTeam.organizationId !== competition.organizationId
+        ) {
+          return {
+            ok: false,
+            errors: ['A equipe selecionada pertence a outra organização e não pode ser vinculada a esta competição.'],
+          };
+        }
+        targetTeam = directTeam;
+      } else {
+        return { ok: false, errors: ['Equipe selecionada não encontrada no sistema.'] };
+      }
     }
   } else {
     // Busca por nome exato (case-insensitive) ou sigla na mesma modalidade
@@ -501,6 +516,18 @@ export async function registerTeamInCompetition(
   }
 
   if (targetTeam) {
+    // Validação estrita de isolamento multi-tenant: a equipe deve pertencer à mesma organização da competição
+    if (
+      targetTeam.organizationId &&
+      competition.organizationId &&
+      targetTeam.organizationId !== competition.organizationId
+    ) {
+      return {
+        ok: false,
+        errors: ['A equipe selecionada pertence a outra organização e não pode ser vinculada a esta competição.'],
+      };
+    }
+
     // Checagem de Caso C: A equipe já está inscrita nesta competição?
     const alreadyRegistered = currentCompTeams.find(ct => ct.teamId === targetTeam!.id);
     if (alreadyRegistered) {
@@ -515,12 +542,13 @@ export async function registerTeamInCompetition(
 
     isExistingTeamReused = true;
   } else {
-    // Caso A: Criar nova TeamRecord global (apenas colunas físicas de public.teams)
+    // Caso A: Criar nova TeamRecord global vinculada obrigatoriamente à organização da competição
     const targetModality = input.modality || competition.modality || 'indoor';
     targetTeam = await dataAccess.createTeam({
       name: teamName,
       shortName: teamShortName,
       modality: targetModality,
+      organizationId: competition.organizationId,
       city: input.city?.trim() || undefined,
       coachName: input.coachName?.trim() || undefined,
       logoUrl: input.logoUrl,
@@ -576,6 +604,23 @@ export async function registerTeamInCompetition(
       };
     }
     authUserId = provRes.userId;
+
+    // Vincula a membership oficial do usuário na organização e na equipe
+    if (authUserId && competition.organizationId) {
+      try {
+        await dataAccess.createUserMembership({
+          userId: authUserId,
+          organizationId: competition.organizationId,
+          competitionId: competition.id,
+          teamId: targetTeam.id,
+          competitionTeamId: competitionTeam.id,
+          role: 'team_manager',
+          status: 'active',
+        });
+      } catch (memErr) {
+        console.warn('[registerTeamInCompetition] Falha ao registrar user_membership:', memErr);
+      }
+    }
   }
 
   // 8. Trilha de Auditoria Operacional

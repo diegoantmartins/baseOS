@@ -735,6 +735,13 @@ const localStorageAdapter = {
     return all.filter(t => t.organizationId === activeOrgId);
   },
 
+  async getTeam(id: string): Promise<TeamRecord | null> {
+    ensureSeeded();
+    const all = readCollection<TeamRecord>('teams');
+    const t = all.find(item => item.id === id);
+    return t ?? null;
+  },
+
   async createTeam(input: Omit<TeamRecord, 'id'> & { id?: string }): Promise<TeamRecord> {
     const activeOrgId = this.getActiveOrganizationId() || 'org-1';
     const record: TeamRecord = {
@@ -2772,14 +2779,32 @@ const supabaseAdapter = {
     return (data ?? []).map(row => teamMapper.toDomain(row as Record<string, unknown>));
   },
 
+  async getTeam(id: string): Promise<TeamRecord | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.teams)
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) {
+      throw new Error(`Falha ao obter equipe: [${error.code}] ${error.message}`);
+    }
+    if (!data) return null;
+    return teamMapper.toDomain(data as Record<string, unknown>);
+  },
+
   async createTeam(input: Omit<TeamRecord, 'id'> & { id?: string }): Promise<TeamRecord> {
+    const orgId = input.organizationId?.trim() || this.getActiveOrganizationId()?.trim();
+    if (!orgId) {
+      throw new Error('Não foi possível cadastrar a equipe porque nenhuma organização está ativa.');
+    }
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
     const id = input.id || generateId('team');
-    const activeOrgId = this.getActiveOrganizationId() || 'org-1';
     const payload = teamMapper.toPersistence({
       ...input,
-      organizationId: input.organizationId || activeOrgId,
+      organizationId: orgId,
       id,
     });
     const { data, error } = await supabase.from(SUPABASE_TABLES.teams).insert(payload).select().single();
