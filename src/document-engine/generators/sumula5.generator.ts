@@ -70,7 +70,7 @@ export async function generateFiveSetScoresheet(
 
 /** Gera a Súmula Oficial de 5 Sets em Branco no formato homologado. */
 export async function generateBlankFiveSetScoresheet(
-  orgName = 'VolleyPro',
+  orgName = 'BaseOS',
   options: GenerationOptions = {},
 ): Promise<Uint8Array> {
   const doc = options.templateBytes
@@ -85,7 +85,7 @@ export async function generateBlankFiveSetScoresheet(
   cleanTemplate(page, SUMULA5_GEOMETRY);
   await drawSystemLogo(doc, page, geometry.logoZone, options.logoBytes);
 
-  // Cabeçalho padrão VolleyPro em branco
+  // Cabeçalho padrão BaseOS em branco
   const emptyMatch = createEmptyMatchDocument('5-sets');
 
   renderHeaderFields(page, geometry, fonts, emptyMatch, orgName, options.valueOverrides);

@@ -1,4 +1,4 @@
-// Tipos do Módulo de Inscrição Online por Equipe (VolleyPro)
+// Tipos do Módulo de Inscrição Online por Equipe (BaseOS)
 
 export type GenderCategory = 'male' | 'female' | 'mixed';
 

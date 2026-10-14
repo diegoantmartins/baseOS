@@ -28,7 +28,7 @@ import {
 } from '@/lib/pdf/reportsPdf';
 import type { MatchRecord, TeamRecord } from '@/types/entities';
 
-describe('QA Master Suite - VolleyPro System End-to-End Validation', () => {
+describe('QA Master Suite - BaseOS System End-to-End Validation', () => {
   let mainMatch: MatchRecord;
 
   beforeEach(async () => {
@@ -92,8 +92,6 @@ describe('QA Master Suite - VolleyPro System End-to-End Validation', () => {
   describe('2. Repositório e Integridade de Dados', () => {
     it('garante que coleções base são carregadas e pesquisáveis', async () => {
       const competitions = await dataAccess.listCompetitions();
-      console.log("active org id:", localStorage.getItem('baseos.active_org_id'));
-      console.log("competitions length:", competitions.length);
       expect(competitions.length).toBeGreaterThan(0);
 
       const teams = await dataAccess.listTeams();
@@ -348,7 +346,7 @@ describe('QA Master Suite - VolleyPro System End-to-End Validation', () => {
         statusLabel: m.status === 'completed' ? 'Finalizado' : 'Agendado',
       }));
 
-      const doc = generateMatchesBoletimPdf(rows, comp.name, 'VolleyPro');
+      const doc = generateMatchesBoletimPdf(rows, comp.name, 'BaseOS');
       expect(doc).toBeDefined();
       expect(doc.internal.pages.length).toBeGreaterThan(0);
     });
@@ -363,7 +361,7 @@ describe('QA Master Suite - VolleyPro System End-to-End Validation', () => {
       const standings = computeStandings(input, matches);
       const groups = [{ groupName: 'Chave Única', standings }];
 
-      const doc = generateStandingsReportPdf(groups, comp.name, 'VolleyPro');
+      const doc = generateStandingsReportPdf(groups, comp.name, 'BaseOS');
       expect(doc).toBeDefined();
       expect(doc.internal.pages.length).toBeGreaterThan(0);
     });
@@ -396,7 +394,7 @@ describe('QA Master Suite - VolleyPro System End-to-End Validation', () => {
         },
       ];
 
-      const doc = generateTeamRosterReportPdf(teamsData, comp.name, 'VolleyPro');
+      const doc = generateTeamRosterReportPdf(teamsData, comp.name, 'BaseOS');
       expect(doc).toBeDefined();
       expect(doc.internal.pages.length).toBeGreaterThan(0);
     });

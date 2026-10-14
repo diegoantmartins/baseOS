@@ -18,7 +18,7 @@ function buildWhatsAppMessage(team: TeamRecord, portalUrl: string): string {
   const username = team.managerEmail || team.managerName || team.name;
   const password = team.managerPassword || 'Acesso Direto via Link';
 
-  return `🏐 *VOLLEYPRO — ACESSO DA EQUIPE* 🏐
+  return `🏐 *BASEOS — ACESSO DA EQUIPE* 🏐
 
 Olá, *${manager}*!
 Sua equipe *${team.name}* (${team.shortName}) foi cadastrada no sistema oficial de competições de voleibol.

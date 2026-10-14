@@ -1,4 +1,4 @@
-// Camada de acesso a dados do VolleyPro.
+// Camada de acesso a dados do BaseOS.
 //
 // Padrão "adapter": a mesma interface é implementada por
 //  - LocalStorage (padrão, funciona sem backend) e
@@ -207,8 +207,8 @@ export function validateParticipantReference(ref: unknown): ParticipantReference
 
 export const DEFAULT_SETTINGS: SettingsRecord = {
   id: 'main',
-  orgName: 'VolleyPro',
-  orgCode: 'VP',
+  orgName: 'BaseOS',
+  orgCode: 'BOS',
   cnpj: '',
   website: '',
   contactEmail: '',

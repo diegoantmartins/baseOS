@@ -244,7 +244,6 @@ describe('BASEOS — FASE 11.4: Cadastro Canônico de Atletas + Matching por CPF
   // TESTE 6 — mesma equipe em duas competições
   it('TESTE 6: Mesma equipe (team_id) participa de duas competições distintas sem duplicar registro de teams', async () => {
     const allTeams = await dataAccess.listTeams();
-    console.log("ALL TEAMS:", allTeams.map(t => t.id));
     const teamM1 = allTeams.find(t => t.id === 'team-m-1');
     expect(teamM1).toBeDefined();
 

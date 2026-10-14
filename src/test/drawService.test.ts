@@ -1,4 +1,4 @@
-// Testes do motor de sorteio do VolleyPro (distribuição em grupos + tabela).
+// Testes do motor de sorteio do BaseOS (distribuição em grupos + tabela).
 
 import { describe, expect, it } from 'vitest';
 import {

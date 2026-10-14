@@ -197,7 +197,7 @@ export function StandingsPage() {
       const doc = generateStandingsReportPdf(
         pdfGroups,
         selectedCompetition.name,
-        'VolleyPro / BaseOS',
+        'BaseOS',
       );
       downloadReportsPdf(doc, `classificacao_${selectedCompetition.name.replace(/\s+/g, '_').toLowerCase()}.pdf`);
       toast.success('Relatório de classificação oficial gerado com sucesso!');

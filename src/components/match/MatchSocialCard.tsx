@@ -242,7 +242,7 @@ export function MatchSocialCard(props: MatchSocialCardProps) {
             )}
           </div>
 
-          {/* Rodapé: Local, Data e Marca VolleyPro */}
+          {/* Rodapé: Local, Data e Marca BaseOS */}
           <div className="relative z-10 pt-3 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-400 font-medium">
             <div className="flex items-center gap-3">
               {props.date && (
@@ -260,7 +260,7 @@ export function MatchSocialCard(props: MatchSocialCardProps) {
             </div>
 
             <div className="flex items-center gap-1 font-bold text-white/80">
-              <span>VolleyPro</span>
+              <span>BaseOS</span>
               <span className="w-1.5 h-1.5 rounded-full bg-primary" />
             </div>
           </div>

@@ -1,4 +1,4 @@
-// Motor de fases eliminatórias (Mata-mata) do VolleyPro.
+// Motor de fases eliminatórias (Mata-mata) do BaseOS.
 //
 // Suporta:
 //  - Oitavas de final (8 jogos)

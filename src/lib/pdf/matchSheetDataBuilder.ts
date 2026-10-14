@@ -140,7 +140,7 @@ export async function buildMatchSheetData(
   const teamBRecord = teams.find(t => t.id === match.teamBId);
   
   return {
-    orgName: 'VolleyPro',
+    orgName: 'BaseOS',
     sheetMode: isPreGame ? 'pre' : 'post',
     competition: competition?.name ?? match.competitionId,
     category,

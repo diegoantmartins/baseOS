@@ -1,4 +1,4 @@
-// Serviço de autenticação do VolleyPro.
+// Serviço de autenticação do BaseOS.
 //
 // Padrão "adapter" (igual ao dataAccess):
 //  - Modo demo (LocalStorage): usuários de demonstração, sem backend, com persistência de senhas e perfis.

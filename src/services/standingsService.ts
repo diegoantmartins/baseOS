@@ -1,4 +1,4 @@
-// Motor de classificação e desempate do VolleyPro.
+// Motor de classificação e desempate do BaseOS.
 //
 // Suporta critérios ordenáveis configurados pelo gestor da competição:
 //  - 'points': Maior número de pontos (competition points)

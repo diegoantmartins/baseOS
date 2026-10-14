@@ -1,4 +1,4 @@
-// Motor de prevenção e detecção de conflitos de agendamento do VolleyPro.
+// Motor de prevenção e detecção de conflitos de agendamento do BaseOS.
 //
 // Regras:
 //  1. Quadra em uso: duas partidas na mesma quadra no mesmo horário ou com intervalo insuficiente.

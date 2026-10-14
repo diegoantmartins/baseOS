@@ -83,7 +83,7 @@ export async function generateThreeSetScoresheet(
 
 /** Gera a Súmula Oficial de 3 Sets em Branco no formato homologado. */
 export async function generateBlankThreeSetScoresheet(
-  orgName = 'VolleyPro',
+  orgName = 'BaseOS',
   options: GenerationOptions = {},
 ): Promise<Uint8Array> {
   const doc = options.templateBytes
@@ -98,7 +98,7 @@ export async function generateBlankThreeSetScoresheet(
   cleanTemplate(page, SUMULA3_GEOMETRY);
   await drawSystemLogo(doc, page, geometry.logoZone, options.logoBytes);
 
-  // Cabeçalho padrão VolleyPro em branco
+  // Cabeçalho padrão BaseOS em branco
   const emptyMatch = createEmptyMatchDocument('3-sets');
 
   renderHeaderFields(page, geometry, fonts, emptyMatch, orgName, options.valueOverrides);

@@ -37,7 +37,7 @@ export const LiveScoreboardModal: React.FC<LiveScoreboardModalProps> = ({
             <div className="flex items-center gap-2">
               <Trophy className="w-5 h-5 text-amber-500" />
               <DialogTitle className="text-sm font-semibold text-zinc-300">
-                {competition?.name || 'VolleyPro'} · Jogo #{match.matchNumber} ({match.phase || 'Classificatória'})
+                {competition?.name || 'BaseOS'} · Jogo #{match.matchNumber} ({match.phase || 'Classificatória'})
               </DialogTitle>
             </div>
             <Badge className="bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider">

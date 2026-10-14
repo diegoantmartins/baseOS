@@ -79,8 +79,8 @@ describe('Frente 8: SaaS Portals & Smart Registration', () => {
 
       // Deve renderizar a vitrine pública
       await waitFor(() => {
-        expect(screen.getByText(/O Futuro da Gestão Esportiva/i)).toBeDefined();
-        expect(screen.getByText(/Seu campeonato organizado/i)).toBeDefined();
+        expect(screen.getByText(/A infraestrutura definitiva para/i)).toBeDefined();
+        expect(screen.getByText(/Desenvolvido para ligas/i)).toBeDefined();
       });
     });
 
@@ -208,7 +208,7 @@ describe('Frente 8: SaaS Portals & Smart Registration', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText(/O Futuro da Gestão Esportiva/i)).toBeDefined();
+        expect(screen.getByText(/A infraestrutura definitiva para/i)).toBeDefined();
       });
     });
   });

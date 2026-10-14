@@ -961,7 +961,7 @@ function drawPositionCard(
 }
 
 function buildPositionSheet(d: jsPDF, data: MatchSheetData) {
-  const orgName = data.orgName || 'VolleyPro';
+  const orgName = data.orgName || 'BaseOS';
   const isFiveSets = data.format === '5-sets';
 
   const cardCols = 4;
@@ -986,7 +986,7 @@ function buildPositionSheet(d: jsPDF, data: MatchSheetData) {
     drawPositionCard(d, cxB, cyB, cw, ch, data, data.teamB, data.teamA, `${setLabel} (B)`, orgName);
   }
 
-  tx(d, `VolleyPro · Fichas de Posição / Ordem de Saque ${isFiveSets ? '(Página 1/2)' : ''}`, M, H - 2, 3.8, { c: GRAY_DARK, b: true });
+  tx(d, `BaseOS · Fichas de Posição / Ordem de Saque ${isFiveSets ? '(Página 1/2)' : ''}`, M, H - 2, 3.8, { c: GRAY_DARK, b: true });
 
   if (isFiveSets) {
     d.addPage('a4', 'landscape');
@@ -1006,7 +1006,7 @@ function buildPositionSheet(d: jsPDF, data: MatchSheetData) {
       drawPositionCard(d, cxB, cyB, cw, ch, data, data.teamB, data.teamA, `${setLabel} (B)`, orgName);
     }
 
-    tx(d, 'VolleyPro · Fichas de Posição / Ordem de Saque (Página 2/2)', M, H - 2, 3.8, { c: GRAY_DARK, b: true });
+    tx(d, 'BaseOS · Fichas de Posição / Ordem de Saque (Página 2/2)', M, H - 2, 3.8, { c: GRAY_DARK, b: true });
   }
 }
 
@@ -1075,7 +1075,7 @@ export function generateBlankOfficialMatchSheetPdf(
 
 export function generateBlankPositionSheetsPdf(
   format: '3-sets' | '5-sets' = '3-sets',
-  orgName = 'VolleyPro',
+  orgName = 'BaseOS',
 ): jsPDF {
   const blankData: MatchSheetData = {
     orgName,

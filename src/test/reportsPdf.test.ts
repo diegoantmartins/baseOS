@@ -1,4 +1,4 @@
-// Smoke tests da Central de Relatórios do VolleyPro (boletim, classificação e relação nominal).
+// Smoke tests da Central de Relatórios do BaseOS (boletim, classificação e relação nominal).
 
 import { describe, expect, it } from 'vitest';
 import {

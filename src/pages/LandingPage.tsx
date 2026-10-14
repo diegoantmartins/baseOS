@@ -1559,17 +1559,18 @@ export default function LandingPage() {
 
         if (!isMounted) return;
 
-        setCompetitions(cList || []);
-        setMatches(mList || []);
-        setVenues(vList || []);
-        setTeams(tList || []);
+        const safeCList = Array.isArray(cList) ? cList : [];
+        setCompetitions(safeCList);
+        setMatches(Array.isArray(mList) ? mList : []);
+        setVenues(Array.isArray(vList) ? vList : []);
+        setTeams(Array.isArray(tList) ? tList : []);
 
         // Carrega as equipes e atletas de todas as competições ativas
         const activeComp =
-          cList.find(c => c.status === 'in-progress') ||
-          cList.find(c => c.status === 'registration-open' || c.status === 'registration') ||
-          cList.find(c => c.status !== 'cancelled' && c.status !== 'completed') ||
-          cList[0];
+          safeCList.find(c => c.status === 'in-progress') ||
+          safeCList.find(c => c.status === 'registration-open' || c.status === 'registration') ||
+          safeCList.find(c => c.status !== 'cancelled' && c.status !== 'completed') ||
+          safeCList[0];
 
         if (activeComp) {
           const [ctList, caList] = await Promise.all([

@@ -690,7 +690,7 @@ function drawFooter(doc: jsPDF, data: MatchSheetData): void {
   doc.text(`Gerado em: ${dateStr}`, PAGE_WIDTH - MARGIN, footerY, { align: 'right' });
   
   // Center: System name
-  doc.text('VolleyPro - Sistema de Gestão de Competições', PAGE_WIDTH / 2, footerY, { align: 'center' });
+  doc.text('BaseOS - Sistema de Gestão de Competições', PAGE_WIDTH / 2, footerY, { align: 'center' });
 }
 
 /**

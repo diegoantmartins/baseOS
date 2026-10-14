@@ -1,4 +1,4 @@
-// Motor de validação matemática de sets e resultados do VolleyPro.
+// Motor de validação matemática de sets e resultados do BaseOS.
 //
 // FASE 4.3: Totalmente migrado para delegar ao motor canônico CompetitionRulesService.
 // Mantém exportações e assinaturas intactas para total compatibilidade retroativa.

@@ -1,4 +1,4 @@
-// Dados de demonstração (seed) do VolleyPro.
+// Dados de demonstração (seed) do BaseOS.
 // Datas de prazo são relativas a Date.now() para a demo sempre funcionar.
 
 import type { CompetitionRecord, MatchRecord, ModalityRecord, PersonRecord, RefereeRecord, TeamRecord, VenueRecord } from '@/types/entities';

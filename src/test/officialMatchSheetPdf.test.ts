@@ -63,7 +63,7 @@ function baseData(overrides: Partial<MatchSheetData> = {}): MatchSheetData {
     substitutions: [],
     sanctions: [],
     observations: 'Jogo válido pela fase classificatória - Grupo A.',
-    orgName: 'VolleyPro',
+    orgName: 'BaseOS',
     sheetMode: 'pre',
     ...overrides,
   };

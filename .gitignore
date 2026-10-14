@@ -1,19 +1,11 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Dependencies & Build
+node_modules/
+dist/
+dist-ssr/
+build/
+*.local
 
-# Dependencies
-node_modules
-dist
-dist-ssr
-build
-
-# Environment variables & secrets
+# Environment & Secrets (JAMAIS SUBIR)
 .env
 .env.*
 !.env.example
@@ -22,21 +14,48 @@ build
 *.cert
 *.crt
 *.secret
-credentials
-tokens
-backups
+credentials/
+tokens/
+
+# Backups, Dumps & Archives
+backups/
+*.dump
+*.sql.gz
+*.tar.gz
+*.zip
+dist_backup*/
+/*.sql
+
+# Test & Debug Artifacts
+coverage/
+playwright-report/
+test-results/
+pdf-inspection/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.bak
+*.tmp
+*.swp
+*.sw?
+*.orig
+*.patch
+.DS_Store
+.vercel/
+test-db.js
+qa_master_SKILL.md
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
-.vercel
-.DS_Store
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
 
 # Temporary and local test files
 sumulas exemplo - /
@@ -51,16 +70,3 @@ docs/marketing/
 /*.png
 *.pdf
 !public/**/*.pdf
-
-# Backups, dumps and patches
-*.dump
-dist_backup*/
-backups/
-/*.sql
-*.patch
-*.orig
-test-db.js
-qa_master_SKILL.md
-
-
-
