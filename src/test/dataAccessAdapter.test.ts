@@ -19,11 +19,11 @@ const TABLE_ALLOWED_COLUMNS: Record<string, Set<string>> = {
     'id', 'name', 'slug', 'modality', 'format', 'player_format', 'set_format',
     'gender_category', 'default_deadline', 'group_name', 'start_date', 'end_date',
     'venue', 'status', 'config', 'rules_snapshot', 'organizer_id', 'logo_url',
-    'supporters', 'created_at', 'updated_at',
+    'supporters', 'created_at', 'updated_at', 'organization_id',
   ]),
   teams: new Set([
     'id', 'name', 'short_name', 'modality', 'coach_name', 'city', 'logo_url',
-    'created_at', 'updated_at',
+    'created_at', 'updated_at', 'organization_id',
   ]),
   competition_teams: new Set([
     'id', 'competition_id', 'team_id', 'team_name', 'team_short_name',
@@ -190,6 +190,7 @@ beforeEach(() => {
   for (const key of Object.keys(state.rows)) delete state.rows[key];
   state.setAnon(null);
   clearAuthSession();
+  localStorage.setItem('baseos.active_org_id', 'org-1');
 });
 
 describe('adaptador Supabase', () => {
@@ -365,6 +366,9 @@ describe('adaptador Supabase', () => {
   });
 
   it('listMatches mapeia colunas snake_case para camelCase', async () => {
+    state.rows.competitions = [
+      { id: 'comp-1', name: 'Comp 1', organization_id: 'org-1' }
+    ];
     state.rows.matches = [
       { id: 'm-1', competition_id: 'comp-1', team_a_id: 'ct-1', team_b_id: 'ct-2', scheduled_time: '2026-08-20T10:00:00Z', winner_id: null, sets: [], referees: [] },
     ];

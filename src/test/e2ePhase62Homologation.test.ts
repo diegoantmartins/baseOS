@@ -908,7 +908,7 @@ describe('BaseOS — Fase 6.2: Homologação E2E Integrada (24 Cenários)', () =
   });
 
   it('Cenário E2E 23 — Reload / Recuperação de Dados', async () => {
-    const comp = createIndoorCompetitionFixture();
+    const comp = await dataAccess.createCompetition(createIndoorCompetitionFixture());
     const created = await dataAccess.createMatch({
       competitionId: comp.id,
       matchNumber: 23,

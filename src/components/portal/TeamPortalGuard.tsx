@@ -58,7 +58,32 @@ export function TeamPortalGuard({ children }: TeamPortalGuardProps) {
       setActiveTeamContextState(active);
 
       // 3. Carrega entidades esportivas da equipe ativa
-      const ct = await dataAccess.getCompetitionTeamById(active.competitionTeamId);
+      let ct = await dataAccess.getCompetitionTeamById(active.competitionTeamId);
+      if (!ct && active.teamId) {
+        const allCt = await (dataAccess.listCompetitionTeams ? dataAccess.listCompetitionTeams() : Promise.resolve([]));
+        const matched = allCt.find((c) => c.teamId === active.teamId);
+        if (matched) {
+          ct = matched;
+        } else {
+          const directTeam = await dataAccess.getTeam(active.teamId);
+          if (directTeam) {
+            ct = {
+              id: active.competitionTeamId || directTeam.id,
+              competitionId: active.competitionId || '',
+              teamId: directTeam.id,
+              teamName: directTeam.name,
+              teamShortName: directTeam.shortName,
+              registrationDeadline: new Date(Date.now() + 86400000 * 30).toISOString(),
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              isLocked: false,
+              status: 'invited',
+              accessToken: '',
+            };
+          }
+        }
+      }
+
       if (!ct) {
         setError('Equipe não encontrada ou desvinculada.');
         setDataLoading(false);
@@ -66,12 +91,11 @@ export function TeamPortalGuard({ children }: TeamPortalGuardProps) {
       }
       setTeam(ct);
 
-      const [allTeams, comp] = await Promise.all([
-        dataAccess.listTeams(),
-        dataAccess.getCompetition(ct.competitionId),
+      const [comp, directTr] = await Promise.all([
+        ct.competitionId ? dataAccess.getCompetition(ct.competitionId) : Promise.resolve(null),
+        dataAccess.getTeam(ct.teamId),
       ]);
-      const tr = allTeams.find((t) => t.id === ct.teamId) || null;
-      setTeamRecord(tr);
+      setTeamRecord(directTr || null);
       setCompetition(comp);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Falha ao carregar dados da equipe.';
@@ -92,15 +116,33 @@ export function TeamPortalGuard({ children }: TeamPortalGuardProps) {
         );
         setActiveTeamContextState(selected);
 
-        const ct = await dataAccess.getCompetitionTeamById(selected.competitionTeamId);
+        let ct = await dataAccess.getCompetitionTeamById(selected.competitionTeamId);
+        if (!ct && selected.teamId) {
+          const directTeam = await dataAccess.getTeam(selected.teamId);
+          if (directTeam) {
+            ct = {
+              id: selected.competitionTeamId || directTeam.id,
+              competitionId: selected.competitionId || '',
+              teamId: directTeam.id,
+              teamName: directTeam.name,
+              teamShortName: directTeam.shortName,
+              registrationDeadline: new Date(Date.now() + 86400000 * 30).toISOString(),
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              isLocked: false,
+              status: 'invited',
+              accessToken: '',
+            };
+          }
+        }
         if (!ct) return;
         setTeam(ct);
 
-        const [allTeams, comp] = await Promise.all([
-          dataAccess.listTeams(),
-          dataAccess.getCompetition(ct.competitionId),
+        const [comp, directTr] = await Promise.all([
+          ct.competitionId ? dataAccess.getCompetition(ct.competitionId) : Promise.resolve(null),
+          dataAccess.getTeam(ct.teamId),
         ]);
-        setTeamRecord(allTeams.find((t) => t.id === ct.teamId) || null);
+        setTeamRecord(directTr || null);
         setCompetition(comp);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Não foi possível alternar de equipe.';
@@ -111,7 +153,7 @@ export function TeamPortalGuard({ children }: TeamPortalGuardProps) {
   );
 
   useEffect(() => {
-    if (session?.user?.role === 'team') {
+    if (session?.user?.role === 'team' || session?.user?.role === 'team_manager') {
       loadData();
     }
   }, [session?.user?.role, loadData]);
@@ -135,7 +177,7 @@ export function TeamPortalGuard({ children }: TeamPortalGuardProps) {
     return <Navigate to="/jogos" replace />;
   }
 
-  if (role !== 'team') {
+  if (role !== 'team' && role !== 'team_manager') {
     return <Navigate to="/login" replace />;
   }
 

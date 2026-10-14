@@ -19,7 +19,7 @@ import { CompetitionRulesService, isSingleStageRoundRobin } from './competitionR
 
 export { isSingleStageRoundRobin };
 
-export type PlayoffPhase = 'oitavas' | 'quartas' | 'semifinal' | 'terceiro_lugar' | 'final';
+export type PlayoffPhase = 'repescagem' | 'oitavas' | 'quartas' | 'semifinal' | 'terceiro_lugar' | 'final';
 
 export type PlayoffMatchSlot = {
   phase: PlayoffPhase;
@@ -34,6 +34,7 @@ export type PlayoffMatchSlot = {
 };
 
 export const PLAYOFF_PHASE_LABELS: Record<PlayoffPhase, string> = {
+  repescagem: 'Repescagem (Play-In)',
   oitavas: 'Oitavas de Final',
   quartas: 'Quartas de Final',
   semifinal: 'Semifinais',
@@ -198,6 +199,134 @@ export function generateTwoGroupPlayoffs(groups: StandingsByGroup): PlayoffMatch
 }
 
 /**
+ * Gera a grade de cruzamentos para 3 grupos com Play-In / Repescagem e Playoffs (ex: 10 equipes).
+ * Estrutura:
+ *  - Repescagem 1: 7º Geral x 10º Geral (vencedor -> Quartas 3 B)
+ *  - Repescagem 2: 8º Geral x 9º Geral (vencedor -> Quartas 1 B)
+ *  - Quartas 1: 1º Geral x Vencedor Repescagem 2 (vencedor -> Semi 1 A)
+ *  - Quartas 2: 4º Geral x 5º Geral (vencedor -> Semi 1 B)
+ *  - Quartas 3: 2º Geral x Vencedor Repescagem 1 (vencedor -> Semi 2 A)
+ *  - Quartas 4: 3º Geral x 6º Geral (vencedor -> Semi 2 B)
+ *  - Semifinal 1: Vencedor Q1 x Vencedor Q2 (vencedor -> Final A, perdedor -> 3º Lugar A)
+ *  - Semifinal 2: Vencedor Q3 x Vencedor Q4 (vencedor -> Final B, perdedor -> 3º Lugar B)
+ *  - Disputa 3º Lugar: Perdedor S1 x Perdedor S2
+ *  - Grande Final: Vencedor S1 x Vencedor S2
+ */
+export function generateThreeGroupPlayoffs(
+  overallStandings: Array<{ position: number; teamId?: string; teamName?: string }>,
+): PlayoffMatchSlot[] {
+  const getOverall = (pos: number): { description: string; teamId?: string } => {
+    const team = overallStandings.find((s) => s.position === pos);
+    return {
+      description: `${pos}º Colocado Geral`,
+      teamId: team?.teamId,
+    };
+  };
+
+  return [
+    // 1. Repescagem / Play-In
+    {
+      phase: 'repescagem',
+      matchIndex: 1,
+      label: 'Repescagem 1 (7º x 10º)',
+      sourceTeamA: getOverall(7),
+      sourceTeamB: getOverall(10),
+      nextWinnerMatchIndex: 5,
+      nextWinnerSlot: 'B',
+    },
+    {
+      phase: 'repescagem',
+      matchIndex: 2,
+      label: 'Repescagem 2 (8º x 9º)',
+      sourceTeamA: getOverall(8),
+      sourceTeamB: getOverall(9),
+      nextWinnerMatchIndex: 3,
+      nextWinnerSlot: 'B',
+    },
+
+    // 2. Quartas de Final
+    {
+      phase: 'quartas',
+      matchIndex: 3,
+      label: 'Quartas 1 (1º x Venc. Rep. 2)',
+      sourceTeamA: getOverall(1),
+      sourceTeamB: { description: 'Vencedor Repescagem 2' },
+      nextWinnerMatchIndex: 7,
+      nextWinnerSlot: 'A',
+    },
+    {
+      phase: 'quartas',
+      matchIndex: 4,
+      label: 'Quartas 2 (4º x 5º)',
+      sourceTeamA: getOverall(4),
+      sourceTeamB: getOverall(5),
+      nextWinnerMatchIndex: 7,
+      nextWinnerSlot: 'B',
+    },
+    {
+      phase: 'quartas',
+      matchIndex: 5,
+      label: 'Quartas 3 (2º x Venc. Rep. 1)',
+      sourceTeamA: getOverall(2),
+      sourceTeamB: { description: 'Vencedor Repescagem 1' },
+      nextWinnerMatchIndex: 8,
+      nextWinnerSlot: 'A',
+    },
+    {
+      phase: 'quartas',
+      matchIndex: 6,
+      label: 'Quartas 4 (3º x 6º)',
+      sourceTeamA: getOverall(3),
+      sourceTeamB: getOverall(6),
+      nextWinnerMatchIndex: 8,
+      nextWinnerSlot: 'B',
+    },
+
+    // 3. Semifinais
+    {
+      phase: 'semifinal',
+      matchIndex: 7,
+      label: 'Semifinal 1',
+      sourceTeamA: { description: 'Vencedor Quartas 1' },
+      sourceTeamB: { description: 'Vencedor Quartas 2' },
+      nextWinnerMatchIndex: 10,
+      nextWinnerSlot: 'A',
+      nextLoserMatchIndex: 9,
+      nextLoserSlot: 'A',
+    },
+    {
+      phase: 'semifinal',
+      matchIndex: 8,
+      label: 'Semifinal 2',
+      sourceTeamA: { description: 'Vencedor Quartas 3' },
+      sourceTeamB: { description: 'Vencedor Quartas 4' },
+      nextWinnerMatchIndex: 10,
+      nextWinnerSlot: 'B',
+      nextLoserMatchIndex: 9,
+      nextLoserSlot: 'B',
+    },
+
+    // 4. Disputa de 3º Lugar
+    {
+      phase: 'terceiro_lugar',
+      matchIndex: 9,
+      label: 'Disputa de 3º Lugar',
+      sourceTeamA: { description: 'Perdedor Semifinal 1' },
+      sourceTeamB: { description: 'Perdedor Semifinal 2' },
+    },
+
+    // 5. Grande Final
+    {
+      phase: 'final',
+      matchIndex: 10,
+      label: 'Grande Final',
+      sourceTeamA: { description: 'Vencedor Semifinal 1' },
+      sourceTeamB: { description: 'Vencedor Semifinal 2' },
+    },
+  ];
+}
+
+/**
  * Cria os MatchRecords pré-gerados para a fase eliminatória (inicialmente sem data/hora/quadra).
  */
 export function buildPlayoffMatches(
@@ -272,8 +401,40 @@ export function advancePlayoffMatches(
   const thirdPlace = updated.find(m => m.phase === 'terceiro_lugar');
   const finalMatch = updated.find(m => m.phase === 'final');
 
-  // Propagação de Quartas para Semis
+  // Propagação de Repescagem (Play-In) para Quartas
+  const repescagem = updated.filter(m => m.phase === 'repescagem');
   const quartas = updated.filter(m => m.phase === 'quartas');
+
+  if (repescagem.length >= 2 && quartas.length >= 4) {
+    // Repescagem 1 (7º x 10º) -> Quartas 3 (quartas[2]) Team B
+    const { winnerId: rep1Winner } = getCanonicalWinnerAndLoser(repescagem[0]);
+    // Repescagem 2 (8º x 9º) -> Quartas 1 (quartas[0]) Team B
+    const { winnerId: rep2Winner } = getCanonicalWinnerAndLoser(repescagem[1]);
+
+    if (rep2Winner && quartas[0].teamBId !== rep2Winner) {
+      const team = teamById.get(rep2Winner);
+      if (team) {
+        quartas[0].teamBId = team.id;
+        quartas[0].teamBName = team.name;
+        quartas[0].teamAShortName = quartas[0].teamAShortName || 'TBD';
+        quartas[0].teamBShortName = team.shortName;
+        changed = true;
+      }
+    }
+
+    if (rep1Winner && quartas[2].teamBId !== rep1Winner) {
+      const team = teamById.get(rep1Winner);
+      if (team) {
+        quartas[2].teamBId = team.id;
+        quartas[2].teamBName = team.name;
+        quartas[2].teamAShortName = quartas[2].teamAShortName || 'TBD';
+        quartas[2].teamBShortName = team.shortName;
+        changed = true;
+      }
+    }
+  }
+
+  // Propagação de Quartas para Semis
   if (quartas.length === 4 && semis.length === 2) {
     // Q1 -> Semi1 Team A, Q2 -> Semi1 Team B
     const { winnerId: q1Winner } = getCanonicalWinnerAndLoser(quartas[0]);
@@ -472,14 +633,14 @@ export function computePodium(
 
   if (finalMatch) {
     const canonical = CompetitionRulesService.getCanonicalMatchResult(competition, finalMatch);
-    championTeamId = canonical.winnerId ?? finalMatch.winnerId;
-    runnerUpTeamId = canonical.loserId ?? (finalMatch.winnerId === finalMatch.teamAId ? finalMatch.teamBId : finalMatch.teamAId);
+    championTeamId = (canonical.isValid && canonical.winnerId) ? canonical.winnerId : (finalMatch.winnerId || undefined);
+    runnerUpTeamId = (canonical.isValid && canonical.loserId) ? canonical.loserId : (finalMatch.winnerId ? (finalMatch.winnerId === finalMatch.teamAId ? finalMatch.teamBId : finalMatch.teamAId) : undefined);
   }
 
   if (thirdMatch) {
     const canonical = CompetitionRulesService.getCanonicalMatchResult(competition, thirdMatch);
-    thirdPlaceTeamId = canonical.winnerId ?? thirdMatch.winnerId;
-    fourthPlaceTeamId = canonical.loserId ?? (thirdMatch.winnerId === thirdMatch.teamAId ? thirdMatch.teamBId : thirdMatch.teamAId);
+    thirdPlaceTeamId = (canonical.isValid && canonical.winnerId) ? canonical.winnerId : (thirdMatch.winnerId || undefined);
+    fourthPlaceTeamId = (canonical.isValid && canonical.loserId) ? canonical.loserId : (thirdMatch.winnerId ? (thirdMatch.winnerId === thirdMatch.teamAId ? thirdMatch.teamBId : thirdMatch.teamAId) : undefined);
   }
 
   // 3. Fallback de Segurança Universal: se não houver partida explicitamente com phase === 'final',

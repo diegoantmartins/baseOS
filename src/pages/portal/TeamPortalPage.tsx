@@ -36,14 +36,19 @@ import {
   ChevronRight,
   FileText,
   Lock,
+  MapPin,
+  ExternalLink,
+  Building2,
 } from 'lucide-react';
 import { useTeamPortal } from '@/components/portal/useTeamPortal';
+import { TeamCrest } from '@/components/ui/TeamCrest';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AthleteFormModal } from '@/components/registration/AthleteFormModal';
+import { EditTeamModal } from '@/components/portal/EditTeamModal';
 import { MatchSheetEmitDialog } from '@/components/match/MatchSheetEmitDialog';
 import {
   addAthlete,
@@ -51,6 +56,7 @@ import {
   listRoster,
   markRosterSubmitted,
   removeAthlete,
+  sortRosterAthletes,
   updateAthlete,
   validateRosterMinimum,
 } from '@/services/registrationService';
@@ -72,7 +78,7 @@ import {
   type MatchBoletimRow,
   type RosterReportAthlete,
 } from '@/lib/pdf/reportsPdf';
-import type { MatchRecord, TeamRecord } from '@/types/entities';
+import type { MatchRecord, TeamRecord, VenueRecord } from '@/types/entities';
 
 function countdownText(deadlineIso: string, nowMs: number): { label: string; expired: boolean } {
   const diff = new Date(deadlineIso).getTime() - nowMs;
@@ -92,14 +98,16 @@ export function TeamPortalPage() {
   const [athletes, setAthletes] = useState<CompetitionAthlete[]>([]);
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [allTeams, setAllTeams] = useState<TeamRecord[]>([]);
+  const [venues, setVenues] = useState<VenueRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(() => Date.now());
 
   // Partidas ordenadas cronologicamente pelo Schedule Engine Canônico
   const sortedMatches = useMemo(() => sortScheduleMatches(matches), [matches]);
 
-  // Modais de atletas e súmula
+  // Modais de atletas, edição de equipe e súmula
   const [modalOpen, setModalOpen] = useState(false);
+  const [editTeamModalOpen, setEditTeamModalOpen] = useState(false);
   const [editingAthlete, setEditingAthlete] = useState<CompetitionAthlete | undefined>();
   const [submitting, setSubmitting] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MatchRecord | null>(null);
@@ -118,13 +126,15 @@ export function TeamPortalPage() {
     if (!team) return;
     setLoading(true);
     try {
-      const [roster, allM, allT] = await Promise.all([
+      const [roster, allM, allT, allV] = await Promise.all([
         listRoster(team.id),
-        dataAccess.listMatches(),
+        dataAccess.listMatches(team.competitionId),
         dataAccess.listTeams(),
+        dataAccess.listVenues(),
       ]);
       setAthletes(roster);
       setAllTeams(allT);
+      setVenues(allV);
       // Filtra partidas da competição ou da equipe
       setMatches(
         allM.filter(
@@ -139,6 +149,20 @@ export function TeamPortalPage() {
       setLoading(false);
     }
   }, [team]);
+
+  // Busca dados completos do ginásio/local pelo ID ou pelo nome
+  const getVenueInfo = useCallback(
+    (venueNameOrId?: string): VenueRecord | undefined => {
+      if (!venueNameOrId) return undefined;
+      const term = venueNameOrId.trim().toLowerCase();
+      return venues.find(
+        (v) =>
+          v.id.toLowerCase() === term ||
+          v.name.trim().toLowerCase() === term
+      );
+    },
+    [venues]
+  );
 
   useEffect(() => {
     refreshData();
@@ -157,13 +181,30 @@ export function TeamPortalPage() {
   const locked = team ? isRegistrationLocked(team, competition, new Date(now)) : true;
   const countdown = useMemo(() => (team ? countdownText(team.registrationDeadline, now) : null), [team, now]);
 
-  // Manipuladores de elenco
+  const refreshRoster = useCallback(async () => {
+    if (!team) return;
+    try {
+      const roster = await listRoster(team.id);
+      setAthletes(roster);
+    } catch (err) {
+      console.error('Erro ao atualizar elenco da equipe:', err);
+    }
+  }, [team]);
+
+  // Manipuladores de elenco com atualização seletiva (sem recarregar partidas, ginásios e outras equipes)
   const handleAddAthlete = async (input: CompetitionAthleteInput): Promise<{ ok: boolean; errors: string[] }> => {
     if (!team) return { ok: false, errors: ['Equipe não encontrada.'] };
     const result = await addAthlete(team.id, input, playerFormat, competition ?? undefined);
     if (result.ok) {
       toast.success('Atleta adicionado com sucesso!');
-      await refreshData();
+      if (result.athlete) {
+        setAthletes((prev) => {
+          const filtered = prev.filter((a) => a.id !== result.athlete!.id);
+          return sortRosterAthletes([...filtered, result.athlete!]);
+        });
+      } else {
+        await refreshRoster();
+      }
     } else {
       result.errors.forEach((e) => toast.error(e));
     }
@@ -175,7 +216,14 @@ export function TeamPortalPage() {
     const result = await updateAthlete(editingAthlete.id, input, playerFormat, competition ?? undefined);
     if (result.ok) {
       toast.success('Atleta atualizado com sucesso!');
-      await refreshData();
+      if (result.athlete) {
+        setAthletes((prev) => {
+          const filtered = prev.filter((a) => a.id !== result.athlete!.id);
+          return sortRosterAthletes([...filtered, result.athlete!]);
+        });
+      } else {
+        await refreshRoster();
+      }
     } else {
       result.errors.forEach((e) => toast.error(e));
     }
@@ -187,7 +235,7 @@ export function TeamPortalPage() {
     const result = await removeAthlete(athlete.id, competition ?? undefined);
     if (result.ok) {
       toast.success('Atleta removido com sucesso.');
-      await refreshData();
+      setAthletes((prev) => prev.filter((a) => a.id !== athlete.id));
     } else {
       result.errors.forEach((e) => toast.error(e));
     }
@@ -334,25 +382,57 @@ export function TeamPortalPage() {
       <div className="space-y-6">
         {/* Banner de Boas-Vindas e Status */}
         <div className="p-5 sm:p-6 rounded-xl bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-950 border border-zinc-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                {team.teamName}
-              </h1>
-              <Badge variant="outline" className="font-mono text-xs border-zinc-700 bg-zinc-800 text-zinc-300">
-                {team.teamShortName}
-              </Badge>
-              <Badge variant={currentStatusInfo.variant} className="text-xs font-medium">
-                {currentStatusInfo.label}
-              </Badge>
+          <div className="flex items-center gap-4">
+            <TeamCrest
+              team={teamRecord}
+              name={team.teamName}
+              shortName={team.teamShortName}
+              size="lg"
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 border-zinc-700 bg-zinc-950 shrink-0 shadow-md"
+            />
+            <div className="space-y-1.5 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate">
+                  {team.teamName}
+                </h1>
+                <Badge variant="outline" className="font-mono text-xs border-zinc-700 bg-zinc-800 text-zinc-300">
+                  {team.teamShortName}
+                </Badge>
+                <Badge variant={currentStatusInfo.variant} className="text-xs font-medium">
+                  {currentStatusInfo.label}
+                </Badge>
+              </div>
+              <div className="text-xs sm:text-sm text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span>
+                  Competição: <span className="text-foreground font-medium">{competition?.name || 'Voleibol BaseOS'}</span>
+                </span>
+                {teamRecord?.coachName && (
+                  <>
+                    <span>&bull;</span>
+                    <span>Técnico: <strong className="text-zinc-200">{teamRecord.coachName}</strong></span>
+                  </>
+                )}
+                {(teamRecord?.city || teamRecord?.state) && (
+                  <>
+                    <span>&bull;</span>
+                    <span>{teamRecord.city}{teamRecord.state ? `/${teamRecord.state}` : ''}</span>
+                  </>
+                )}
+              </div>
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Competição: <span className="text-foreground font-medium">{competition?.name || 'Voleibol BaseOS'}</span>
-              {competition?.format && ` &bull; Formato: ${competition.format}`}
-            </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditTeamModalOpen(true)}
+              className="h-9 text-xs font-semibold gap-1.5 border-zinc-700 bg-zinc-800/80 text-zinc-200 hover:bg-zinc-800 hover:text-white"
+              title="Editar nome, sigla, técnico e escudo da equipe"
+            >
+              <Pencil className="w-3.5 h-3.5 text-amber-400" />
+              <span>Editar Equipe & Escudo</span>
+            </Button>
             <Button asChild size="sm" className="h-9 text-xs font-semibold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90">
               <Link to="/portal/equipe/elenco">
                 <span>Gerenciar Elenco</span>
@@ -429,18 +509,61 @@ export function TeamPortalPage() {
               </div>
             </CardHeader>
             <CardContent className="p-4 pt-1 space-y-3">
-              {nextMatch ? (
-                <div>
-                  <div className="text-sm font-semibold text-foreground truncate">
-                    vs {nextMatch.teamAId === team.teamId ? nextMatch.teamBName : nextMatch.teamAName}
+              {nextMatch ? (() => {
+                const vInfo = getVenueInfo(nextMatch.venue);
+                const googleMapsUrl = vInfo?.address
+                  ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${vInfo.name}, ${vInfo.address}`)}`
+                  : nextMatch.venue
+                  ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nextMatch.venue)}`
+                  : null;
+
+                return (
+                  <div className="space-y-2">
+                    <div className="text-sm font-semibold text-foreground truncate">
+                      vs {nextMatch.teamAId === team.teamId ? nextMatch.teamBName : nextMatch.teamAName}
+                    </div>
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                        <span>
+                          {new Date(nextMatch.scheduledTime).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}{' '}
+                          às {new Date(nextMatch.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          {nextMatch.court ? ` • ${nextMatch.court}` : ''}
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <span className="font-medium text-foreground">
+                            {vInfo?.name || nextMatch.venue || 'Local a definir'}
+                          </span>
+                          {vInfo?.address ? (
+                            <div className="text-[11px] text-zinc-300 flex items-center gap-1 mt-0.5">
+                              <span className="truncate">{vInfo.address}</span>
+                              {googleMapsUrl && (
+                                <a
+                                  href={googleMapsUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:underline inline-flex items-center gap-0.5 shrink-0 font-medium"
+                                  title="Ver rota no Google Maps"
+                                >
+                                  <span>(Mapa)</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-zinc-500 mt-0.5">
+                              Endereço físico não cadastrado
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                    {new Date(nextMatch.scheduledTime).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}{' '}
-                    às {new Date(nextMatch.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}{' '}
-                    &bull; {nextMatch.venue || 'Local a definir'}
-                  </p>
-                </div>
-              ) : (
+                );
+              })() : (
                 <div>
                   <div className="text-2xl font-bold font-mono text-muted-foreground">—</div>
                   <p className="text-xs text-muted-foreground mt-0.5">Nenhum confronto agendado</p>
@@ -533,6 +656,18 @@ export function TeamPortalPage() {
             <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
           </Link>
         </div>
+
+        {/* Modal de Edição de Dados da Equipe & Escudo */}
+        <EditTeamModal
+          open={editTeamModalOpen}
+          onOpenChange={setEditTeamModalOpen}
+          team={team}
+          teamRecord={teamRecord}
+          onSaved={async () => {
+            await refreshPortalContext();
+            await refreshData();
+          }}
+        />
       </div>
     );
   }
@@ -811,14 +946,57 @@ export function TeamPortalPage() {
                       </div>
                     </div>
 
-                    {/* Local e Data */}
-                    <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-2 border-t border-border/40">
-                      <span>
-                        {new Date(m.scheduledTime).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}{' '}
-                        às {new Date(m.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <span>{m.venue} {m.court ? `(${m.court})` : ''}</span>
-                    </div>
+                    {/* Data, Horário e Localização do Ginásio */}
+                    {(() => {
+                      const vInfo = getVenueInfo(m.venue);
+                      const gMapsUrl = vInfo?.address
+                        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${vInfo.name}, ${vInfo.address}`)}`
+                        : m.venue
+                        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.venue)}`
+                        : null;
+
+                      return (
+                        <div className="space-y-1.5 pt-2 border-t border-border/40 text-[11px]">
+                          <div className="flex items-center justify-between text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-zinc-400" />
+                              {new Date(m.scheduledTime).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}{' '}
+                              às {new Date(m.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <span className="font-medium text-foreground">
+                              {m.venue || 'Local a definir'} {m.court ? `• ${m.court}` : ''}
+                            </span>
+                          </div>
+
+                          {/* Endereço físico do Ginásio quando cadastrado */}
+                          {vInfo?.address ? (
+                            <div className="flex items-center justify-between gap-2 p-1.5 rounded bg-zinc-900/60 border border-zinc-800 text-[10px] text-zinc-300">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+                                <span className="truncate">{vInfo.address}</span>
+                              </div>
+                              {gMapsUrl && (
+                                <a
+                                  href={gMapsUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:underline font-semibold flex items-center gap-0.5 shrink-0"
+                                  title="Abrir no Google Maps"
+                                >
+                                  <span>Como Chegar</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          ) : m.venue ? (
+                            <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                              <MapPin className="w-2.5 h-2.5 text-zinc-500" />
+                              <span>Endereço físico não cadastrado</span>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })()}
 
                     {/* Parciais dos Sets se finalizado */}
                     {isFinished && m.sets.length > 0 && (
@@ -849,6 +1027,59 @@ export function TeamPortalPage() {
               );
             })}
           </div>
+        )}
+
+        {/* Locais de Disputa & Ginásios Cadastrados */}
+        {venues.length > 0 && (
+          <Card className="border border-border bg-card shadow-none">
+            <CardHeader className="p-4 pb-2 border-b border-border/50">
+              <CardTitle className="text-xs uppercase font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-primary" />
+                Locais de Disputa & Ginásios Oficiais
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Consulte o endereço completo e rotas dos ginásios utilizados na competição.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {venues.map((v) => (
+                <div key={v.id} className="p-3 rounded-lg bg-zinc-900 border border-zinc-800 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-xs text-foreground truncate">{v.name}</span>
+                    {v.courts?.length > 0 && (
+                      <Badge variant="outline" className="text-[9px] font-mono border-zinc-700">
+                        {v.courts.length} {v.courts.length === 1 ? 'quadra' : 'quadras'}
+                      </Badge>
+                    )}
+                  </div>
+                  {v.address ? (
+                    <div className="text-[11px] text-zinc-300 space-y-1">
+                      <div className="flex items-start gap-1">
+                        <MapPin className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />
+                        <span className="line-clamp-2">{v.address}</span>
+                      </div>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${v.name}, ${v.address}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-medium"
+                      >
+                        <span>Abrir no Google Maps</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">Endereço não informado.</p>
+                  )}
+                  {v.notes && (
+                    <p className="text-[10px] text-muted-foreground/80 italic line-clamp-2 pt-1 border-t border-zinc-800/60">
+                      {v.notes}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         )}
 
         {selectedMatch && (
@@ -1031,6 +1262,56 @@ export function TeamPortalPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Locais de Competição e Ginásios Cadastrados */}
+      {venues.length > 0 && (
+        <Card className="border border-border bg-card shadow-none">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-xs uppercase font-semibold text-muted-foreground flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 text-primary" />
+              Ginásios e Locais Oficiais de Jogo
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {venues.map((v) => (
+              <div key={v.id} className="p-3 rounded-lg bg-zinc-900 border border-zinc-800 text-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-foreground">{v.name}</span>
+                  {v.courts?.length > 0 && (
+                    <Badge variant="outline" className="text-[10px] font-mono border-zinc-700">
+                      {v.courts.length} {v.courts.length === 1 ? 'quadra' : 'quadras'}
+                    </Badge>
+                  )}
+                </div>
+                {v.address ? (
+                  <div className="space-y-1 text-zinc-300 text-[11px]">
+                    <div className="flex items-start gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                      <span>{v.address}</span>
+                    </div>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${v.name}, ${v.address}`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
+                    >
+                      <span>Abrir no Google Maps</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">Endereço não cadastrado.</p>
+                )}
+                {v.notes && (
+                  <p className="text-[10px] text-muted-foreground italic pt-1 border-t border-zinc-800">
+                    {v.notes}
+                  </p>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Relatórios e Documentos Oficiais */}
       <Card className="border border-border bg-card shadow-none">

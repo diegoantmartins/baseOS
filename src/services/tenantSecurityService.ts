@@ -124,6 +124,14 @@ export const ROLE_CAPABILITY_MATRIX: Record<UserRole, SystemCapability[]> = {
     'match:view',
     'scoresheet:view',
   ],
+  team_manager: [
+    'competition:view',
+    'team:view',
+    'team:edit', // Somente seu próprio elenco
+    'athlete:view',
+    'match:view',
+    'scoresheet:view',
+  ],
   viewer: [
     'competition:view',
     'team:view',
@@ -192,7 +200,7 @@ export class TenantSecurityService {
     if (user.role === 'admin' || user.role === 'organizer') return true;
 
     // Representante de Equipe
-    if (user.role === 'team') {
+    if (user.role === 'team' || user.role === 'team_manager') {
       // 1. Vínculo legado direto
       if (user.competitionTeamId && user.competitionTeamId === targetCompetitionTeam.id) {
         return true;
@@ -226,7 +234,7 @@ export class TenantSecurityService {
     if (!user) return false;
     if (user.role === 'admin' || user.role === 'organizer') return true;
 
-    if (user.role === 'team') {
+    if (user.role === 'team' || user.role === 'team_manager') {
       if (user.competitionTeamId === targetCompetitionTeamId) return true;
       if (activeMemberships && activeMemberships.length > 0) {
         return activeMemberships.some(

@@ -321,6 +321,19 @@ export type ParticipantFeedDefinition =
       roundId?: string;
     }
   | {
+      type: 'stage-position';
+      stageId: string;
+      position: number;
+    }
+  | {
+      type: 'match-winner';
+      slotId: string;
+    }
+  | {
+      type: 'match-loser';
+      slotId: string;
+    }
+  | {
       type: 'match-result';
       matchId: string;
       outcome: 'winner' | 'loser';
@@ -385,6 +398,7 @@ export interface StageDefinition {
   groupConfig?: {
     groupsCount: number;
     teamsPerGroup: number;
+    groupCapacities?: number[];
     rounds?: 'single' | 'home-and-away';
   };
   /** Configuração específica para fases eliminatórias */
@@ -508,15 +522,39 @@ export function deriveMaxSets(setsToWin: SetsToWin): number {
 }
 
 /**
- * Converte strings legadas ('3-sets', '5-sets', 'best-of-3', 'best-of-5', '1-set') para SetsToWin.
+ * Converte strings legadas ('3-sets', '5-sets', 'best-of-3', 'best-of-5', '1-set'),
+ * números (1, 2, 3) ou valores genéricos para SetsToWin com total resiliência contra TypeError.
  */
-export function parseLegacySetFormat(raw?: string | null): SetsToWin {
-  if (!raw) return 2; // Padrão: melhor de 3
+export function parseLegacySetFormat(raw?: unknown): SetsToWin {
+  if (raw === null || raw === undefined) return 2; // Padrão: melhor de 3
+
+  // Se já for numérico (1, 2, 3 ou 5 sets totais -> 3 sets vencidos)
+  if (typeof raw === 'number') {
+    if (raw === 1 || raw === 2 || raw === 3) return raw as SetsToWin;
+    if (raw >= 5) return 3;
+    return 2;
+  }
+
+  // Se não for string, retorna o padrão seguro (melhor de 3)
+  if (typeof raw !== 'string') return 2;
+
   const normalized = raw.trim().toLowerCase();
-  if (normalized === '5-sets' || normalized === 'best-of-5' || normalized === 'best_of_5' || normalized === '5') {
+  if (
+    normalized === '5-sets' ||
+    normalized === 'best-of-5' ||
+    normalized === 'best_of_5' ||
+    normalized === '5' ||
+    normalized === '3-sets-to-win'
+  ) {
     return 3;
   }
-  if (normalized === '1-set' || normalized === 'best-of-1' || normalized === 'best_of_1' || normalized === '1') {
+  if (
+    normalized === '1-set' ||
+    normalized === 'best-of-1' ||
+    normalized === 'best_of_1' ||
+    normalized === '1' ||
+    normalized === '1-set-to-win'
+  ) {
     return 1;
   }
   return 2; // Padrão '3-sets', 'best-of-3', etc.
@@ -525,7 +563,7 @@ export function parseLegacySetFormat(raw?: string | null): SetsToWin {
 /**
  * Retorna o rótulo amigável em português para um SetsToWin.
  */
-export function formatSetsToWinLabel(setsToWin: SetsToWin): string {
+export function formatSetsToWinLabel(setsToWin: SetsToWin | number): string {
   switch (setsToWin) {
     case 1:
       return 'Set Único';
@@ -533,6 +571,8 @@ export function formatSetsToWinLabel(setsToWin: SetsToWin): string {
       return 'Melhor de 3 sets';
     case 3:
       return 'Melhor de 5 sets';
+    default:
+      return setsToWin >= 5 ? 'Melhor de 5 sets' : 'Melhor de 3 sets';
   }
 }
 

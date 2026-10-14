@@ -467,7 +467,7 @@ export function MatchesPage() {
 
       const slots = CompetitionBracketService.generatePlayoffSlots(comp, groupStandings);
       if (slots.length === 0) {
-        toast.info(`Geração automática disponível para 1, 2 ou 4 grupos. Torneio configurado com ${comp.groupsCount} grupos.`);
+        toast.info(`Não foi possível gerar confrontos eliminatórios para a configuração atual de grupos.`);
         return;
       }
 
@@ -494,6 +494,16 @@ export function MatchesPage() {
             teamBShortName: m.teamBShortName,
           });
         }
+      }
+
+      // Reconciliar runtime se houver slots relacionais
+      try {
+        const compSlots = await dataAccess.listMatchSlots(comp.id);
+        if (compSlots.length > 0) {
+          await CompetitionRuntimeService.reconcileCompetitionRuntime(comp.id);
+        }
+      } catch (runtimeErr) {
+        console.warn('Reconciliação não-bloqueante de runtime ignorada:', runtimeErr);
       }
 
       await OperationalAuditService.recordPlayoffSync({

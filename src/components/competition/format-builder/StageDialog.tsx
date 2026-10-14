@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Trophy, Users, GitFork, ArrowRight, Layers, Info } from 'lucide-react';
 
 import type { StageDefinition, StageType } from '@/types/competitionConfig';
@@ -45,9 +46,12 @@ export const StageDialog: React.FC<StageDialogProps> = ({
   const [participantsCount, setParticipantsCount] = useState<number>(8);
   const [participantsOrigin, setParticipantsOrigin] = useState<'global' | 'stage-position' | 'overall-ranking'>('global');
   const [groupsCount, setGroupsCount] = useState<number>(2);
+  const [rankStart, setRankStart] = useState<number>(1);
+  const [rankEnd, setRankEnd] = useState<number>(4);
 
   // Seção 3: Saída / Mecânica
   const [advancingCount, setAdvancingCount] = useState<number>(4);
+  const [hasThirdPlaceMatch, setHasThirdPlaceMatch] = useState<boolean>(false);
 
   // Preenche dados ao abrir ou alterar stage
   useEffect(() => {
@@ -58,6 +62,16 @@ export const StageDialog: React.FC<StageDialogProps> = ({
       setParticipantsOrigin(stage.participantsOrigin || 'global');
       setGroupsCount(stage.groupsCount || 2);
       setAdvancingCount(stage.advancingCount || 4);
+      setHasThirdPlaceMatch(stage.eliminationConfig?.hasThirdPlaceMatch ?? false);
+      const feeds = stage.participantFeeds ?? [];
+      const overallFeeds = feeds.filter((f) => f.type === 'overall-ranking') as Array<{ type: 'overall-ranking'; position: number }>;
+      if (overallFeeds.length > 0) {
+        setRankStart(overallFeeds[0].position);
+        setRankEnd(overallFeeds[overallFeeds.length - 1].position);
+      } else {
+        setRankStart(1);
+        setRankEnd(stage.participantsCount || 4);
+      }
     } else {
       const nextOrder = existingStagesCount + 1;
       const isFirst = existingStagesCount === 0;
@@ -67,6 +81,9 @@ export const StageDialog: React.FC<StageDialogProps> = ({
       setParticipantsOrigin(isFirst ? 'global' : 'stage-position');
       setGroupsCount(isFirst ? 2 : 1);
       setAdvancingCount(isFirst ? 4 : 1);
+      setHasThirdPlaceMatch(false);
+      setRankStart(1);
+      setRankEnd(4);
     }
   }, [stage, open, existingStagesCount]);
 
@@ -78,8 +95,20 @@ export const StageDialog: React.FC<StageDialogProps> = ({
 
     const isGroupType = type === 'round-robin' || type === 'group-stage';
     const isKnockoutType = type === 'knockout';
+    const isPlayInType = type === 'play-in';
     const safeGroupsCount = isGroupType ? Math.max(1, Number(groupsCount) || 1) : undefined;
     const safeParticipantsCount = Math.max(2, Number(participantsCount) || 2);
+
+    let participantFeeds = stage?.participantFeeds;
+    if (participantsOrigin === 'overall-ranking') {
+      const start = Math.max(1, Number(rankStart) || 1);
+      const end = Math.max(start, Number(rankEnd) || (start + safeParticipantsCount - 1));
+      participantFeeds = Array.from({ length: end - start + 1 }, (_, i) => ({
+        type: 'overall-ranking' as const,
+        stageId: 'fase-grupos',
+        position: start + i,
+      }));
+    }
 
     const newStage: StageDefinition = {
       ...(stage || {}),
@@ -92,16 +121,18 @@ export const StageDialog: React.FC<StageDialogProps> = ({
       participantsOrigin,
       groupsCount: safeGroupsCount,
       advancingCount: Math.max(1, Number(advancingCount) || 1),
+      participantFeeds,
       groupConfig: isGroupType ? {
         groupsCount: safeGroupsCount || 1,
         teamsPerGroup: Math.max(2, Math.ceil(safeParticipantsCount / (safeGroupsCount || 1))),
         rounds: 'single',
       } : stage?.groupConfig,
-      eliminationConfig: isKnockoutType ? {
+      eliminationConfig: isKnockoutType || isPlayInType ? {
         bracketSize: safeParticipantsCount,
         seriesType: 'single-match',
-        hasThirdPlaceMatch: false,
+        hasThirdPlaceMatch: isKnockoutType ? hasThirdPlaceMatch : false,
       } : stage?.eliminationConfig,
+      pairingConfig: isPlayInType ? { strategy: 'high-low' } : stage?.pairingConfig,
     };
 
     onSave(newStage);
@@ -180,6 +211,9 @@ export const StageDialog: React.FC<StageDialogProps> = ({
                     <SelectItem value="round-robin" className="text-[#0f172a]">
                       Grupos / Todos contra Todos (Round-Robin)
                     </SelectItem>
+                    <SelectItem value="play-in" className="text-[#0f172a]">
+                      Repescagem / Play-In
+                    </SelectItem>
                     <SelectItem value="knockout" className="text-[#0f172a]">
                       Mata-Mata Eliminatório (Knockout)
                     </SelectItem>
@@ -190,6 +224,20 @@ export const StageDialog: React.FC<StageDialogProps> = ({
                 </Select>
               </div>
             </div>
+
+            {/* Opção de Disputa de 3º Lugar para Mata-Mata */}
+            {type === 'knockout' && (
+              <div className="flex items-center gap-2 pt-2 px-1">
+                <Checkbox
+                  id="third-place-match"
+                  checked={hasThirdPlaceMatch}
+                  onCheckedChange={(checked) => setHasThirdPlaceMatch(Boolean(checked))}
+                />
+                <Label htmlFor="third-place-match" className="text-xs font-medium text-[#0f172a] cursor-pointer">
+                  Incluir Disputa de 3º Lugar (confronto entre perdedores das semifinais)
+                </Label>
+              </div>
+            )}
           </section>
 
           {/* ========================================================================= */}
@@ -255,6 +303,42 @@ export const StageDialog: React.FC<StageDialogProps> = ({
                 </p>
               </div>
             </div>
+
+            {/* Faixa declarativa de Ranking Geral quando selecionado */}
+            {participantsOrigin === 'overall-ranking' && (
+              <div className="mt-2 p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-[#0f172a]">
+                    Faixa de Classificação Geral (Play-In / Repescagem):
+                  </Label>
+                  <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                    {rankStart}º ao {rankEnd}º Geral
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 items-center">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-slate-500">Posição Inicial</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={rankStart}
+                      onChange={(e) => setRankStart(Number(e.target.value))}
+                      className="h-9 text-xs bg-white border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-slate-500">Posição Final</Label>
+                    <Input
+                      type="number"
+                      min={rankStart}
+                      value={rankEnd}
+                      onChange={(e) => setRankEnd(Number(e.target.value))}
+                      className="h-9 text-xs bg-white border-slate-200"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Configuração Condicional de Grupos */}
             {type === 'round-robin' && (

@@ -230,7 +230,11 @@ export function SmartAthleteForm({
     setFeedbackSuccess(null);
 
     const cleanCpf = cpf.replace(/\D/g, '');
-    if (cleanCpf && cleanCpf.length !== 11) {
+    if (!cleanCpf) {
+      setFeedbackError('O CPF é obrigatório.');
+      return;
+    }
+    if (cleanCpf.length !== 11) {
       setFeedbackError('O CPF informado deve conter 11 dígitos.');
       return;
     }
@@ -382,7 +386,7 @@ export function SmartAthleteForm({
           <div className="flex items-center justify-between">
             <Label htmlFor="athlete-cpf" className="text-xs font-semibold text-zinc-200 flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-              CPF do Atleta / Integrante
+              CPF do Atleta / Integrante *
             </Label>
 
             {isCheckingCpf && (

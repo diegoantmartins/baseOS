@@ -37,6 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PublicShell } from '@/components/registration/PublicShell';
 import { AthleteFormModal } from '@/components/registration/AthleteFormModal';
+import { EditTeamModal } from '@/components/portal/EditTeamModal';
 import { MatchSheetEmitDialog } from '@/components/match/MatchSheetEmitDialog';
 import { PwaInstallButton } from '@/components/pwa/PwaInstallButton';
 import {
@@ -47,6 +48,7 @@ import {
   listRoster,
   markRosterSubmitted,
   removeAthlete,
+  sortRosterAthletes,
   updateAthlete,
   validateRosterMinimum,
 } from '@/services/registrationService';
@@ -95,6 +97,7 @@ export function TeamRosterRegistrationPage() {
 
   // Modais
   const [modalOpen, setModalOpen] = useState(false);
+  const [editTeamModalOpen, setEditTeamModalOpen] = useState(false);
   const [editingAthlete, setEditingAthlete] = useState<CompetitionAthlete | undefined>();
   const [submitting, setSubmitting] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MatchRecord | null>(null);
@@ -113,7 +116,7 @@ export function TeamRosterRegistrationPage() {
     // Se a sessão autenticada for de perfil 'team', valida se a equipe atual pertence às
     // memberships ativas do usuário ou ao vínculo legado profiles.competition_team_id.
     let isAuthorized = true;
-    if (session?.user?.role === 'team') {
+    if (session?.user?.role === 'team' || session?.user?.role === 'team_manager') {
       const isLegacyMatch = !!session.user.competitionTeamId && session.user.competitionTeamId === ct.id;
       if (!isLegacyMatch) {
         // Verifica memberships ativas na Fase 11
@@ -137,28 +140,41 @@ export function TeamRosterRegistrationPage() {
       return;
     }
 
-    const [latestCt, allT, allM] = await Promise.all([
+    // Carregamento concorrente direto: busca equipe pontual (sem baixar 1MB de todas as equipes),
+    // competição, elenco e partidas em paralelo.
+    const [latestCt, comp, tr, roster, matches] = await Promise.all([
       dataAccess.getCompetitionTeamById(ct.id),
-      dataAccess.listTeams(),
-      dataAccess.listMatches(),
+      dataAccess.getCompetition(ct.competitionId),
+      dataAccess.getTeam(ct.teamId),
+      listRoster(ct.id),
+      dataAccess.listMatches(ct.competitionId),
     ]);
 
+    if (!comp) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+
     setTeam(latestCt || ct);
-    const tr = allT.find(t => t.id === ct.teamId);
     setTeamRecord(tr || null);
-    setAllTeams(allT);
-
-    const comp = await dataAccess.getCompetition(ct.competitionId);
     setCompetition(comp);
-
-    setAthletes(await listRoster(ct.id));
-    setMatches(allM.filter(m => m.competitionId === ct.competitionId || m.teamAId === ct.teamId || m.teamBId === ct.teamId));
+    setAthletes(roster);
+    setMatches(matches.filter(m => m.competitionId === ct.competitionId || m.teamAId === ct.teamId || m.teamBId === ct.teamId));
     setHasNotifPerm(notificationService.getPermission() === 'granted');
+    setLoading(false);
   }, [token, session?.user?.id, session?.user?.role, session?.user?.competitionTeamId]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Carrega lista geral de equipes sob demanda apenas se o usuário acessar as abas de jogos ou classificação
+  useEffect(() => {
+    if ((activeTab === 'jogos' || activeTab === 'classificacao') && allTeams.length === 0) {
+      dataAccess.listTeams().then(setAllTeams).catch(console.error);
+    }
+  }, [activeTab, allTeams.length]);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 30000);
@@ -184,7 +200,14 @@ export function TeamRosterRegistrationPage() {
     const result = await addAthlete(team.id, input, playerFormat, competition ?? undefined);
     if (result.ok) {
       toast.success('Atleta adicionado!');
-      await refresh();
+      if (result.athlete) {
+        setAthletes((prev) => {
+          const filtered = prev.filter((a) => a.id !== result.athlete!.id);
+          return sortRosterAthletes([...filtered, result.athlete!]);
+        });
+      } else {
+        setAthletes(await listRoster(team.id));
+      }
     } else {
       result.errors.forEach(e => toast.error(e));
     }
@@ -196,7 +219,14 @@ export function TeamRosterRegistrationPage() {
     const result = await updateAthlete(editingAthlete.id, input, playerFormat, competition ?? undefined);
     if (result.ok) {
       toast.success('Atleta atualizado!');
-      await refresh();
+      if (result.athlete) {
+        setAthletes((prev) => {
+          const filtered = prev.filter((a) => a.id !== result.athlete!.id);
+          return sortRosterAthletes([...filtered, result.athlete!]);
+        });
+      } else {
+        setAthletes(await listRoster(team.id));
+      }
     } else {
       result.errors.forEach(e => toast.error(e));
     }
@@ -208,7 +238,7 @@ export function TeamRosterRegistrationPage() {
     const result = await removeAthlete(athlete.id, competition ?? undefined);
     if (result.ok) {
       toast.success('Atleta removido.');
-      await refresh();
+      setAthletes((prev) => prev.filter((a) => a.id !== athlete.id));
     } else {
       result.errors.forEach(e => toast.error(e));
     }
@@ -379,6 +409,18 @@ export function TeamRosterRegistrationPage() {
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+            {!locked && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditTeamModalOpen(true)}
+                className="text-xs h-8 rounded-md font-medium gap-1.5 border-border hover:bg-zinc-800/60 flex-1 sm:flex-initial"
+                title="Editar nome, sigla e escudo da equipe"
+              >
+                <Pencil className="w-3.5 h-3.5 text-amber-400" />
+                <span>Dados & Escudo</span>
+              </Button>
+            )}
             <Button
               variant={hasNotifPerm ? 'outline' : 'default'}
               size="sm"
@@ -838,6 +880,17 @@ export function TeamRosterRegistrationPage() {
         open={selectedMatch !== null}
         onOpenChange={v => { if (!v) setSelectedMatch(null); }}
       />
+
+      {/* Modal de Edição de Dados e Escudo da Equipe */}
+      {team && (
+        <EditTeamModal
+          open={editTeamModalOpen}
+          onOpenChange={setEditTeamModalOpen}
+          team={team}
+          teamRecord={teamRecord}
+          onSaved={refresh}
+        />
+      )}
     </PublicShell>
   );
 }

@@ -733,7 +733,7 @@ const localStorageAdapter = {
     return athlete ?? null;
   },
 
-  async createAthlete(input: Omit<AthleteIdentity, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<AthleteIdentity> {
+  async createAthlete(input: Omit<AthleteIdentity, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; organizationId?: string }): Promise<AthleteIdentity> {
     const normalizedCpf = normalizeCpf(input.normalizedCpf);
     const all = readCollection<AthleteIdentity>('athletes');
     if (normalizedCpf) {
@@ -746,6 +746,7 @@ const localStorageAdapter = {
     const record: AthleteIdentity = {
       ...input,
       normalizedCpf,
+      organizationId: input.organizationId || this.getActiveOrganizationId() || '',
       id: input.id || generateId('athlete'),
       createdAt: now,
       updatedAt: now,
@@ -795,6 +796,78 @@ const localStorageAdapter = {
     return all[idx];
   },
 
+  async updateTeamProfile(params: {
+    teamId: string;
+    competitionTeamId?: string;
+    token?: string;
+    name?: string;
+    shortName?: string;
+    logoUrl?: string;
+    coachName?: string;
+    city?: string;
+    state?: string;
+  }): Promise<{ ok: boolean; error?: string }> {
+    const all = readCollection<TeamRecord>('teams');
+    const idx = all.findIndex(t => t.id === params.teamId);
+    if (idx === -1) {
+      return { ok: false, error: `Equipe com identificador "${params.teamId}" não encontrada.` };
+    }
+    all[idx] = patch(all[idx], {
+      ...(params.name ? { name: params.name } : {}),
+      ...(params.shortName ? { shortName: params.shortName } : {}),
+      ...(params.logoUrl !== undefined ? { logoUrl: params.logoUrl } : {}),
+      ...(params.coachName !== undefined ? { coachName: params.coachName } : {}),
+      ...(params.city !== undefined ? { city: params.city } : {}),
+      ...(params.state !== undefined ? { state: params.state } : {}),
+    });
+    writeCollection('teams', all);
+
+    if (params.competitionTeamId) {
+      const allCt = readCollection<CompetitionTeam>('competition_teams');
+      const ctIdx = allCt.findIndex(ct => ct.id === params.competitionTeamId);
+      if (ctIdx !== -1) {
+        allCt[ctIdx] = patch(allCt[ctIdx], {
+          ...(params.name ? { teamName: params.name } : {}),
+          ...(params.shortName ? { teamShortName: params.shortName } : {}),
+        });
+        writeCollection('competition_teams', allCt);
+      }
+    } else {
+      // Sincroniza em todas as inscrições vinculadas a esta equipe
+      const allCt = readCollection<CompetitionTeam>('competition_teams');
+      let changed = false;
+      for (let i = 0; i < allCt.length; i++) {
+        if (allCt[i].teamId === params.teamId) {
+          allCt[i] = patch(allCt[i], {
+            ...(params.name ? { teamName: params.name } : {}),
+            ...(params.shortName ? { teamShortName: params.shortName } : {}),
+          });
+          changed = true;
+        }
+      }
+      if (changed) {
+        writeCollection('competition_teams', allCt);
+      }
+    }
+    return { ok: true };
+  },
+
+  async deleteCompetitionTeam(id: string): Promise<void> {
+    const allMatches = readCollection<MatchRecord>('matches');
+    const ct = readCollection<CompetitionTeam>('competition_teams').find(c => c.id === id);
+    if (ct) {
+      const hasMatches = allMatches.some(
+        m => m.competitionId === ct.competitionId && (m.teamAId === ct.teamId || m.teamBId === ct.teamId)
+      );
+      if (hasMatches) {
+        throw new Error('Não é possível remover a inscrição da equipe pois ela possui partidas associadas nesta competição.');
+      }
+    }
+    writeCollection('competition_teams', readCollection<CompetitionTeam>('competition_teams').filter(c => c.id !== id));
+    writeCollection('competition_athletes', readCollection<CompetitionAthlete>('competition_athletes').filter(a => a.competitionTeamId !== id));
+    writeCollection('user_memberships', readCollection<UserMembership>('user_memberships').filter(m => m.competitionTeamId !== id));
+  },
+
   async deleteTeam(id: string): Promise<void> {
     const allMatches = readCollection<MatchRecord>('matches');
     const allCt = readCollection<CompetitionTeam>('competition_teams');
@@ -807,6 +880,8 @@ const localStorageAdapter = {
       throw new Error('Não é possível excluir a equipe pois ela possui inscrições ativas em competições.');
     }
     writeCollection('teams', readCollection<TeamRecord>('teams').filter(t => t.id !== id));
+    // Limpa memberships vinculadas à equipe para evitar entidades fantasmas
+    writeCollection('user_memberships', readCollection<UserMembership>('user_memberships').filter(m => m.teamId !== id));
   },
 
   async listReferees(): Promise<RefereeRecord[]> {
@@ -1211,6 +1286,20 @@ const localStorageAdapter = {
     return competitionTeamId ? all.filter(a => a.competitionTeamId === competitionTeamId) : all;
   },
 
+  async listCompetitionAthletesByCompetition(competitionId: string): Promise<CompetitionAthlete[]> {
+    ensureSeeded();
+    const compTeams = await this.listCompetitionTeams(competitionId);
+    const teamIds = new Set(compTeams.map(t => t.id));
+    const all = readCollection<CompetitionAthlete>('competition_athletes');
+    return all.filter(a => teamIds.has(a.competitionTeamId));
+  },
+
+  async getCompetitionAthlete(id: string): Promise<CompetitionAthlete | null> {
+    ensureSeeded();
+    const all = readCollection<CompetitionAthlete>('competition_athletes');
+    return all.find(a => a.id === id) ?? null;
+  },
+
   async createCompetitionAthlete(input: CompetitionAthleteCreate & { athleteId?: string }): Promise<CompetitionAthlete> {
     let athleteId = input.athleteId;
     if (!athleteId) {
@@ -1290,7 +1379,12 @@ const localStorageAdapter = {
   },
 
   async deleteCompetitionAthlete(id: string): Promise<void> {
+    ensureSeeded();
     const all = readCollection<CompetitionAthlete>('competition_athletes');
+    const exists = all.some(a => a.id === id);
+    if (!exists) {
+      throw new Error(`Atleta "${id}" não encontrado para exclusão.`);
+    }
     writeCollection('competition_athletes', all.filter(a => a.id !== id));
   },
 
@@ -2829,13 +2923,43 @@ const supabaseAdapter = {
     return mapRow<AthleteIdentity>(data);
   },
 
-  async createAthlete(input: Omit<AthleteIdentity, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<AthleteIdentity> {
+  async createAthlete(input: Omit<AthleteIdentity, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; organizationId?: string }): Promise<AthleteIdentity> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
     const normalizedCpf = normalizeCpf(input.normalizedCpf);
+    const orgId = input.organizationId || this.getActiveOrganizationId() || null;
+
+    // 1. Tenta criar/obter via RPC atômica get_or_create_athlete_id (SECURITY DEFINER)
+    try {
+      const { data: rpcAthleteId, error: rpcError } = await supabase.rpc('get_or_create_athlete_id', {
+        p_name: input.name.trim(),
+        p_document_number: normalizedCpf || null,
+        p_birth_date: input.birthDate || null,
+        p_organization_id: orgId,
+      });
+
+      if (!rpcError && rpcAthleteId) {
+        const fetched = await this.getAthleteById(rpcAthleteId);
+        if (fetched) return fetched;
+        return {
+          id: rpcAthleteId,
+          name: input.name.trim(),
+          normalizedCpf: normalizedCpf || undefined,
+          birthDate: input.birthDate,
+          organizationId: orgId || '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+    } catch (rpcErr) {
+      console.warn('[createAthlete] RPC get_or_create_athlete_id aviso:', rpcErr);
+    }
+
+    // 2. Fallback para insert direto com organization_id e CPF normalizado
     const now = new Date().toISOString();
     const payload = toSnake({
       ...input,
+      organizationId: orgId,
       normalizedCpf,
       id: input.id || generateId('athlete'),
       createdAt: now,
@@ -2910,12 +3034,125 @@ const supabaseAdapter = {
     return data ? teamMapper.toDomain(data as Record<string, unknown>) : null;
   },
 
+  async updateTeamProfile(params: {
+    teamId: string;
+    competitionTeamId?: string;
+    token?: string;
+    name?: string;
+    shortName?: string;
+    logoUrl?: string;
+    coachName?: string;
+    city?: string;
+    state?: string;
+  }): Promise<{ ok: boolean; error?: string }> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return { ok: false, error: 'Supabase não disponível' };
+
+    // 1. Se fornecido token público seguro, tenta atualizar via RPC por token
+    if (params.token) {
+      try {
+        const { data: tData, error: tError } = await supabase.rpc('update_team_profile_by_token', {
+          p_token: params.token,
+          p_name: params.name ?? null,
+          p_short_name: params.shortName ?? null,
+          p_logo_url: params.logoUrl ?? null,
+          p_coach_name: params.coachName ?? null,
+          p_city: params.city ?? null,
+          p_state: params.state ?? null,
+        });
+        if (!tError && (tData as { ok?: boolean })?.ok) {
+          return { ok: true };
+        }
+        if (tData && (tData as { ok?: boolean; error?: string }).ok === false) {
+          return { ok: false, error: (tData as { error?: string }).error || 'Permissão negada para atualizar dados da equipe por token.' };
+        }
+        if (tError) {
+          console.warn('[updateTeamProfile] update_team_profile_by_token falhou:', tError.message);
+        }
+      } catch (err) {
+        console.warn('[updateTeamProfile] Erro ao chamar update_team_profile_by_token:', err);
+      }
+    }
+
+    // 2. Se autenticado, tenta RPC com credenciais de sessão
+    try {
+      const { data, error } = await supabase.rpc('update_team_profile', {
+        p_team_id: params.teamId,
+        p_competition_team_id: params.competitionTeamId ?? null,
+        p_name: params.name ?? null,
+        p_short_name: params.shortName ?? null,
+        p_logo_url: params.logoUrl ?? null,
+        p_coach_name: params.coachName ?? null,
+        p_city: params.city ?? null,
+        p_state: params.state ?? null,
+      });
+      if (!error && (data as { ok?: boolean })?.ok) {
+        return { ok: true };
+      }
+      if (data && (data as { ok?: boolean; error?: string }).ok === false) {
+        return { ok: false, error: (data as { error?: string }).error || 'Permissão negada para atualizar dados da equipe.' };
+      }
+      if (error) {
+        console.warn('[updateTeamProfile] RPC falhou, tentando fallback direto:', error.message);
+      }
+    } catch {
+      // Fallback para update direto caso RPC não esteja disponível
+    }
+
+    try {
+      const updated = await this.updateTeam(params.teamId, {
+        ...(params.name ? { name: params.name } : {}),
+        ...(params.shortName ? { shortName: params.shortName } : {}),
+        ...(params.logoUrl !== undefined ? { logoUrl: params.logoUrl } : {}),
+        ...(params.coachName !== undefined ? { coachName: params.coachName } : {}),
+        ...(params.city !== undefined ? { city: params.city } : {}),
+        ...(params.state !== undefined ? { state: params.state } : {}),
+      });
+      if (!updated) {
+        return { ok: false, error: 'Não foi possível salvar as alterações da equipe (registro não encontrado ou sem permissão).' };
+      }
+      if (params.competitionTeamId) {
+        await this.updateCompetitionTeam(params.competitionTeamId, {
+          ...(params.name ? { teamName: params.name } : {}),
+          ...(params.shortName ? { teamShortName: params.shortName } : {}),
+        });
+      }
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Falha ao persistir alterações da equipe.';
+      return { ok: false, error: msg };
+    }
+  },
+
+  async deleteCompetitionTeam(id: string): Promise<void> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionTeams)
+      .delete()
+      .eq('id', id)
+      .select();
+    if (error) {
+      throw new Error(`Falha ao excluir inscrição de equipe "${id}": [${error.code}] ${error.message}`);
+    }
+    if (data && data.length === 0) {
+      throw new Error(`Inscrição de equipe "${id}" não pôde ser excluída (registro não encontrado ou sem permissão).`);
+    }
+  },
+
   async deleteTeam(id: string): Promise<void> {
     const supabase = await getSupabaseClient();
     if (!supabase) return;
-    const { error } = await supabase.from(SUPABASE_TABLES.teams).delete().eq('id', id);
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.teams)
+      .delete()
+      .eq('id', id)
+      .select();
     if (error) {
       throw new Error(`Falha ao excluir equipe "${id}": [${error.code}] ${error.message}`);
+    }
+    if (data && data.length === 0) {
+      throw new Error(`Equipe "${id}" não pôde ser excluída (registro não encontrado ou sem permissão).`);
     }
   },
 
@@ -3290,6 +3527,36 @@ const supabaseAdapter = {
     return mapRows<CompetitionAthlete>(data ?? []);
   },
 
+  async listCompetitionAthletesByCompetition(competitionId: string): Promise<CompetitionAthlete[]> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const compTeams = await this.listCompetitionTeams(competitionId);
+    if (compTeams.length === 0) return [];
+    const teamIds = compTeams.map(t => t.id);
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionAthletes)
+      .select('*')
+      .in('competition_team_id', teamIds);
+    if (error) {
+      throw new Error(`Falha ao listar atletas da competição: [${error.code}] ${error.message}`);
+    }
+    return mapRows<CompetitionAthlete>(data ?? []);
+  },
+
+  async getCompetitionAthlete(id: string): Promise<CompetitionAthlete | null> {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionAthletes)
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) {
+      throw new Error(`Falha ao obter atleta de competição: [${error.code}] ${error.message}`);
+    }
+    return data ? mapRow<CompetitionAthlete>(data) : null;
+  },
+
   async createCompetitionAthlete(input: CompetitionAthleteCreate & { id?: string; athleteId?: string }): Promise<CompetitionAthlete> {
     const supabase = await getSupabaseClient();
     if (!supabase) throw new Error('Supabase não configurado');
@@ -3370,8 +3637,18 @@ const supabaseAdapter = {
 
   async deleteCompetitionAthlete(id: string): Promise<void> {
     const supabase = await getSupabaseClient();
-    if (!supabase) return;
-    await supabase.from(SUPABASE_TABLES.competitionAthletes).delete().eq('id', id);
+    if (!supabase) throw new Error('Supabase não configurado');
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.competitionAthletes)
+      .delete()
+      .eq('id', id)
+      .select();
+    if (error) {
+      throw new Error(`Falha ao excluir atleta de competição: [${error.code}] ${error.message}`);
+    }
+    if (data && data.length === 0) {
+      throw new Error(`Atleta "${id}" não pôde ser excluído (registro não encontrado ou permissão insuficiente).`);
+    }
   },
 
   async listDocumentEdits(matchId?: string): Promise<DocumentEdit[]> {

@@ -24,6 +24,7 @@ interface LiveDrawModalProps {
   competition: CompetitionRecord;
   /** ID real do sorteio persistido (para auditoria). Se undefined, não exibe. */
   drawId?: string;
+  isSimulation?: boolean;
 }
 
 function DrawLoadingFallback() {
@@ -47,6 +48,7 @@ export function LiveDrawModal({
   teams,
   competition,
   drawId,
+  isSimulation,
 }: LiveDrawModalProps) {
   if (!isOpen) return null;
 
@@ -75,6 +77,7 @@ export function LiveDrawModal({
         competition={competition}
         onClose={onClose}
         drawId={drawId}
+        isSimulation={isSimulation}
       />
     </Suspense>
   ) : (

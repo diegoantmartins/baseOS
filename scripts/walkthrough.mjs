@@ -38,53 +38,28 @@ async function run() {
   console.log('Organization created. ID:', orgId);
   
   // 3. Configure Admin
-  console.log('3. Configuring Admin (Fallback style)...');
-  const adminEmail = 'admin-homolog4@baseos.online';
+  console.log('3. Configuring Admin (Service Role style)...');
+  const adminEmail = 'admin-homolog5@baseos.online';
   
-  // Create temp client for signUp
-  const tempClient = createClient(supabaseUrl, anonKey, { auth: { persistSession: false, autoRefreshToken: false }, realtime: { transport: ws } });
   let adminUserId;
-  const { data: signUpData, error: signUpErr } = await tempClient.auth.signUp({
-    email: adminEmail,
-    password: 'Password123!',
-    options: { data: { name: 'Admin Homolog 2' } }
+  const { data: signUpData, error: signUpErr } = await supabase.rpc('provision_organization_admin', {
+    p_email: adminEmail,
+    p_password: 'Password123!',
+    p_name: 'Admin Homolog 5',
+    p_organization_id: orgId
   });
   
   if (signUpErr) {
-    if (signUpErr.message.includes('already')) {
-      const { data: existing } = await supabase.from('profiles').select('id').eq('email', adminEmail).single();
-      if (!existing) throw new Error('Email exists but no profile');
-      adminUserId = existing.id;
-    } else {
-      throw new Error('SignUp failed: ' + signUpErr.message);
-    }
+    throw new Error('Create User failed: ' + signUpErr.message);
   } else {
-    adminUserId = signUpData.user.id;
+    if (!signUpData.ok) throw new Error('Create User logical failed: ' + signUpData.error);
+    adminUserId = signUpData.user_id;
   }
   
   console.log('Admin Auth User created. ID:', adminUserId);
   
-  // Master inserts Profile
-  const { error: profErr } = await supabase.from('profiles').upsert({
-    id: adminUserId,
-    email: adminEmail,
-    name: 'Admin Homolog 2',
-    role: 'admin',
-    organization_id: orgId
-  });
-  if (profErr) throw new Error('Profile upsert failed: ' + profErr.message);
-  
-  // Master inserts Membership
-  const memId = 'mem_' + crypto.randomUUID().replace(/-/g, '').substring(0, 16);
-  const { error: memErr } = await supabase.from('user_memberships').upsert({
-    id: memId,
-    user_id: adminUserId,
-    organization_id: orgId,
-    role: 'admin',
-    status: 'active'
-  });
-  if (memErr) throw new Error('Membership upsert failed: ' + memErr.message);
-  console.log('Admin Profile and Membership created. Mem ID:', memId);
+  // Profiles and Membership are created by the RPC!
+  // Skipping manual insert...
   
   // 4. Logout Master
   await supabase.auth.signOut();
@@ -118,7 +93,8 @@ async function run() {
   const { error: teamErr } = await supabase.from('teams').insert({
     id: teamId,
     organization_id: orgId,
-    name: 'Equipe de Teste'
+    name: 'Equipe de Teste',
+    short_name: 'EQT'
   });
   if (teamErr) throw new Error('Team creation failed: ' + teamErr.message);
   console.log('Team created. ID:', teamId);
@@ -130,7 +106,11 @@ async function run() {
     id: ctId,
     competition_id: compId,
     team_id: teamId,
-    status: 'active'
+    team_name: 'Equipe de Teste',
+    team_short_name: 'EQT',
+    access_token: crypto.randomBytes(16).toString('hex'),
+    registration_deadline: new Date(Date.now() + 86400000).toISOString(),
+    status: 'approved'
   });
   if (ctErr) throw new Error('Link failed: ' + ctErr.message);
   console.log('Team linked. CT ID:', ctId);
@@ -139,7 +119,6 @@ async function run() {
   console.log(JSON.stringify({
     orgId,
     adminUserId,
-    memId,
     compId,
     teamId,
     ctId

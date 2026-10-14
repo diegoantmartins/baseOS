@@ -31,6 +31,14 @@ BEGIN
       IF v_caller_role != 'admin' THEN
         RETURN jsonb_build_object('ok', false, 'error', 'Permissão negada. Apenas administradores podem provisionar novos administradores.');
       END IF;
+      
+      -- Verifica se o administrador pertence à organização que está sendo provisionada
+      IF NOT EXISTS (
+        SELECT 1 FROM public.user_memberships 
+        WHERE user_id = auth.uid() AND organization_id = p_organization_id AND role = 'admin' AND status = 'active'
+      ) THEN
+        RETURN jsonb_build_object('ok', false, 'error', 'Permissão negada. Você não é administrador desta organização.');
+      END IF;
     END IF;
   ELSE
     RETURN jsonb_build_object('ok', false, 'error', 'Usuário não autenticado.');
@@ -123,9 +131,9 @@ BEGIN
     v_membership_id := 'mem_' || replace(gen_random_uuid()::text, '-', '');
     
     INSERT INTO public.user_memberships (
-      id, user_id, organization_id, role, status, invited_by, created_at, updated_at
+      id, user_id, organization_id, role, status, created_at, updated_at
     ) VALUES (
-      v_membership_id, v_user_id, p_organization_id, 'admin', 'active', p_invited_by, now(), now()
+      v_membership_id, v_user_id, p_organization_id, 'admin', 'active', now(), now()
     );
   END IF;
 

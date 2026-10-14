@@ -121,16 +121,18 @@ export class CompetitionRulesService {
       teamsCount: competition.groupsCount ? competition.groupsCount * 4 : undefined,
     });
 
-    const phaseRules = competition.phaseSetRules;
+    const phaseRules = competition.phaseSetRules as Record<string, unknown> | undefined;
     const phaseOverrides = isBeach
       ? undefined
       : phaseRules
         ? {
-            groupStage: phaseRules.groupStage ? parseLegacySetFormat(phaseRules.groupStage) : defaultSetsToWin,
-            playoffs: phaseRules.playoffs ? parseLegacySetFormat(phaseRules.playoffs) : defaultSetsToWin,
-            quarterfinals: phaseRules.playoffs ? parseLegacySetFormat(phaseRules.playoffs) : defaultSetsToWin,
-            semifinals: phaseRules.semifinals ? parseLegacySetFormat(phaseRules.semifinals) : 3, // Padrão: melhor de 5 nas semis
-            final: phaseRules.final ? parseLegacySetFormat(phaseRules.final) : 3, // Padrão: melhor de 5 na final
+            groupStage: phaseRules.groupStage !== undefined ? parseLegacySetFormat(phaseRules.groupStage) : defaultSetsToWin,
+            playoffs: phaseRules.playoffs !== undefined ? parseLegacySetFormat(phaseRules.playoffs) : defaultSetsToWin,
+            quarterfinals: phaseRules.quarterfinals !== undefined
+              ? parseLegacySetFormat(phaseRules.quarterfinals)
+              : (phaseRules.playoffs !== undefined ? parseLegacySetFormat(phaseRules.playoffs) : defaultSetsToWin),
+            semifinals: phaseRules.semifinals !== undefined ? parseLegacySetFormat(phaseRules.semifinals) : 3, // Padrão: melhor de 5 nas semis
+            final: phaseRules.final !== undefined ? parseLegacySetFormat(phaseRules.final) : 3, // Padrão: melhor de 5 na final
           }
         : templateConfig.format.phaseOverrides;
 
@@ -190,14 +192,15 @@ export class CompetitionRulesService {
     if (customSetFormat) {
       setsToWin = parseLegacySetFormat(customSetFormat);
     } else if (phase) {
+      const phaseStr = typeof phase === 'string' ? phase.trim().toLowerCase() : String(phase).trim().toLowerCase();
       // 1. Prioriza sobrescrita de regras definida no próprio estágio do DAG
       const matchedStage = config.format.stages?.find(
-        s => s.id === phase || s.stageId === phase || s.name.toLowerCase() === phase.trim().toLowerCase()
+        s => s.id === phase || s.stageId === phase || (typeof s.name === 'string' && s.name.trim().toLowerCase() === phaseStr)
       );
       if (matchedStage?.matchRulesOverride?.setsToWin) {
         setsToWin = matchedStage.matchRulesOverride.setsToWin;
       } else {
-        const p = phase.trim().toLowerCase();
+        const p = phaseStr;
         const overrides = config.format.phaseOverrides;
 
         if (overrides) {
@@ -211,6 +214,8 @@ export class CompetitionRulesService {
             setsToWin = overrides.quarterfinals ?? overrides.playoffs!;
           } else if ((p === 'oitavas' || p === 'roundof16' || p === 'round-of-16') && overrides.roundOf16) {
             setsToWin = overrides.roundOf16;
+          } else if ((p === 'repescagem' || p === 'play-in' || p === 'playin') && (overrides.quarterfinals || overrides.playoffs || overrides.groupStage)) {
+            setsToWin = overrides.quarterfinals ?? overrides.playoffs ?? overrides.groupStage!;
           } else if ((p === 'group-stage' || p === 'groupstage' || p === 'groups' || p === 'classificatória' || p === 'classificatoria') && overrides.groupStage) {
             setsToWin = overrides.groupStage;
           }

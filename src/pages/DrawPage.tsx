@@ -17,6 +17,7 @@ import {
   MonitorPlay,
   AlertTriangle,
   Lock,
+  Sparkles,
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CompetitionDrawEligibilityService } from '@/services/competitionDrawEligibilityService';
@@ -36,6 +37,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StateContainer } from '@/components/ui/StateContainer';
 import { LiveDrawModal } from '@/components/draw/LiveDrawModal';
+import { TeamCrest } from '@/components/ui/TeamCrest';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,6 +50,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { dataAccess } from '@/services/dataAccess';
 import { CompetitionBracketService } from '@/services/competitionBracketService';
+import { CompetitionFormatBuilder } from '@/services/competitionFormatBuilder';
 import { runDraw, roundRobinMatchCount, roundRobinRoundCount, generateDrawMatches } from '@/services/drawService';
 import { validateDrawConfig, formatValidationErrors, getValidationSummary } from '@/services/drawValidator';
 import { suggestGroupsCount } from '@/types/draw';
@@ -86,6 +89,11 @@ const DrawPage = () => {
   const [loading, setLoading] = useState(true);
   const [isClosingRegs, setIsClosingRegs] = useState(false);
   const [isLiveModalOpen, setIsLiveModalOpen] = useState(false);
+  const [isSimulation, setIsSimulation] = useState(false);
+  const [simulationData, setSimulationData] = useState<{
+    result: DrawResult;
+    teams: TeamRecord[];
+  } | null>(null);
 
   const [groupsCount, setGroupsCount] = useState<number>(1);
   const [seedingMode, setSeedingMode] = useState<DrawConfig['seedingMode']>('seeded');
@@ -284,6 +292,62 @@ const DrawPage = () => {
     }
   };
 
+  const handleRunSimulation = () => {
+    if (!selected) {
+      toast.warning('Selecione uma competição para iniciar a simulação.');
+      return;
+    }
+
+    // Equipes para a simulação:
+    // Utiliza todas as equipes vinculadas à competição (competitionTeams)
+    const compTeamIds = new Set(competitionTeams.map(ct => ct.teamId));
+    let simTeams = teams.filter(t => compTeamIds.has(t.id));
+
+    // Se houver menos de 2 equipes, completa com equipes demo do sistema
+    if (simTeams.length < 2) {
+      simTeams = [...teams];
+    }
+
+    // Se estiver no campeonato Voltz de 10 equipes (ou formato com 9 cadastradas),
+    // sintetiza a 10ª equipe para testar com fidelidade o formato assimétrico [4, 3, 3]!
+    if (simTeams.length === 9) {
+      const mockTeam10: TeamRecord = {
+        id: 'sim-team-10',
+        name: '10ª Equipe (Simulação)',
+        shortName: 'EQ10',
+        modality: selected.modality ?? 'indoor',
+        organizationId: selected.organizationId,
+        genderCategory: 'mixed',
+        city: 'Cascavel',
+        status: 'confirmed',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      simTeams = [...simTeams, mockTeam10];
+    }
+
+    const simGroupsCount = groupsCount >= 2 ? groupsCount : 3;
+    const simConfig: DrawConfig = {
+      groupsCount: simGroupsCount,
+      seedingMode,
+      seed: seed || Math.floor(Math.random() * 100000),
+      headSeeds: seedingMode === 'seeded' ? headSeeds.slice(0, simGroupsCount) : [],
+    };
+
+    try {
+      const simResult = runDraw(selected, simTeams, simConfig);
+      setSimulationData({
+        result: simResult,
+        teams: simTeams,
+      });
+      setIsSimulation(true);
+      setIsLiveModalOpen(true);
+      toast.info('Iniciando Simulação da Draw Arena 3D (Modo Demonstração sem persistência)...');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao iniciar simulação.');
+    }
+  };
+
   const handleSaveDraw = async () => {
     if (operationState !== 'idle') return;
     if (!selected || !preview) return;
@@ -354,6 +418,58 @@ const DrawPage = () => {
         throw new Error('Falha na persistência do sorteio: nenhuma partida foi salva no banco de dados. O ciclo de vida não foi avançado.');
       }
 
+      // Persistência relacional de estágios/slots (DAG Universal) quando grafo de fases estiver configurado
+      if (selected.config?.format?.stages && selected.config.format.stages.length > 0) {
+        try {
+          const { stages, slots } = CompetitionFormatBuilder.generatePreviewSlots(selected.config);
+          for (const st of stages) {
+            const stId = (st as { stageId?: string; id?: string }).stageId || (st as { stageId?: string; id?: string }).id || `stage-${st.order}`;
+            const stRounds = (st.rounds && st.rounds.length > 0)
+              ? st.rounds.map((r, idx) => ({
+                  roundId: r.roundId || `${stId}-r${idx + 1}`,
+                  name: r.name || `Rodada ${idx + 1}`,
+                  roundOrder: r.order || idx + 1,
+                  slotsCount: r.slotsCount,
+                }))
+              : [{
+                  roundId: `${stId}-r1`,
+                  name: st.name || 'Rodada Principal',
+                  roundOrder: 1,
+                }];
+
+            const stSlots = slots
+              .filter((s) => s.stageId === stId)
+              .map((s) => ({
+                slotId: s.slotId,
+                roundId: s.roundId,
+                position: s.position,
+                label: s.label,
+                participantAReference: s.participantA.reference,
+                participantBReference: s.participantB.reference,
+                progressionRoute: s.progressionRoute ?? null,
+              }));
+
+            if (stSlots.length > 0) {
+              await dataAccess.saveStageDrawAndSlots({
+                competitionId: selected.id,
+                stage: {
+                  stageId: stId,
+                  name: st.name,
+                  stageOrder: st.order,
+                  stageType: st.type,
+                  status: 'pending',
+                  isLocked: false,
+                },
+                rounds: stRounds,
+                slots: stSlots,
+              });
+            }
+          }
+        } catch (stageErr) {
+          console.warn('Persistência resiliente de estágios/slots ignorada:', stageErr);
+        }
+      }
+
       setDrawStatus('preview');
       await OperationalAuditService.recordDrawExecution({
         competition: selected,
@@ -415,6 +531,17 @@ const DrawPage = () => {
           description="Distribua as equipes inscritas em grupos e gere a tabela da fase classificatória"
           secondaryActions={
             <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs border-amber-500/40 text-amber-300 hover:bg-amber-500/15 gap-1.5 shrink-0"
+                onClick={handleRunSimulation}
+                disabled={!selected}
+                title="Simular Sorteio na Draw Arena 3D sem persistência"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Simular Arena 3D</span>
+              </Button>
               <ContextualHelpButton
                 articles={[
                   { articleId: 'sorteio-grupos', label: 'Como sortear os grupos' },
@@ -485,8 +612,8 @@ const DrawPage = () => {
                             <span>{blocker}</span>
                           </div>
                         ))}
-                        {(selected?.status === 'registration-open' || selected?.status === 'registration') && (
-                          <div className="pt-2">
+                        <div className="pt-2 flex flex-wrap items-center gap-2">
+                          {(selected?.status === 'registration-open' || selected?.status === 'registration') && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -497,8 +624,17 @@ const DrawPage = () => {
                               <Lock className="w-3 h-3" />
                               {isClosingRegs ? 'Encerrando...' : 'Encerrar Inscrições da Competição Agora'}
                             </Button>
-                          </div>
-                        )}
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs border-amber-500/50 text-amber-300 hover:bg-amber-500/15 gap-1.5 font-medium"
+                            onClick={handleRunSimulation}
+                          >
+                            <Sparkles className="w-3 h-3 text-amber-400" />
+                            Testar na Arena 3D (Simulação)
+                          </Button>
+                        </div>
                       </AlertDescription>
                     </Alert>
                   )}
@@ -672,10 +808,21 @@ const DrawPage = () => {
                 </div>
 
                 <div className="pt-2 border-t border-border/40 space-y-1.5">
-<Button size="sm" className="w-full gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={handleRunDraw} disabled={!canDraw || operationState !== 'idle'}>
-                     <Shuffle className="w-3.5 h-3.5" />
-                     Realizar Sorteio
-                   </Button>
+                  <Button size="sm" className="w-full gap-1.5 text-xs h-8 rounded-md font-medium shadow-none" onClick={handleRunDraw} disabled={!canDraw || operationState !== 'idle'}>
+                    <Shuffle className="w-3.5 h-3.5" />
+                    Realizar Sorteio
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-1.5 text-xs h-8 rounded-md border-amber-500/40 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200"
+                    onClick={handleRunSimulation}
+                    disabled={!selected}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    Simular Sorteio (Demo 3D)
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -821,15 +968,19 @@ const DrawPage = () => {
       </StateContainer>
       </div>
 
-      {selected && groupsToShow && (
+      {selected && (
         <LiveDrawModal
           isOpen={isLiveModalOpen}
-          onClose={() => setIsLiveModalOpen(false)}
-          result={drawnResultForModal}
-          groups={groupsToShow}
-          teams={teams}
+          onClose={() => {
+            setIsLiveModalOpen(false);
+            setIsSimulation(false);
+          }}
+          result={isSimulation ? simulationData?.result : drawnResultForModal}
+          groups={isSimulation ? simulationData?.result.groups : groupsToShow}
+          teams={isSimulation && simulationData?.teams ? simulationData.teams : teams}
           competition={selected}
-          drawId={existingDraw?.id}
+          drawId={isSimulation ? undefined : existingDraw?.id}
+          isSimulation={isSimulation}
         />
       )}
     </MainLayout>
@@ -911,9 +1062,7 @@ function DraggableTeamRow({
       <span className="w-4 h-4 rounded bg-zinc-800 text-zinc-400 flex items-center justify-center text-[9px] font-mono font-bold shrink-0">
         {idx + 1}
       </span>
-      {team?.logoUrl && (
-        <img src={team.logoUrl} alt="" className="w-5 h-5 rounded object-contain bg-zinc-800 p-0.5" />
-      )}
+      <TeamCrest team={team} size="xs" className="h-5 w-5" />
       <span className="font-medium text-foreground truncate">{team?.name ?? teamId}</span>
     </div>
   );

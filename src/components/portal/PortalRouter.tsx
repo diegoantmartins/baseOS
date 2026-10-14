@@ -19,10 +19,7 @@ export function PortalRouter() {
 
   const role = session.user.role;
 
-  if (role === 'team') {
-    if (!session.user.competitionTeamId) {
-      return <Navigate to="/login" replace />;
-    }
+  if (role === 'team' || role === 'team_manager') {
     return <Navigate to="/portal/equipe" replace />;
   }
 

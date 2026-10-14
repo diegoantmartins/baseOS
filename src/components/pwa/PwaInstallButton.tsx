@@ -35,7 +35,7 @@ export function PwaInstallButton({ variant = 'outline', size = 'sm', className =
     window.addEventListener('appinstalled', () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
-      toast.success('VolleyPro instalado com sucesso!');
+      toast.success('BaseOS instalado com sucesso!');
     });
 
     return () => {
@@ -47,7 +47,7 @@ export function PwaInstallButton({ variant = 'outline', size = 'sm', className =
 
   const handleInstall = async () => {
     if (!deferredPrompt) {
-      toast.info('Instalar VolleyPro no dispositivo', {
+      toast.info('Instalar BaseOS no dispositivo', {
         description: 'No seu navegador (Chrome/Edge/Safari), clique no menu de opções e selecione "Instalar Aplicativo" ou "Adicionar à Tela de Início".',
       });
       return;
@@ -57,7 +57,7 @@ export function PwaInstallButton({ variant = 'outline', size = 'sm', className =
       await deferredPrompt.prompt();
       const choice = await deferredPrompt.userChoice;
       if (choice.outcome === 'accepted') {
-        toast.success('Instalando VolleyPro...');
+        toast.success('Instalando BaseOS...');
       }
       setDeferredPrompt(null);
     } catch (err) {
@@ -71,7 +71,7 @@ export function PwaInstallButton({ variant = 'outline', size = 'sm', className =
       size={size}
       onClick={handleInstall}
       className={`gap-1.5 font-medium ${className}`}
-      title="Instalar VolleyPro como Aplicativo (PWA)"
+      title="Instalar BaseOS como Aplicativo (PWA)"
     >
       <Smartphone className="w-4 h-4 text-primary" />
       {showText && <span>Instalar App (PWA)</span>}

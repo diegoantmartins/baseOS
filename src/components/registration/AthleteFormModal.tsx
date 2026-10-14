@@ -1,10 +1,10 @@
 // Modal de cadastro/edição de atleta no elenco da equipe.
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { UserPlus, Save, X } from 'lucide-react';
+import { UserPlus, Save, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,7 +41,7 @@ const athleteSchema = z.object({
       .optional(),
   ),
   position: z.string().min(1, 'Selecione a posição'),
-  documentNumber: z.string().optional(),
+  documentNumber: z.string().trim().min(5, 'Informe um documento válido (CPF ou RG com no mínimo 5 dígitos)'),
   birthDate: z.string().optional(),
   isCaptain: z.boolean(),
   isLibero: z.boolean(),
@@ -66,7 +66,7 @@ function toInput(values: AthleteFormValues, gender: 'male' | 'female'): Competit
     name: values.name.trim(),
     jerseyNumber: values.jerseyNumber,
     position: values.position,
-    documentNumber: values.documentNumber?.trim() || undefined,
+    documentNumber: values.documentNumber.trim(),
     birthDate: values.birthDate || undefined,
     isCaptain: values.isCaptain,
     isLibero: values.isLibero,
@@ -88,16 +88,26 @@ export function AthleteFormModal({ open, onOpenChange, athlete, gender = 'female
     defaultValues: toFormValues(athlete),
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
     if (open) {
       form.reset(toFormValues(athlete));
+      setIsSubmitting(false);
     }
   }, [open, athlete, form]);
 
   const handleSubmit = async (values: AthleteFormValues) => {
-    const result = await onSubmit(toInput(values, gender));
-    if (result.ok) {
-      onOpenChange(false);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const result = await onSubmit(toInput(values, gender));
+      if (result.ok) {
+        onOpenChange(false);
+        form.reset();
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -158,8 +168,11 @@ export function AthleteFormModal({ open, onOpenChange, athlete, gender = 'female
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="ath-doc">CPF / Documento</Label>
-              <Input id="ath-doc" placeholder="Opcional" {...form.register('documentNumber')} />
+              <Label htmlFor="ath-doc">CPF / Documento *</Label>
+              <Input id="ath-doc" placeholder="Ex: 000.000.000-00 (obrigatório)" {...form.register('documentNumber')} />
+              {form.formState.errors.documentNumber && (
+                <p className="text-sm text-destructive">{form.formState.errors.documentNumber.message}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="ath-birth">Data de Nascimento</Label>
@@ -179,13 +192,22 @@ export function AthleteFormModal({ open, onOpenChange, athlete, gender = 'female
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               <X className="w-4 h-4 mr-2" />
               Cancelar
             </Button>
-            <Button type="submit" variant="accent" className="gap-2">
-              <Save className="w-4 h-4" />
-              {athlete ? 'Salvar Alterações' : 'Adicionar Atleta'}
+            <Button type="submit" variant="accent" className="gap-2" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  {athlete ? 'Salvar Alterações' : 'Adicionar Atleta'}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </form>

@@ -92,6 +92,8 @@ describe('QA Master Suite - VolleyPro System End-to-End Validation', () => {
   describe('2. Repositório e Integridade de Dados', () => {
     it('garante que coleções base são carregadas e pesquisáveis', async () => {
       const competitions = await dataAccess.listCompetitions();
+      console.log("active org id:", localStorage.getItem('baseos.active_org_id'));
+      console.log("competitions length:", competitions.length);
       expect(competitions.length).toBeGreaterThan(0);
 
       const teams = await dataAccess.listTeams();

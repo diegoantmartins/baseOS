@@ -120,20 +120,16 @@ describe('BaseOS — Fase B: Desacoplamento da Draw Arena e Suporte a Grandes Fo
         />
       );
 
-      // Encontra as tags aside das alas de grupos
-      const asides = container.querySelectorAll('aside');
-      expect(asides.length).toBe(2);
+      // Encontra a estrutura de estúdio e o pote de sorteio
+      expect(screen.getByText(/Pote do Sorteio/i)).toBeInTheDocument();
 
-      asides.forEach((aside) => {
-        expect(aside.className).toContain('max-h-[calc(100vh-180px)]');
-        expect(aside.className).toContain('overflow-y-auto');
-        expect(aside.className).toContain('scrollbar-thin');
-      });
-
-      // Valida distribuição: 4 grupos na ala esquerda, 3 na direita
+      // Valida que todos os grupos estão presentes no palco principal
       expect(screen.getAllByText(/Grupo A/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/Grupo D/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/Grupo G/i).length).toBeGreaterThan(0);
+
+      // Valida que as equipes estão no pote com seus escudos e identificadores
+      expect(screen.getAllByText('t-0-1').length).toBeGreaterThan(0);
     });
   });
 

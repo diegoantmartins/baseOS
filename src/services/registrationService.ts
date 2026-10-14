@@ -199,14 +199,10 @@ export async function addAthlete(
     return { ok: false, errors: ['Prazo de inscrição do elenco desta equipe encerrado ou bloqueado pela organização.'] };
   }
 
-  const [existing, compTeams, allAthletes] = await Promise.all([
+  const [existing, sameCompAthletes] = await Promise.all([
     listRoster(competitionTeamId),
-    dataAccess.listCompetitionTeams(team.competitionId),
-    dataAccess.listCompetitionAthletes(),
+    dataAccess.listCompetitionAthletesByCompetition(team.competitionId),
   ]);
-
-  const compTeamIds = new Set(compTeams.map(t => t.id));
-  const sameCompAthletes = allAthletes.filter(a => compTeamIds.has(a.competitionTeamId));
 
   const validation = CompetitionRegistrationService.validateAthleteRegistration(
     comp,
@@ -260,7 +256,7 @@ export async function updateAthlete(
   playerFormat?: string,
   competition?: CompetitionRecord,
 ): Promise<{ ok: boolean; errors: string[]; athlete?: CompetitionAthlete }> {
-  const current = await dataAccess.listCompetitionAthletes().then(list => list.find(a => a.id === id));
+  const current = await dataAccess.getCompetitionAthlete(id);
   if (!current) return { ok: false, errors: ['Atleta não encontrado.'] };
 
   const team = await dataAccess.getCompetitionTeamById(current.competitionTeamId);
@@ -273,14 +269,10 @@ export async function updateAthlete(
     return { ok: false, errors: ['Prazo de inscrição do elenco desta equipe encerrado ou bloqueado pela organização.'] };
   }
 
-  const [siblings, compTeams, allAthletes] = await Promise.all([
+  const [siblings, sameCompAthletes] = await Promise.all([
     listRoster(current.competitionTeamId),
-    dataAccess.listCompetitionTeams(team.competitionId),
-    dataAccess.listCompetitionAthletes(),
+    dataAccess.listCompetitionAthletesByCompetition(team.competitionId),
   ]);
-
-  const compTeamIds = new Set(compTeams.map(t => t.id));
-  const sameCompAthletes = allAthletes.filter(a => compTeamIds.has(a.competitionTeamId));
 
   const validation = CompetitionRegistrationService.validateAthleteRegistration(
     comp,
@@ -309,14 +301,17 @@ export async function updateAthlete(
     ...input,
     ...(athleteId ? { athleteId } : {}),
   });
-  return { ok: true, errors: [], athlete: athlete ?? undefined };
+  if (!athlete) {
+    return { ok: false, errors: ['Atleta não pôde ser atualizado (registro não encontrado ou permissão insuficiente).'] };
+  }
+  return { ok: true, errors: [], athlete };
 }
 
 export async function removeAthlete(
   id: string,
   competition?: CompetitionRecord,
 ): Promise<{ ok: boolean; errors: string[] }> {
-  const current = await dataAccess.listCompetitionAthletes().then(list => list.find(a => a.id === id));
+  const current = await dataAccess.getCompetitionAthlete(id);
   if (!current) return { ok: false, errors: ['Atleta não encontrado.'] };
 
   const team = await dataAccess.getCompetitionTeamById(current.competitionTeamId);
@@ -333,8 +328,13 @@ export async function removeAthlete(
   const check = CompetitionRegistrationService.canRemoveAthleteFromRoster(comp, team, id, matches);
   if (!check.ok) return { ok: false, errors: check.errors };
 
-  await dataAccess.deleteCompetitionAthlete(id);
-  return { ok: true, errors: [] };
+  try {
+    await dataAccess.deleteCompetitionAthlete(id);
+    return { ok: true, errors: [] };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Falha ao remover atleta da competição.';
+    return { ok: false, errors: [msg] };
+  }
 }
 
 export async function markRosterSubmitted(competitionTeamId: string): Promise<CompetitionTeam | null> {

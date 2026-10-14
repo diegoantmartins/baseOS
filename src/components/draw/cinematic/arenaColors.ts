@@ -1,0 +1,16 @@
+export const ARENA_COLORS = {
+  stageBg: '#05070e',
+  floor: '#090d16',
+  floorRing: '#f59e0b',
+  pedestalDark: '#0f172a',
+  pedestalGold: '#d97706',
+  goldBright: '#fbbf24',
+  chrome: '#cbd5e1',
+  glass: '#e0f2fe',
+  ballWhite: '#f8fafc',
+  ballBlue: '#1d4ed8',
+  ballGold: '#f59e0b',
+  spotlight: '#ffffff',
+  rimBlue: '#38bdf8',
+  rimGold: '#f59e0b',
+};

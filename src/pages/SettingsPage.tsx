@@ -353,7 +353,7 @@ export function SettingsPage() {
     if (!settings) return;
     saveSettings(
       {
-        orgName: orgName.trim() || 'VolleyPro',
+        orgName: orgName.trim() || 'BaseOS',
         orgCode: orgCode.trim().toUpperCase(),
         cnpj,
         website,

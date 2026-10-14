@@ -6,6 +6,7 @@ import type {
   ParticipantReference,
   ProgressionRoute,
   ParticipantResolutionStatus,
+  SetsToWin,
 } from './competitionConfig';
 export type {
   OrganizationRecord,
@@ -45,10 +46,11 @@ export type TiebreakCriterionId =
   | 'draw';
 
 export type PhaseSetRules = {
-  groupStage?: '3-sets' | '5-sets';
-  playoffs?: '3-sets' | '5-sets';
-  semifinals?: '3-sets' | '5-sets';
-  final?: '3-sets' | '5-sets';
+  groupStage?: '3-sets' | '5-sets' | SetsToWin;
+  playoffs?: '3-sets' | '5-sets' | SetsToWin;
+  quarterfinals?: '3-sets' | '5-sets' | SetsToWin;
+  semifinals?: '3-sets' | '5-sets' | SetsToWin;
+  final?: '3-sets' | '5-sets' | SetsToWin;
 };
 
 export type ModalityRecord = {

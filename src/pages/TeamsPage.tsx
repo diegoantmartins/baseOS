@@ -42,6 +42,7 @@ import { SectionCard } from '@/components/ui/Section';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { StateContainer } from '@/components/ui/StateContainer';
+import { TeamCrest } from '@/components/ui/TeamCrest';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -244,17 +245,7 @@ export function TeamsPage() {
       header: 'Equipe / Agremiação',
       cell: ({ row }) => (
         <div className="flex items-center gap-3 min-w-0">
-          {row.logoUrl ? (
-            <img
-              src={row.logoUrl}
-              alt={`Escudo ${row.name}`}
-              className="w-9 h-9 rounded-lg object-contain bg-zinc-900 p-0.5 border border-zinc-800 shrink-0"
-            />
-          ) : (
-            <div className="w-9 h-9 rounded-lg bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 flex items-center justify-center font-bold text-xs shrink-0 font-mono">
-              {row.shortName}
-            </div>
-          )}
+          <TeamCrest team={row} size="sm" className="w-9 h-9 shrink-0" />
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="font-semibold text-foreground truncate">{row.name}</span>

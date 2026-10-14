@@ -3,6 +3,7 @@ import { Play, Pause, SkipForward, Trophy, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { TeamCrest } from '@/components/ui/TeamCrest';
 import { buildRevealSequence } from '@/components/draw/drawRevealSequence';
 import { ANIMATION_TIMINGS, SCENE3D_REVEAL_MS } from '@/config/drawArenaFeatures';
 import type { DrawResult } from '@/types/draw';
@@ -206,13 +207,7 @@ export function DrawScene3D({
                       background: `radial-gradient(circle at 30% 30%, #f8fafc 0%, #dbeafe 12%, ${team ? '#1e293b' : '#0f172a'} 52%, #020617 100%)`,
                     }}
                   >
-                    {team?.logoUrl ? (
-                      <img src={team.logoUrl} alt="" className="h-full w-full rounded-full object-cover p-[2px]" />
-                    ) : (
-                      <span className="flex h-full w-full items-center justify-center text-[8px] font-bold text-white md:text-[10px]">
-                        {team ? team.shortName?.slice(0, 2).toUpperCase() : '•'}
-                      </span>
-                    )}
+                    <TeamCrest team={team} size="xs" className="h-full w-full rounded-full" />
                   </motion.div>
                 );
               })}
@@ -307,12 +302,8 @@ export function DrawScene3D({
                     transition={{ duration: 1.4, ease: 'easeInOut' }}
                     className="flex w-[260px] flex-col items-center rounded-[28px] border border-[#f6c76b]/60 bg-[#09111d]/80 p-4 shadow-[0_0_55px_rgba(246,199,107,0.36)] backdrop-blur-md md:w-[300px]"
                   >
-                    <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full border border-white/25 bg-white/10 p-2 md:h-20 md:w-20">
-                      {currentTeam.logoUrl ? (
-                        <img src={currentTeam.logoUrl} alt={currentTeam.name} className="h-full w-full rounded-full object-cover" />
-                      ) : (
-                        <Users className="h-8 w-8 text-slate-300" />
-                      )}
+                    <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/25 bg-white/10 p-1 md:h-20 md:w-20">
+                      <TeamCrest team={currentTeam} size="lg" className="h-full w-full" />
                     </div>
                     <div className="mb-2 text-center">
                       <div className="text-[9px] font-bold uppercase tracking-[0.35em] text-[#f7d999]">Última equipe</div>

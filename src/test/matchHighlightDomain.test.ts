@@ -240,6 +240,17 @@ describe('BaseOS — Fase 6.1: Domínio de Destaque da Partida (MVP)', () => {
 
   describe('Requisitos K e L: Persistência, Recuperação e Reabertura de Partida', () => {
     it('Requisito K: Salva e recupera highlightAthleteId no dataAccess', async () => {
+      await dataAccess.createCompetition({
+        id: 'comp-1',
+        name: 'Comp K',
+        organizationId: dataAccess.getActiveOrganizationId() || 'org-1',
+        modality: 'indoor',
+        format: 'round-robin',
+        playerFormat: '6x6',
+        setFormat: '3-sets',
+        genderCategory: 'female',
+        status: 'in-progress'
+      });
       const match = await dataAccess.createMatch(baseMatch);
       expect(match.highlightAthleteId).toBeUndefined();
 
@@ -257,6 +268,17 @@ describe('BaseOS — Fase 6.1: Domínio de Destaque da Partida (MVP)', () => {
     });
 
     it('Requisito L: Reabertura preserva o MVP prévio mas permite alteração ou remoção', async () => {
+      await dataAccess.createCompetition({
+        id: 'comp-1',
+        name: 'Comp L',
+        organizationId: dataAccess.getActiveOrganizationId() || 'org-1',
+        modality: 'indoor',
+        format: 'round-robin',
+        playerFormat: '6x6',
+        setFormat: '3-sets',
+        genderCategory: 'female',
+        status: 'in-progress'
+      });
       const match = await dataAccess.createMatch({
         ...baseMatch,
         status: 'homologated',
@@ -285,6 +307,17 @@ describe('BaseOS — Fase 6.1: Domínio de Destaque da Partida (MVP)', () => {
 
   describe('Requisito M: Homologação Oficializa o Destaque', () => {
     it('ao homologar a partida, o highlightAthleteId é persistido junto aos metadados de auditoria', async () => {
+      await dataAccess.createCompetition({
+        id: 'comp-1',
+        name: 'Comp M',
+        organizationId: dataAccess.getActiveOrganizationId() || 'org-1',
+        modality: 'indoor',
+        format: 'round-robin',
+        playerFormat: '6x6',
+        setFormat: '3-sets',
+        genderCategory: 'female',
+        status: 'in-progress'
+      });
       const match = await dataAccess.createMatch(baseMatch);
 
       const homologated = await dataAccess.updateMatch(match.id, {
@@ -501,6 +534,17 @@ describe('BaseOS — Fase 6.1: Domínio de Destaque da Partida (MVP)', () => {
 
   describe('Requisito R: Proteção de Schema e Adapter contra PGRST204', () => {
     it('dataAccess.updateMatch limpa chaves com undefined antes de enviar payload', async () => {
+      await dataAccess.createCompetition({
+        id: 'comp-1',
+        name: 'Comp R',
+        organizationId: dataAccess.getActiveOrganizationId() || 'org-1',
+        modality: 'indoor',
+        format: 'round-robin',
+        playerFormat: '6x6',
+        setFormat: '3-sets',
+        genderCategory: 'female',
+        status: 'in-progress'
+      });
       const match = await dataAccess.createMatch(baseMatch);
 
       // Atualiza com highlightAthleteId válido e campos undefined que poderiam causar PGRST204 se não sanitizados

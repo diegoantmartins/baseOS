@@ -48,6 +48,7 @@ export const seedVenues: VenueRecord[] = [
   {
     id: 'venue-1',
     name: 'Ginásio Poliesportivo Central',
+    organizationId: 'org-1',
     address: 'Av. das Nações Unidas, 1500 - Centro Esportivo',
     responsible: 'Coordenação de Eventos Esportivos',
     courts: ['Quadra Principal', 'Quadra Auxiliar'],
@@ -61,6 +62,7 @@ export const seedVenues: VenueRecord[] = [
   {
     id: 'venue-2',
     name: 'Arena Multiuso Olímpica',
+    organizationId: 'org-1',
     address: 'Parque Olímpico da Juventude, Bloco B',
     responsible: 'Secretaria de Esporte e Lazer',
     courts: ['Quadra Central', 'Quadra de Aquecimento'],

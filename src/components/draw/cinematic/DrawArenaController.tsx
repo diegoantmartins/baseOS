@@ -35,6 +35,9 @@ interface DrawArenaControllerProps {
 
   /** ID real do sorteio persistido (para auditoria). Se undefined, não exibe. */
   drawId?: string;
+
+  /** Modo Simulação / Demo (sem persistência) */
+  isSimulation?: boolean;
 }
 
 /**
@@ -73,6 +76,7 @@ export function DrawArenaController({
   competition,
   onClose,
   drawId,
+  isSimulation,
 }: DrawArenaControllerProps) {
   // Estados de controle: inicia em pausa (false) para permitir contemplação da Urna em READY
   const [autoPlay, setAutoPlay] = useState(false);
@@ -263,6 +267,7 @@ export function DrawArenaController({
         onAdvance={handleAdvance}
         onReset={machine.reset}
         drawId={drawId}
+        isSimulation={isSimulation}
       />
     </div>
   );

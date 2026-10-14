@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import { authService } from '@/services/authService';
 import {
   dataAccess,
   resetLocalData,
@@ -25,6 +26,10 @@ describe('BASEOS — FASE 11.4: Cadastro Canônico de Atletas + Matching por CPF
     await dataAccess.updateCompetition('comp-masculino-2026', { status: 'registration-open' });
     await dataAccess.updateCompetition('comp-feminino-2026', { status: 'registration-open' });
     await dataAccess.updateCompetition('comp-copa-pro-2026', { status: 'registration-open' });
+
+    vi.spyOn(authService, 'isPlatformAdmin').mockReturnValue(true);
+    localStorage.setItem('baseos.global_view', 'true');
+    localStorage.setItem('baseos.active_org_id', 'all');
   });
 
   // TESTE 1 — CPF novo
@@ -239,6 +244,7 @@ describe('BASEOS — FASE 11.4: Cadastro Canônico de Atletas + Matching por CPF
   // TESTE 6 — mesma equipe em duas competições
   it('TESTE 6: Mesma equipe (team_id) participa de duas competições distintas sem duplicar registro de teams', async () => {
     const allTeams = await dataAccess.listTeams();
+    console.log("ALL TEAMS:", allTeams.map(t => t.id));
     const teamM1 = allTeams.find(t => t.id === 'team-m-1');
     expect(teamM1).toBeDefined();
 

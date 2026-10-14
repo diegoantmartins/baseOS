@@ -36,6 +36,7 @@ export type AthleteIdentity = {
   normalizedCpf?: string;
   name: string;
   birthDate?: string;
+  organizationId?: string;
   createdAt: string;
   updatedAt: string;
 };

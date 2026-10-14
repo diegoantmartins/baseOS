@@ -14,12 +14,14 @@ import type { StandingsByGroup, TeamStandingResult } from '@/services/standingsS
 import { CompetitionRulesService } from './competitionRulesService';
 import {
   generateTwoGroupPlayoffs,
+  generateThreeGroupPlayoffs,
   generateFourGroupPlayoffs,
   buildPlayoffMatches,
   advancePlayoffMatches,
   computePodium,
   type PlayoffMatchSlot,
 } from './playoffsService';
+import { OverallStandingsEngine } from './overallStandingsEngine';
 
 export interface BracketCheckResult {
   ok: boolean;
@@ -158,6 +160,11 @@ export class CompetitionBracketService {
       return generateFourGroupPlayoffs(groupStandings);
     }
 
+    if (groupsCount === 3) {
+      const overall = overallStandings ?? OverallStandingsEngine.computeOverallStandings(groupStandings, { competition });
+      return generateThreeGroupPlayoffs(overall);
+    }
+
     if (groupsCount === 2) {
       return generateTwoGroupPlayoffs(groupStandings);
     }
@@ -168,6 +175,9 @@ export class CompetitionBracketService {
     }
 
     if (overallStandings && overallStandings.length >= 2) {
+      if (overallStandings.length >= 8) {
+        return generateThreeGroupPlayoffs(overallStandings);
+      }
       return generateSingleGroupPlayoffs(overallStandings);
     }
 

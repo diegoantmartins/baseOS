@@ -40,6 +40,8 @@ const PublicCompetitionPage = lazy(() => import("./pages/PublicCompetitionPage")
 const OrganizationsPage = lazy(() => import("./pages/OrganizationsPage"));
 const OrganizationDetailPage = lazy(() => import("./pages/OrganizationDetailPage"));
 const OrganizationPortalPage = lazy(() => import("./pages/OrganizationPortalPage"));
+const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
+const TermsPage = lazy(() => import("./pages/TermsPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Portal Unificado por Perfil (Fase 10)
@@ -56,7 +58,16 @@ const TeamPortalPage = lazy(() =>
   import("./pages/portal/TeamPortalPage").then((m) => ({ default: m.TeamPortalPage }))
 );
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutos sem refetch automático desnecessário
+      gcTime: 1000 * 60 * 30, // 30 minutos em memória
+      refetchOnWindowFocus: false, // Evita engasgos ao trocar de aba
+      retry: 1,
+    },
+  },
+});
 
 import { RootRedirector } from "./components/routing/RootRedirector";
 import { TenantRouteGuard } from "./components/routing/TenantRouteGuard";
@@ -112,6 +123,8 @@ const App = () => (
                 <Route path="/equipe/:token" element={<TeamRosterRegistrationPage />} />
                 <Route path="/equipe/inscricao/:token" element={<TeamRosterRegistrationPage />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/privacidade" element={<PrivacyPolicyPage />} />
+                <Route path="/termos" element={<TermsPage />} />
                 <Route path="/ajuda" element={<HelpCenterPage />} />
                 <Route path="/help" element={<HelpCenterPage />} />
 

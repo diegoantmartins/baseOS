@@ -281,86 +281,194 @@ export class CompetitionTemplateService {
     base: CompetitionConfig,
     options: CreateConfigOptions,
   ): CompetitionConfig {
-    // Padrão genérico de 4 grupos (ideal para 12 a 16 equipes)
-    // 1º ao 4º colocados gerais avançam diretamente às Quartas de Final
-    // 5º ao 12º colocados disputam o Play-In (repescagem pré-quartas)
-    const stageGroups: StageDefinition = {
-      id: 'fase-grupos',
-      stageId: 'fase-grupos',
-      order: 1,
-      name: 'Fase de Grupos (4 Grupos)',
-      type: 'group-stage',
-      groupConfig: {
+    const teamsCount = options.teamsCount ?? 10;
+    const isTenTeams = teamsCount <= 10;
+
+    let stageGroups: StageDefinition;
+    let stagePlayIn: StageDefinition;
+    let stageKnockout: StageDefinition;
+
+    if (isTenTeams) {
+      // Formato Oficial 10 Equipes (3 Chaves Assimétricas [4, 3, 3] + Repescagem + Playoffs)
+      stageGroups = {
+        id: 'fase-grupos',
+        stageId: 'fase-grupos',
+        order: 1,
+        name: 'Fase de Grupos (3 Chaves)',
+        type: 'group-stage',
+        participantsCount: 10,
+        participantsOrigin: 'global',
+        groupsCount: 3,
+        advancingCount: 6,
+        groupConfig: {
+          groupsCount: 3,
+          teamsPerGroup: 4,
+          groupCapacities: [4, 3, 3],
+          rounds: 'single',
+        },
+        participantFeeds: [
+          { type: 'all-teams' },
+        ],
+        rounds: [
+          { roundId: 'jogos-grupos', stageId: 'fase-grupos', order: 1, name: 'Classificatória' },
+        ],
+      };
+
+      stagePlayIn = {
+        id: 'play-in',
+        stageId: 'play-in',
+        order: 2,
+        name: 'Repescagem / Play-In (7º ao 10º)',
+        type: 'play-in',
+        participantsCount: 4,
+        participantsOrigin: 'overall-ranking',
+        advancingCount: 2,
+        dependsOnStageIds: ['fase-grupos'],
+        eliminationConfig: {
+          bracketSize: 4,
+          hasThirdPlaceMatch: false,
+        },
+        pairingConfig: {
+          strategy: 'high-low',
+        },
+        participantFeeds: [
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 7 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 8 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 9 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 10 },
+        ],
+        rounds: [
+          { roundId: 'rodada-play-in', stageId: 'play-in', order: 1, name: 'Repescagem (Eliminatória)', slotsCount: 2 },
+        ],
+      };
+
+      stageKnockout = {
+        id: 'fase-final',
+        stageId: 'fase-final',
+        order: 3,
+        name: 'Fase Final (Quartas, Semis e Final)',
+        type: 'knockout',
+        participantsCount: 8,
+        participantsOrigin: 'stage-position',
+        advancingCount: 1,
+        dependsOnStageIds: ['fase-grupos', 'play-in'],
+        eliminationConfig: {
+          bracketSize: 8,
+          hasThirdPlaceMatch: true,
+        },
+        pairingConfig: {
+          strategy: 'seeded-bracket',
+          bracketSize: 8,
+        },
+        participantFeeds: [
+          // 1º ao 6º do ranking geral entram diretamente nas Quartas
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 1 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 2 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 3 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 4 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 5 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 6 },
+          // Os outros 2 vêm da Repescagem / Play-In (vencedores)
+          { type: 'stage-winners', stageId: 'play-in' },
+        ],
+        rounds: [
+          { roundId: 'quartas', stageId: 'fase-final', order: 1, name: 'Quartas de Final', slotsCount: 4 },
+          { roundId: 'semifinais', stageId: 'fase-final', order: 2, name: 'Semifinais', slotsCount: 2 },
+          { roundId: 'final', stageId: 'fase-final', order: 3, name: 'Grande Final', slotsCount: 1 },
+        ],
+      };
+    } else {
+      // Padrão genérico de 4 grupos (ideal para 12 a 16 equipes)
+      // 1º ao 4º colocados gerais avançam diretamente às Quartas de Final
+      // 5º ao 12º colocados disputam o Play-In (repescagem pré-quartas)
+      stageGroups = {
+        id: 'fase-grupos',
+        stageId: 'fase-grupos',
+        order: 1,
+        name: 'Fase de Grupos (4 Grupos)',
+        type: 'group-stage',
+        participantsCount: teamsCount,
+        participantsOrigin: 'global',
         groupsCount: 4,
-        teamsPerGroup: 3,
-        rounds: 'single',
-      },
-      participantFeeds: [
-        { type: 'all-teams' },
-      ],
-      rounds: [
-        { roundId: 'jogos-grupos', stageId: 'fase-grupos', order: 1, name: 'Classificatória' },
-      ],
-    };
+        advancingCount: 4,
+        groupConfig: {
+          groupsCount: 4,
+          teamsPerGroup: Math.ceil(teamsCount / 4),
+          rounds: 'single',
+        },
+        participantFeeds: [
+          { type: 'all-teams' },
+        ],
+        rounds: [
+          { roundId: 'jogos-grupos', stageId: 'fase-grupos', order: 1, name: 'Classificatória' },
+        ],
+      };
 
-    const stagePlayIn: StageDefinition = {
-      id: 'play-in',
-      stageId: 'play-in',
-      order: 2,
-      name: 'Play-In (Repescagem 5º ao 12º)',
-      type: 'play-in',
-      dependsOnStageIds: ['fase-grupos'],
-      eliminationConfig: {
-        bracketSize: 8,
-      },
-      pairingConfig: {
-        strategy: 'high-low',
-      },
-      participantFeeds: [
-        { type: 'overall-ranking', stageId: 'fase-grupos', position: 5 },
-        { type: 'overall-ranking', stageId: 'fase-grupos', position: 6 },
-        { type: 'overall-ranking', stageId: 'fase-grupos', position: 7 },
-        { type: 'overall-ranking', stageId: 'fase-grupos', position: 8 },
-        { type: 'overall-ranking', stageId: 'fase-grupos', position: 9 },
-        { type: 'overall-ranking', stageId: 'fase-grupos', position: 10 },
-        { type: 'overall-ranking', stageId: 'fase-grupos', position: 11 },
-        { type: 'overall-ranking', stageId: 'fase-grupos', position: 12 },
-      ],
-      rounds: [
-        { roundId: 'rodada-play-in', stageId: 'play-in', order: 1, name: 'Play-In (Eliminatória)', slotsCount: 4 },
-      ],
-    };
+      stagePlayIn = {
+        id: 'play-in',
+        stageId: 'play-in',
+        order: 2,
+        name: 'Play-In (Repescagem 5º ao 12º)',
+        type: 'play-in',
+        participantsCount: 8,
+        participantsOrigin: 'overall-ranking',
+        advancingCount: 4,
+        dependsOnStageIds: ['fase-grupos'],
+        eliminationConfig: {
+          bracketSize: 8,
+        },
+        pairingConfig: {
+          strategy: 'high-low',
+        },
+        participantFeeds: [
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 5 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 6 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 7 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 8 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 9 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 10 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 11 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 12 },
+        ],
+        rounds: [
+          { roundId: 'rodada-play-in', stageId: 'play-in', order: 1, name: 'Play-In (Eliminatória)', slotsCount: 4 },
+        ],
+      };
 
-    const stageKnockout: StageDefinition = {
-      id: 'fase-final',
-      stageId: 'fase-final',
-      order: 3,
-      name: 'Fase Final (Quartas, Semis e Final)',
-      type: 'knockout',
-      dependsOnStageIds: ['fase-grupos', 'play-in'],
-      eliminationConfig: {
-        bracketSize: 8,
-        hasThirdPlaceMatch: true,
-      },
-      pairingConfig: {
-        strategy: 'seeded-bracket',
-        bracketSize: 8,
-      },
-      participantFeeds: [
-        // 1º ao 4º do ranking geral entram diretamente nas Quartas
-        { type: 'overall-ranking', stageId: 'fase-grupos', position: 1 },
-        { type: 'overall-ranking', stageId: 'fase-grupos', position: 2 },
-        { type: 'overall-ranking', stageId: 'fase-grupos', position: 3 },
-        { type: 'overall-ranking', stageId: 'fase-grupos', position: 4 },
-        // Os outros 4 vêm do Play-In (vencedores)
-        { type: 'stage-winners', stageId: 'play-in' },
-      ],
-      rounds: [
-        { roundId: 'quartas', stageId: 'fase-final', order: 1, name: 'Quartas de Final', slotsCount: 4 },
-        { roundId: 'semifinais', stageId: 'fase-final', order: 2, name: 'Semifinais', slotsCount: 2 },
-        { roundId: 'final', stageId: 'fase-final', order: 3, name: 'Grande Final', slotsCount: 1 },
-      ],
-    };
+      stageKnockout = {
+        id: 'fase-final',
+        stageId: 'fase-final',
+        order: 3,
+        name: 'Fase Final (Quartas, Semis e Final)',
+        type: 'knockout',
+        participantsCount: 8,
+        participantsOrigin: 'stage-position',
+        advancingCount: 1,
+        dependsOnStageIds: ['fase-grupos', 'play-in'],
+        eliminationConfig: {
+          bracketSize: 8,
+          hasThirdPlaceMatch: true,
+        },
+        pairingConfig: {
+          strategy: 'seeded-bracket',
+          bracketSize: 8,
+        },
+        participantFeeds: [
+          // 1º ao 4º do ranking geral entram diretamente nas Quartas
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 1 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 2 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 3 },
+          { type: 'overall-ranking', stageId: 'fase-grupos', position: 4 },
+          // Os outros 4 vêm do Play-In (vencedores)
+          { type: 'stage-winners', stageId: 'play-in' },
+        ],
+        rounds: [
+          { roundId: 'quartas', stageId: 'fase-final', order: 1, name: 'Quartas de Final', slotsCount: 4 },
+          { roundId: 'semifinais', stageId: 'fase-final', order: 2, name: 'Semifinais', slotsCount: 2 },
+          { roundId: 'final', stageId: 'fase-final', order: 3, name: 'Grande Final', slotsCount: 1 },
+        ],
+      };
+    }
 
     const isBeach = options.modality === 'beach';
     return {

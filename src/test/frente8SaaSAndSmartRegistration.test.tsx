@@ -48,6 +48,10 @@ vi.mock('@/lib/supabaseClient', () => ({
 describe('Frente 8: SaaS Portals & Smart Registration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(window, 'crypto', {
+      value: { randomUUID: () => 'test-uuid-1234' },
+      writable: true
+    });
   });
 
   // ==========================================================================
@@ -75,8 +79,8 @@ describe('Frente 8: SaaS Portals & Smart Registration', () => {
 
       // Deve renderizar a vitrine pública
       await waitFor(() => {
-        expect(screen.getByText(/Competições Hoje/i)).toBeDefined();
-        expect(screen.getByText(/Portal Público/i)).toBeDefined();
+        expect(screen.getByText(/O Futuro da Gestão Esportiva/i)).toBeDefined();
+        expect(screen.getByText(/Seu campeonato organizado/i)).toBeDefined();
       });
     });
 
@@ -204,7 +208,7 @@ describe('Frente 8: SaaS Portals & Smart Registration', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText(/Competições Hoje/i)).toBeDefined();
+        expect(screen.getByText(/O Futuro da Gestão Esportiva/i)).toBeDefined();
       });
     });
   });
@@ -384,6 +388,11 @@ describe('Frente 8: SaaS Portals & Smart Registration', () => {
 
       const cpfInput = screen.getByLabelText(/CPF do Atleta/i);
       fireEvent.change(cpfInput, { target: { value: '111.222.333-44' } });
+      fireEvent.blur(cpfInput);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Novo atleta no BaseOS/i)).toBeDefined();
+      });
 
       const nameInput = screen.getByLabelText(/Nome Completo/i);
       fireEvent.change(nameInput, { target: { value: 'Carlos Levantador' } });

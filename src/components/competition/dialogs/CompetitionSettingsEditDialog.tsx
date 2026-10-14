@@ -19,44 +19,54 @@ export interface CompetitionSettingsEditDialogProps {
   defaultTab?: 'sets' | 'identidade';
 }
 
-function setsToWinToLegacy(sets?: SetsToWin | number): '3-sets' | '5-sets' {
+function setsToWinToLegacy(sets?: SetsToWin | number | string): '3-sets' | '5-sets' {
+  if (typeof sets === 'string') {
+    return parseLegacySetFormat(sets) === 3 ? '5-sets' : '3-sets';
+  }
   return sets === 3 ? '5-sets' : '3-sets';
 }
 
 function resolveInitialSetFormat(competition: CompetitionRecord): '3-sets' | '5-sets' {
-  if (competition.config?.format?.defaultSetsToWin) {
+  if (competition.config?.format?.defaultSetsToWin !== undefined) {
     return setsToWinToLegacy(competition.config.format.defaultSetsToWin);
   }
-  return (competition.setFormat as '3-sets' | '5-sets') || '3-sets';
+  return setsToWinToLegacy(competition.setFormat);
 }
 
 function resolveInitialGroupStage(competition: CompetitionRecord): '3-sets' | '5-sets' {
-  if (competition.config?.format?.phaseOverrides?.groupStage) {
-    return setsToWinToLegacy(competition.config.format.phaseOverrides.groupStage);
+  const override = competition.config?.format?.phaseOverrides?.groupStage ?? competition.phaseSetRules?.groupStage;
+  if (override !== undefined) {
+    return setsToWinToLegacy(override);
   }
-  return (competition.phaseSetRules?.groupStage as '3-sets' | '5-sets') || resolveInitialSetFormat(competition);
+  return resolveInitialSetFormat(competition);
 }
 
 function resolveInitialPlayoffs(competition: CompetitionRecord): '3-sets' | '5-sets' {
-  const override = competition.config?.format?.phaseOverrides?.quarterfinals ?? competition.config?.format?.phaseOverrides?.playoffs;
-  if (override) {
+  const override =
+    competition.config?.format?.phaseOverrides?.quarterfinals ??
+    competition.config?.format?.phaseOverrides?.playoffs ??
+    competition.phaseSetRules?.quarterfinals ??
+    competition.phaseSetRules?.playoffs;
+  if (override !== undefined) {
     return setsToWinToLegacy(override);
   }
-  return (competition.phaseSetRules?.playoffs as '3-sets' | '5-sets') || resolveInitialSetFormat(competition);
+  return resolveInitialSetFormat(competition);
 }
 
 function resolveInitialSemifinals(competition: CompetitionRecord): '3-sets' | '5-sets' {
-  if (competition.config?.format?.phaseOverrides?.semifinals) {
-    return setsToWinToLegacy(competition.config.format.phaseOverrides.semifinals);
+  const override = competition.config?.format?.phaseOverrides?.semifinals ?? competition.phaseSetRules?.semifinals;
+  if (override !== undefined) {
+    return setsToWinToLegacy(override);
   }
-  return (competition.phaseSetRules?.semifinals as '3-sets' | '5-sets') || '5-sets';
+  return '5-sets';
 }
 
 function resolveInitialFinal(competition: CompetitionRecord): '3-sets' | '5-sets' {
-  if (competition.config?.format?.phaseOverrides?.final) {
-    return setsToWinToLegacy(competition.config.format.phaseOverrides.final);
+  const override = competition.config?.format?.phaseOverrides?.final ?? competition.phaseSetRules?.final;
+  if (override !== undefined) {
+    return setsToWinToLegacy(override);
   }
-  return (competition.phaseSetRules?.final as '3-sets' | '5-sets') || '5-sets';
+  return '5-sets';
 }
 
 export function CompetitionSettingsEditDialog({

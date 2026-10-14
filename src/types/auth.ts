@@ -1,6 +1,6 @@
 // Tipos do módulo de autenticação e perfis de acesso.
 
-export type UserRole = 'admin' | 'organizer' | 'referee' | 'scorer' | 'team' | 'viewer';
+export type UserRole = 'admin' | 'organizer' | 'referee' | 'scorer' | 'team' | 'team_manager' | 'viewer';
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrador(a)',
@@ -8,6 +8,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   referee: 'Árbitro(a)',
   scorer: 'Apontador(a) / Mesário',
   team: 'Representante de Equipe',
+  team_manager: 'Gestor(a) de Equipe',
   viewer: 'Visualizador(a)',
 };
 

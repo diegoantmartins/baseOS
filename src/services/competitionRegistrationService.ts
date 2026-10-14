@@ -267,7 +267,7 @@ export class CompetitionRegistrationService {
       errors.push(`Máximo de ${limits.maxLiberos} líberos permitidos para esta modalidade.`);
     }
 
-    // 7. Unicidade de atleta no mesmo torneio (não pode jogar por duas equipes)
+    // 7. Unicidade de atleta no elenco da própria equipe (impede cadastrar o mesmo atleta duas vezes)
     let inputCpf: string | undefined;
     try {
       inputCpf = normalizeCpf(input.documentNumber);
@@ -276,6 +276,25 @@ export class CompetitionRegistrationService {
     }
     const rawInputDoc = input.documentNumber?.trim().toLowerCase();
 
+    for (const sibling of otherSiblings) {
+      let siblingCpf: string | undefined;
+      try {
+        siblingCpf = normalizeCpf(sibling.documentNumber);
+      } catch {
+        siblingCpf = undefined;
+      }
+      const rawSiblingDoc = sibling.documentNumber?.trim().toLowerCase();
+      const sameCpf = Boolean(inputCpf && siblingCpf && inputCpf === siblingCpf);
+      const sameAthleteId = Boolean(input.athleteId && sibling.athleteId && input.athleteId === sibling.athleteId);
+      const sameExactDoc = Boolean(rawInputDoc && rawSiblingDoc && rawInputDoc === rawSiblingDoc);
+
+      if (sameCpf || sameAthleteId || sameExactDoc) {
+        errors.push(`O atleta "${input.name}" já está cadastrado no elenco desta equipe.`);
+        break;
+      }
+    }
+
+    // 8. Unicidade de atleta no mesmo torneio (não pode jogar por duas equipes distintas)
     for (const otherAthlete of allCompetitionAthletes) {
       if (otherAthlete.competitionTeamId === competitionTeam.id) continue;
       if (otherAthlete.id === excludeAthleteId) continue;

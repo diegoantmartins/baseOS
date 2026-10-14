@@ -488,7 +488,12 @@ export const authService = {
   },
 
   hasRole(session: AuthSession | null, roles: UserRole[]): boolean {
-    return !!session && (roles.includes(session.user.role) || session.user.role === 'admin' || Boolean(session.user.isPlatformAdmin));
+    if (!session) return false;
+    if (session.user.role === 'admin' || Boolean(session.user.isPlatformAdmin)) return true;
+    if (roles.includes(session.user.role)) return true;
+    if (roles.includes('team') && (session.user.role as string) === 'team_manager') return true;
+    if (roles.includes('team_manager') && session.user.role === 'team') return true;
+    return false;
   },
 
   isPlatformAdmin(session?: AuthSession | null): boolean {

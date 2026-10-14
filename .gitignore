@@ -52,4 +52,15 @@ docs/marketing/
 *.pdf
 !public/**/*.pdf
 
+# Backups, dumps and patches
+*.dump
+dist_backup*/
+backups/
+/*.sql
+*.patch
+*.orig
+test-db.js
+qa_master_SKILL.md
+
+
 
