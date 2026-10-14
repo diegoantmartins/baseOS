@@ -54,8 +54,6 @@ import { useAuth } from '@/components/auth/useAuth';
 import { dataAccess } from '@/services/dataAccess';
 import { TeamCrest } from '@/components/ui/TeamCrest';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -268,36 +266,14 @@ function HeroParallaxStage({ onScrollToCompetitions }: HeroParallaxProps) {
         />
       </motion.div>
 
-      {/* 2. Micro-Cards Flutuantes de Telemetria em Parallax */}
-      <motion.div
-        style={{ y: telemetryY1, x: smoothMouseX }}
-        className="hidden xl:flex absolute top-16 right-[48%] z-10 items-center gap-2.5 bg-white/90 backdrop-blur-md border border-slate-200/90 rounded-full px-4 py-2 shadow-sm text-xs font-medium text-slate-800"
-      >
-        <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-        <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 font-mono">AO VIVO</span>
-        <span className="text-slate-300">|</span>
-        <span className="font-mono font-bold text-slate-900">25 • 23</span>
-        <span className="text-[11px] text-slate-500 font-mono">SET 3</span>
-      </motion.div>
-
-      <motion.div
-        style={{ y: telemetryY2, x: useTransform(smoothMouseX, (val) => -val * 0.6) }}
-        className="hidden xl:flex absolute bottom-12 right-[46%] z-10 items-center gap-2 bg-white/90 backdrop-blur-md border border-slate-200/90 rounded-full px-4 py-2 shadow-sm text-xs font-semibold text-slate-800"
-      >
-        <FileCheck2 className="w-4 h-4 text-orange-500" />
-        <span className="text-[11px] font-mono tracking-tight text-slate-700">
-          SÚMULA OFICIAL A4 HOMOLOGADA
-        </span>
-      </motion.div>
-
       {/* Conteúdo Principal do Hero */}
       <div className="max-w-7xl mx-auto w-full relative z-20 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
         {/* Coluna da Esquerda (55% — Proposta de Valor Limpa e Direta) */}
         <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
           {/* Pílula Superior */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-slate-200 bg-white shadow-xs text-slate-700 text-xs font-semibold">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-slate-200/90 bg-white shadow-xs text-xs">
             <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-            <span className="font-mono uppercase tracking-wider text-[11px] text-slate-800 font-bold">
+            <span className="font-mono uppercase tracking-wider text-[11px] text-[#0F172A] font-bold">
               SPORTS INTELLIGENCE PLATFORM
             </span>
           </div>
@@ -308,7 +284,7 @@ function HeroParallaxStage({ onScrollToCompetitions }: HeroParallaxProps) {
           </h1>
 
           {/* Subtítulo Curto e Direto (máximo 2 linhas) */}
-          <p className="text-base sm:text-lg text-slate-600 max-w-xl mx-auto lg:mx-0 leading-relaxed font-normal">
+          <p className="text-base sm:text-lg text-slate-600 font-medium max-w-xl mx-auto lg:mx-0 leading-relaxed">
             Plataforma oficial de competições, sorteio 3D de chaves, súmulas digitais e resultados em tempo real.
           </p>
 
@@ -339,220 +315,244 @@ function HeroParallaxStage({ onScrollToCompetitions }: HeroParallaxProps) {
         {/* Coluna da Direita (45% — O Terminal de Acesso Direto ao Sistema) */}
         <motion.div
           style={{ y: parallaxCardY }}
-          className="lg:col-span-5 w-full flex justify-center"
+          className="lg:col-span-5 w-full flex justify-center relative"
         >
-          <div className="w-full max-w-md bg-white/95 backdrop-blur-2xl border border-slate-200/90 rounded-[28px] p-6 sm:p-8 shadow-[0_30px_80px_-20px_rgba(15,23,42,0.15)] relative">
-            {/* Seletor em Pílula (2 Abas) */}
-            <div className="flex items-center p-1 bg-slate-100 rounded-full mb-6">
-              <button
-                type="button"
-                onClick={() => { setActiveTab('login'); setLoginError(null); }}
-                className={`flex-1 py-2 text-xs font-bold rounded-full transition-all cursor-pointer ${
-                  activeTab === 'login'
-                    ? 'bg-white text-[#0F172A] shadow-xs'
-                    : 'text-slate-500 hover:text-[#0F172A]'
-                }`}
-              >
-                Entrar no Sistema
-              </button>
-              <button
-                type="button"
-                onClick={() => { setActiveTab('invite'); setLoginError(null); }}
-                className={`flex-1 py-2 text-xs font-bold rounded-full transition-all cursor-pointer ${
-                  activeTab === 'invite'
-                    ? 'bg-white text-[#0F172A] shadow-xs'
-                    : 'text-slate-500 hover:text-[#0F172A]'
-                }`}
-              >
-                Convite de Equipe
-              </button>
-            </div>
+          <div className="w-full max-w-md relative">
+            {/* 2. Micro-Cards Flutuantes de Telemetria em Parallax (Orbitando o Terminal) */}
+            <motion.div
+              style={{ y: telemetryY1, x: smoothMouseX }}
+              className="hidden xl:flex absolute -top-5 -left-8 z-30 items-center gap-2.5 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-full px-4 py-2 shadow-[0_10px_30px_-5px_rgba(15,23,42,0.08)] text-xs font-medium pointer-events-none select-none"
+            >
+              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 font-mono">AO VIVO</span>
+              <span className="text-slate-300">|</span>
+              <span className="font-mono font-bold text-[#0F172A]">25 • 23</span>
+              <span className="text-[11px] text-slate-600 font-semibold font-mono">SET 3</span>
+            </motion.div>
 
-            {/* ABA 1: ENTRAR NO SISTEMA */}
-            {activeTab === 'login' && (
-              <div className="space-y-4">
-                {session ? (
-                  // Estado Autenticado: Boas-vindas e Acesso Imediato ao Painel
-                  <div className="space-y-5 text-center py-2">
-                    <div className="w-14 h-14 mx-auto rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center border border-orange-500/20">
-                      <UserCheck className="w-7 h-7" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-[#0F172A]">
-                        Olá, {session.user.name || 'Usuário'}!
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Você já está autenticado no BaseOS com perfil{' '}
-                        <span className="font-semibold text-slate-700 capitalize">{session.user.role}</span>.
-                      </p>
-                    </div>
+            <motion.div
+              style={{ y: telemetryY2, x: useTransform(smoothMouseX, (val) => -val * 0.6) }}
+              className="hidden xl:flex absolute -bottom-5 -right-6 z-30 items-center gap-2 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-full px-4 py-2 shadow-[0_10px_30px_-5px_rgba(15,23,42,0.08)] text-xs font-semibold pointer-events-none select-none"
+            >
+              <FileCheck2 className="w-4 h-4 text-orange-500" />
+              <span className="text-[11px] font-mono tracking-tight text-[#0F172A] font-semibold">
+                SÚMULA OFICIAL A4 HOMOLOGADA
+              </span>
+            </motion.div>
 
-                    <Button
-                      asChild
-                      className="w-full rounded-full bg-orange-500 hover:bg-orange-600 text-white font-semibold h-12 shadow-md shadow-orange-500/20 transition-all text-sm"
-                    >
-                      <Link to={getSafeDestination(session.user.role, session.user.isPlatformAdmin)}>
-                        <span>Ir para Meu Painel Agora</span>
-                        <ArrowRight className="w-4 h-4 ml-2" />
-                      </Link>
-                    </Button>
-
-                    <button
-                      type="button"
-                      onClick={() => signOut()}
-                      className="text-xs text-slate-400 hover:text-slate-700 font-medium inline-flex items-center gap-1 cursor-pointer pt-1"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Sair ou alternar de conta</span>
-                    </button>
-                  </div>
-                ) : (
-                  // Formulário de Login Direto no Hero
-                  <form onSubmit={handleLoginSubmit} className="space-y-4">
-                    <div>
-                      <h3 className="text-xl font-bold text-[#0F172A]">Acesso à Plataforma</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Digite seu CPF ou e-mail cadastrado para entrar.
-                      </p>
-                    </div>
-
-                    {loginError && (
-                      <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 text-xs font-medium">
-                        {loginError}
-                      </div>
-                    )}
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                          CPF ou E-mail
-                        </label>
-                        <div className="relative">
-                          <Input
-                            type="text"
-                            placeholder="000.000.000-00 ou seu@email.com"
-                            value={identifier}
-                            onChange={(e) => setIdentifier(e.target.value)}
-                            className="bg-slate-50 border-slate-200 focus:border-orange-500 focus:ring-orange-500 rounded-2xl h-12 px-4 text-slate-900 text-sm"
-                            required
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                            Senha
-                          </label>
-                          <a
-                            href={COMMERCIAL_WHATSAPP_URL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[11px] text-orange-600 hover:text-orange-700 font-semibold"
-                          >
-                            Esqueceu?
-                          </a>
-                        </div>
-                        <div className="relative">
-                          <Input
-                            type={showPassword ? 'text' : 'password'}
-                            placeholder="••••••••"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="bg-slate-50 border-slate-200 focus:border-orange-500 focus:ring-orange-500 rounded-2xl h-12 px-4 pr-11 text-slate-900 text-sm font-mono"
-                            required
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                            aria-label={showPassword ? 'Ocultar senha' : 'Exibir senha'}
-                          >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <Button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full rounded-full bg-orange-500 hover:bg-orange-600 text-white font-semibold h-12 shadow-md shadow-orange-500/20 transition-all text-sm mt-2"
-                    >
-                      {isSubmitting ? (
-                        <span>Validando credenciais...</span>
-                      ) : (
-                        <span className="flex items-center justify-center gap-1.5">
-                          <span>Acessar Sistema</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </span>
-                      )}
-                    </Button>
-
-                    {/* Acesso rápido em modo demonstração local */}
-                    {!isSupabaseConfigured() && (
-                      <div className="pt-3 border-t border-slate-100">
-                        <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1.5">
-                          Acesso Rápido de Testes:
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {DEMO_USERS.map((u) => (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={() => handleDemoFill(u.email)}
-                              className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-                            >
-                              {u.name.split(' ')[0]} ({u.role})
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </form>
-                )}
-              </div>
-            )}
-
-            {/* ABA 2: CONVITE DE EQUIPE */}
-            {activeTab === 'invite' && (
-              <form onSubmit={handleInviteSubmit} className="space-y-4">
-                <div>
-                  <h3 className="text-xl font-bold text-[#0F172A]">Convite de Equipe</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Cole o código ou o link completo enviado pela organização.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Código ou Link do Convite
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="Ex: 8f9b2c1a ou cole o link recebido"
-                    value={inviteToken}
-                    onChange={(e) => setInviteToken(e.target.value)}
-                    className="bg-slate-50 border-slate-200 focus:border-orange-500 focus:ring-orange-500 rounded-2xl h-12 px-4 text-slate-900 text-sm"
-                    required
-                  />
-                  <span className="text-[11px] text-slate-400 mt-1 block">
-                    Permite enviar o elenco oficial de atletas e comissão técnica.
-                  </span>
-                </div>
-
-                <Button
-                  type="submit"
-                  disabled={!inviteToken.trim()}
-                  className="w-full rounded-full bg-orange-500 hover:bg-orange-600 text-white font-semibold h-12 shadow-md shadow-orange-500/20 transition-all text-sm mt-3"
+            <div className="w-full bg-white border border-slate-200/90 rounded-[28px] p-6 sm:p-8 shadow-[0_20px_60px_-15px_rgba(15,23,42,0.08)] relative">
+              {/* Seletor em Pílula (2 Abas) */}
+              <div className="flex items-center p-1.5 bg-slate-100 rounded-full border border-slate-200/80 mb-6">
+                <button
+                  type="button"
+                  onClick={() => { setActiveTab('login'); setLoginError(null); }}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+                    activeTab === 'login'
+                      ? 'bg-[#0F172A] text-white shadow-sm'
+                      : 'text-slate-600 hover:text-[#0F172A]'
+                  }`}
                 >
-                  <span className="flex items-center justify-center gap-1.5">
-                    <span>Acessar Inscrição da Equipe</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </span>
-                </Button>
-              </form>
-            )}
+                  Entrar no Sistema
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setActiveTab('invite'); setLoginError(null); }}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+                    activeTab === 'invite'
+                      ? 'bg-[#0F172A] text-white shadow-sm'
+                      : 'text-slate-600 hover:text-[#0F172A]'
+                  }`}
+                >
+                  Convite de Equipe
+                </button>
+              </div>
+
+              {/* ABA 1: ENTRAR NO SISTEMA */}
+              {activeTab === 'login' && (
+                <div className="space-y-4">
+                  {session ? (
+                    // Estado Autenticado: Boas-vindas e Acesso Imediato ao Painel
+                    <div className="space-y-5 text-center py-2">
+                      <div className="w-14 h-14 mx-auto rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center border border-orange-500/20">
+                        <UserCheck className="w-7 h-7" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-[#0F172A]">
+                          Olá, {session.user.name || 'Usuário'}!
+                        </h3>
+                        <p className="text-xs text-slate-600 mt-1">
+                          Você já está autenticado no BaseOS com perfil{' '}
+                          <span className="font-semibold text-slate-800 capitalize">{session.user.role}</span>.
+                        </p>
+                      </div>
+
+                      <Button
+                        asChild
+                        className="w-full rounded-full bg-orange-500 hover:bg-orange-600 text-white font-semibold h-12 shadow-md shadow-orange-500/20 transition-all text-sm"
+                      >
+                        <Link to={getSafeDestination(session.user.role, session.user.isPlatformAdmin)}>
+                          <span>Ir para Meu Painel Agora</span>
+                          <ArrowRight className="w-4 h-4 ml-2" />
+                        </Link>
+                      </Button>
+
+                      <button
+                        type="button"
+                        onClick={() => signOut()}
+                        className="text-xs text-slate-500 hover:text-slate-800 font-medium inline-flex items-center gap-1 cursor-pointer pt-1"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Sair ou alternar de conta</span>
+                      </button>
+                    </div>
+                  ) : (
+                    // Formulário de Login Direto no Hero
+                    <form onSubmit={handleLoginSubmit} className="space-y-4">
+                      <div>
+                        <h3 className="text-xl font-bold text-[#0F172A]">Acesso à Plataforma</h3>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          Digite seu CPF ou e-mail cadastrado para entrar.
+                        </p>
+                      </div>
+
+                      {loginError && (
+                        <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 text-xs font-medium">
+                          {loginError}
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                            CPF OU E-MAIL
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="000.000.000-00 ou seu@email.com"
+                              value={identifier}
+                              onChange={(e) => setIdentifier(e.target.value)}
+                              className="w-full bg-slate-50 hover:bg-white focus:bg-white text-[#0F172A] placeholder:text-slate-400 border border-slate-300 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/15 rounded-2xl h-12 px-4 font-medium transition-all outline-none [&:-webkit-autofill]:[-webkit-text-fill-color:#0F172A] [&:-webkit-autofill]:[transition:background-color_5000s_ease-in-out_0s] [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_#F8FAFC]"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                              SENHA
+                            </label>
+                            <a
+                              href={COMMERCIAL_WHATSAPP_URL}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-orange-600 hover:text-orange-700 font-semibold"
+                            >
+                              Esqueceu?
+                            </a>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showPassword ? 'text' : 'password'}
+                              placeholder="••••••••"
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              className="w-full bg-slate-50 hover:bg-white focus:bg-white text-[#0F172A] placeholder:text-slate-400 border border-slate-300 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/15 rounded-2xl h-12 px-4 pr-11 font-medium font-mono transition-all outline-none [&:-webkit-autofill]:[-webkit-text-fill-color:#0F172A] [&:-webkit-autofill]:[transition:background-color_5000s_ease-in-out_0s] [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_#F8FAFC]"
+                              required
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                              aria-label={showPassword ? 'Ocultar senha' : 'Exibir senha'}
+                            >
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="w-full rounded-full bg-orange-500 hover:bg-orange-600 text-white font-semibold h-12 shadow-md shadow-orange-500/20 transition-all text-sm mt-2"
+                      >
+                        {isSubmitting ? (
+                          <span>Validando credenciais...</span>
+                        ) : (
+                          <span className="flex items-center justify-center gap-1.5">
+                            <span>Acessar Sistema</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </span>
+                        )}
+                      </Button>
+
+                      {/* Acesso rápido em modo demonstração local */}
+                      {!isSupabaseConfigured() && (
+                        <div className="pt-3 border-t border-slate-100">
+                          <span className="text-[10px] uppercase font-mono font-bold text-slate-500 block mb-1.5">
+                            Acesso Rápido de Testes:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {DEMO_USERS.map((u) => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => handleDemoFill(u.email)}
+                                className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                              >
+                                {u.name.split(' ')[0]} ({u.role})
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </form>
+                  )}
+                </div>
+              )}
+
+              {/* ABA 2: CONVITE DE EQUIPE */}
+              {activeTab === 'invite' && (
+                <form onSubmit={handleInviteSubmit} className="space-y-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-[#0F172A]">Convite de Equipe</h3>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Cole o código ou o link completo enviado pela organização.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      CÓDIGO OU LINK DO CONVITE
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: 8f9b2c1a ou cole o link recebido"
+                      value={inviteToken}
+                      onChange={(e) => setInviteToken(e.target.value)}
+                      className="w-full bg-slate-50 hover:bg-white focus:bg-white text-[#0F172A] placeholder:text-slate-400 border border-slate-300 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/15 rounded-2xl h-12 px-4 font-medium transition-all outline-none [&:-webkit-autofill]:[-webkit-text-fill-color:#0F172A] [&:-webkit-autofill]:[transition:background-color_5000s_ease-in-out_0s] [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_#F8FAFC]"
+                      required
+                    />
+                    <span className="text-[11px] text-slate-500 mt-1.5 block">
+                      Permite enviar o elenco oficial de atletas e comissão técnica.
+                    </span>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={!inviteToken.trim()}
+                    className="w-full rounded-full bg-orange-500 hover:bg-orange-600 text-white font-semibold h-12 shadow-md shadow-orange-500/20 transition-all text-sm mt-3"
+                  >
+                    <span className="flex items-center justify-center gap-1.5">
+                      <span>Acessar Inscrição da Equipe</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </span>
+                  </Button>
+                </form>
+              )}
+            </div>
           </div>
         </motion.div>
       </div>
@@ -595,17 +595,17 @@ function CompetitionsSection({
               Competições Ativas
             </h2>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 max-w-md">
+          <p className="text-xs sm:text-sm text-slate-600 max-w-md font-normal">
             Acompanhe o andamento dos torneios, tabelas de classificação, súmulas e elencos confirmados.
           </p>
         </div>
 
         {/* Grid de Cards Brancos Elegantes */}
         {activeCompetitions.length === 0 ? (
-          <div className="bg-white border border-slate-200/80 rounded-3xl p-10 text-center space-y-3">
+          <div className="bg-white border border-slate-200/90 rounded-3xl p-10 text-center space-y-3 shadow-[0_20px_60px_-15px_rgba(15,23,42,0.08)]">
             <Trophy className="w-10 h-10 text-slate-300 mx-auto" />
             <h3 className="text-base font-bold text-[#0F172A]">Nenhuma competição ativa no momento</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            <p className="text-xs text-slate-600 max-w-sm mx-auto">
               Novas competições serão publicadas em breve. Você pode cadastrar uma nova competição no painel do organizador.
             </p>
           </div>
@@ -623,7 +623,7 @@ function CompetitionsSection({
               return (
                 <div
                   key={comp.id}
-                  className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs hover:shadow-xl hover:border-orange-500/40 transition-all flex flex-col justify-between space-y-5 group"
+                  className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-7 shadow-[0_20px_60px_-15px_rgba(15,23,42,0.08)] hover:shadow-xl hover:border-orange-500/40 transition-all flex flex-col justify-between space-y-6 group"
                 >
                   <div className="space-y-4">
                     {/* Badge de Status em Pílula */}
@@ -637,7 +637,7 @@ function CompetitionsSection({
                           : 'Homologado'}
                       </span>
 
-                      <span className="text-[11px] font-mono text-slate-400 font-semibold">
+                      <span className="text-slate-700 bg-slate-100 px-3 py-1 rounded-full font-semibold text-xs border border-slate-200/60 font-mono">
                         {comp.modality === 'indoor' ? 'Indoor 6x6' : 'Praia'}
                       </span>
                     </div>
@@ -647,27 +647,27 @@ function CompetitionsSection({
                       <h3 className="text-xl font-extrabold text-[#0F172A] group-hover:text-orange-600 transition-colors leading-tight">
                         {comp.name}
                       </h3>
-                      <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-slate-600 mt-1.5 line-clamp-2 leading-relaxed">
                         {comp.description ||
                           'Competição oficial de voleibol com chaveamento por grupos, playoffs e súmula digital.'}
                       </p>
                     </div>
 
                     {/* Métricas e Contadores Reais */}
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
-                      <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
-                        <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block">
-                          Equipes
+                    <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
+                      <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4">
+                        <span className="text-slate-500 font-bold text-xs uppercase tracking-wider block mb-1">
+                          EQUIPES
                         </span>
-                        <span className="font-extrabold text-slate-900 text-sm">
+                        <span className="text-[#0F172A] text-3xl font-extrabold font-mono block">
                           {confirmedTeams.length > 0 ? confirmedTeams.length : (isVoltz ? 9 : 0)}
                         </span>
                       </div>
-                      <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
-                        <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block">
-                          Atletas
+                      <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4">
+                        <span className="text-slate-500 font-bold text-xs uppercase tracking-wider block mb-1">
+                          ATLETAS
                         </span>
-                        <span className="font-extrabold text-slate-900 text-sm">
+                        <span className="text-[#0F172A] text-3xl font-extrabold font-mono block">
                           {athleteCount > 0 ? athleteCount : (isVoltz ? 73 : 0)}
                         </span>
                       </div>
@@ -675,8 +675,8 @@ function CompetitionsSection({
 
                     {/* Escudos / Iniciais das Equipes Confirmadas */}
                     <div>
-                      <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-2">
-                        Equipes Participantes:
+                      <span className="text-slate-500 font-bold text-xs uppercase tracking-wider block mb-2.5">
+                        EQUIPES PARTICIPANTES:
                       </span>
                       <div className="flex items-center -space-x-2 overflow-hidden py-1">
                         {confirmedTeams.slice(0, 7).map((t) => (
@@ -695,12 +695,12 @@ function CompetitionsSection({
                           </div>
                         ))}
                         {confirmedTeams.length > 7 && (
-                          <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0">
+                          <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center shrink-0">
                             +{confirmedTeams.length - 7}
                           </div>
                         )}
                         {confirmedTeams.length === 0 && (
-                          <span className="text-xs text-slate-400 italic">Equipes em fase de confirmação</span>
+                          <span className="text-xs text-slate-500 italic">Equipes em fase de confirmação</span>
                         )}
                       </div>
                     </div>
@@ -710,10 +710,10 @@ function CompetitionsSection({
                   <Button
                     type="button"
                     onClick={() => onOpenCompetitionModal(comp)}
-                    className="w-full rounded-full bg-[#0F172A] hover:bg-orange-500 text-white font-semibold text-xs h-11 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    className="w-full rounded-full bg-[#0F172A] hover:bg-orange-500 text-white font-semibold text-xs sm:text-sm h-12 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                   >
                     <span>Abrir Central do Campeonato</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <ArrowRight className="w-4 h-4" />
                   </Button>
                 </div>
               );
@@ -760,14 +760,14 @@ function CompetitionCentralModal({
             <span className="px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-50 text-orange-600 border border-orange-200">
               CENTRAL DO CAMPEONATO
             </span>
-            <span className="text-xs font-mono text-slate-400 font-semibold">
+            <span className="text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold border border-slate-200/60">
               {competition.modality === 'indoor' ? 'Voleibol Indoor 6x6' : 'Praia'}
             </span>
           </div>
           <DialogTitle className="text-2xl font-black text-[#0F172A]">
             {competition.name}
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-500 mt-1">
+          <DialogDescription className="text-xs sm:text-sm text-slate-600 mt-1">
             {competition.description || 'Competição oficial gerenciada pela plataforma BaseOS Sports Intelligence.'}
           </DialogDescription>
         </DialogHeader>
@@ -775,17 +775,17 @@ function CompetitionCentralModal({
         <div className="space-y-6 py-2">
           {/* Métricas em Destaque */}
           <div className="grid grid-cols-3 gap-3 text-center">
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-mono uppercase font-bold text-slate-400 block">Equipes</span>
-              <span className="text-xl font-extrabold text-[#0F172A]">{confirmedTeams.length}</span>
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+              <span className="text-slate-500 font-bold text-xs uppercase tracking-wider block mb-1">Equipes</span>
+              <span className="text-2xl font-extrabold font-mono text-[#0F172A]">{confirmedTeams.length}</span>
             </div>
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-mono uppercase font-bold text-slate-400 block">Atletas</span>
-              <span className="text-xl font-extrabold text-[#0F172A]">{compAthletes.length}</span>
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+              <span className="text-slate-500 font-bold text-xs uppercase tracking-wider block mb-1">Atletas</span>
+              <span className="text-2xl font-extrabold font-mono text-[#0F172A]">{compAthletes.length}</span>
             </div>
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-mono uppercase font-bold text-slate-400 block">Sorteio</span>
-              <span className="text-xs font-bold text-emerald-600 block mt-1">Draw Arena 3D</span>
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+              <span className="text-slate-500 font-bold text-xs uppercase tracking-wider block mb-1">Sorteio</span>
+              <span className="text-xs font-bold text-emerald-600 block mt-2">Draw Arena 3D</span>
             </div>
           </div>
 
@@ -798,7 +798,7 @@ function CompetitionCentralModal({
               {confirmedTeams.map((t) => (
                 <div
                   key={t.id}
-                  className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-3"
+                  className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3"
                 >
                   <div className="w-8 h-8 rounded-full bg-white shadow-xs shrink-0 flex items-center justify-center overflow-hidden">
                     <TeamCrest
@@ -810,7 +810,7 @@ function CompetitionCentralModal({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-[#0F172A] truncate">{t.name}</p>
-                    <p className="text-[10px] text-slate-400 uppercase font-mono">{t.shortName || 'EQUIPE'}</p>
+                    <p className="text-[10px] text-slate-500 uppercase font-mono">{t.shortName || 'EQUIPE'}</p>
                   </div>
                 </div>
               ))}
@@ -982,7 +982,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased flex flex-col selection:bg-orange-500/20 selection:text-orange-950">
+    <div className="baseos-landing min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased flex flex-col selection:bg-orange-500/20 selection:text-orange-950">
       {/* 1. Header Fixo Minimalista & Translúcido */}
       <LandingHeader onScrollToCompetitions={handleScrollToCompetitions} />
 
