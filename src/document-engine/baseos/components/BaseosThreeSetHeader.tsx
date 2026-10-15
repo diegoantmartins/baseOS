@@ -8,6 +8,7 @@ import { View, Text, StyleSheet, Image } from '@react-pdf/renderer';
 import type { BaseosCompetitionData, BaseosMatchInfo } from '../types/competition';
 import { BASEOS_TOKENS } from '../theme/tokens';
 import { BASEOS_LOGO_LIGHT_PNG } from '../assets/baseosLogos';
+import { formatCourtDisplay, formatHeaderDate } from '../domain/court.rules';
 
 const styles = StyleSheet.create({
   container: {
@@ -136,6 +137,26 @@ const styles = StyleSheet.create({
     fontSize: 4.2,
     color: BASEOS_TOKENS.colors.WHITE,
   },
+  courtBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: BASEOS_TOKENS.colors.BLACK,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 2,
+  },
+  courtBadgeLabel: {
+    fontFamily: BASEOS_TOKENS.fonts.BOLD,
+    fontSize: 4.8,
+    color: BASEOS_TOKENS.colors.WHITE,
+    marginRight: 2,
+  },
+  courtBadgeValue: {
+    fontFamily: BASEOS_TOKENS.fonts.BOLD,
+    fontSize: 5.4,
+    color: BASEOS_TOKENS.colors.WHITE,
+    textTransform: 'uppercase',
+  },
 });
 
 interface BaseosThreeSetHeaderProps {
@@ -151,6 +172,10 @@ export const BaseosThreeSetHeader: React.FC<BaseosThreeSetHeaderProps> = ({
   teamAName,
   teamBName,
 }) => {
+  const formattedCourt = formatCourtDisplay(competition.court);
+  const formattedDate = formatHeaderDate(competition.date);
+  const venueLocation = competition.location || competition.city || 'Ginásio Oficial';
+
   return (
     <View style={styles.container}>
       {/* Bloco Institucional Esquerda */}
@@ -177,8 +202,8 @@ export const BaseosThreeSetHeader: React.FC<BaseosThreeSetHeaderProps> = ({
           </View>
         </View>
         <View style={styles.centerMetaRow}>
-          <Text style={styles.centerMetaText}>Local: {competition.location || 'Ginásio Oficial'}</Text>
-          <Text style={styles.centerMetaText}>Cidade: {competition.city || 'Principal'}</Text>
+          <Text style={styles.centerMetaText}>Local: {venueLocation} • {formattedCourt}</Text>
+          <Text style={styles.centerMetaText}>Cidade: {competition.city || competition.location || 'Principal'}</Text>
         </View>
       </View>
 
@@ -187,7 +212,7 @@ export const BaseosThreeSetHeader: React.FC<BaseosThreeSetHeaderProps> = ({
         <View style={styles.metaGridRow}>
           <View style={styles.metaItem}>
             <Text style={styles.metaLabel}>DATA:</Text>
-            <Text style={styles.metaValue}>{competition.date || '__/__/____'}</Text>
+            <Text style={styles.metaValue}>{formattedDate}</Text>
           </View>
           <View style={styles.metaItem}>
             <Text style={styles.metaLabel}>HORA:</Text>
@@ -214,9 +239,9 @@ export const BaseosThreeSetHeader: React.FC<BaseosThreeSetHeaderProps> = ({
               {match.gender === 'male' ? 'MASCULINO' : match.gender === 'female' ? 'FEMININO' : 'MISTO'}
             </Text>
           </View>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>QUADRA:</Text>
-            <Text style={styles.metaValue}>{competition.court || '1'}</Text>
+          <View style={styles.courtBadge}>
+            <Text style={styles.courtBadgeLabel}>QUADRA:</Text>
+            <Text style={styles.courtBadgeValue}>{formattedCourt}</Text>
           </View>
         </View>
       </View>

@@ -10,6 +10,7 @@ import type { MatchSheetData, PdfAthlete } from '@/lib/pdf/types';
 import { mapTeam, createBlankTeam } from './team.mapper';
 import { createBlankSetData, mapLiveSetData } from './set.mapper';
 import { CompetitionRulesService } from '@/services/competitionRulesService';
+import { formatCourtDisplay } from '../domain/court.rules';
 
 export function createBlankBaseosScoresheetData(
   format: ScoresheetFormat = '3-sets',
@@ -115,11 +116,19 @@ export function mapMatchRecordToBaseosScoresheet(
       ? match.groupName.toUpperCase()
       : 'FASE REGULAR';
 
-  const formattedDate = match.scheduledTime ? match.scheduledTime.slice(0, 10) : '';
+  const formattedDate = match.scheduledTime
+    ? match.scheduledTime.slice(0, 10)
+    : competition?.startDate
+      ? competition.startDate.slice(0, 10)
+      : '';
   const formattedTime =
     match.scheduledTime && match.scheduledTime.length >= 16
       ? match.scheduledTime.slice(11, 16)
-      : '';
+      : match.scheduledTime || '';
+
+  const rawVenue = (match as unknown as { venueName?: string })?.venueName || match.venue || competition?.venue || '';
+  const rawCourt = match.court || (match as unknown as { courtName?: string })?.courtName || '';
+  const displayCourt = formatCourtDisplay(rawCourt);
 
   const setsData = {
     set1: state === 'completed' ? mapLiveSetData(1, format, match, athleteNumberMap, formatConfig) : createBlankSetData(1, format, formatConfig),
@@ -189,9 +198,9 @@ export function mapMatchRecordToBaseosScoresheet(
       phase: phaseLabel,
       round: match.round || 1,
       date: formattedDate,
-      location: match.venue || '',
-      court: match.court || '',
-      city: match.venue || '',
+      location: rawVenue,
+      court: displayCourt,
+      city: rawVenue || competition?.venue || '',
     },
     match: {
       id: match.id,
@@ -334,7 +343,7 @@ export function mapMatchSheetDataToBaseos(
       round: data.round || 1,
       date: data.date || '',
       location: data.venue || '',
-      court: data.court || '',
+      court: formatCourtDisplay(data.court),
       city: data.city || data.venue || '',
     },
     match: {

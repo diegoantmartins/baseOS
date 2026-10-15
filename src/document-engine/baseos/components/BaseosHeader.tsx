@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, Image } from '@react-pdf/renderer';
 import type { BaseosCompetitionData, BaseosMatchInfo } from '../types/competition';
 import { BASEOS_TOKENS } from '../theme/tokens';
 import { BASEOS_LOGO_LIGHT_PNG } from '../assets/baseosLogos';
+import { formatCourtDisplay, formatHeaderDate } from '../domain/court.rules';
 
 const styles = StyleSheet.create({
   container: {
@@ -131,6 +132,9 @@ export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
   const compFontSize = compName.length > 40 ? 5.2 : compName.length > 25 ? 6.0 : 6.8;
   const confrontationFontSize = (nameA.length + nameB.length) > 40 ? 6.5 : (nameA.length + nameB.length) > 28 ? 7.5 : 8.5;
 
+  const formattedCourt = formatCourtDisplay(competition.court);
+  const formattedDate = formatHeaderDate(competition.date);
+
   return (
     <View style={[styles.container, height ? { height } : {}]}>
       {/* Linha Superior: Branding BaseOS + Súmula Oficial + Confronto + Selo */}
@@ -157,23 +161,21 @@ export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
 
       {/* Faixa de Metadados em Linha Única */}
       <View style={styles.metaBar}>
-        <View style={[styles.metaCell, { flex: 2.2 }]}>
+        <View style={[styles.metaCell, { flex: 2.0 }]}>
           <Text style={styles.metaLabel}>LOCAL:</Text>
           <Text style={styles.metaValue}>
             {competition.location || competition.city || 'Ginásio Principal'}
           </Text>
         </View>
 
-        <View style={[styles.metaCell, { flex: 1.1 }]}>
+        <View style={[styles.metaCell, { flex: 1.0 }]}>
           <Text style={styles.metaLabel}>DATA:</Text>
           <Text style={styles.metaValue}>
-            {competition.date 
-              ? new Date(competition.date + 'T00:00:00').toLocaleDateString('pt-BR') 
-              : '__/__/____'}
+            {formattedDate}
           </Text>
         </View>
 
-        <View style={[styles.metaCell, { flex: 0.9 }]}>
+        <View style={[styles.metaCell, { flex: 0.8 }]}>
           <Text style={styles.metaLabel}>HORA:</Text>
           <Text style={styles.metaValue}>{match.scheduledTime || '__:__'}</Text>
         </View>
@@ -188,9 +190,11 @@ export const BaseosHeader: React.FC<BaseosHeaderProps> = ({
           <Text style={styles.metaValue}>{competition.phase || 'Classificatória'}</Text>
         </View>
 
-        <View style={[styles.metaCell, { flex: 0.8, borderRightWidth: 0 }]}>
+        <View style={[styles.metaCell, { flex: 1.2, borderRightWidth: 0 }]}>
           <Text style={styles.metaLabel}>QUADRA:</Text>
-          <Text style={styles.metaValue}>{competition.court || '1'}</Text>
+          <Text style={[styles.metaValue, { fontFamily: BASEOS_TOKENS.fonts.BOLD, fontSize: 6.2 }]}>
+            {formattedCourt}
+          </Text>
         </View>
       </View>
     </View>

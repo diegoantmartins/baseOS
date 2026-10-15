@@ -48,6 +48,8 @@ import {
 import {
   loadBaseosScoresheetData,
   downloadBaseosBatchScoresheets,
+  isMatchOnCourt,
+  generateBatchScoresheetFileName,
   type BaseosScoresheetData,
 } from '@/document-engine/baseos';
 import { toast } from 'sonner';
@@ -661,31 +663,88 @@ export function MatchesPage() {
     toast.success('Boletim oficial de jogos gerado com sucesso!');
   };
 
+  // Contagens de partidas por quadra para o escopo e filtros atuais
+  const court1MatchesCount = useMemo(
+    () => filteredMatches.filter((m) => isMatchOnCourt(m.court || m.record.court, 1)).length,
+    [filteredMatches],
+  );
+  const court2MatchesCount = useMemo(
+    () => filteredMatches.filter((m) => isMatchOnCourt(m.court || m.record.court, 2)).length,
+    [filteredMatches],
+  );
+
   const [batchLoading, setBatchLoading] = useState(false);
 
-  const handleDownloadBatchScoresheets = async () => {
+  const handleDownloadBatchScoresheets = async (scope: 'quadra-1' | 'quadra-2' | 'todas' = 'todas') => {
     if (filteredMatches.length === 0) {
       toast.error('Nenhuma partida disponível para exportação em lote.');
       return;
     }
+
+    let selectedMatchRecords: MatchRecord[] = filteredMatches.map((m) => m.record);
+
+    if (scope === 'quadra-1') {
+      selectedMatchRecords = selectedMatchRecords.filter((m) => isMatchOnCourt(m.court, 1));
+      if (selectedMatchRecords.length === 0) {
+        toast.warning('Nenhuma partida alocada na Quadra 1 encontrada para os filtros atuais.');
+        return;
+      }
+    } else if (scope === 'quadra-2') {
+      selectedMatchRecords = selectedMatchRecords.filter((m) => isMatchOnCourt(m.court, 2));
+      if (selectedMatchRecords.length === 0) {
+        toast.warning('Nenhuma partida alocada na Quadra 2 encontrada para os filtros atuais.');
+        return;
+      }
+    }
+
+    // Ordenação estritamente cronológica via Schedule Engine canônico (horário -> quadra -> jogo)
+    const sortedMatches = sortScheduleMatches(selectedMatchRecords);
+
+    // Identificação semântica da fase ativa
+    const activePhaseLabel =
+      activeSubTab === 'grupos'
+        ? 'classificatoria'
+        : activeSubTab === 'mata-mata'
+          ? 'mata_mata'
+          : activeSubTab !== 'todos'
+            ? activeSubTab
+            : (competitionFilter !== 'all' ? compById.get(competitionFilter)?.name : '') || 'fase_atual';
+
+    const fileName = generateBatchScoresheetFileName(scope, activePhaseLabel);
+
+    const targetComp = competitions.find((c) => c.id === competitionFilter) || competitions[0];
+    const compName = targetComp ? targetComp.name : 'Torneio_BaseOS';
+
     setBatchLoading(true);
+    const scopeLabel =
+      scope === 'quadra-1'
+        ? 'Quadra 1'
+        : scope === 'quadra-2'
+          ? 'Quadra 2'
+          : 'Todas as Quadras';
+
+    const toastId = toast.loading(`Gerando lote de súmulas A4 — ${scopeLabel} (${sortedMatches.length} partidas)...`);
+
     try {
-      toast.info(`Gerando ${filteredMatches.length} súmulas oficiais BaseOS em arquivo compilado...`);
-      const scoresheetsData: BaseosScoresheetData[] = [];
-      for (const m of filteredMatches) {
-        const data = await loadBaseosScoresheetData(m.record.id);
-        if (data) scoresheetsData.push(data);
-      }
-      if (scoresheetsData.length === 0) {
-        throw new Error('Nenhuma súmula pôde ser carregada.');
-      }
-      const targetComp = competitions.find((c) => c.id === competitionFilter) || competitions[0];
-      const compName = targetComp ? targetComp.name : 'Todas_Competicoes';
-      await downloadBaseosBatchScoresheets(scoresheetsData, compName);
-      toast.success(`${scoresheetsData.length} súmulas oficiais geradas em arquivo único com sucesso!`);
+      await downloadBaseosBatchScoresheets(sortedMatches, {
+        competitionName: compName,
+        fileName,
+        onProgress: (current, total) => {
+          toast.loading(`Gerando lote de súmulas A4 (${current}/${total} partidas)...`, { id: toastId });
+        },
+      });
+
+      toast.success(
+        scope === 'quadra-1'
+          ? `Pacote Quadra 1 (${sortedMatches.length} jogos) exportado com sucesso!`
+          : scope === 'quadra-2'
+            ? `Pacote Quadra 2 (${sortedMatches.length} jogos) exportado com sucesso!`
+            : `Todas as súmulas da fase (${sortedMatches.length} jogos) exportadas com sucesso!`,
+        { id: toastId },
+      );
     } catch (err) {
       console.error(err);
-      toast.error('Erro ao gerar lote de súmulas oficiais.');
+      toast.error('Erro ao gerar lote de súmulas oficiais.', { id: toastId });
     } finally {
       setBatchLoading(false);
     }
@@ -1018,20 +1077,71 @@ export function MatchesPage() {
                 <Calendar className="w-3.5 h-3.5 text-amber-400" />
                 Programação Oficial
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={batchLoading || filteredMatches.length === 0}
+                    className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium"
+                    title="Exportar súmulas compiladas em lote (PDF) por quadra ou fase"
+                  >
+                    {batchLoading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                    ) : (
+                      <FileText className="w-3.5 h-3.5 text-primary" />
+                    )}
+                    Baixar Súmulas em Lote (PDF)
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64 bg-zinc-900 border-zinc-800 text-zinc-100 shadow-xl">
+                  <DropdownMenuItem
+                    onClick={() => handleDownloadBatchScoresheets('quadra-1')}
+                    className="cursor-pointer gap-2 py-2 hover:bg-zinc-800 focus:bg-zinc-800"
+                  >
+                    <FileText className="w-4 h-4 text-amber-400 shrink-0" />
+                    <div className="flex flex-col">
+                      <span className="font-medium text-xs">Pacote Quadra 1</span>
+                      <span className="text-[10px] text-zinc-400">
+                        {court1MatchesCount} partidas em ordem cronológica
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDownloadBatchScoresheets('quadra-2')}
+                    className="cursor-pointer gap-2 py-2 hover:bg-zinc-800 focus:bg-zinc-800"
+                  >
+                    <FileText className="w-4 h-4 text-sky-400 shrink-0" />
+                    <div className="flex flex-col">
+                      <span className="font-medium text-xs">Pacote Quadra 2</span>
+                      <span className="text-[10px] text-zinc-400">
+                        {court2MatchesCount} partidas em ordem cronológica
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDownloadBatchScoresheets('todas')}
+                    className="cursor-pointer gap-2 py-2 hover:bg-zinc-800 focus:bg-zinc-800 border-t border-zinc-800 mt-1"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div className="flex flex-col">
+                      <span className="font-medium text-xs">Todas as Partidas da Fase Atual</span>
+                      <span className="text-[10px] text-zinc-400">
+                        {filteredMatches.length} partidas (Horário → Quadra)
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleDownloadBatchScoresheets}
-                disabled={batchLoading || filteredMatches.length === 0}
+                onClick={() => setDistributeCourtsOpen(true)}
                 className="gap-1.5 text-xs h-8 rounded-md border-border hover:bg-zinc-800/60 font-medium"
-                title="Baixar todas as súmulas dos confrontos em um único PDF compilado"
+                title="Distribuir confrontos automaticamente entre as quadras disponíveis"
               >
-                {batchLoading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                ) : (
-                  <FileText className="w-3.5 h-3.5 text-primary" />
-                )}
-                Súmulas em Lote
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                Distribuir Quadras
               </Button>
               <Button
                 variant="outline"

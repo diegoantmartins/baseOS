@@ -14,6 +14,7 @@ import { BaseosThreeSetScoresheet } from '../templates/BaseosThreeSetScoresheet'
 import { BaseosFiveSetScoresheet } from '../templates/BaseosFiveSetScoresheet';
 import { BaseosBatchScoresheetDocument } from '../templates/BaseosBatchScoresheetDocument';
 import type { CompetitionAthlete } from '@/types/registration';
+import type { MatchRecord } from '@/types/entities';
 
 import { getMatchRosters } from '@/services/registrationService';
 
@@ -177,6 +178,44 @@ export async function printBaseosScoresheet(data: BaseosScoresheetData): Promise
   };
 }
 
+export interface BatchScoresheetOptions {
+  competitionName?: string;
+  fileName?: string;
+  onProgress?: (current: number, total: number) => void;
+}
+
+/**
+ * Converte uma lista heterogênea de partidas (BaseosScoresheetData | MatchRecord | matchId)
+ * em uma lista ordenada canônica de BaseosScoresheetData, respeitando individualmente
+ * o formato de cada partida (3 ou 5 sets via CompetitionRulesService.resolveMatchFormat).
+ */
+export async function resolveBatchScoresheetsData(
+  items: (BaseosScoresheetData | MatchRecord | string)[],
+  onProgress?: (current: number, total: number) => void,
+): Promise<BaseosScoresheetData[]> {
+  const result: BaseosScoresheetData[] = [];
+  const total = items.length;
+
+  for (let i = 0; i < total; i++) {
+    const item = items[i];
+    if (typeof item === 'string') {
+      const data = await loadBaseosScoresheetData(item);
+      if (data) result.push(data);
+    } else if (item && typeof item === 'object' && 'document' in item && 'competition' in item && 'sets' in item) {
+      result.push(item as BaseosScoresheetData);
+    } else if (item && typeof item === 'object' && 'id' in item && 'competitionId' in item) {
+      const data = await loadBaseosScoresheetData((item as MatchRecord).id);
+      if (data) result.push(data);
+    }
+
+    if (onProgress) {
+      onProgress(i + 1, total);
+    }
+  }
+
+  return result;
+}
+
 /** Gera o Blob binário de um PDF compilado contendo múltiplas súmulas em lote */
 export async function generateBaseosBatchPdfBlob(
   matchesData: BaseosScoresheetData[],
@@ -189,17 +228,40 @@ export async function generateBaseosBatchPdfBlob(
 
 /** Executa o download de súmulas em lote em um único PDF compilado */
 export async function downloadBaseosBatchScoresheets(
-  matchesData: BaseosScoresheetData[],
-  competitionName: string,
+  matchesOrData: (BaseosScoresheetData | MatchRecord | string)[],
+  competitionNameOrOptions?: string | BatchScoresheetOptions,
+  legacyCustomFileName?: string,
 ): Promise<void> {
-  const safeName = competitionName.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const blob = await generateBaseosBatchPdfBlob(matchesData, `Sumulas_${safeName}`);
-  const fileName = `Sumulas_${safeName}_${matchesData.length}_jogos.pdf`;
+  const options: BatchScoresheetOptions =
+    typeof competitionNameOrOptions === 'string'
+      ? { competitionName: competitionNameOrOptions, fileName: legacyCustomFileName }
+      : competitionNameOrOptions || {};
+
+  const scoresheetsData = await resolveBatchScoresheetsData(matchesOrData, options.onProgress);
+
+  if (scoresheetsData.length === 0) {
+    throw new Error('Nenhuma súmula pôde ser carregada para o lote.');
+  }
+
+  const compName =
+    options.competitionName ||
+    scoresheetsData[0]?.competition.name ||
+    'Competicao';
+  const safeCompName = compName.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  const defaultFileName = `Sumulas_${safeCompName}_${scoresheetsData.length}_jogos.pdf`;
+  let targetFileName = options.fileName || legacyCustomFileName || defaultFileName;
+  if (!targetFileName.toLowerCase().endsWith('.pdf')) {
+    targetFileName += '.pdf';
+  }
+
+  const docTitle = targetFileName.replace(/\.pdf$/i, '');
+  const blob = await generateBaseosBatchPdfBlob(scoresheetsData, docTitle);
 
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = fileName;
+  link.download = targetFileName;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

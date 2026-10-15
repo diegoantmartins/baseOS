@@ -11,6 +11,7 @@ export * from './types/officials';
 export * from './domain/set.rules';
 export * from './domain/rotation.rules';
 export * from './domain/roster.rules';
+export * from './domain/court.rules';
 
 export * from './geometry/page';
 export * from './geometry/dimensions';
