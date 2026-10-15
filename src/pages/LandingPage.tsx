@@ -165,7 +165,6 @@ function HeroParallaxStage({ onScrollToCompetitions }: HeroParallaxProps) {
   const { scrollY } = useScroll();
   const parallaxBgY = useTransform(scrollY, [0, 500], [0, 60]);
   const parallaxCardY = useTransform(scrollY, [0, 500], [0, -30]);
-  const telemetryY1 = useTransform(scrollY, [0, 500], [0, -50]);
   const telemetryY2 = useTransform(scrollY, [0, 500], [0, 40]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -308,17 +307,6 @@ function HeroParallaxStage({ onScrollToCompetitions }: HeroParallaxProps) {
               <span>Ver Competições Ativas</span>
               <span className="text-sm">↓</span>
             </Button>
-
-            <Button
-              asChild
-              variant="outline"
-              className="w-full sm:w-auto rounded-full bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700/80 px-7 py-3.5 h-12 font-semibold transition-all shadow-md active:scale-[0.98]"
-            >
-              <Link to="/sorteio" className="flex items-center justify-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>Conhecer Draw Arena 3D</span>
-              </Link>
-            </Button>
           </div>
 
           {/* Selos de Conformidade e Autenticidade Esportiva */}
@@ -343,17 +331,6 @@ function HeroParallaxStage({ onScrollToCompetitions }: HeroParallaxProps) {
         >
           <div className="w-full max-w-md relative">
             {/* 2. Micro-Cards Flutuantes de Telemetria com Alto Contraste */}
-            <motion.div
-              style={{ y: telemetryY1, x: smoothMouseX }}
-              className="hidden xl:flex absolute -top-5 -left-8 z-30 items-center gap-2.5 bg-zinc-900/95 backdrop-blur-xl border border-zinc-700/80 rounded-full px-4 py-2 shadow-2xl text-xs font-medium pointer-events-none select-none"
-            >
-              <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
-              <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 font-mono">AO VIVO</span>
-              <span className="text-zinc-600">|</span>
-              <span className="font-mono font-bold text-white">25 • 23</span>
-              <span className="text-[11px] text-zinc-400 font-semibold font-mono">SET 3</span>
-            </motion.div>
-
             <motion.div
               style={{ y: telemetryY2, x: useTransform(smoothMouseX, (val) => -val * 0.6) }}
               className="hidden xl:flex absolute -bottom-5 -right-6 z-30 items-center gap-2 bg-zinc-900/95 backdrop-blur-xl border border-zinc-700/80 rounded-full px-4 py-2 shadow-2xl text-xs font-semibold pointer-events-none select-none"
