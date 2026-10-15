@@ -241,6 +241,8 @@ export function useCompetitionFormatBuilder({
         advancingPerGroup: draftConfig.standings.advancingPerGroup,
         bestThirdsCount: draftConfig.standings.bestThirds?.enabled ? draftConfig.standings.bestThirds.count : 0,
         useBestThirds: draftConfig.standings.bestThirds?.enabled,
+        maxTeams: draftConfig.registration.maxTeams,
+        teamsCount: draftConfig.registration.maxTeams,
       });
 
       if (updated) {

@@ -118,15 +118,74 @@ export class CompetitionRegistrationService {
 
   /**
    * Obtém a capacidade máxima determinística de equipes configurada para a competição.
-   * Diretriz da Fase 8.3: maxTeams deve ser uma configuração explícita em config.registration.maxTeams.
-   * É terminantemente proibido inferir silenciosamente a capacidade via multiplicação de grupos ou templates.
+   * Ordem canônica de resolução:
+   * 1. competition.maxTeams
+   * 2. competition.config.registration.maxTeams
+   * 3. competition.config.rules.maxTeams
+   * 4. competition.config.format.stages[0].participantsCount
+   * 5. Soma de groupCapacities da Fase 1 ou (groupsCount * teamsPerGroup)
+   * 6. competition.teamsCount (se numérico válido > 0)
    */
-  public static getCapacity(competition: CompetitionRecord): { maxTeams: number; isConfigured: boolean } {
-    const maxTeams = competition.config?.registration?.maxTeams;
-    if (typeof maxTeams === 'number' && maxTeams > 0) {
-      return { maxTeams, isConfigured: true };
+  public static getCapacity(competition: CompetitionRecord): {
+    maxTeams: number;
+    isConfigured: boolean;
+    source?: 'explicit' | 'registration' | 'rules' | 'stage-participants' | 'stage-groups' | 'teams-count' | 'none';
+  } {
+    // 1. Campo explícito na entidade da competição
+    if (typeof competition.maxTeams === 'number' && competition.maxTeams > 0) {
+      return { maxTeams: competition.maxTeams, isConfigured: true, source: 'explicit' };
     }
-    return { maxTeams: 0, isConfigured: false };
+
+    // 2. Configuração de registro
+    const regMax = competition.config?.registration?.maxTeams;
+    if (typeof regMax === 'number' && regMax > 0) {
+      return { maxTeams: regMax, isConfigured: true, source: 'registration' };
+    }
+
+    // 3. Configuração legado de rules
+    const rawConfig = competition.config as unknown as { rules?: { maxTeams?: number } } | undefined;
+    const rulesMax = rawConfig?.rules?.maxTeams;
+    if (typeof rulesMax === 'number' && rulesMax > 0) {
+      return { maxTeams: rulesMax, isConfigured: true, source: 'rules' };
+    }
+
+    // 4. Contagem declarativa de participantes da 1ª Fase do motor
+    const firstStage = competition.config?.format?.stages?.[0];
+    if (firstStage) {
+      if (typeof firstStage.participantsCount === 'number' && firstStage.participantsCount > 0) {
+        return { maxTeams: firstStage.participantsCount, isConfigured: true, source: 'stage-participants' };
+      }
+
+      // 5. Soma de capacidades dos grupos da 1ª Fase
+      if (firstStage.groupConfig) {
+        const capacities = firstStage.groupConfig.groupCapacities;
+        if (Array.isArray(capacities) && capacities.length > 0) {
+          const sum = capacities.reduce((acc, c) => acc + (typeof c === 'number' ? c : 0), 0);
+          if (sum > 0) {
+            return { maxTeams: sum, isConfigured: true, source: 'stage-groups' };
+          }
+        }
+        if (
+          typeof firstStage.groupConfig.groupsCount === 'number' &&
+          typeof firstStage.groupConfig.teamsPerGroup === 'number' &&
+          firstStage.groupConfig.groupsCount > 0 &&
+          firstStage.groupConfig.teamsPerGroup > 0
+        ) {
+          return {
+            maxTeams: firstStage.groupConfig.groupsCount * firstStage.groupConfig.teamsPerGroup,
+            isConfigured: true,
+            source: 'stage-groups',
+          };
+        }
+      }
+    }
+
+    // 6. teamsCount declarado na entidade
+    if (typeof competition.teamsCount === 'number' && competition.teamsCount > 0) {
+      return { maxTeams: competition.teamsCount, isConfigured: true, source: 'teams-count' };
+    }
+
+    return { maxTeams: 0, isConfigured: false, source: 'none' };
   }
 
   /**

@@ -31,6 +31,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Settings,
   Shield,
   Unlock,
   UserPlus,
@@ -172,6 +173,42 @@ export function CompetitionRegistrationsPage() {
     if (!competition) return { maxTeams: 0, isConfigured: false };
     return CompetitionRegistrationService.getCapacity(competition);
   }, [competition]);
+
+  // Ajuste rápido de capacidade de equipes (maxTeams)
+  const [capacityDialogOpen, setCapacityDialogOpen] = useState(false);
+  const [newMaxTeams, setNewMaxTeams] = useState<number>(10);
+  const [savingCapacity, setSavingCapacity] = useState(false);
+
+  const handleOpenCapacityDialog = () => {
+    setNewMaxTeams(capacity.maxTeams || 10);
+    setCapacityDialogOpen(true);
+  };
+
+  const handleSaveCapacity = async () => {
+    if (!competition || newMaxTeams < 2) return;
+    setSavingCapacity(true);
+    try {
+      const updatedConfig = {
+        ...(competition.config || {}),
+        registration: {
+          ...(competition.config?.registration || {}),
+          maxTeams: newMaxTeams,
+        },
+      };
+      await dataAccess.updateCompetition(competition.id, {
+        config: updatedConfig as unknown as CompetitionConfig,
+        maxTeams: newMaxTeams,
+        teamsCount: newMaxTeams,
+      });
+      toast.success(`Capacidade atualizada para ${newMaxTeams} equipes com sucesso!`);
+      setCapacityDialogOpen(false);
+      await refresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao atualizar capacidade da competição.');
+    } finally {
+      setSavingCapacity(false);
+    }
+  };
 
   const approvedRegistrationsCount = useMemo(() => {
     return registrations.filter((r) => r.status === 'approved').length;
@@ -767,23 +804,39 @@ export function CompetitionRegistrationsPage() {
                       </p>
                     </div>
                   </div>
-                  {submittedRegistrationsCount > 0 && (
-                    <Badge
+                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                    {submittedRegistrationsCount > 0 && (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-500/40 bg-amber-500/10 text-amber-300 font-mono text-xs"
+                      >
+                        {submittedRegistrationsCount} pendente(s) de aprovação
+                      </Badge>
+                    )}
+                    <Button
                       variant="outline"
-                      className="border-amber-500/40 bg-amber-500/10 text-amber-300 font-mono text-xs shrink-0 self-start sm:self-center"
+                      size="sm"
+                      onClick={handleOpenCapacityDialog}
+                      className="h-7 text-xs gap-1.5 border-border bg-zinc-900/80 hover:bg-zinc-800 text-foreground"
                     >
-                      {submittedRegistrationsCount} pendente(s) de aprovação
-                    </Badge>
-                  )}
+                      <Settings className="w-3 h-3 text-muted-foreground" />
+                      Ajustar Vagas
+                    </Button>
+                  </div>
                 </div>
               </div>
 
               {/* ── Resumo Operacional de Vagas e Inscrições (Fase 8.4) ── */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                <SectionCard density="dense">
+                <SectionCard
+                  density="dense"
+                  className="cursor-pointer hover:border-primary-500/40 transition-colors group relative"
+                  onClick={handleOpenCapacityDialog}
+                  title="Clique para ajustar a capacidade máxima da competição"
+                >
                   <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                     <span>Equipes Convidadas</span>
-                    <Shield className="w-4 h-4 text-primary" />
+                    <Shield className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
                   </div>
                   <div className="flex items-baseline gap-1">
                     <p className="text-2xl font-bold font-mono tabular-nums text-foreground">
@@ -796,7 +849,7 @@ export function CompetitionRegistrationsPage() {
                   <p className="text-[10px] text-muted-foreground mt-1">
                     {capacity.isConfigured
                       ? `${Math.max(0, capacity.maxTeams - approvedRegistrationsCount)} vagas restantes (${registrations.length} convidadas)`
-                      : `${registrations.length} convidadas (vagas ilimitadas)`}
+                      : `${registrations.length} convidadas (ajustar vagas)`}
                   </p>
                 </SectionCard>
 
@@ -1058,6 +1111,60 @@ export function CompetitionRegistrationsPage() {
               >
                 <Lock className="w-3.5 h-3.5" />
                 {closingRegistrations ? 'Encerrando...' : 'Confirmar Fechamento'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Diálogo de Ajuste Rápido de Capacidade de Equipes (maxTeams) ── */}
+      {competition && (
+        <Dialog open={capacityDialogOpen} onOpenChange={setCapacityDialogOpen}>
+          <DialogContent className="sm:max-w-md bg-zinc-950 border-zinc-800 text-zinc-100">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Users className="w-4 h-4 text-primary" />
+                Ajustar Capacidade de Equipes (Vagas)
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Defina o número máximo de agremiações que podem ter a inscrição confirmada nesta competição.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2 text-xs">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase text-muted-foreground">
+                  Capacidade Máxima (maxTeams)
+                </label>
+                <Input
+                  type="number"
+                  min={approvedRegistrationsCount || 2}
+                  value={newMaxTeams}
+                  onChange={(e) => setNewMaxTeams(Number(e.target.value))}
+                  className="h-9 bg-zinc-900 border-zinc-800 font-mono text-sm"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {approvedRegistrationsCount} equipe(s) já confirmadas.
+                  {competition.config?.format?.stages?.[0]?.participantsCount && (
+                    <span className="block mt-0.5 text-primary-400">
+                      A 1ª Fase do motor esportivo está dimensionada para {competition.config.format.stages[0].participantsCount} equipes.
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="ghost" size="sm" onClick={() => setCapacityDialogOpen(false)} disabled={savingCapacity}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                className="gap-1.5 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground"
+                onClick={handleSaveCapacity}
+                disabled={savingCapacity || newMaxTeams < approvedRegistrationsCount}
+              >
+                {savingCapacity ? 'Salvando...' : 'Salvar Capacidade'}
               </Button>
             </DialogFooter>
           </DialogContent>

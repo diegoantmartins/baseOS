@@ -122,6 +122,10 @@ export type CompetitionRecord = {
   status: CompetitionLifecycleStatus;
   /** Configuração canônica de regras esportivas (Fonte Única da Verdade - Fase 4) */
   config?: CompetitionConfig;
+  /** Capacidade máxima de equipes da competição */
+  maxTeams?: number;
+  /** Quantidade de equipes configurada na competição */
+  teamsCount?: number;
   /** Snapshot imutável de regras congelado no início/homologação dos jogos */
   rulesSnapshot?: CompetitionConfig;
   /** Pódios finais */

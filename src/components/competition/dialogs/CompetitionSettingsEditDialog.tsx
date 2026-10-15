@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -69,6 +70,21 @@ function resolveInitialFinal(competition: CompetitionRecord): '3-sets' | '5-sets
   return '5-sets';
 }
 
+function resolveInitialCapacity(competition: CompetitionRecord): number | undefined {
+  const rawRules = (competition as unknown as { rules?: Record<string, unknown> }).rules;
+  return (
+    competition.maxTeams ??
+    competition.config?.registration?.maxTeams ??
+    (rawRules && typeof rawRules === 'object' && 'maxTeams' in rawRules ? (rawRules as { maxTeams?: number }).maxTeams : undefined) ??
+    competition.config?.format?.stages?.[0]?.participantsCount ??
+    competition.config?.format?.stages?.[0]?.groupConfig?.groupCapacities?.reduce((s, c) => s + (Number(c) || 0), 0) ??
+    (competition.config?.format?.stages?.[0]?.groupConfig?.groupsCount && competition.config?.format?.stages?.[0]?.groupConfig?.teamsPerGroup
+      ? competition.config.format.stages[0].groupConfig.groupsCount * competition.config.format.stages[0].groupConfig.teamsPerGroup
+      : undefined) ??
+    competition.teamsCount
+  );
+}
+
 export function CompetitionSettingsEditDialog({
   open,
   onOpenChange,
@@ -82,6 +98,11 @@ export function CompetitionSettingsEditDialog({
   const [playoffs, setPlayoffs] = useState(() => resolveInitialPlayoffs(competition));
   const [semifinals, setSemifinals] = useState(() => resolveInitialSemifinals(competition));
   const [final, setFinal] = useState(() => resolveInitialFinal(competition));
+
+  // Capacidade e Limites de Elenco
+  const [maxTeams, setMaxTeams] = useState<number | undefined>(() => resolveInitialCapacity(competition));
+  const [minAthletes, setMinAthletes] = useState<number>(() => competition.config?.registration?.minAthletes ?? 6);
+  const [maxAthletes, setMaxAthletes] = useState<number>(() => competition.config?.registration?.maxAthletes ?? 14);
 
   // Identidade e Apoiadores
   const [logoUrl, setLogoUrl] = useState<string | undefined>(competition.logoUrl);
@@ -100,6 +121,9 @@ export function CompetitionSettingsEditDialog({
       setPlayoffs(resolveInitialPlayoffs(competition));
       setSemifinals(resolveInitialSemifinals(competition));
       setFinal(resolveInitialFinal(competition));
+      setMaxTeams(resolveInitialCapacity(competition));
+      setMinAthletes(competition.config?.registration?.minAthletes ?? 6);
+      setMaxAthletes(competition.config?.registration?.maxAthletes ?? 14);
     }
   }, [open, competition, defaultTab]);
 
@@ -141,6 +165,18 @@ export function CompetitionSettingsEditDialog({
               final: parseLegacySetFormat(final),
             },
           },
+          registration: {
+            ...(baseConfig.registration || {
+              minAthletes: 6,
+              maxAthletes: 14,
+              maxCaptains: 1,
+              maxLiberos: 2,
+              requireJerseyNumberOnRegistration: false,
+            }),
+            maxTeams: maxTeams !== undefined && maxTeams > 0 ? Number(maxTeams) : undefined,
+            minAthletes: minAthletes ? Number(minAthletes) : 6,
+            maxAthletes: maxAthletes ? Number(maxAthletes) : 14,
+          },
         };
       } else {
         updatedConfig = CompetitionRulesService.normalizeLegacyToConfig({
@@ -148,11 +184,18 @@ export function CompetitionSettingsEditDialog({
           setFormat: setFormat as '3-sets' | '5-sets',
           phaseSetRules: updatedPhaseRules,
         });
+        if (updatedConfig.registration) {
+          updatedConfig.registration.maxTeams = maxTeams !== undefined && maxTeams > 0 ? Number(maxTeams) : undefined;
+          updatedConfig.registration.minAthletes = minAthletes ? Number(minAthletes) : 6;
+          updatedConfig.registration.maxAthletes = maxAthletes ? Number(maxAthletes) : 14;
+        }
       }
 
       await onSave({
         setFormat: setFormat as '3-sets' | '5-sets',
         phaseSetRules: updatedPhaseRules,
+        maxTeams: maxTeams !== undefined && maxTeams > 0 ? Number(maxTeams) : undefined,
+        teamsCount: maxTeams !== undefined && maxTeams > 0 ? Number(maxTeams) : undefined,
         config: updatedConfig,
         logoUrl: logoUrl || undefined,
         supporters: supporters.length > 0 ? supporters : [],
@@ -303,6 +346,48 @@ export function CompetitionSettingsEditDialog({
                           <SelectItem value="5-sets" className="text-xs">5 Sets</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5 pt-2 border-t border-border">
+                  <Label className="text-muted-foreground uppercase text-[10px] font-semibold tracking-wider">
+                    Capacidade e Limites de Inscrição
+                  </Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Capacidade Máxima (maxTeams)</Label>
+                      <Input
+                        type="number"
+                        min={2}
+                        disabled={isLocked}
+                        value={maxTeams ?? ''}
+                        onChange={(e) => setMaxTeams(e.target.value === '' ? undefined : Number(e.target.value))}
+                        placeholder="Ex: 10"
+                        className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Mín. Atletas / Time</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        disabled={isLocked}
+                        value={minAthletes}
+                        onChange={(e) => setMinAthletes(Number(e.target.value))}
+                        className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Máx. Atletas / Time</Label>
+                      <Input
+                        type="number"
+                        min={minAthletes}
+                        disabled={isLocked}
+                        value={maxAthletes}
+                        onChange={(e) => setMaxAthletes(Number(e.target.value))}
+                        className="h-8 text-xs bg-zinc-900 border-zinc-800 rounded-md font-mono"
+                      />
                     </div>
                   </div>
                 </div>

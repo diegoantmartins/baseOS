@@ -15,8 +15,9 @@ import type {
   CompetitionConfig,
   ParticipantFeedDefinition,
   StageDefinition,
+  SetsToWin,
 } from '@/types/competitionConfig';
-import { getStageId } from '@/types/competitionConfig';
+import { getStageId, parseLegacySetFormat } from '@/types/competitionConfig';
 import { StageGraph } from './stageGraphEngine';
 
 export interface ConfigValidationIssue {
@@ -89,14 +90,24 @@ export class CompetitionConfigValidator {
         }
       }
 
-      // Validação de Sobrescritas por Fase
+      // Validação e Normalização de Sobrescritas por Fase
       if (config.format.phaseOverrides) {
         for (const [phaseKey, setsWin] of Object.entries(config.format.phaseOverrides)) {
-          if (setsWin !== undefined && ![1, 2, 3].includes(setsWin as number)) {
-            errors.push({
-              field: `format.phaseOverrides.${phaseKey}`,
-              message: `Sobrescrita de sets para "${phaseKey}" inválida (${setsWin}).`,
-            });
+          if (setsWin !== undefined && setsWin !== null) {
+            const normalized =
+              typeof setsWin === 'number' && [1, 2, 3].includes(setsWin)
+                ? (setsWin as SetsToWin)
+                : parseLegacySetFormat(setsWin);
+
+            // Normaliza em memória no objeto de configuração
+            (config.format.phaseOverrides as Record<string, SetsToWin>)[phaseKey] = normalized;
+
+            if (![1, 2, 3].includes(normalized)) {
+              errors.push({
+                field: `format.phaseOverrides.${phaseKey}`,
+                message: `Sobrescrita de sets para "${phaseKey}" inválida (${setsWin}).`,
+              });
+            }
           }
         }
       }

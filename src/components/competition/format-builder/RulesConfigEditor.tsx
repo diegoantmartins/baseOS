@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RefreshCw } from 'lucide-react';
 import type {
   CompetitionConfig,
   OverallRankingStrategy,
@@ -40,6 +42,19 @@ export const RulesConfigEditor: React.FC<RulesConfigEditorProps> = ({
   const scoring = config.scoring;
   const standings = config.standings;
   const registration = config.registration;
+
+  const stage1 = config.format.stages?.[0];
+  const stage1ParticipantsCount = useMemo(() => {
+    if (!stage1) return undefined;
+    if (stage1.participantsCount && stage1.participantsCount > 0) return stage1.participantsCount;
+    if (stage1.groupConfig?.groupCapacities && stage1.groupConfig.groupCapacities.length > 0) {
+      return stage1.groupConfig.groupCapacities.reduce((sum, c) => sum + (Number(c) || 0), 0);
+    }
+    if (stage1.groupConfig?.groupsCount && stage1.groupConfig?.teamsPerGroup) {
+      return stage1.groupConfig.groupsCount * stage1.groupConfig.teamsPerGroup;
+    }
+    return undefined;
+  }, [stage1]);
 
   return (
     <div className={cn('space-y-6', className)}>
@@ -92,69 +107,137 @@ export const RulesConfigEditor: React.FC<RulesConfigEditorProps> = ({
           </div>
         </div>
 
-        {/* Sobrescritas por Fase */}
+        {/* Sobrescritas de Sets por Fase do Motor */}
         <div className="pt-2 border-t border-border/60 space-y-2">
           <Label className="text-[10px] uppercase font-semibold text-muted-foreground">
-            Sobrescritas de Sets por Fase Decisiva
+            Sobrescritas de Sets por Fase da Competição
           </Label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="space-y-1">
-              <span className="text-[10px] text-muted-foreground block">Quartas</span>
-              <Select
-                disabled={disabled}
-                value={String(phaseOverrides.quarterfinals || setsToWin)}
-                onValueChange={(v) =>
-                  onUpdatePhaseOverrides({ ...phaseOverrides, quarterfinals: Number(v) as SetsToWin })
-                }
-              >
-                <SelectTrigger className="h-7 text-xs bg-zinc-950 border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-border">
-                  <SelectItem value="2">Melhor de 3</SelectItem>
-                  <SelectItem value="3">Melhor de 5</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <p className="text-[11px] text-muted-foreground">
+            Escolha um formato específico para fases eliminatórias ou mantenha o padrão da competição.
+          </p>
 
-            <div className="space-y-1">
-              <span className="text-[10px] text-muted-foreground block">Semifinais</span>
-              <Select
-                disabled={disabled}
-                value={String(phaseOverrides.semifinals || 3)}
-                onValueChange={(v) =>
-                  onUpdatePhaseOverrides({ ...phaseOverrides, semifinals: Number(v) as SetsToWin })
-                }
-              >
-                <SelectTrigger className="h-7 text-xs bg-zinc-950 border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-border">
-                  <SelectItem value="2">Melhor de 3</SelectItem>
-                  <SelectItem value="3">Melhor de 5</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {config.format.stages && config.format.stages.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+              {config.format.stages.map((st, idx) => {
+                const rawVal = phaseOverrides[st.id] ?? (
+                  st.id === 'final' ? phaseOverrides.final :
+                  st.id === 'semifinals' ? phaseOverrides.semifinals :
+                  st.id === 'quarterfinals' ? phaseOverrides.quarterfinals :
+                  st.id === 'playoffs' ? phaseOverrides.playoffs :
+                  st.id === 'groupStage' ? phaseOverrides.groupStage :
+                  undefined
+                );
+                const currentValStr = rawVal ? String(rawVal) : 'default';
 
-            <div className="space-y-1">
-              <span className="text-[10px] text-muted-foreground block">Final</span>
-              <Select
-                disabled={disabled}
-                value={String(phaseOverrides.final || 3)}
-                onValueChange={(v) =>
-                  onUpdatePhaseOverrides({ ...phaseOverrides, final: Number(v) as SetsToWin })
-                }
-              >
-                <SelectTrigger className="h-7 text-xs bg-zinc-950 border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-border">
-                  <SelectItem value="2">Melhor de 3</SelectItem>
-                  <SelectItem value="3">Melhor de 5</SelectItem>
-                </SelectContent>
-              </Select>
+                return (
+                  <div key={st.id || idx} className="p-2.5 rounded-lg border border-border/80 bg-zinc-950/40 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-foreground truncate max-w-[170px]" title={st.name || st.id}>
+                        {st.name || `Fase ${idx + 1}`}
+                      </span>
+                      <span className="text-[10px] font-mono uppercase text-muted-foreground">
+                        {st.type}
+                      </span>
+                    </div>
+                    <Select
+                      disabled={disabled}
+                      value={currentValStr}
+                      onValueChange={(v) => {
+                        const next = { ...phaseOverrides };
+                        if (v === 'default') {
+                          delete next[st.id];
+                          if (st.id === 'final') delete next.final;
+                          if (st.id === 'semifinals') delete next.semifinals;
+                          if (st.id === 'quarterfinals') delete next.quarterfinals;
+                          if (st.id === 'playoffs') delete next.playoffs;
+                          if (st.id === 'groupStage') delete next.groupStage;
+                        } else {
+                          const num = Number(v) as SetsToWin;
+                          next[st.id] = num;
+                          if (st.id === 'final') next.final = num;
+                          if (st.id === 'semifinals') next.semifinals = num;
+                          if (st.id === 'quarterfinals') next.quarterfinals = num;
+                        }
+                        onUpdatePhaseOverrides(next);
+                      }}
+                    >
+                      <SelectTrigger className="h-7 text-xs bg-zinc-900 border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-zinc-900 border-border">
+                        <SelectItem value="default">Padrão ({setsToWin === 3 ? 'Melhor de 5' : setsToWin === 2 ? 'Melhor de 3' : '1 set'})</SelectItem>
+                        <SelectItem value="2">Melhor de 3 sets (25/25/15)</SelectItem>
+                        <SelectItem value="3">Melhor de 5 sets (25/25/25/25/15)</SelectItem>
+                        <SelectItem value="1">Set Único (1 set)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })}
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="space-y-1">
+                <span className="text-[10px] text-muted-foreground block">Quartas</span>
+                <Select
+                  disabled={disabled}
+                  value={String(phaseOverrides.quarterfinals || setsToWin)}
+                  onValueChange={(v) =>
+                    onUpdatePhaseOverrides({ ...phaseOverrides, quarterfinals: Number(v) as SetsToWin })
+                  }
+                >
+                  <SelectTrigger className="h-7 text-xs bg-zinc-950 border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-border">
+                    <SelectItem value="2">Melhor de 3</SelectItem>
+                    <SelectItem value="3">Melhor de 5</SelectItem>
+                    <SelectItem value="1">Set Único</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] text-muted-foreground block">Semifinais</span>
+                <Select
+                  disabled={disabled}
+                  value={String(phaseOverrides.semifinals || 3)}
+                  onValueChange={(v) =>
+                    onUpdatePhaseOverrides({ ...phaseOverrides, semifinals: Number(v) as SetsToWin })
+                  }
+                >
+                  <SelectTrigger className="h-7 text-xs bg-zinc-950 border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-border">
+                    <SelectItem value="2">Melhor de 3</SelectItem>
+                    <SelectItem value="3">Melhor de 5</SelectItem>
+                    <SelectItem value="1">Set Único</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] text-muted-foreground block">Final</span>
+                <Select
+                  disabled={disabled}
+                  value={String(phaseOverrides.final || 3)}
+                  onValueChange={(v) =>
+                    onUpdatePhaseOverrides({ ...phaseOverrides, final: Number(v) as SetsToWin })
+                  }
+                >
+                  <SelectTrigger className="h-7 text-xs bg-zinc-950 border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-border">
+                    <SelectItem value="2">Melhor de 3</SelectItem>
+                    <SelectItem value="3">Melhor de 5</SelectItem>
+                    <SelectItem value="1">Set Único</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -272,16 +355,55 @@ export const RulesConfigEditor: React.FC<RulesConfigEditorProps> = ({
         </div>
       </div>
 
-      {/* 4. Regras de Inscrição */}
+      {/* 4. Capacidade e Limites de Inscrição */}
       <div className="p-4 rounded-xl border border-border bg-card space-y-3.5">
-        <div>
-          <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Regras de Inscrição e Elenco</h4>
-          <p className="text-[11px] text-muted-foreground">
-            Limites mínimos e máximos de atletas, capitães e líberos por equipe.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Capacidade e Limites de Inscrição</h4>
+            <p className="text-[11px] text-muted-foreground">
+              Capacidade máxima de equipes e limites regulamentares de elenco por equipe.
+            </p>
+          </div>
+          {stage1ParticipantsCount !== undefined && stage1ParticipantsCount > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              onClick={() => onUpdateRegistration({ maxTeams: stage1ParticipantsCount })}
+              className="h-7 text-xs gap-1.5 border-primary-500/30 text-primary-400 hover:text-primary-300 hover:bg-primary-500/10"
+              title="Preenche maxTeams automaticamente com a capacidade da 1ª Fase do motor"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Sincronizar com Fase 1 ({stage1ParticipantsCount} equipes)
+            </Button>
+          )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase font-semibold text-muted-foreground">
+              Capacidade Máxima de Equipes (maxTeams)
+            </Label>
+            <Input
+              type="number"
+              min={2}
+              disabled={disabled}
+              placeholder={stage1ParticipantsCount ? `Ex: ${stage1ParticipantsCount} (Fase 1)` : 'Ex: 10'}
+              value={registration.maxTeams ?? ''}
+              onChange={(e) => {
+                const val = e.target.value === '' ? undefined : Number(e.target.value);
+                onUpdateRegistration({ maxTeams: val });
+              }}
+              className="h-8 text-xs bg-zinc-950 border-border font-mono font-semibold text-foreground"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              {stage1ParticipantsCount
+                ? `1ª Fase dimensionada para ${stage1ParticipantsCount} equipes.`
+                : 'Defina o total de vagas para a competição.'}
+            </p>
+          </div>
+
           <div className="space-y-1">
             <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Mínimo de Atletas</Label>
             <Input
@@ -293,6 +415,7 @@ export const RulesConfigEditor: React.FC<RulesConfigEditorProps> = ({
               className="h-8 text-xs bg-zinc-950 border-border"
             />
           </div>
+
           <div className="space-y-1">
             <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Máximo de Atletas</Label>
             <Input
@@ -304,6 +427,9 @@ export const RulesConfigEditor: React.FC<RulesConfigEditorProps> = ({
               className="h-8 text-xs bg-zinc-950 border-border"
             />
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-border/60">
           <div className="space-y-1">
             <Label className="text-[10px] uppercase font-semibold text-muted-foreground">Máx. Líberos</Label>
             <Input

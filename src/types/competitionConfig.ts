@@ -58,12 +58,15 @@ export interface SetFormatConfig {
  */
 export interface PhaseFormatOverrides {
   groupStage?: SetsToWin;
+  playIn?: SetsToWin;
+  repescagem?: SetsToWin;
   roundOf16?: SetsToWin;
   playoffs?: SetsToWin;
   quarterfinals?: SetsToWin;
   semifinals?: SetsToWin;
   thirdPlace?: SetsToWin;
   final?: SetsToWin;
+  [stageIdOrKey: string]: SetsToWin | undefined;
 }
 
 /**
@@ -522,21 +525,20 @@ export function deriveMaxSets(setsToWin: SetsToWin): number {
 }
 
 /**
- * Converte strings legadas ('3-sets', '5-sets', 'best-of-3', 'best-of-5', '1-set'),
- * números (1, 2, 3) ou valores genéricos para SetsToWin com total resiliência contra TypeError.
+ * Tenta converter uma entrada arbitrária para SetsToWin (1, 2 ou 3).
+ * Retorna undefined caso o formato seja inválido ou corrompido.
  */
-export function parseLegacySetFormat(raw?: unknown): SetsToWin {
-  if (raw === null || raw === undefined) return 2; // Padrão: melhor de 3
+export function tryParseSetsToWin(raw?: unknown): SetsToWin | undefined {
+  if (raw === null || raw === undefined) return undefined;
 
-  // Se já for numérico (1, 2, 3 ou 5 sets totais -> 3 sets vencidos)
   if (typeof raw === 'number') {
     if (raw === 1 || raw === 2 || raw === 3) return raw as SetsToWin;
     if (raw >= 5) return 3;
+    if (raw <= 0) return undefined;
     return 2;
   }
 
-  // Se não for string, retorna o padrão seguro (melhor de 3)
-  if (typeof raw !== 'string') return 2;
+  if (typeof raw !== 'string') return undefined;
 
   const normalized = raw.trim().toLowerCase();
   if (
@@ -549,6 +551,15 @@ export function parseLegacySetFormat(raw?: unknown): SetsToWin {
     return 3;
   }
   if (
+    normalized === '3-sets' ||
+    normalized === 'best-of-3' ||
+    normalized === 'best_of_3' ||
+    normalized === '3' ||
+    normalized === '2-sets-to-win'
+  ) {
+    return 2;
+  }
+  if (
     normalized === '1-set' ||
     normalized === 'best-of-1' ||
     normalized === 'best_of_1' ||
@@ -557,7 +568,17 @@ export function parseLegacySetFormat(raw?: unknown): SetsToWin {
   ) {
     return 1;
   }
-  return 2; // Padrão '3-sets', 'best-of-3', etc.
+
+  return undefined;
+}
+
+/**
+ * Converte strings legadas ('3-sets', '5-sets', 'best-of-3', 'best-of-5', '1-set'),
+ * números (1, 2, 3) ou valores genéricos para SetsToWin com total resiliência contra TypeError.
+ */
+export function parseLegacySetFormat(raw?: unknown): SetsToWin {
+  const parsed = tryParseSetsToWin(raw);
+  return parsed ?? 2; // Padrão: melhor de 3
 }
 
 /**
@@ -574,6 +595,25 @@ export function formatSetsToWinLabel(setsToWin: SetsToWin | number): string {
     default:
       return setsToWin >= 5 ? 'Melhor de 5 sets' : 'Melhor de 3 sets';
   }
+}
+
+/**
+ * Normaliza qualquer objeto de phaseOverrides, convertendo strings legadas ('3-sets', '5-sets', '1-set')
+ * ou números para SetsToWin (1, 2 ou 3) e preservando chaves válidas.
+ */
+export function normalizePhaseOverrides(rawOverrides?: unknown): PhaseFormatOverrides {
+  if (!rawOverrides || typeof rawOverrides !== 'object') {
+    return {};
+  }
+  const result: PhaseFormatOverrides = {};
+  for (const [key, val] of Object.entries(rawOverrides as Record<string, unknown>)) {
+    if (val === undefined || val === null || val === '') continue;
+    const parsed = tryParseSetsToWin(val);
+    if (parsed !== undefined) {
+      result[key] = parsed;
+    }
+  }
+  return result;
 }
 
 /**
@@ -748,8 +788,8 @@ export function normalizeCompetitionConfig(
   return {
     version: typeof obj.version === 'number' ? obj.version : base.version,
     format: {
-      defaultSetsToWin: obj.format?.defaultSetsToWin ?? base.format.defaultSetsToWin,
-      phaseOverrides: obj.format?.phaseOverrides ?? base.format.phaseOverrides,
+      defaultSetsToWin: parseLegacySetFormat(obj.format?.defaultSetsToWin ?? base.format.defaultSetsToWin),
+      phaseOverrides: normalizePhaseOverrides(obj.format?.phaseOverrides ?? base.format.phaseOverrides),
       setRules: {
         regularSetPoints: obj.format?.setRules?.regularSetPoints ?? base.format.setRules.regularSetPoints,
         tiebreakPoints: obj.format?.setRules?.tiebreakPoints ?? base.format.setRules.tiebreakPoints,
@@ -769,6 +809,13 @@ export function normalizeCompetitionConfig(
     registration: {
       ...base.registration,
       ...(obj.registration && typeof obj.registration === 'object' ? obj.registration : {}),
+      maxTeams:
+        typeof obj.registration?.maxTeams === 'number' && obj.registration.maxTeams > 0
+          ? obj.registration.maxTeams
+          : typeof (obj as unknown as { rules?: { maxTeams?: number } })?.rules?.maxTeams === 'number' &&
+            Number((obj as unknown as { rules?: { maxTeams?: number } }).rules?.maxTeams) > 0
+          ? (obj as unknown as { rules?: { maxTeams?: number } }).rules?.maxTeams
+          : obj.registration?.maxTeams,
     },
   };
 }
