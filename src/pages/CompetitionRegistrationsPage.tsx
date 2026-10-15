@@ -70,6 +70,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import type { CompetitionRecord, TeamRecord } from '@/types/entities';
+import type { CompetitionConfig } from '@/types/competitionConfig';
 import type { CompetitionAthlete, CompetitionTeam } from '@/types/registration';
 import { cn } from '@/lib/utils';
 

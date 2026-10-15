@@ -4,6 +4,7 @@ import { CompetitionRegistrationService } from '@/services/competitionRegistrati
 import {
   DEFAULT_INDOOR_COMPETITION_CONFIG,
   normalizePhaseOverrides,
+  type CompetitionConfig,
 } from '@/types/competitionConfig';
 import type { CompetitionRecord } from '@/types/entities';
 import type { CompetitionTeam, CompetitionAthlete } from '@/types/registration';
