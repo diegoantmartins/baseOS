@@ -21,6 +21,7 @@ import { competitionMapper, teamMapper, competitionTeamMapper } from '@/services
 import { getOrCreateAthleteIdentity, normalizeCpf } from '@/services/identityService';
 import { authService } from '@/services/authService';
 import { TenantSecurityService } from '@/services/tenantSecurityService';
+import { notifyCacheInvalidation } from '@/services/dataCacheInvalidation';
 type CompetitionAthleteCreate = CompetitionAthleteInput & { competitionTeamId: string };
 
 export interface SaveStageDrawAndSlotsParams {
@@ -279,6 +280,7 @@ function readCollection<T>(collection: CollectionName): T[] {
 
 function writeCollection<T>(collection: CollectionName, items: T[]): void {
   localStorage.setItem(storageKey(collection), JSON.stringify(items));
+  notifyCacheInvalidation();
 }
 
 function ensureSeeded(): void {
@@ -4267,6 +4269,8 @@ export function resetLocalData(): void {
   localStorage.removeItem('baseos.active_org_id');
   localStorage.removeItem('baseos.active_tenant_id');
   ensureSeeded();
+  notifyCacheInvalidation();
 }
 
 export { generateToken };
+

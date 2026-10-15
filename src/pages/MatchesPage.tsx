@@ -91,6 +91,9 @@ import { MatchTabsNav, type MatchesSubTab } from '@/components/match/MatchTabsNa
 import { ScheduleMatchDialog } from '@/components/match/dialogs/ScheduleMatchDialog';
 import { ResultValidationDialog } from '@/components/match/dialogs/ResultValidationDialog';
 import { HomologateMatchDialog } from '@/components/match/dialogs/HomologateMatchDialog';
+import { DistributeCourtsDialog } from '@/components/match/dialogs/DistributeCourtsDialog';
+import { CourtsSplitView } from '@/components/match/CourtsSplitView';
+import type { CourtDistributionProposal } from '@/services/courtDistributionService';
 import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
 import { CompetitionRulesService } from '@/services/competitionRulesService';
 import { OperationalAuditService } from '@/services/operationalAuditService';
@@ -213,6 +216,10 @@ export function MatchesPage() {
     );
   };
 
+  const [courtFilter, setCourtFilter] = useState<string>('all');
+  const [isSplitView, setIsSplitView] = useState<boolean>(false);
+  const [distributeCourtsOpen, setDistributeCourtsOpen] = useState<boolean>(false);
+
   // Estados de Modais
   const [editMatch, setEditMatch] = useState<MatchRecord | null>(null);
   const [resultMatch, setResultMatch] = useState<MatchRecord | null>(null);
@@ -262,6 +269,54 @@ export function MatchesPage() {
     return sortScheduleMatches(matches).map((m) => toMatchView(m, compById.get(m.competitionId) ?? null, teamById));
   }, [matches, compById, teamById]);
 
+  // Atribuição Rápida de Quadra (Quadra 1 / Quadra 2)
+  const handleSetCourt = async (matchId: string, courtName: string) => {
+    if (!can('match:edit')) {
+      toast.error('Você não possui permissão para alterar a quadra da partida.');
+      return;
+    }
+    // Atualização otimista
+    setMatches((prev) =>
+      prev.map((m) => (m.id === matchId ? { ...m, court: courtName || undefined } : m))
+    );
+    try {
+      await dataAccess.updateMatch(matchId, {
+        court: courtName || undefined,
+      });
+      toast.success(
+        courtName ? `Partida alocada na ${courtName}!` : 'Quadra desatribuída com sucesso.'
+      );
+    } catch (err) {
+      console.error('Erro ao atualizar quadra:', err);
+      toast.error('Falha ao salvar quadra no banco de dados.');
+      refresh();
+    }
+  };
+
+  // Aplicação de Distribuição Automática de Quadras
+  const handleApplyCourtDistribution = async (proposals: CourtDistributionProposal[]) => {
+    if (!can('match:edit')) {
+      toast.error('Você não possui permissão para editar partidas.');
+      return;
+    }
+    try {
+      await Promise.all(
+        proposals.map((p) =>
+          dataAccess.updateMatch(p.matchId, {
+            court: p.assignedCourt,
+          })
+        )
+      );
+      toast.success(
+        `Distribuição concluída! ${proposals.length} partidas alocadas entre Quadra 1 e Quadra 2.`
+      );
+      await refresh();
+    } catch (err) {
+      console.error('Erro ao aplicar distribuição de quadras:', err);
+      toast.error('Ocorreu um erro ao salvar a distribuição de quadras.');
+    }
+  };
+
   // Filtragem de partidas
   const filteredMatches = useMemo(() => {
     return matchViews.filter((m) => {
@@ -275,6 +330,10 @@ export function MatchesPage() {
       if (competitionFilter !== 'all' && m.record.competitionId !== competitionFilter) return false;
       if (statusFilter !== 'all' && m.status !== statusFilter) return false;
 
+      // Filtro por quadra
+      if (courtFilter === 'unassigned' && m.court) return false;
+      if (courtFilter !== 'all' && courtFilter !== 'unassigned' && m.court !== courtFilter) return false;
+
       // Filtro por texto em tempo real
       if (query.trim()) {
         const q = query.trim().toLowerCase();
@@ -283,7 +342,7 @@ export function MatchesPage() {
       }
       return true;
     });
-  }, [matchViews, activeSubTab, competitionFilter, statusFilter, query]);
+  }, [matchViews, activeSubTab, competitionFilter, statusFilter, courtFilter, query]);
 
   // Métricas do resumo operacional
   const scheduledCount = useMemo(
@@ -671,10 +730,52 @@ export function MatchesPage() {
           </p>
           <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5">
             <MapPin className="w-3 h-3 text-zinc-400 shrink-0" />
-            {row.court || row.venue}
+            {row.court ? <span className="font-semibold text-zinc-300">{row.court} &bull; </span> : ''}
+            {row.venue || 'Local Principal'}
           </p>
         </div>
       ),
+    },
+    {
+      id: 'court',
+      header: 'Quadra',
+      headerClassName: 'w-36 text-center',
+      className: 'w-36 text-center',
+      cell: ({ row }) => {
+        const currentCourt = row.court;
+        return (
+          <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              disabled={!can('match:edit')}
+              onClick={() => handleSetCourt(row.record.id, currentCourt === 'Quadra 1' ? '' : 'Quadra 1')}
+              className={cn(
+                'px-2 py-0.5 rounded text-[10px] font-semibold transition-all border cursor-pointer',
+                currentCourt === 'Quadra 1'
+                  ? 'bg-amber-500 text-zinc-950 border-amber-400 font-bold shadow-sm'
+                  : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700'
+              )}
+              title={currentCourt === 'Quadra 1' ? 'Clique para remover da Quadra 1' : 'Alocar na Quadra 1'}
+            >
+              Quadra 1
+            </button>
+            <button
+              type="button"
+              disabled={!can('match:edit')}
+              onClick={() => handleSetCourt(row.record.id, currentCourt === 'Quadra 2' ? '' : 'Quadra 2')}
+              className={cn(
+                'px-2 py-0.5 rounded text-[10px] font-semibold transition-all border cursor-pointer',
+                currentCourt === 'Quadra 2'
+                  ? 'bg-sky-500 text-zinc-950 border-sky-400 font-bold shadow-sm'
+                  : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700'
+              )}
+              title={currentCourt === 'Quadra 2' ? 'Clique para remover da Quadra 2' : 'Alocar na Quadra 2'}
+            >
+              Quadra 2
+            </button>
+          </div>
+        );
+      },
     },
     {
       id: 'status',
@@ -1065,15 +1166,33 @@ export function MatchesPage() {
                   statusFilter={statusFilter}
                   onStatusFilterChange={setStatusFilter}
                   competitions={competitions}
+                  courtFilter={courtFilter}
+                  onCourtFilterChange={setCourtFilter}
+                  onDistributeCourts={() => setDistributeCourtsOpen(true)}
+                  isSplitView={isSplitView}
+                  onToggleSplitView={() => setIsSplitView((prev) => !prev)}
                 />
 
-                {/* DataTable Oficial */}
-                <DataTable
-                  data={filteredMatches}
-                  columns={columns}
-                  emptyTitle="Nenhum confronto encontrado para os filtros selecionados"
-                  emptyDescription="Tente alterar os termos de busca, selecionar outra competição ou alternar a aba operacional."
-                />
+                {/* DataTable Oficial ou Visualização Dividida por Quadras */}
+                {isSplitView ? (
+                  <div className="p-4">
+                    <CourtsSplitView
+                      matches={filteredMatches}
+                      onSetCourt={handleSetCourt}
+                      onOpenLiveScorer={(m) => setLiveScorerMatch(m)}
+                      onOpenHomologate={(m) => setPendingHomologateMatch(m)}
+                      canEdit={can('match:edit')}
+                      canFinalize={can('match:finalize')}
+                    />
+                  </div>
+                ) : (
+                  <DataTable
+                    data={filteredMatches}
+                    columns={columns}
+                    emptyTitle="Nenhum confronto encontrado para os filtros selecionados"
+                    emptyDescription="Tente alterar os termos de busca, selecionar outra competição ou alternar a aba operacional."
+                  />
+                )}
               </SectionCard>
             )}
           </div>
@@ -1219,6 +1338,16 @@ export function MatchesPage() {
         match={refereeMatch}
         allMatches={matches}
         onAssignmentSaved={refresh}
+      />
+
+      <DistributeCourtsDialog
+        open={distributeCourtsOpen}
+        onOpenChange={setDistributeCourtsOpen}
+        matches={matches.filter((m) => {
+          if (competitionFilter !== 'all' && m.competitionId !== competitionFilter) return false;
+          return true;
+        })}
+        onConfirm={handleApplyCourtDistribution}
       />
     </MainLayout>
   );

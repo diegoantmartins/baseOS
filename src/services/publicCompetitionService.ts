@@ -12,6 +12,7 @@
  */
 
 import { dataAccess } from '@/services/dataAccess';
+import { registerCacheInvalidationListener } from '@/services/dataCacheInvalidation';
 import { CompetitionRulesService } from '@/services/competitionRulesService';
 import { computeStandingsByGroup, type StandingsByGroup } from '@/services/standingsService';
 import type { CompetitionRecord, CompetitionLifecycleStatus, CompetitionSupporter } from '@/types/entities';
@@ -209,10 +210,57 @@ export function sanitizePublicCompetition(comp: CompetitionRecord): PublicCompet
 }
 
 // ============================================================================
+// Cache e Deduplicação em Memória (SWR / 15s TTL para 50+ conexões simultâneas)
+// ============================================================================
+
+export const PUBLIC_BUNDLE_CACHE_TTL = 15_000; // 15 segundos
+
+interface BundleCacheEntry {
+  data: PublicCompetitionBundle;
+  timestamp: number;
+}
+
+const bundleCache = new Map<string, BundleCacheEntry>();
+const inFlightPromises = new Map<string, Promise<PublicCompetitionBundle | null>>();
+
+/**
+ * Limpa o cache público em memória (útil em testes ou resets de dados).
+ */
+export function clearPublicCompetitionCache(): void {
+  bundleCache.clear();
+  inFlightPromises.clear();
+}
+
+// Invalida o cache em memória automaticamente quando houver mutações ou resets na base de dados
+registerCacheInvalidationListener(clearPublicCompetitionCache);
+
+/**
+ * Atualiza cirurgicamente dados de uma partida no cache sem disparar nova consulta pesada ao banco.
+ */
+export function updatePublicMatchInCache(matchId: string, partial: Partial<PublicMatchDTO>): void {
+  bundleCache.forEach((entry) => {
+    const matchIndex = entry.data.matches.findIndex((m) => m.id === matchId);
+    if (matchIndex !== -1) {
+      entry.data.matches[matchIndex] = {
+        ...entry.data.matches[matchIndex],
+        ...partial,
+      };
+    }
+  });
+}
+
+// ============================================================================
 // Métodos do Serviço Público
 // ============================================================================
 
 export const publicCompetitionService = {
+  /**
+   * Limpa o cache público em memória.
+   */
+  clearCache(): void {
+    clearPublicCompetitionCache();
+  },
+
   /**
    * Busca uma competição pelo seu slug oficial permanente.
    * Retorna null se o slug não for encontrado ou não pertencer a nenhuma competição.
@@ -227,8 +275,44 @@ export const publicCompetitionService = {
   /**
    * Carrega o pacote completo de visualização pública da competição:
    * Metadados esportivos, equipes participantes, grupos, partidas e classificação oficial.
+   * Utiliza cache com TTL de 15s e deduplicação de chamadas simultâneas.
    */
-  async getPublicCompetitionBundle(slug: string): Promise<PublicCompetitionBundle | null> {
+  async getPublicCompetitionBundle(slug: string, forceRefresh = false): Promise<PublicCompetitionBundle | null> {
+    const normalizedSlug = slug?.trim();
+    if (!normalizedSlug) return null;
+
+    if (!forceRefresh) {
+      const cached = bundleCache.get(normalizedSlug);
+      if (cached && Date.now() - cached.timestamp < PUBLIC_BUNDLE_CACHE_TTL) {
+        return cached.data;
+      }
+      const existingPromise = inFlightPromises.get(normalizedSlug);
+      if (existingPromise) {
+        return existingPromise;
+      }
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const bundle = await this._loadPublicCompetitionBundleDirect(normalizedSlug);
+        if (bundle) {
+          bundleCache.set(normalizedSlug, { data: bundle, timestamp: Date.now() });
+        }
+        return bundle;
+      } finally {
+        inFlightPromises.delete(normalizedSlug);
+      }
+    })();
+
+    inFlightPromises.set(normalizedSlug, fetchPromise);
+    return fetchPromise;
+  },
+
+  /**
+   * Carga direta sem verificação de cache.
+   * @internal
+   */
+  async _loadPublicCompetitionBundleDirect(slug: string): Promise<PublicCompetitionBundle | null> {
     const rawComp = await dataAccess.getCompetitionBySlug(slug.trim());
     if (!rawComp) return null;
 
@@ -460,3 +544,7 @@ export const publicCompetitionService = {
     });
   },
 };
+
+// Reexportação dos hooks de cache reativo (SWR / React Query) para facilidade de consumo
+export { usePublicCompetition, usePublicMatches } from '@/hooks/usePublicCompetition';
+

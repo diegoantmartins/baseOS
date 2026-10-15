@@ -47,6 +47,18 @@ export function PublicMatchModal({
                     Jogo #{match.matchNumber}
                   </span>
                 )}
+                {match.court && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] font-semibold px-2 py-0.5 ${
+                      match.court.includes('2')
+                        ? 'border-sky-500/40 bg-sky-500/15 text-sky-300'
+                        : 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                    }`}
+                  >
+                    📍 {match.court}
+                  </Badge>
+                )}
                 {match.round && (
                   <span className="text-xs text-zinc-500">
                     • Rodada {match.round}

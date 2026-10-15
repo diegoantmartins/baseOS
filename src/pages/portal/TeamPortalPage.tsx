@@ -525,11 +525,27 @@ export function TeamPortalPage() {
                   <Calendar className="w-4 h-4 text-amber-500" />
                   Próximo Jogo
                 </CardTitle>
-                {nextMatch && (
-                  <Badge variant="outline" className="text-[10px] font-mono">
-                    Jogo #{nextMatch.matchNumber}
-                  </Badge>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {nextMatch && (
+                    <>
+                      {nextMatch.court && (
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-semibold px-2 py-0.5 ${
+                            nextMatch.court.includes('2')
+                              ? 'border-sky-500/40 bg-sky-500/15 text-sky-300'
+                              : 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                          }`}
+                        >
+                          📍 {nextMatch.court}
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        Jogo #{nextMatch.matchNumber}
+                      </Badge>
+                    </>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-4 pt-1 space-y-3">
@@ -957,9 +973,23 @@ export function TeamPortalPage() {
                 <Card key={m.id} className="border border-border bg-card shadow-none">
                   <CardHeader className="p-4 pb-2 border-b border-border/50">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-mono text-muted-foreground">
-                        Jogo #{m.matchNumber} &bull; Rodada {m.round}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-muted-foreground">
+                          Jogo #{m.matchNumber} &bull; Rodada {m.round}
+                        </span>
+                        {m.court && (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] font-semibold px-2 py-0.5 ${
+                              m.court.includes('2')
+                                ? 'border-sky-500/40 bg-sky-500/15 text-sky-300'
+                                : 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                            }`}
+                          >
+                            📍 {m.court}
+                          </Badge>
+                        )}
+                      </div>
                       <Badge
                         variant={isFinished ? 'default' : 'outline'}
                         className="text-[10px] font-mono"

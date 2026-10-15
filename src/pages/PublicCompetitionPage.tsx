@@ -29,7 +29,12 @@ import {
   Layers,
   ArrowLeft,
 } from 'lucide-react';
-import { publicCompetitionService, type PublicCompetitionBundle, type PublicMatchDTO } from '@/services/publicCompetitionService';
+import {
+  publicCompetitionService,
+  usePublicCompetition,
+  type PublicCompetitionBundle,
+  type PublicMatchDTO,
+} from '@/services/publicCompetitionService';
 import { StandingsTable } from '@/components/competition/StandingsTable';
 import { CompetitionQRCodeModal } from '@/components/public/CompetitionQRCodeModal';
 import { PublicMatchModal } from '@/components/public/PublicMatchModal';
@@ -41,9 +46,8 @@ import { toast } from 'sonner';
 export default function PublicCompetitionPage() {
   const { slug } = useParams<{ slug: string }>();
 
-  const [bundle, setBundle] = useState<PublicCompetitionBundle | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  // Hook reativo SWR / React Query com staleTime de 15s e Supabase Realtime
+  const { bundle, isLoading, isFetching, refetch } = usePublicCompetition(slug);
   const [isQrOpen, setIsQrOpen] = useState<boolean>(false);
   const [selectedMatch, setSelectedMatch] = useState<PublicMatchDTO | null>(null);
   const [activeTab, setActiveTab] = useState<string>('overview');
@@ -54,23 +58,16 @@ export default function PublicCompetitionPage() {
 
   const loadData = useCallback(async (isRefresh = false) => {
     if (!slug) return;
-    if (isRefresh) setIsRefreshing(true);
-    else setIsLoading(true);
-
     try {
-      const data = await publicCompetitionService.getPublicCompetitionBundle(slug);
-      setBundle(data);
+      await refetch();
       if (isRefresh) {
         toast.success('Dados atualizados com sucesso!');
       }
     } catch (err) {
       console.error('Erro ao carregar dados do portal público:', err);
       toast.error('Não foi possível carregar a competição.');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
     }
-  }, [slug]);
+  }, [refetch, slug]);
 
   useEffect(() => {
     loadData();
@@ -208,11 +205,11 @@ export default function PublicCompetitionPage() {
               variant="ghost"
               size="sm"
               onClick={() => loadData(true)}
-              disabled={isRefreshing}
+              disabled={isFetching}
               className="text-zinc-300 hover:text-white hover:bg-zinc-800 text-xs h-8 px-2.5"
               title="Atualizar dados da persistência"
             >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? 'animate-spin text-amber-500' : ''}`} />
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isFetching ? 'animate-spin text-amber-500' : ''}`} />
               <span className="hidden sm:inline">Atualizar</span>
             </Button>
 
@@ -817,15 +814,29 @@ function MatchCardItem({ match, onSelect }: { match: PublicMatchDTO; onSelect?: 
         </div>
 
         <div className="text-right flex flex-col items-end gap-1 shrink-0">
-          {match.isCompleted ? (
-            <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px] px-1.5 py-0">
-              Encerrado
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="border-zinc-700 bg-zinc-800/60 text-zinc-400 text-[10px] px-1.5 py-0">
-              {match.scheduledTime ? match.scheduledTime.slice(11, 16) : 'Agendado'}
-            </Badge>
-          )}
+          <div className="flex items-center gap-1.5">
+            {match.court && (
+              <Badge
+                variant="outline"
+                className={`text-[9px] font-semibold px-1.5 py-0 ${
+                  match.court.includes('2')
+                    ? 'border-sky-500/40 bg-sky-500/15 text-sky-300'
+                    : 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                }`}
+              >
+                📍 {match.court}
+              </Badge>
+            )}
+            {match.isCompleted ? (
+              <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px] px-1.5 py-0">
+                Encerrado
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="border-zinc-700 bg-zinc-800/60 text-zinc-400 text-[10px] px-1.5 py-0">
+                {match.scheduledTime ? match.scheduledTime.slice(11, 16) : 'Agendado'}
+              </Badge>
+            )}
+          </div>
           {match.groupName && <span className="text-[10px] text-zinc-500">{match.groupName}</span>}
         </div>
       </div>
@@ -866,6 +877,18 @@ function MatchDetailedCard({ match, onSelect }: { match: PublicMatchDTO; onSelec
           {match.groupName && (
             <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px]">
               {match.groupName}
+            </Badge>
+          )}
+          {match.court && (
+            <Badge
+              variant="outline"
+              className={`text-[10px] font-semibold px-2 py-0.5 ${
+                match.court.includes('2')
+                  ? 'border-sky-500/40 bg-sky-500/15 text-sky-300'
+                  : 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+              }`}
+            >
+              📍 {match.court}
             </Badge>
           )}
           {match.matchNumber && <span>Jogo #{match.matchNumber}</span>}
