@@ -427,6 +427,13 @@ export function MatchesPage() {
       }
     }
 
+    // Reconciliação do grafo DAG para garantir transição automática de nós derivados (ex: Play-In e Quartas)
+    try {
+      await CompetitionRuntimeService.reconcileCompetitionRuntime(currentMatch.competitionId);
+    } catch (runtimeErr) {
+      console.warn('Reconciliação runtime DAG pós-homologação ignorada:', runtimeErr);
+    }
+
     const winnerTeam = teams.find((t) => t.id === (canonical.winnerId ?? currentMatch.winnerId));
     await OperationalAuditService.recordMatchHomologation({
       match: currentMatch,
@@ -523,6 +530,46 @@ export function MatchesPage() {
       const check = CompetitionBracketService.canModifyPlayoffs(comp, compMatches);
       if (!check.ok) {
         check.errors.forEach((err) => toast.error(err));
+        return;
+      }
+
+      // 1. Pipeline do Grafo DAG Relacional (competition_stages / MatchSlots)
+      const compStages = await dataAccess.listStages(comp.id);
+      const compSlots = await dataAccess.listMatchSlots(comp.id);
+      const hasGraphStages =
+        compStages.some(
+          (s) =>
+            s.stageType === 'play-in' ||
+            s.stageType === 'playoffs' ||
+            s.stageType === 'knockout' ||
+            s.stageType === 'single-elimination',
+        ) ||
+        comp.format === 'groups-play-in-knockout' ||
+        comp.groupsCount === 3 ||
+        Boolean(comp.config?.format?.stages?.some((s) => s.type === 'play-in' || s.id === 'play-in')) ||
+        compSlots.length > 0;
+
+      if (hasGraphStages) {
+        // Reconcilia o runtime do grafo (DAG):
+        // 1. Resolve o ranking intergrupos via OverallStandingsEngine (regras canônicas [4, 3, 3])
+        // 2. Materializa os confrontos do Play-In (R1: 7º x 10º, R2: 8º x 9º)
+        // 3. Conecta os classificados diretos (1º a 6º) e vencedores de R1/R2 aos slots de Quartas
+        const reconcileSummary = await CompetitionRuntimeService.reconcileCompetitionRuntime(comp.id);
+
+        await OperationalAuditService.recordPlayoffSync({
+          competition: comp,
+          operator: session?.user?.name || session?.user?.email || 'Administrador',
+          createdCount: reconcileSummary.materializedMatches.length,
+          updatedCount: reconcileSummary.resolvedSlots,
+        });
+
+        toast.success(
+          reconcileSummary.materializedMatches.length > 0
+            ? `${reconcileSummary.materializedMatches.length} partida(s) de mata-mata/repescagem materializada(s) via Grafo DAG!`
+            : 'Chaveamento e slots do Grafo DAG reconciliados com sucesso!',
+        );
+        await refresh();
+        await refetchBracket();
         return;
       }
 
@@ -1100,18 +1147,16 @@ export function MatchesPage() {
                     </button>
                   </div>
 
-                  {/* Fallback de sincronização se a competição não possuir MatchSlots relacionais */}
-                  {(!bracketViewModel || !bracketViewModel.hasMatchSlots) && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="gap-1.5 text-xs h-8 rounded-md shrink-0 bg-zinc-800 hover:bg-zinc-700 text-foreground border border-zinc-700/60 font-medium"
-                      onClick={handleSyncPlayoffsFromGroups}
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-primary" />
-                      Sincronizar Grupos
-                    </Button>
-                  )}
+                  {/* Sincronização / Avanço de Fases via Grafo DAG */}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="gap-1.5 text-xs h-8 rounded-md shrink-0 bg-zinc-800 hover:bg-zinc-700 text-foreground border border-zinc-700/60 font-medium"
+                    onClick={handleSyncPlayoffsFromGroups}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-primary" />
+                    Sincronizar / Avançar Fases
+                  </Button>
                 </div>
               </div>
             )}

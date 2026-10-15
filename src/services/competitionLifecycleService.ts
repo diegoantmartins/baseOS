@@ -620,6 +620,16 @@ export class CompetitionLifecycleService {
             await dataAccess.updateStage(stage.id, { status: 'completed' });
             stage.status = 'completed';
             stageStatusChanged = true;
+
+            // Se a fase de grupos encerrou, dispara a reconciliação e materialização de nós derivados (DAG)
+            if (stage.stageType === 'groups' || stage.stageType === 'round-robin' || stage.stageType === 'group-stage') {
+              try {
+                const { CompetitionRuntimeService } = await import('./competitionRuntimeService');
+                await CompetitionRuntimeService.reconcileCompetitionRuntime(competitionId);
+              } catch (recErr) {
+                console.warn('Erro ao reconciliar nós derivados após fase de grupos:', recErr);
+              }
+            }
           } else if (anyStageMatchStarted && stage.status === 'pending') {
             await dataAccess.updateStage(stage.id, { status: 'in-progress' });
             stage.status = 'in-progress';
@@ -630,13 +640,18 @@ export class CompetitionLifecycleService {
     }
 
     // 2. Avaliação de encerramento do último nó do grafo e de 100% de partidas finalizadas:
-    // A competição faz a transição global para 'completed' assim que 100% das partidas reais
-    // atingem status homologated/completed (ou se todos os estágios do DAG forem concluídos).
-    // A ausência de um "mata-mata" não trava mais o fim do evento.
-    const allStagesCompleted = stages.length > 0 && stages.every(s => s.status === 'completed');
+    // Recarrega coleções caso novos matches tenham sido materializados pelo runtime (ex: Repescagem R1 e R2)
+    const latestMatches = await dataAccess.listMatches(competitionId);
+    const latestStages = await dataAccess.listStages(competitionId);
+    const latestSlots = await dataAccess.listMatchSlots(competitionId);
 
-    if (allMatchesFinished || allStagesCompleted) {
-      const podium = computePodium(matches, competition);
+    const allLatestMatchesFinished = latestMatches.length > 0 && latestMatches.every(isFinishedMatch);
+    const allLatestStagesCompleted = latestStages.length > 0 && latestStages.every(s => s.status === 'completed');
+    const hasUnmaterializedEligibleSlots = latestSlots.some(s => s.participantAStatus === 'resolved' && s.participantBStatus === 'resolved' && !s.matchId);
+    const hasPendingStages = latestStages.some(s => s.status === 'pending' || s.status === 'in-progress');
+
+    if ((allLatestMatchesFinished && !hasPendingStages && !hasUnmaterializedEligibleSlots) || allLatestStagesCompleted) {
+      const podium = computePodium(latestMatches, competition);
       const updates: Partial<CompetitionRecord> = {
         status: 'completed',
       };

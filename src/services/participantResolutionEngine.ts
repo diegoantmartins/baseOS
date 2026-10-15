@@ -147,7 +147,14 @@ export class ParticipantResolutionEngine {
       }
 
       case 'overall-ranking': {
-        const overall = context.overallStandingsByStage?.[reference.stageId];
+        let overall = reference.stageId ? context.overallStandingsByStage?.[reference.stageId] : undefined;
+        if (!overall || overall.length === 0) {
+          const allOveralls = Object.values(context.overallStandingsByStage ?? {});
+          if (allOveralls.length > 0) {
+            overall = allOveralls[0];
+          }
+        }
+
         const pos = reference.position;
         const defaultPlaceholder = `${pos}º Colocado Geral`;
 
@@ -198,7 +205,14 @@ export class ParticipantResolutionEngine {
       }
 
       case 'stage-position': {
-        const overall = context.overallStandingsByStage?.[reference.stageId];
+        let overall = reference.stageId ? context.overallStandingsByStage?.[reference.stageId] : undefined;
+        if (!overall || overall.length === 0) {
+          const allOveralls = Object.values(context.overallStandingsByStage ?? {});
+          if (allOveralls.length > 0) {
+            overall = allOveralls[0];
+          }
+        }
+
         const pos = reference.position;
         const defaultPlaceholder = `${pos}º Colocado da Fase`;
 

@@ -249,6 +249,12 @@ export function MatchSheetPage() {
       await CompetitionRuntimeService.handleMatchCompleted(match.competitionId, targetMatchId);
     }
 
+    try {
+      await CompetitionRuntimeService.reconcileCompetitionRuntime(match.competitionId);
+    } catch (recErr) {
+      console.warn('Reconciliação runtime DAG pós-homologação ignorada:', recErr);
+    }
+
     toast.success('Súmula homologada com sucesso!');
     await loadSingleMatch(targetMatchId);
     setHomologateOpen(false);

@@ -412,7 +412,12 @@ export class CompetitionRuntimeService {
   public static async reconcileCompetitionRuntime(
     competitionId: string,
   ): Promise<ReconcileRuntimeSummary> {
-    const allSlots = await dataAccess.listMatchSlots(competitionId);
+    // Se não houver slots cadastrados, avalia inicialização automática do DAG para formatos de 3 grupos com Play-In
+    let allSlots = await dataAccess.listMatchSlots(competitionId);
+    if (allSlots.length === 0) {
+      allSlots = await this.ensureDAGSlotsForThreeGroupPlayIn(competitionId);
+    }
+
     if (allSlots.length === 0) {
       return {
         ok: true,
@@ -488,6 +493,322 @@ export class CompetitionRuntimeService {
     };
   }
 
+  /**
+   * Inicializa deterministicamente os nós de estágios, rodadas e MatchSlots do Grafo DAG
+   * para competições de 3 chaves [4, 3, 3] com Repescagem (7º-10º) e Quartas de Final.
+   */
+  public static async ensureDAGSlotsForThreeGroupPlayIn(
+    competitionId: string,
+  ): Promise<MatchSlotRecord[]> {
+    const existingSlots = await dataAccess.listMatchSlots(competitionId);
+    if (existingSlots.length > 0) {
+      return existingSlots;
+    }
+
+    const comp = await dataAccess.getCompetition(competitionId);
+    if (!comp) return [];
+
+    const isThreeGroupsFormat =
+      comp.format === 'groups-play-in-knockout' ||
+      comp.groupsCount === 3 ||
+      comp.config?.format?.formatType === 'groups-play-in-knockout' ||
+      Boolean(comp.config?.format?.stages?.some((s) => s.type === 'play-in' || s.id === 'play-in'));
+
+    if (!isThreeGroupsFormat) {
+      return [];
+    }
+
+    const stages = await dataAccess.listStages(competitionId);
+
+    // 1. Fase de Grupos
+    let groupStage = stages.find(
+      (s) =>
+        s.stageId === 'fase-grupos' ||
+        s.stageType === 'groups' ||
+        s.stageType === 'group-stage' ||
+        s.stageType === 'round-robin',
+    );
+    if (!groupStage) {
+      groupStage = await dataAccess.createStage({
+        competitionId,
+        stageId: 'fase-grupos',
+        name: 'Fase de Grupos (3 Chaves)',
+        stageOrder: 1,
+        stageType: 'group-stage',
+        status: 'in-progress',
+        isLocked: false,
+        metadata: {},
+      });
+    }
+
+    // 2. Repescagem / Play-In
+    let playInStage = stages.find((s) => s.stageId === 'play-in' || s.stageType === 'play-in');
+    if (!playInStage) {
+      playInStage = await dataAccess.createStage({
+        competitionId,
+        stageId: 'play-in',
+        name: 'Repescagem / Play-In (7º ao 10º)',
+        stageOrder: 2,
+        stageType: 'play-in',
+        status: 'pending',
+        isLocked: false,
+        metadata: {},
+      });
+    }
+
+    // 3. Fase Final (Quartas, Semis, Final)
+    let finalStage = stages.find(
+      (s) =>
+        s.stageId === 'fase-final' ||
+        s.stageId === 'playoffs' ||
+        s.stageType === 'knockout' ||
+        s.stageType === 'playoffs',
+    );
+    if (!finalStage) {
+      finalStage = await dataAccess.createStage({
+        competitionId,
+        stageId: 'fase-final',
+        name: 'Fase Final (Quartas, Semis e Final)',
+        stageOrder: 3,
+        stageType: 'knockout',
+        status: 'pending',
+        isLocked: false,
+        metadata: {},
+      });
+    }
+
+    // Garante rodadas
+    const rounds = await dataAccess.listRounds(competitionId);
+
+    let roundPlayIn = rounds.find(
+      (r) => r.stageRowId === playInStage!.id && (r.roundId === 'rodada-play-in' || r.roundOrder === 1),
+    );
+    if (!roundPlayIn) {
+      roundPlayIn = await dataAccess.createRound({
+        competitionId,
+        stageRowId: playInStage!.id,
+        roundId: 'rodada-play-in',
+        name: 'Repescagem (Eliminatória)',
+        roundOrder: 1,
+        slotsCount: 2,
+        status: 'pending',
+      });
+    }
+
+    let roundQF = rounds.find(
+      (r) => r.stageRowId === finalStage!.id && (r.roundId === 'quartas' || r.roundOrder === 1),
+    );
+    if (!roundQF) {
+      roundQF = await dataAccess.createRound({
+        competitionId,
+        stageRowId: finalStage!.id,
+        roundId: 'quartas',
+        name: 'Quartas de Final',
+        roundOrder: 1,
+        slotsCount: 4,
+        status: 'pending',
+      });
+    }
+
+    let roundSF = rounds.find(
+      (r) => r.stageRowId === finalStage!.id && (r.roundId === 'semifinais' || r.roundOrder === 2),
+    );
+    if (!roundSF) {
+      roundSF = await dataAccess.createRound({
+        competitionId,
+        stageRowId: finalStage!.id,
+        roundId: 'semifinais',
+        name: 'Semifinais',
+        roundOrder: 2,
+        slotsCount: 2,
+        status: 'pending',
+      });
+    }
+
+    let roundBronze = rounds.find(
+      (r) => r.stageRowId === finalStage!.id && (r.roundId === 'terceiro-lugar' || r.roundOrder === 3),
+    );
+    if (!roundBronze) {
+      roundBronze = await dataAccess.createRound({
+        competitionId,
+        stageRowId: finalStage!.id,
+        roundId: 'terceiro-lugar',
+        name: 'Disputa de 3º Lugar',
+        roundOrder: 3,
+        slotsCount: 1,
+        status: 'pending',
+      });
+    }
+
+    let roundFinal = rounds.find(
+      (r) => r.stageRowId === finalStage!.id && (r.roundId === 'final' || r.roundOrder === 4),
+    );
+    if (!roundFinal) {
+      roundFinal = await dataAccess.createRound({
+        competitionId,
+        stageRowId: finalStage!.id,
+        roundId: 'final',
+        name: 'Grande Final',
+        roundOrder: 4,
+        slotsCount: 1,
+        status: 'pending',
+      });
+    }
+
+    // Topologia dos 10 Slots do Grafo DAG Relacional
+    const slotsToCreate = [
+      // 1. Repescagem / Play-In
+      {
+        slotId: 'R1',
+        stageRowId: playInStage!.id,
+        roundRowId: roundPlayIn.id,
+        position: 1,
+        label: 'Repescagem 1 (7º x 10º)',
+        participantAReference: { type: 'overall-ranking' as const, position: 7, stageId: groupStage.stageId },
+        participantBReference: { type: 'overall-ranking' as const, position: 10, stageId: groupStage.stageId },
+        progressionRoute: {
+          sourceSlotId: 'R1',
+          onWinner: { targetStageId: finalStage!.id, targetRoundId: roundQF.id, targetSlotId: 'QF-03', targetSide: 'B' as const },
+        },
+      },
+      {
+        slotId: 'R2',
+        stageRowId: playInStage!.id,
+        roundRowId: roundPlayIn.id,
+        position: 2,
+        label: 'Repescagem 2 (8º x 9º)',
+        participantAReference: { type: 'overall-ranking' as const, position: 8, stageId: groupStage.stageId },
+        participantBReference: { type: 'overall-ranking' as const, position: 9, stageId: groupStage.stageId },
+        progressionRoute: {
+          sourceSlotId: 'R2',
+          onWinner: { targetStageId: finalStage!.id, targetRoundId: roundQF.id, targetSlotId: 'QF-01', targetSide: 'B' as const },
+        },
+      },
+
+      // 2. Quartas de Final
+      {
+        slotId: 'QF-01',
+        stageRowId: finalStage!.id,
+        roundRowId: roundQF.id,
+        position: 1,
+        label: 'Quartas 1 (1º Geral x Venc. Repescagem 2)',
+        participantAReference: { type: 'overall-ranking' as const, position: 1, stageId: groupStage.stageId },
+        participantBReference: { type: 'match-winner' as const, slotId: 'R2' },
+        progressionRoute: {
+          sourceSlotId: 'QF-01',
+          onWinner: { targetStageId: finalStage!.id, targetRoundId: roundSF.id, targetSlotId: 'SF-01', targetSide: 'A' as const },
+        },
+      },
+      {
+        slotId: 'QF-02',
+        stageRowId: finalStage!.id,
+        roundRowId: roundQF.id,
+        position: 2,
+        label: 'Quartas 2 (4º Geral x 5º Geral)',
+        participantAReference: { type: 'overall-ranking' as const, position: 4, stageId: groupStage.stageId },
+        participantBReference: { type: 'overall-ranking' as const, position: 5, stageId: groupStage.stageId },
+        progressionRoute: {
+          sourceSlotId: 'QF-02',
+          onWinner: { targetStageId: finalStage!.id, targetRoundId: roundSF.id, targetSlotId: 'SF-01', targetSide: 'B' as const },
+        },
+      },
+      {
+        slotId: 'QF-03',
+        stageRowId: finalStage!.id,
+        roundRowId: roundQF.id,
+        position: 3,
+        label: 'Quartas 3 (2º Geral x Venc. Repescagem 1)',
+        participantAReference: { type: 'overall-ranking' as const, position: 2, stageId: groupStage.stageId },
+        participantBReference: { type: 'match-winner' as const, slotId: 'R1' },
+        progressionRoute: {
+          sourceSlotId: 'QF-03',
+          onWinner: { targetStageId: finalStage!.id, targetRoundId: roundSF.id, targetSlotId: 'SF-02', targetSide: 'A' as const },
+        },
+      },
+      {
+        slotId: 'QF-04',
+        stageRowId: finalStage!.id,
+        roundRowId: roundQF.id,
+        position: 4,
+        label: 'Quartas 4 (3º Geral x 6º Geral)',
+        participantAReference: { type: 'overall-ranking' as const, position: 3, stageId: groupStage.stageId },
+        participantBReference: { type: 'overall-ranking' as const, position: 6, stageId: groupStage.stageId },
+        progressionRoute: {
+          sourceSlotId: 'QF-04',
+          onWinner: { targetStageId: finalStage!.id, targetRoundId: roundSF.id, targetSlotId: 'SF-02', targetSide: 'B' as const },
+        },
+      },
+
+      // 3. Semifinais
+      {
+        slotId: 'SF-01',
+        stageRowId: finalStage!.id,
+        roundRowId: roundSF.id,
+        position: 1,
+        label: 'Semifinal 1',
+        participantAReference: { type: 'match-winner' as const, slotId: 'QF-01' },
+        participantBReference: { type: 'match-winner' as const, slotId: 'QF-02' },
+        progressionRoute: {
+          sourceSlotId: 'SF-01',
+          onWinner: { targetStageId: finalStage!.id, targetRoundId: roundFinal.id, targetSlotId: 'FINAL-01', targetSide: 'A' as const },
+          onLoser: { targetStageId: finalStage!.id, targetRoundId: roundBronze.id, targetSlotId: 'BRONZE-01', targetSide: 'A' as const },
+        },
+      },
+      {
+        slotId: 'SF-02',
+        stageRowId: finalStage!.id,
+        roundRowId: roundSF.id,
+        position: 2,
+        label: 'Semifinal 2',
+        participantAReference: { type: 'match-winner' as const, slotId: 'QF-03' },
+        participantBReference: { type: 'match-winner' as const, slotId: 'QF-04' },
+        progressionRoute: {
+          sourceSlotId: 'SF-02',
+          onWinner: { targetStageId: finalStage!.id, targetRoundId: roundFinal.id, targetSlotId: 'FINAL-01', targetSide: 'B' as const },
+          onLoser: { targetStageId: finalStage!.id, targetRoundId: roundBronze.id, targetSlotId: 'BRONZE-01', targetSide: 'B' as const },
+        },
+      },
+
+      // 4. Disputa de 3º Lugar e Final
+      {
+        slotId: 'BRONZE-01',
+        stageRowId: finalStage!.id,
+        roundRowId: roundBronze.id,
+        position: 1,
+        label: 'Disputa de 3º Lugar',
+        participantAReference: { type: 'match-loser' as const, slotId: 'SF-01' },
+        participantBReference: { type: 'match-loser' as const, slotId: 'SF-02' },
+      },
+      {
+        slotId: 'FINAL-01',
+        stageRowId: finalStage!.id,
+        roundRowId: roundFinal.id,
+        position: 1,
+        label: 'Grande Final',
+        participantAReference: { type: 'match-winner' as const, slotId: 'SF-01' },
+        participantBReference: { type: 'match-winner' as const, slotId: 'SF-02' },
+      },
+    ];
+
+    const createdSlots: MatchSlotRecord[] = [];
+    for (const slotDef of slotsToCreate) {
+      const created = await dataAccess.createMatchSlot({
+        competitionId,
+        stageRowId: slotDef.stageRowId,
+        roundRowId: slotDef.roundRowId,
+        slotId: slotDef.slotId,
+        position: slotDef.position,
+        label: slotDef.label,
+        participantAReference: slotDef.participantAReference,
+        participantBReference: slotDef.participantBReference,
+        progressionRoute: slotDef.progressionRoute,
+      });
+      createdSlots.push(created);
+    }
+
+    return createdSlots;
+  }
+
   // ============================================================================
   // Helpers Privados de Resolução e Mapeamento
   // ============================================================================
@@ -522,64 +843,93 @@ export class CompetitionRuntimeService {
     // Se houver estágios com fase de grupos, calcula Standings
     if (competition) {
       const stages = await dataAccess.listStages(competition.id);
-      for (const stage of stages) {
-        if (stage.stageType === 'groups' || stage.stageType === 'round-robin' || stage.stageType === 'group-stage') {
-          // Calcula classificação de grupos via computeStandingsByGroup
+      const groupStages = stages.filter(
+        s => s.stageType === 'groups' || s.stageType === 'round-robin' || s.stageType === 'group-stage',
+      );
+
+      const processGroupMatches = (stageKeys: string[], groupMatches: MatchRecord[]) => {
+        // Mapeia os grupos das equipes a partir dos matches ou metadados
+        const teamGroupMap = new Map<string, string>();
+        for (const m of groupMatches) {
+          if (m.groupName) {
+            if (m.teamAId && !teamGroupMap.has(m.teamAId)) teamGroupMap.set(m.teamAId, m.groupName);
+            if (m.teamBId && !teamGroupMap.has(m.teamBId)) teamGroupMap.set(m.teamBId, m.groupName);
+          }
+        }
+
+        // Garante ordem determinística dos grupos (Grupo A, Grupo B, etc.)
+        const sortedGroupNames = Array.from(new Set(teamGroupMap.values())).sort((a, b) => a.localeCompare(b));
+        const standingInputs: StandingInput[] = [];
+
+        if (sortedGroupNames.length > 0) {
+          for (const grp of sortedGroupNames) {
+            for (const [tId, gName] of teamGroupMap.entries()) {
+              if (gName === grp) {
+                const t = teams.find(team => team.id === tId);
+                if (t) standingInputs.push({ team: t, groupName: grp });
+              }
+            }
+          }
+        } else {
+          for (const t of teams) {
+            standingInputs.push({ team: t, groupName: undefined });
+          }
+        }
+
+        const groupStandings = computeStandingsByGroup(standingInputs, groupMatches, { competition });
+        for (const key of stageKeys) {
+          context.standingsByStage![key] = groupStandings;
+        }
+
+        // Se configurado ranking geral intergrupos, calcula via OverallStandingsEngine
+        const allStandingsRows = groupStandings.flatMap(g => g.standings);
+        if (allStandingsRows.length > 0) {
+          const canonicalConfig = CompetitionRulesService.getConfig(competition);
+          const criteria = canonicalConfig.standings.tiebreakCriteriaOrder;
+          const overall = OverallStandingsEngine.computeOverallStandings(
+            groupStandings,
+            {
+              competition,
+              matches: groupMatches,
+              criteria,
+            },
+          );
+          for (const key of stageKeys) {
+            context.overallStandingsByStage![key] = overall;
+          }
+        }
+      };
+
+      if (groupStages.length > 0) {
+        for (const stage of groupStages) {
           const groupMatches = matches.filter(
             m =>
               m.phase === stage.name ||
               m.phase === stage.stageId ||
               m.phase === 'groups' ||
+              m.phase === 'group_stage' ||
+              m.phase === 'group-stage' ||
               m.phase === 'classificatória' ||
-              (m.slotId && slots.some(s => s.slotId === m.slotId && s.stageRowId === stage.id))
+              m.phase === 'classificatoria' ||
+              Boolean(m.groupName) ||
+              (m.slotId && slots.some(s => s.slotId === m.slotId && s.stageRowId === stage.id)),
           );
-
-          // Mapeia os grupos das equipes a partir dos matches ou metadados
-          const teamGroupMap = new Map<string, string>();
-          for (const m of groupMatches) {
-            if (m.groupName) {
-              if (m.teamAId && !teamGroupMap.has(m.teamAId)) teamGroupMap.set(m.teamAId, m.groupName);
-              if (m.teamBId && !teamGroupMap.has(m.teamBId)) teamGroupMap.set(m.teamBId, m.groupName);
-            }
-          }
-
-          // Garante ordem determinística dos grupos (Grupo A, Grupo B, etc.)
-          const sortedGroupNames = Array.from(new Set(teamGroupMap.values())).sort((a, b) => a.localeCompare(b));
-          const standingInputs: StandingInput[] = [];
-
-          if (sortedGroupNames.length > 0) {
-            for (const grp of sortedGroupNames) {
-              for (const [tId, gName] of teamGroupMap.entries()) {
-                if (gName === grp) {
-                  const t = teams.find(team => team.id === tId);
-                  if (t) standingInputs.push({ team: t, groupName: grp });
-                }
-              }
-            }
-          } else {
-            for (const t of teams) {
-              standingInputs.push({ team: t, groupName: undefined });
-            }
-          }
-
-          const groupStandings = computeStandingsByGroup(standingInputs, groupMatches, { competition });
-          context.standingsByStage![stage.stageId] = groupStandings;
-
-          // Se configurado ranking geral intergrupos, calcula via OverallStandingsEngine
-          const allStandingsRows = groupStandings.flatMap(g => g.standings);
-          if (allStandingsRows.length > 0) {
-            const canonicalConfig = CompetitionRulesService.getConfig(competition);
-            const criteria = canonicalConfig.standings.tiebreakCriteriaOrder;
-            const overall = OverallStandingsEngine.computeOverallStandings(
-              groupStandings,
-              {
-                competition,
-                matches: groupMatches,
-                criteria,
-              },
-            );
-            context.overallStandingsByStage![stage.stageId] = overall;
-          }
+          processGroupMatches([stage.stageId, stage.id, 'fase-grupos', 'default'], groupMatches);
+        }
+      } else {
+        // Fallback para competições onde stages relacionais ainda não foram inseridos
+        const fallbackGroupMatches = matches.filter(
+          m =>
+            Boolean(m.groupName) ||
+            m.phase === 'groups' ||
+            m.phase === 'group_stage' ||
+            m.phase === 'group-stage' ||
+            m.phase === 'classificatória' ||
+            m.phase === 'classificatoria' ||
+            m.phase === 'fase-grupos',
+        );
+        if (fallbackGroupMatches.length > 0) {
+          processGroupMatches(['fase-grupos', 'default', competition.id], fallbackGroupMatches);
         }
       }
     }

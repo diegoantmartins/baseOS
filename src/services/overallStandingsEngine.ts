@@ -14,6 +14,7 @@
 import type { CompetitionRecord, MatchRecord, TiebreakCriterionId } from '@/types/entities';
 import type { OverallRankingStrategy } from '@/types/competitionConfig';
 import type { StandingsByGroup, TeamStandingResult } from './standingsService';
+import { accumulateStats } from './standingsService';
 import { TieBreakEngine } from './tieBreakEngine';
 
 export interface OverallStandingResult extends TeamStandingResult {
@@ -39,6 +40,11 @@ export interface OverallStandingsOptions {
 export class OverallStandingsEngine {
   /**
    * Consolida a classificação de múltiplos grupos em um ranking unificado.
+   * Suporta a regra canônica FIVB para chaves assimétricas (ex.: [4, 3, 3]):
+   * - 1ºs e 2ºs de cada grupo garantem as vagas 1 a 6 (Quartas de Final diretas);
+   * - 3ºs de cada grupo e o 4º do Grupo A formam a faixa 7 a 10 (Play-In / Repescagem);
+   * - Para o desempate intergrupos dos 3ºs colocados (e dos 1ºs e 2ºs), descarta-se o resultado
+   *   obtido contra o 4º colocado do Grupo A para equiparar o número de jogos disputados.
    */
   public static computeOverallStandings(
     groupStandings: StandingsByGroup,
@@ -78,7 +84,27 @@ export class OverallStandingsEngine {
 
     // Estratégia 'by-group-position-first':
     // Agrupa equipes pela posição em seus respectivos grupos (ex: todos os 1ºs, todos os 2ºs, etc.)
-    const maxGroupSize = Math.max(...groupStandings.map(g => g.standings.length), 0);
+    const groupSizes = groupStandings.map(g => g.standings.length);
+    const maxGroupSize = Math.max(...groupSizes, 0);
+    const minGroupSize = Math.min(...groupSizes.filter(s => s > 0), maxGroupSize);
+    const isAsymmetric = maxGroupSize > minGroupSize && minGroupSize > 0;
+
+    // Identifica equipes em posições excedentes em grupos maiores (ex.: 4º colocado do Grupo A)
+    // para aplicação do critério canônico FIVB de equiparação de jogos
+    const excludedTeamIds = new Set<string>();
+    if (isAsymmetric) {
+      for (const group of groupStandings) {
+        if (group.standings.length > minGroupSize) {
+          for (let p = minGroupSize + 1; p <= group.standings.length; p++) {
+            const teamInP = group.standings.find(s => s.position === p);
+            if (teamInP) {
+              excludedTeamIds.add(teamInP.teamId);
+            }
+          }
+        }
+      }
+    }
+
     const result: OverallStandingResult[] = [];
     let currentOverallRank = 1;
 
@@ -95,50 +121,83 @@ export class OverallStandingsEngine {
 
       if (tierTeams.length === 0) continue;
 
-      // Se houver mais de uma equipe e assimetria no número de partidas disputadas (ex: chaves [4, 3, 3])
-      const playedCounts = new Set(tierTeams.map((t) => t.matchesPlayed).filter((mp) => mp > 0));
-      const hasAsymmetry = playedCounts.size > 1;
-
       let sortedTier: TeamStandingResult[];
-      if (hasAsymmetry) {
-        // Ordenação normalizada por partida para justiça esportiva em chaves desiguais (FIVB / CBV)
-        sortedTier = [...tierTeams].sort((a, b) => {
-          // 1. Pontos normalizados por jogo (points / matchesPlayed)
-          const ppa = a.matchesPlayed > 0 ? a.competitionPoints / a.matchesPlayed : 0;
-          const ppb = b.matchesPlayed > 0 ? b.competitionPoints / b.matchesPlayed : 0;
-          if (Math.abs(ppa - ppb) > 0.0001) return ppb - ppa;
 
-          // 2. Vitórias normalizadas por jogo (victories / matchesPlayed)
-          const vpa = a.matchesPlayed > 0 ? a.matchesWon / a.matchesPlayed : 0;
-          const vpb = b.matchesPlayed > 0 ? b.matchesWon / b.matchesPlayed : 0;
-          if (Math.abs(vpa - vpb) > 0.0001) return vpb - vpa;
+      // Se houver assimetria de jogos e partidas fornecidas para equiparação canônica FIVB
+      if (isAsymmetric && pos <= minGroupSize && matches.length > 0 && excludedTeamIds.size > 0) {
+        // Regra FIVB: descarta-se o resultado das partidas disputadas contra as equipes
+        // de posições excedentes (ex.: 4º colocado do Grupo A)
+        const normalizedMatches = matches.filter(
+          m => !excludedTeamIds.has(m.teamAId) && !excludedTeamIds.has(m.teamBId)
+        );
 
-          // 3. Set Average / Sets Ratio
-          const sra = a.setsRatio;
-          const srb = b.setsRatio;
-          if (Math.abs(sra - srb) > 0.0001) return srb - sra;
+        // Recalcula estatísticas equiparadas com número idêntico de partidas disputadas
+        const normalizedTierTeams = tierTeams.map(team => {
+          const normStats = accumulateStats(normalizedMatches, team.teamId, onlyHomologated, competition);
+          return {
+            ...team,
+            ...normStats,
+          };
+        });
 
-          // 4. Points Average / Points Ratio
-          const pra = a.pointsRatio;
-          const prb = b.pointsRatio;
-          if (Math.abs(pra - prb) > 0.0001) return prb - pra;
+        // Desempata utilizando os critérios oficiais configurados (Vitórias > Pontos > Set Average > Pontos Average)
+        const resolvedNormalized = TieBreakEngine.resolveStandings(
+          normalizedTierTeams,
+          normalizedMatches,
+          criteria,
+          { onlyHomologated, competition }
+        );
 
-          // 5. Saldo de sets normalizado por jogo
-          const sba = a.matchesPlayed > 0 ? (a.setsWon - a.setsLost) / a.matchesPlayed : 0;
-          const sbb = b.matchesPlayed > 0 ? (b.setsWon - b.setsLost) / b.matchesPlayed : 0;
-          if (Math.abs(sba - sbb) > 0.0001) return sbb - sba;
-
-          // 6. Saldo de pontos normalizado por jogo
-          const pba = a.matchesPlayed > 0 ? a.pointsBalance / a.matchesPlayed : 0;
-          const pbb = b.matchesPlayed > 0 ? b.pointsBalance / b.matchesPlayed : 0;
-          if (Math.abs(pba - pbb) > 0.0001) return pbb - pba;
-
-          // 7. Desempate alfabético estável
-          return a.teamName.localeCompare(b.teamName);
+        // Mapeia de volta para manter o registro da equipe preservando a ordenação calculada
+        sortedTier = resolvedNormalized.map(item => {
+          const original = tierTeams.find(t => t.teamId === item.teamId);
+          return original || item;
         });
       } else {
-        // Desempata as equipes deste escalão (tier) entre si utilizando os critérios configurados
-        sortedTier = TieBreakEngine.resolveStandings(tierTeams, matches, criteria, { onlyHomologated, competition });
+        // Avaliação padrão quando não há assimetria ou quando matches não foram fornecidas
+        const playedCounts = new Set(tierTeams.map((t) => t.matchesPlayed).filter((mp) => mp > 0));
+        const hasAsymmetry = playedCounts.size > 1;
+
+        if (hasAsymmetry) {
+          // Ordenação normalizada por partida para justiça esportiva em chaves desiguais (fallback sem matches)
+          sortedTier = [...tierTeams].sort((a, b) => {
+            // 1. Pontos normalizados por jogo (points / matchesPlayed)
+            const ppa = a.matchesPlayed > 0 ? a.competitionPoints / a.matchesPlayed : 0;
+            const ppb = b.matchesPlayed > 0 ? b.competitionPoints / b.matchesPlayed : 0;
+            if (Math.abs(ppa - ppb) > 0.0001) return ppb - ppa;
+
+            // 2. Vitórias normalizadas por jogo (victories / matchesPlayed)
+            const vpa = a.matchesPlayed > 0 ? a.matchesWon / a.matchesPlayed : 0;
+            const vpb = b.matchesPlayed > 0 ? b.matchesWon / b.matchesPlayed : 0;
+            if (Math.abs(vpa - vpb) > 0.0001) return vpb - vpa;
+
+            // 3. Set Average / Sets Ratio
+            const sra = a.setsRatio;
+            const srb = b.setsRatio;
+            if (Math.abs(sra - srb) > 0.0001) return srb - sra;
+
+            // 4. Points Average / Points Ratio
+            const pra = a.pointsRatio;
+            const prb = b.pointsRatio;
+            if (Math.abs(pra - prb) > 0.0001) return prb - pra;
+
+            // 5. Saldo de sets normalizado por jogo
+            const sba = a.matchesPlayed > 0 ? (a.setsWon - a.setsLost) / a.matchesPlayed : 0;
+            const sbb = b.matchesPlayed > 0 ? (b.setsWon - b.setsLost) / b.matchesPlayed : 0;
+            if (Math.abs(sba - sbb) > 0.0001) return sbb - sba;
+
+            // 6. Saldo de pontos normalizado por jogo
+            const pba = a.matchesPlayed > 0 ? a.pointsBalance / a.matchesPlayed : 0;
+            const pbb = b.matchesPlayed > 0 ? b.pointsBalance / b.matchesPlayed : 0;
+            if (Math.abs(pba - pbb) > 0.0001) return pbb - pba;
+
+            // 7. Desempate alfabético estável
+            return a.teamName.localeCompare(b.teamName);
+          });
+        } else {
+          // Desempata as equipes deste escalão (tier) entre si utilizando os critérios configurados
+          sortedTier = TieBreakEngine.resolveStandings(tierTeams, matches, criteria, { onlyHomologated, competition });
+        }
       }
 
       for (const team of sortedTier) {
