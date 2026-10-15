@@ -37,6 +37,7 @@ const TeamRosterRegistrationPage = lazy(() => import("./pages/TeamRosterRegistra
 const HelpCenterPage = lazy(() => import("./pages/HelpCenterPage"));
 const DocumentEditorPage = lazy(() => import("./pages/DocumentEditorPage"));
 const PublicCompetitionPage = lazy(() => import("./pages/PublicCompetitionPage"));
+const PublicCatalogPage = lazy(() => import("./pages/PublicCatalogPage"));
 const OrganizationsPage = lazy(() => import("./pages/OrganizationsPage"));
 const OrganizationDetailPage = lazy(() => import("./pages/OrganizationDetailPage"));
 const OrganizationPortalPage = lazy(() => import("./pages/OrganizationPortalPage"));
@@ -90,6 +91,8 @@ const App = () => (
                 {/* Públicas: resultados, classificação, portal da equipe */}
                 <Route path="/c/:slug" element={<PublicCompetitionPage />} />
                 <Route path="/" element={<RootRedirector />} />
+                {/* Catálogo Público de Competições — sem autenticação */}
+                <Route path="/competicoes-publicas" element={<PublicCatalogPage />} />
                 <Route path="/competicoes-ativas" element={<ActiveCompetitionsPage />} />
                 <Route path="/classificacao" element={<StandingsPage />} />
                 <Route path="/standings" element={<StandingsPage />} />
