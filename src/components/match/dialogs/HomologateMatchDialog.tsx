@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { getMatchRosters } from '@/services/registrationService';
 import { validateMatchHighlight } from '@/services/matchValidationService';
+import { broadcastMatchHomologated } from '@/services/realtimeMatchService';
 import type { CompetitionRecord, MatchRecord } from '@/types/entities';
 import type { CompetitionAthlete } from '@/types/registration';
 
@@ -141,6 +142,25 @@ export function HomologateMatchDialog({
     setIsSubmitting(true);
     try {
       await onHomologate(match.id, selectedAthleteId || undefined);
+
+      // Transmissão em tempo real do resultado e do MVP
+      broadcastMatchHomologated({
+        match: {
+          ...match,
+          status: 'homologated',
+          highlightAthleteId: selectedAthleteId || undefined,
+        },
+        mvpAthlete: selectedAthlete
+          ? {
+              id: selectedAthlete.id,
+              name: selectedAthlete.name,
+              jerseyNumber: selectedAthlete.jerseyNumber,
+              teamName: selectedAthlete.teamName,
+              teamShort: selectedAthlete.teamShort,
+            }
+          : undefined,
+      });
+
       toast.success(
         selectedAthlete
           ? `Partida homologada! MVP: ${selectedAthlete.jerseyNumber != null ? `#${selectedAthlete.jerseyNumber} ` : ''}${selectedAthlete.name} (${selectedAthlete.teamShort})`
@@ -168,6 +188,18 @@ export function HomologateMatchDialog({
                 <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
                   Jogo #{match.matchNumber}
                 </Badge>
+                {match.court && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] font-semibold px-2 py-0.5 ${
+                      match.court.includes('2')
+                        ? 'border-sky-500/40 bg-sky-500/15 text-sky-300'
+                        : 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                    }`}
+                  >
+                    📍 {match.court}
+                  </Badge>
+                )}
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                 {match.teamAName} vs {match.teamBName} {competition?.name ? `• ${competition.name}` : ''}
@@ -177,28 +209,35 @@ export function HomologateMatchDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Resumo do Placar Final */}
-          <div className="p-3 rounded-xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between text-xs">
-            <div className="space-y-0.5">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Resultado da Partida</span>
+          {/* Resumo do Placar Final e Parciais */}
+          <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+                Resultado Oficial da Partida
+              </span>
               <div className="flex items-center gap-2 font-mono font-bold text-sm text-foreground">
-                <span className={match.winnerId === match.teamAId ? 'text-amber-400' : 'text-zinc-300'}>
+                <span className={match.winnerId === match.teamAId ? 'text-amber-400 font-black' : 'text-zinc-300'}>
                   {match.teamAShortName || match.teamAName}
                 </span>
-                <span className="text-zinc-500">
+                <span className="text-zinc-500 font-bold px-1 py-0.5 rounded bg-zinc-950 border border-zinc-800">
                   {match.sets.filter((s) => s.scoreA > s.scoreB).length} x {match.sets.filter((s) => s.scoreB > s.scoreA).length}
                 </span>
-                <span className={match.winnerId === match.teamBId ? 'text-amber-400' : 'text-zinc-300'}>
+                <span className={match.winnerId === match.teamBId ? 'text-amber-400 font-black' : 'text-zinc-300'}>
                   {match.teamBShortName || match.teamBName}
                 </span>
               </div>
             </div>
 
+            {/* Parciais set a set */}
             {match.sets && match.sets.length > 0 && (
-              <div className="flex items-center gap-1 font-mono text-[10px] text-zinc-400">
+              <div className="flex items-center gap-1.5 flex-wrap pt-1.5 border-t border-zinc-800/60 font-mono text-[10px]">
+                <span className="text-zinc-500 font-semibold uppercase text-[9px]">Parciais:</span>
                 {match.sets.map((s, idx) => (
-                  <span key={idx} className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700/60">
-                    {s.scoreA}-{s.scoreB}
+                  <span
+                    key={idx}
+                    className="px-2 py-0.5 rounded bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 font-semibold"
+                  >
+                    {idx + 1}º Set: {s.scoreA}×{s.scoreB}
                   </span>
                 ))}
               </div>
@@ -210,9 +249,9 @@ export function HomologateMatchDialog({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
                 <Trophy className="w-4 h-4 text-amber-400" />
-                <span>Melhor da Partida (MVP)</span>
+                <span>⭐ Eleger MVP da Partida (Melhor Jogador)</span>
                 <span className="text-[10px] font-normal text-muted-foreground">
-                  (obrigatório para destaque público)
+                  (destaque no portal e feed)
                 </span>
               </label>
 

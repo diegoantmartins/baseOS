@@ -14,11 +14,10 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   publicCompetitionService,
-  updatePublicMatchInCache,
   type PublicCompetitionBundle,
   type PublicMatchDTO,
 } from '@/services/publicCompetitionService';
-import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabaseClient';
+import { subscribeToMatchUpdates, showMatchHomologatedToast } from '@/services/realtimeMatchService';
 
 export interface UsePublicCompetitionOptions {
   enabled?: boolean;
@@ -47,85 +46,25 @@ export function usePublicCompetition(
 
   const competitionId = query.data?.competition.id;
 
-interface RealtimeMatchPayload {
-  id: string;
-  court?: string;
-  status?: string;
-  scheduled_time?: string;
-  winner_id?: string;
-}
-
-  // Supabase Realtime: Atualização cirúrgica via WebSocket sem SELECT completo
+  // Supabase Realtime & Eventos Locais: Atualização cirúrgica e transmissão de homologação
   useEffect(() => {
-    if (!competitionId || !isSupabaseConfigured()) return;
+    if (!competitionId) return;
 
-    let isMounted = true;
-    let subscriptionChannel: { unsubscribe: () => void } | null = null;
-
-    (async () => {
-      const supabase = await getSupabaseClient();
-      if (!supabase || !isMounted) return;
-
-      const channelName = `realtime-public-matches-${competitionId}`;
-      subscriptionChannel = supabase
-        .channel(channelName)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'matches',
-            filter: `competition_id=eq.${competitionId}`,
-          },
-          (payload) => {
-            const newRow = payload.new as RealtimeMatchPayload | null;
-            if (!newRow || !newRow.id) return;
-
-            // Atualização cirúrgica do cache do React Query em memória
-            queryClient.setQueryData(
-              ['public-competition-bundle', normalizedSlug],
-              (prevBundle: PublicCompetitionBundle | null | undefined) => {
-                if (!prevBundle) return prevBundle;
-
-                const updatedMatches = prevBundle.matches.map((m) => {
-                  if (m.id === newRow.id) {
-                    const partialMatch: Partial<PublicMatchDTO> = {
-                      court: newRow.court ?? m.court,
-                      status: newRow.status ?? m.status,
-                      scheduledTime: newRow.scheduled_time ?? m.scheduledTime,
-                      winnerId: newRow.winner_id ?? m.winnerId,
-                      isCompleted: newRow.status === 'completed' || newRow.status === 'homologated',
-                      isHomologated: newRow.status === 'homologated',
-                    };
-                    return { ...m, ...partialMatch };
-                  }
-                  return m;
-                });
-
-                return {
-                  ...prevBundle,
-                  matches: updatedMatches,
-                };
-              }
-            );
-
-            // Sincroniza também o cache estático em memória do serviço
-            updatePublicMatchInCache(newRow.id, {
-              court: newRow.court,
-              status: newRow.status,
-              scheduledTime: newRow.scheduled_time,
-              winnerId: newRow.winner_id,
-            });
-          }
-        )
-        .subscribe();
-    })();
+    // Escuta tanto eventos locais (mesma aba/janela) quanto remotos (WebSocket)
+    const unsubscribe = subscribeToMatchUpdates(
+      competitionId,
+      (payload) => {
+        showMatchHomologatedToast(payload);
+        // Invalida e força refetch imediato para atualizar classificação e dados do MVP
+        queryClient.invalidateQueries({ queryKey: ['public-competition-bundle', normalizedSlug] });
+      },
+      (matchId) => {
+        queryClient.invalidateQueries({ queryKey: ['public-competition-bundle', normalizedSlug] });
+      }
+    );
 
     return () => {
-      isMounted = false;
-      if (subscriptionChannel) {
-        subscriptionChannel.unsubscribe();
-      }
+      unsubscribe();
     };
   }, [competitionId, normalizedSlug, queryClient]);
 

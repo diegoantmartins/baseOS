@@ -64,6 +64,7 @@ import { CompetitionRulesService } from '@/services/competitionRulesService';
 import { dataAccess } from '@/services/dataAccess';
 import { computeStandingsByGroup } from '@/services/standingsService';
 import { sortScheduleMatches } from '@/services/scheduleService';
+import { subscribeToMatchUpdates, showMatchHomologatedToast } from '@/services/realtimeMatchService';
 import {
   REGISTRATION_STATUS_LABELS,
   ROSTER_LIMITS,
@@ -125,6 +126,16 @@ export function TeamPortalPage() {
     athletes.forEach((a) => map.set(a.id, a));
     return map;
   }, [allCompAthletes, athletes]);
+
+  // Mapa mestre de equipes para escudos e identificação visual
+  const masterTeamMap = useMemo(() => {
+    const map = new Map<string, TeamRecord>();
+    allTeams.forEach((t) => map.set(t.id, t));
+    return map;
+  }, [allTeams]);
+
+  // Sub-aba na view de jogos: 'team' (Jogos da Equipe) ou 'all' (Todos os Resultados do Torneio)
+  const [matchesTab, setMatchesTab] = useState<'team' | 'all'>('team');
 
   // Modais de atletas, edição de equipe e súmula
   const [modalOpen, setModalOpen] = useState(false);
@@ -191,6 +202,26 @@ export function TeamPortalPage() {
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  // Realtime: Transmissão e atualização imediata a cada homologação de partida
+  useEffect(() => {
+    if (!team?.competitionId) return;
+
+    const unsubscribe = subscribeToMatchUpdates(
+      team.competitionId,
+      (payload) => {
+        showMatchHomologatedToast(payload);
+        refreshData();
+      },
+      () => {
+        refreshData();
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [team?.competitionId, refreshData]);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 30000);
@@ -920,63 +951,116 @@ export function TeamPortalPage() {
   }
 
   // =========================================================================
-  // VIEW 3: JOGOS DA EQUIPE
+  // VIEW 3: JOGOS DA EQUIPE & RESULTADOS GERAIS DO TORNEIO
   // =========================================================================
   if (currentView === 'jogos') {
+    const displayedMatches = matchesTab === 'team' ? sortedMatches : sortScheduleMatches(allCompMatches);
+
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
               <Calendar className="w-5 h-5 text-amber-500" />
-              Confrontos da Equipe
+              Tabela de Jogos & Resultados
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Partidas agendadas e encerradas na competição oficial.
+              Confrontos oficiais, parciais em tempo real e MVPs eleitos pelo campeonato.
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportBoletim}
-            className="text-xs h-8 gap-1.5"
-            disabled={matches.length === 0}
-          >
-            <FileDown className="w-3.5 h-3.5" />
-            <span>Boletim de Jogos (PDF)</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportBoletim}
+              className="text-xs h-8 gap-1.5"
+              disabled={matches.length === 0}
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>Boletim de Jogos (PDF)</span>
+            </Button>
+          </div>
         </div>
 
-        {matches.length === 0 ? (
+        {/* Sub-abas de navegação: Jogos da Equipe vs Todos os Resultados do Torneio */}
+        <div className="flex items-center gap-2 p-1 rounded-xl bg-zinc-900/80 border border-zinc-800 w-fit">
+          <button
+            type="button"
+            onClick={() => setMatchesTab('team')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              matchesTab === 'team'
+                ? 'bg-amber-500 text-zinc-950 shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Jogos da Minha Equipe ({matches.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setMatchesTab('all')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              matchesTab === 'all'
+                ? 'bg-amber-500 text-zinc-950 shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Todos os Resultados do Torneio ({allCompMatches.length})
+          </button>
+        </div>
+
+        {displayedMatches.length === 0 ? (
           <Card className="border border-border bg-card shadow-none">
             <CardContent className="p-8 text-center space-y-2">
               <Calendar className="w-10 h-10 text-muted-foreground mx-auto" />
-              <p className="text-xs text-muted-foreground">Nenhuma partida programada ou realizada até o momento.</p>
+              <p className="text-xs text-muted-foreground">
+                {matchesTab === 'team'
+                  ? 'Nenhuma partida programada ou realizada para sua equipe até o momento.'
+                  : 'Nenhuma partida cadastrada na competição até o momento.'}
+              </p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {sortedMatches.map((m) => {
+            {displayedMatches.map((m) => {
               const isTeamA = m.teamAId === team.teamId;
-              const opponentName = isTeamA ? m.teamBName : m.teamAName;
-              const opponentShort = isTeamA ? m.teamBShortName : m.teamAShortName;
+              const isTeamB = m.teamBId === team.teamId;
+              const isOurMatch = isTeamA || isTeamB;
+
+              const teamARecord = masterTeamMap.get(m.teamAId);
+              const teamBRecord = masterTeamMap.get(m.teamBId);
+
               const setsA = m.sets.filter((s) => s.scoreA > s.scoreB).length;
               const setsB = m.sets.filter((s) => s.scoreB > s.scoreA).length;
-              const mySets = isTeamA ? setsA : setsB;
-              const oppSets = isTeamA ? setsB : setsA;
+
               const isFinished = m.status === 'completed' || m.status === 'homologated';
+              const isHomologated = m.status === 'homologated';
+
+              const isWinnerA = isFinished && (setsA > setsB || m.winnerId === m.teamAId);
+              const isWinnerB = isFinished && (setsB > setsA || m.winnerId === m.teamBId);
+
+              const weWon = isOurMatch && ((isTeamA && isWinnerA) || (isTeamB && isWinnerB));
+
               const mvpAthlete = m.highlightAthleteId ? athleteById.get(m.highlightAthleteId) : undefined;
               const isOurMvp = m.highlightAthleteId ? athletes.some((a) => a.id === m.highlightAthleteId) : false;
 
+              const mvpTeamName = isOurMvp
+                ? team.teamName
+                : (mvpAthlete?.competitionTeamId === m.teamAId ? m.teamAName : m.teamBName);
+
               return (
-                <Card key={m.id} className="border border-border bg-card shadow-none">
+                <Card key={m.id} className="border border-border bg-card shadow-none hover:border-zinc-700 transition-colors">
                   <CardHeader className="p-4 pb-2 border-b border-border/50">
                     <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono text-muted-foreground">
-                          Jogo #{m.matchNumber} &bull; Rodada {m.round}
+                          Jogo #{m.matchNumber} {m.round ? `• Rodada ${m.round}` : ''}
                         </span>
+                        {m.groupName && (
+                          <Badge variant="outline" className="text-[10px] border-zinc-700 bg-zinc-800/80 text-zinc-300">
+                            {m.groupName}
+                          </Badge>
+                        )}
                         {m.court && (
                           <Badge
                             variant="outline"
@@ -990,37 +1074,148 @@ export function TeamPortalPage() {
                           </Badge>
                         )}
                       </div>
-                      <Badge
-                        variant={isFinished ? 'default' : 'outline'}
-                        className="text-[10px] font-mono"
-                      >
-                        {isFinished ? 'Finalizado' : m.status === 'in-progress' ? 'Ao Vivo' : 'Agendado'}
-                      </Badge>
+
+                      <div className="flex items-center gap-1.5">
+                        {isHomologated ? (
+                          <Badge
+                            variant="default"
+                            className="text-[10px] font-mono bg-emerald-600/90 text-white hover:bg-emerald-600 flex items-center gap-1"
+                          >
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            ✓ HOMOLOGADO
+                          </Badge>
+                        ) : isFinished ? (
+                          <Badge
+                            variant="default"
+                            className="text-[10px] font-mono bg-blue-600/90 text-white hover:bg-blue-600"
+                          >
+                            ✓ FINALIZADO
+                          </Badge>
+                        ) : m.status === 'in-progress' ? (
+                          <Badge
+                            variant="default"
+                            className="text-[10px] font-mono bg-amber-500 text-zinc-950 font-bold animate-pulse"
+                          >
+                            Ao Vivo
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground">
+                            Agendado
+                          </Badge>
+                        )}
+
+                        {isOurMatch && isFinished && (
+                          <Badge
+                            className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 ${
+                              weWon
+                                ? 'bg-emerald-500 text-zinc-950'
+                                : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                            }`}
+                          >
+                            {weWon ? 'VITÓRIA' : 'DERROTA'}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      {/* Equipe do Usuário */}
-                      <div className="space-y-0.5 max-w-[40%] truncate">
-                        <div className="font-semibold text-foreground text-xs sm:text-sm truncate">
-                          {team.teamName}
+
+                  <CardContent className="p-4 space-y-3.5">
+                    {/* Placar Final em Destaque (font-mono) com Escudos */}
+                    <div className="grid grid-cols-12 items-center gap-2">
+                      {/* Equipe A */}
+                      <div className="col-span-5 flex items-center gap-2.5 min-w-0">
+                        <TeamCrest
+                          team={teamARecord}
+                          name={m.teamAName}
+                          shortName={m.teamAShortName}
+                          size="sm"
+                          className="w-8 h-8 rounded-lg shrink-0 border border-zinc-700 bg-zinc-950"
+                        />
+                        <div className="space-y-0.5 min-w-0">
+                          <div className={`text-xs sm:text-sm truncate ${isWinnerA ? 'font-bold text-white' : 'font-semibold text-zinc-300'}`}>
+                            {m.teamAName}
+                          </div>
+                          {m.teamAShortName && (
+                            <div className="text-[10px] font-mono text-muted-foreground truncate">{m.teamAShortName}</div>
+                          )}
                         </div>
-                        <div className="text-[10px] font-mono text-muted-foreground">{team.teamShortName}</div>
                       </div>
 
-                      {/* Placar */}
-                      <div className="text-center font-mono font-bold text-base sm:text-lg px-3 py-1 rounded bg-zinc-900 border border-zinc-800">
-                        {isFinished ? `${mySets} x ${oppSets}` : 'vs'}
+                      {/* Placar Central Sets */}
+                      <div className="col-span-2 text-center flex flex-col items-center justify-center">
+                        <div className="font-mono font-black text-base sm:text-lg px-2.5 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-white tracking-wider">
+                          {isFinished ? `${setsA}  ×  ${setsB}` : 'vs'}
+                        </div>
                       </div>
 
-                      {/* Adversário */}
-                      <div className="space-y-0.5 text-right max-w-[40%] truncate">
-                        <div className="font-semibold text-foreground text-xs sm:text-sm truncate">
-                          {opponentName}
+                      {/* Equipe B */}
+                      <div className="col-span-5 flex items-center justify-end gap-2.5 min-w-0 text-right">
+                        <div className="space-y-0.5 min-w-0">
+                          <div className={`text-xs sm:text-sm truncate ${isWinnerB ? 'font-bold text-white' : 'font-semibold text-zinc-300'}`}>
+                            {m.teamBName}
+                          </div>
+                          {m.teamBShortName && (
+                            <div className="text-[10px] font-mono text-muted-foreground truncate">{m.teamBShortName}</div>
+                          )}
                         </div>
-                        <div className="text-[10px] font-mono text-muted-foreground">{opponentShort}</div>
+                        <TeamCrest
+                          team={teamBRecord}
+                          name={m.teamBName}
+                          shortName={m.teamBShortName}
+                          size="sm"
+                          className="w-8 h-8 rounded-lg shrink-0 border border-zinc-700 bg-zinc-950"
+                        />
                       </div>
                     </div>
+
+                    {/* Parciais Set a Set */}
+                    {isFinished && m.sets.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                        <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                          Parciais:
+                        </span>
+                        {m.sets.map((s, idx) => (
+                          <Badge
+                            key={idx}
+                            variant="outline"
+                            className="text-[10px] font-mono py-0.5 px-2 rounded-full border-zinc-800 bg-zinc-900/80 text-zinc-300"
+                          >
+                            {idx + 1}º Set: {s.scoreA}×{s.scoreB}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Destaque / MVP da Partida */}
+                    {isFinished && m.highlightAthleteId && (
+                      <div
+                        className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent border border-amber-500/40 text-amber-200 shadow-sm"
+                        data-testid={`team-match-highlight-${m.id}`}
+                      >
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap min-w-0">
+                            <div className="h-6 w-6 rounded-full bg-amber-500/30 border border-amber-500/50 flex items-center justify-center shrink-0">
+                              <Trophy className="w-3.5 h-3.5 text-amber-300" />
+                            </div>
+                            <span className="font-bold text-xs text-amber-300 uppercase tracking-wider">
+                              ⭐ MVP da Partida:
+                            </span>
+                            <span className="font-semibold text-white text-xs">
+                              {mvpAthlete?.jerseyNumber != null ? `#[${mvpAthlete.jerseyNumber}] ` : ''}
+                              {mvpAthlete?.name || 'Atleta Destaque'}
+                            </span>
+                            <span className="text-[11px] text-amber-300/80 truncate">
+                              ({mvpTeamName})
+                            </span>
+                          </div>
+                          {isOurMvp && (
+                            <Badge className="bg-amber-500 text-zinc-950 font-black text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm border-0 shrink-0">
+                              🏆 DESTAQUE DO SEU ELENCO!
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Data, Horário e Localização do Ginásio */}
                     {(() => {
@@ -1074,60 +1269,17 @@ export function TeamPortalPage() {
                       );
                     })()}
 
-                    {/* Parciais dos Sets se finalizado */}
-                    {isFinished && m.sets.length > 0 && (
-                      <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                        <span className="text-[10px] text-muted-foreground font-semibold uppercase">Sets:</span>
-                        {m.sets.map((s, idx) => (
-                          <Badge key={idx} variant="outline" className="text-[10px] font-mono py-0 px-1 border-zinc-800">
-                            {isTeamA ? `${s.scoreA}-${s.scoreB}` : `${s.scoreB}-${s.scoreA}`}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Destaque / MVP da Partida */}
-                    {isFinished && m.highlightAthleteId && (
-                      <div className="pt-2 border-t border-border/40" data-testid={`team-match-highlight-${m.id}`}>
-                        {isOurMvp ? (
-                          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-gradient-to-r from-amber-500/25 via-amber-500/15 to-transparent border border-amber-500/40 text-xs text-amber-200 shadow-sm">
-                            <div className="h-6 w-6 rounded-full bg-amber-500/30 border border-amber-500/50 flex items-center justify-center shrink-0">
-                              <Trophy className="w-3.5 h-3.5 text-amber-300" />
-                            </div>
-                            <div className="truncate flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-amber-300 uppercase tracking-wider text-[10px]">
-                                🏆 MVP do Jogo:
-                              </span>
-                              <span className="font-semibold text-white">
-                                Seu atleta {mvpAthlete ? `${mvpAthlete.jerseyNumber != null ? `[#${mvpAthlete.jerseyNumber}] ` : ''}${mvpAthlete.name}` : 'da equipe'}
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-900/60 border border-zinc-800 text-xs text-zinc-300">
-                            <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                            <span className="font-medium text-amber-400/90 text-[10px] uppercase tracking-wider">
-                              ⭐ MVP da Partida:
-                            </span>
-                            <span className="font-medium text-zinc-200 truncate">
-                              {mvpAthlete ? `${mvpAthlete.jerseyNumber != null ? `[#${mvpAthlete.jerseyNumber}] ` : ''}${mvpAthlete.name}` : 'Atleta indicado'}{' '}
-                              <span className="text-zinc-400">({opponentName})</span>
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
+                    {/* Ação Rápida: Emissão de Súmula Oficial em PDF */}
                     <div className="pt-2 border-t border-border/40 flex justify-end">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 px-2.5 text-xs gap-1.5 font-medium border-border hover:bg-zinc-800/60"
+                        className="h-8 px-3 text-xs gap-1.5 font-medium rounded-full border-zinc-700 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200"
                         onClick={() => setSelectedMatch(m)}
-                        title="Visualizar e emitir Súmula Oficial BaseOS"
+                        title="Visualizar e emitir Súmula Oficial Homologada BaseOS (PDF)"
                       >
-                        <FileText className="w-3.5 h-3.5 text-primary" />
-                        <span>Súmula Oficial</span>
+                        <FileText className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Súmula Oficial Homologada (PDF)</span>
                       </Button>
                     </div>
                   </CardContent>

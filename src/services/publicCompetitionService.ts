@@ -386,9 +386,9 @@ export const publicCompetitionService = {
       const teamA = masterTeamMap.get(m.teamAId);
       const teamB = masterTeamMap.get(m.teamBId);
 
-      // Destaque da Partida (MVP): visível exclusivamente após homologação oficial
+      // Destaque da Partida (MVP): visível exclusivamente após homologação oficial ou conclusão
       let highlightAthlete: PublicMatchDTO['highlightAthlete'] = null;
-      if (canonical.isHomologated && m.highlightAthleteId) {
+      if ((canonical.isHomologated || canonical.isCompleted) && m.highlightAthleteId) {
         const ath = allAthletes.find(a => a.id === m.highlightAthleteId);
         if (ath) {
           const compTeam = compTeams.find(ct => ct.id === ath.competitionTeamId);

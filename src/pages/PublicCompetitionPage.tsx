@@ -383,12 +383,12 @@ export default function PublicCompetitionPage() {
                 )}
               </div>
 
-              {/* Últimos Resultados */}
+              {/* ⭐ Destaques & Últimos Resultados */}
               <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    Últimos Resultados
+                    <Trophy className="h-4 w-4 text-amber-500" />
+                    ⭐ Destaques & Últimos Resultados
                   </h2>
                   <Button
                     variant="ghost"
@@ -840,6 +840,23 @@ function MatchCardItem({ match, onSelect }: { match: PublicMatchDTO; onSelect?: 
           {match.groupName && <span className="text-[10px] text-zinc-500">{match.groupName}</span>}
         </div>
       </div>
+
+      {/* Parciais dos Sets se finalizado */}
+      {match.isCompleted && match.setScores && match.setScores.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap pt-1 font-mono text-[10px]">
+          <span className="text-zinc-500 uppercase font-sans text-[9px] font-semibold">Sets:</span>
+          {match.setScores.map((s, idx) => (
+            <span
+              key={idx}
+              className={`px-1.5 py-0.5 rounded ${
+                s.scoreA > s.scoreB ? 'bg-zinc-800 text-zinc-200 font-semibold' : 'bg-zinc-800/60 text-zinc-400'
+              }`}
+            >
+              {s.scoreA}×{s.scoreB}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Pílula compacta de MVP no card resumido */}
       {match.highlightAthlete && (

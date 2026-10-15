@@ -101,6 +101,7 @@ import { CompetitionRulesService } from '@/services/competitionRulesService';
 import { OperationalAuditService } from '@/services/operationalAuditService';
 import { CompetitionRuntimeService } from '@/services/competitionRuntimeService';
 import { sortScheduleMatches } from '@/services/scheduleService';
+import { subscribeToMatchUpdates, showMatchHomologatedToast } from '@/services/realtimeMatchService';
 
 export interface MatchView {
   id: string;
@@ -263,6 +264,28 @@ export function MatchesPage() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Realtime: Sincronização automática e toast de homologação oficial
+  useEffect(() => {
+    if (!activeCompId) return;
+
+    const unsubscribe = subscribeToMatchUpdates(
+      activeCompId,
+      (payload) => {
+        showMatchHomologatedToast(payload);
+        refresh();
+        refetchBracket();
+      },
+      () => {
+        refresh();
+        refetchBracket();
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [activeCompId, refresh, refetchBracket]);
 
   const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const compById = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);

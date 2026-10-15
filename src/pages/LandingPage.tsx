@@ -772,6 +772,22 @@ function CompetitionCentralModal({
   open,
   onOpenChange,
 }: CompetitionModalProps) {
+  const [compMatches, setCompMatches] = useState<MatchRecord[]>([]);
+
+  useEffect(() => {
+    if (!competition?.id || !open) return;
+    let isMounted = true;
+    Promise.resolve()
+      .then(() => dataAccess.listMatches(competition.id))
+      .then((mList) => {
+        if (isMounted) setCompMatches(mList || []);
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [competition?.id, open]);
+
   if (!competition) return null;
 
   const compTeamLinks = competitionTeams.filter((ct) => ct.competitionId === competition.id);
@@ -780,9 +796,14 @@ function CompetitionCentralModal({
   const confirmedTeams = teams.filter((t) => compTeamIds.has(t.id));
   const compAthletes = athletes.filter((a) => compTeamLinkIds.has(a.competitionTeamId));
 
+  const finishedMatches = compMatches
+    .filter((m) => m.status === 'completed' || m.status === 'homologated')
+    .slice(-3)
+    .reverse();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-zinc-900 text-white border border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
+      <DialogContent className="max-w-2xl bg-zinc-900 text-white border border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="border-b border-zinc-800 pb-4 text-left">
           <div className="flex items-center gap-2 mb-2">
             <span className="px-3 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30">
@@ -817,12 +838,78 @@ function CompetitionCentralModal({
             </div>
           </div>
 
+          {/* Destaques & Últimos Resultados com MVP */}
+          {finishedMatches.length > 0 && (
+            <div>
+              <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400 mb-3 flex items-center gap-2">
+                <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                <span>⭐ Destaques & Últimos Resultados</span>
+              </h4>
+              <div className="space-y-2.5">
+                {finishedMatches.map((m) => {
+                  const setsA = m.sets.filter((s) => s.scoreA > s.scoreB).length;
+                  const setsB = m.sets.filter((s) => s.scoreB > s.scoreA).length;
+                  const mvpAth = m.highlightAthleteId ? athletes.find((a) => a.id === m.highlightAthleteId) : undefined;
+                  const parciais = m.sets.map((s) => `${s.scoreA}×${s.scoreB}`).join(' · ');
+
+                  return (
+                    <div
+                      key={m.id}
+                      className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800/90 space-y-2"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-zinc-500 text-[11px]">Jogo #{m.matchNumber}</span>
+                          {m.court && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300">
+                              📍 {m.court}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          {m.status === 'homologated' ? '✓ Homologado' : 'Finalizado'}
+                        </span>
+                      </div>
+
+                      {/* Placar */}
+                      <div className="flex items-center justify-between text-xs sm:text-sm font-semibold">
+                        <span className={setsA > setsB ? 'text-white font-bold' : 'text-zinc-300'}>{m.teamAName}</span>
+                        <span className="font-mono font-black text-amber-400 bg-zinc-900 px-2.5 py-0.5 rounded-lg border border-zinc-800">
+                          {setsA} × {setsB}
+                        </span>
+                        <span className={setsB > setsA ? 'text-white font-bold' : 'text-zinc-300'}>{m.teamBName}</span>
+                      </div>
+
+                      {/* Parciais */}
+                      {parciais && (
+                        <div className="text-[10px] font-mono text-zinc-400 text-center">
+                          Parciais: {parciais}
+                        </div>
+                      )}
+
+                      {/* MVP */}
+                      {mvpAth && (
+                        <div className="pt-2 border-t border-zinc-800/60 flex items-center gap-1.5 text-xs text-amber-300">
+                          <Trophy className="w-3 h-3 text-amber-400 shrink-0" />
+                          <span className="font-bold text-[10px] uppercase tracking-wider">⭐ MVP:</span>
+                          <span className="font-semibold text-white truncate">
+                            {mvpAth.jerseyNumber != null ? `[#${mvpAth.jerseyNumber}] ` : ''}{mvpAth.name}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Equipes Confirmadas */}
           <div>
             <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400 mb-3 flex items-center justify-between">
               <span>Equipes Confirmadas ({confirmedTeams.length})</span>
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1">
               {confirmedTeams.map((t) => (
                 <div
                   key={t.id}
