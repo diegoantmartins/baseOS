@@ -97,6 +97,8 @@ export function TeamPortalPage() {
 
   const [athletes, setAthletes] = useState<CompetitionAthlete[]>([]);
   const [matches, setMatches] = useState<MatchRecord[]>([]);
+  const [allCompMatches, setAllCompMatches] = useState<MatchRecord[]>([]);
+  const [allCompAthletes, setAllCompAthletes] = useState<CompetitionAthlete[]>([]);
   const [allTeams, setAllTeams] = useState<TeamRecord[]>([]);
   const [venues, setVenues] = useState<VenueRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +106,25 @@ export function TeamPortalPage() {
 
   // Partidas ordenadas cronologicamente pelo Schedule Engine Canônico
   const sortedMatches = useMemo(() => sortScheduleMatches(matches), [matches]);
+
+  // Contagem de MVPs por atleta da equipe no campeonato
+  const mvpCountsByAthleteId = useMemo(() => {
+    const counts = new Map<string, number>();
+    allCompMatches.forEach((m) => {
+      if ((m.status === 'homologated' || m.status === 'completed') && m.highlightAthleteId) {
+        counts.set(m.highlightAthleteId, (counts.get(m.highlightAthleteId) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [allCompMatches]);
+
+  // Dicionário para resolver dados de atletas da competição (incluindo adversários)
+  const athleteById = useMemo(() => {
+    const map = new Map<string, CompetitionAthlete>();
+    allCompAthletes.forEach((a) => map.set(a.id, a));
+    athletes.forEach((a) => map.set(a.id, a));
+    return map;
+  }, [allCompAthletes, athletes]);
 
   // Modais de atletas, edição de equipe e súmula
   const [modalOpen, setModalOpen] = useState(false);
@@ -126,15 +147,18 @@ export function TeamPortalPage() {
     if (!team) return;
     setLoading(true);
     try {
-      const [roster, allM, allT, allV] = await Promise.all([
+      const [roster, allM, allT, allV, allAthletesInComp] = await Promise.all([
         listRoster(team.id),
         dataAccess.listMatches(team.competitionId),
         dataAccess.listTeams(),
         dataAccess.listVenues(),
+        dataAccess.listCompetitionAthletesByCompetition(team.competitionId),
       ]);
       setAthletes(roster);
       setAllTeams(allT);
       setVenues(allV);
+      setAllCompAthletes(allAthletesInComp);
+      setAllCompMatches(allM);
       // Filtra partidas da competição ou da equipe
       setMatches(
         allM.filter(
@@ -751,63 +775,82 @@ export function TeamPortalPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {athletes.map((ath) => (
-                      <tr key={ath.id} className="hover:bg-zinc-800/30 transition-colors">
-                        <td className="px-4 py-3 text-center font-mono font-bold text-foreground">
-                          {ath.jerseyNumber ? (
-                            <span className="inline-block px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-200">
-                              #{ath.jerseyNumber}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-[10px]">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 font-medium text-foreground">
-                          <div className="flex items-center gap-2">
-                            <span>{ath.name}</span>
-                            {ath.isCaptain && (
-                              <Badge variant="outline" className="text-[9px] py-0 px-1 border-amber-500/40 text-amber-400 bg-amber-500/10">
-                                CAPITÃO
-                              </Badge>
+                    {athletes.map((ath) => {
+                      const mvpCount = mvpCountsByAthleteId.get(ath.id) || 0;
+                      return (
+                        <tr key={ath.id} className="hover:bg-zinc-800/30 transition-colors">
+                          <td className="px-4 py-3 text-center font-mono font-bold text-foreground">
+                            {ath.jerseyNumber ? (
+                              <span className="inline-block px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-200">
+                                #{ath.jerseyNumber}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-[10px]">—</span>
                             )}
-                            {ath.isLibero && (
-                              <Badge variant="outline" className="text-[9px] py-0 px-1 border-blue-500/40 text-blue-400 bg-blue-500/10">
-                                LÍBERO
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">{ath.position}</td>
-                        <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">
-                          {ath.documentNumber || '—'}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {ath.isCaptain ? (
-                            <span className="text-amber-400 font-semibold text-[10px]">Capitão</span>
-                          ) : ath.isLibero ? (
-                            <span className="text-blue-400 font-semibold text-[10px]">Líbero</span>
-                          ) : (
-                            <span className="text-muted-foreground text-[10px]">Atleta</span>
-                          )}
-                        </td>
-                        {!locked && (
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingAthlete(ath);
-                                  setModalOpen(true);
-                                }}
-                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                                title="Editar atleta"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
+                          </td>
+                          <td className="px-4 py-3 font-medium text-foreground">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span>{ath.name}</span>
+                              {ath.isCaptain && (
+                                <Badge variant="outline" className="text-[9px] py-0 px-1 border-amber-500/40 text-amber-400 bg-amber-500/10">
+                                  CAPITÃO
+                                </Badge>
+                              )}
+                              {ath.isLibero && (
+                                <Badge variant="outline" className="text-[9px] py-0 px-1 border-blue-500/40 text-blue-400 bg-blue-500/10">
+                                  LÍBERO
+                                </Badge>
+                              )}
+                              {mvpCount > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] py-0 px-1.5 border-amber-500/50 text-amber-300 bg-amber-500/15 font-bold flex items-center gap-1 shadow-sm"
+                                  data-testid={`roster-athlete-mvp-${ath.id}`}
+                                >
+                                  <Trophy className="w-2.5 h-2.5 text-amber-400" />
+                                  ⭐ {mvpCount}x MVP
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">{ath.position}</td>
+                          <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">
+                            {ath.documentNumber || '—'}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex flex-col items-center gap-0.5">
+                              {ath.isCaptain ? (
+                                <span className="text-amber-400 font-semibold text-[10px]">Capitão</span>
+                              ) : ath.isLibero ? (
+                                <span className="text-blue-400 font-semibold text-[10px]">Líbero</span>
+                              ) : (
+                                <span className="text-muted-foreground text-[10px]">Atleta</span>
+                              )}
+                              {mvpCount > 0 && (
+                                <span className="text-[9px] text-amber-400/90 font-mono font-bold">
+                                  {mvpCount}x MVP
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          {!locked && (
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingAthlete(ath);
+                                    setModalOpen(true);
+                                  }}
+                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                  title="Editar atleta"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                 onClick={() => handleRemoveAthlete(ath)}
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                                 title="Remover atleta"
@@ -818,7 +861,8 @@ export function TeamPortalPage() {
                           </td>
                         )}
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>
@@ -906,6 +950,8 @@ export function TeamPortalPage() {
               const mySets = isTeamA ? setsA : setsB;
               const oppSets = isTeamA ? setsB : setsA;
               const isFinished = m.status === 'completed' || m.status === 'homologated';
+              const mvpAthlete = m.highlightAthleteId ? athleteById.get(m.highlightAthleteId) : undefined;
+              const isOurMvp = m.highlightAthleteId ? athletes.some((a) => a.id === m.highlightAthleteId) : false;
 
               return (
                 <Card key={m.id} className="border border-border bg-card shadow-none">
@@ -1007,6 +1053,38 @@ export function TeamPortalPage() {
                             {isTeamA ? `${s.scoreA}-${s.scoreB}` : `${s.scoreB}-${s.scoreA}`}
                           </Badge>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Destaque / MVP da Partida */}
+                    {isFinished && m.highlightAthleteId && (
+                      <div className="pt-2 border-t border-border/40" data-testid={`team-match-highlight-${m.id}`}>
+                        {isOurMvp ? (
+                          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-gradient-to-r from-amber-500/25 via-amber-500/15 to-transparent border border-amber-500/40 text-xs text-amber-200 shadow-sm">
+                            <div className="h-6 w-6 rounded-full bg-amber-500/30 border border-amber-500/50 flex items-center justify-center shrink-0">
+                              <Trophy className="w-3.5 h-3.5 text-amber-300" />
+                            </div>
+                            <div className="truncate flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-amber-300 uppercase tracking-wider text-[10px]">
+                                🏆 MVP do Jogo:
+                              </span>
+                              <span className="font-semibold text-white">
+                                Seu atleta {mvpAthlete ? `${mvpAthlete.jerseyNumber != null ? `[#${mvpAthlete.jerseyNumber}] ` : ''}${mvpAthlete.name}` : 'da equipe'}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-900/60 border border-zinc-800 text-xs text-zinc-300">
+                            <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span className="font-medium text-amber-400/90 text-[10px] uppercase tracking-wider">
+                              ⭐ MVP da Partida:
+                            </span>
+                            <span className="font-medium text-zinc-200 truncate">
+                              {mvpAthlete ? `${mvpAthlete.jerseyNumber != null ? `[#${mvpAthlete.jerseyNumber}] ` : ''}${mvpAthlete.name}` : 'Atleta indicado'}{' '}
+                              <span className="text-zinc-400">({opponentName})</span>
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
 

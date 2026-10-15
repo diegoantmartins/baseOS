@@ -90,6 +90,7 @@ import { MatchFiltersBar } from '@/components/match/MatchFiltersBar';
 import { MatchTabsNav, type MatchesSubTab } from '@/components/match/MatchTabsNav';
 import { ScheduleMatchDialog } from '@/components/match/dialogs/ScheduleMatchDialog';
 import { ResultValidationDialog } from '@/components/match/dialogs/ResultValidationDialog';
+import { HomologateMatchDialog } from '@/components/match/dialogs/HomologateMatchDialog';
 import { CompetitionLifecycleService } from '@/services/competitionLifecycleService';
 import { CompetitionRulesService } from '@/services/competitionRulesService';
 import { OperationalAuditService } from '@/services/operationalAuditService';
@@ -300,7 +301,7 @@ export function MatchesPage() {
   );
 
   // Homologar resultado individual
-  const handleHomologate = async (matchId: string) => {
+  const handleHomologate = async (matchId: string, highlightAthleteId?: string) => {
     if (!can('match:finalize')) {
       toast.error('Você não possui permissão para homologar resultados de partidas.');
       return;
@@ -325,6 +326,7 @@ export function MatchesPage() {
       homologatedAt: now,
       homologatedBy: operator,
       winnerId: canonical.winnerId ?? currentMatch.winnerId,
+      ...(highlightAthleteId !== undefined ? { highlightAthleteId: highlightAthleteId || undefined } : {}),
     });
 
     // Avançar chaveamento e progressão
@@ -1153,24 +1155,18 @@ export function MatchesPage() {
 
       <BlankSheetEmitDialog open={blankSheetOpen} onOpenChange={setBlankSheetOpen} />
 
-      <ConfirmActionDialog
-        open={pendingHomologateMatch !== null}
-        onOpenChange={(open) => !open && setPendingHomologateMatch(null)}
-        title="Homologar Resultado da Partida"
-        variant="accent"
-        description={
-          pendingHomologateMatch
-            ? `Deseja homologar oficialmente o resultado do Jogo #${pendingHomologateMatch.matchNumber} (${pendingHomologateMatch.teamAName} vs ${pendingHomologateMatch.teamBName})? Esta ação oficializa a classificação e avança os chaveamentos eliminatórios.`
-            : ''
-        }
-        confirmText="Confirmar Homologação"
-        onConfirm={async () => {
-          if (pendingHomologateMatch) {
-            await handleHomologate(pendingHomologateMatch.id);
+      {pendingHomologateMatch && (
+        <HomologateMatchDialog
+          open={pendingHomologateMatch !== null}
+          onOpenChange={(open) => !open && setPendingHomologateMatch(null)}
+          match={pendingHomologateMatch}
+          competition={compById.get(pendingHomologateMatch.competitionId) || null}
+          onHomologate={async (matchId, highlightAthleteId) => {
+            await handleHomologate(matchId, highlightAthleteId);
             setPendingHomologateMatch(null);
-          }
-        }}
-      />
+          }}
+        />
+      )}
 
       <ConfirmActionDialog
         open={pendingSyncPlayoffs}

@@ -32,6 +32,7 @@ import {
 import { publicCompetitionService, type PublicCompetitionBundle, type PublicMatchDTO } from '@/services/publicCompetitionService';
 import { StandingsTable } from '@/components/competition/StandingsTable';
 import { CompetitionQRCodeModal } from '@/components/public/CompetitionQRCodeModal';
+import { PublicMatchModal } from '@/components/public/PublicMatchModal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -44,6 +45,7 @@ export default function PublicCompetitionPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [isQrOpen, setIsQrOpen] = useState<boolean>(false);
+  const [selectedMatch, setSelectedMatch] = useState<PublicMatchDTO | null>(null);
   const [activeTab, setActiveTab] = useState<string>('overview');
 
   // Filtros de jogos
@@ -378,7 +380,7 @@ export default function PublicCompetitionPage() {
                 ) : (
                   <div className="space-y-2">
                     {upcomingMatches.map((m) => (
-                      <MatchCardItem key={m.id} match={m} />
+                      <MatchCardItem key={m.id} match={m} onSelect={() => setSelectedMatch(m)} />
                     ))}
                   </div>
                 )}
@@ -411,7 +413,7 @@ export default function PublicCompetitionPage() {
                 ) : (
                   <div className="space-y-2">
                     {recentResults.map((m) => (
-                      <MatchCardItem key={m.id} match={m} />
+                      <MatchCardItem key={m.id} match={m} onSelect={() => setSelectedMatch(m)} />
                     ))}
                   </div>
                 )}
@@ -568,7 +570,7 @@ export default function PublicCompetitionPage() {
             ) : (
               <div className="space-y-3">
                 {filteredMatches.map((m) => (
-                  <MatchDetailedCard key={m.id} match={m} />
+                  <MatchDetailedCard key={m.id} match={m} onSelect={() => setSelectedMatch(m)} />
                 ))}
               </div>
             )}
@@ -770,6 +772,14 @@ export default function PublicCompetitionPage() {
         competitionName={competition.name}
         slug={competition.slug}
       />
+
+      {/* ── MODAL DE DETALHES DO JOGO COM MVP ── */}
+      <PublicMatchModal
+        open={selectedMatch !== null}
+        onOpenChange={(open) => !open && setSelectedMatch(null)}
+        match={selectedMatch}
+        competitionName={competition.name}
+      />
     </div>
   );
 }
@@ -778,47 +788,79 @@ export default function PublicCompetitionPage() {
 // Subcomponentes de Partida
 // ============================================================================
 
-function MatchCardItem({ match }: { match: PublicMatchDTO }) {
+function MatchCardItem({ match, onSelect }: { match: PublicMatchDTO; onSelect?: () => void }) {
   return (
-    <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-lg flex items-center justify-between text-xs">
-      <div className="space-y-1 max-w-[65%] truncate">
-        <div className="flex items-center gap-1.5 truncate">
-          <span className="font-semibold text-zinc-200 truncate">{match.teamAName}</span>
-          {match.isCompleted && (
-            <span className={`font-mono font-bold ${match.winnerSide === 'A' ? 'text-amber-400' : 'text-zinc-500'}`}>
-              {match.setsWonA}
-            </span>
-          )}
+    <div
+      onClick={onSelect}
+      className={`p-3 bg-zinc-900/70 border border-zinc-800/80 rounded-lg text-xs space-y-2 transition-all ${
+        onSelect ? 'cursor-pointer hover:border-zinc-700 hover:bg-zinc-900' : ''
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="space-y-1 max-w-[65%] truncate">
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="font-semibold text-zinc-200 truncate">{match.teamAName}</span>
+            {match.isCompleted && (
+              <span className={`font-mono font-bold ${match.winnerSide === 'A' ? 'text-amber-400' : 'text-zinc-500'}`}>
+                {match.setsWonA}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="font-semibold text-zinc-200 truncate">{match.teamBName}</span>
+            {match.isCompleted && (
+              <span className={`font-mono font-bold ${match.winnerSide === 'B' ? 'text-amber-400' : 'text-zinc-500'}`}>
+                {match.setsWonB}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 truncate">
-          <span className="font-semibold text-zinc-200 truncate">{match.teamBName}</span>
-          {match.isCompleted && (
-            <span className={`font-mono font-bold ${match.winnerSide === 'B' ? 'text-amber-400' : 'text-zinc-500'}`}>
-              {match.setsWonB}
-            </span>
+
+        <div className="text-right flex flex-col items-end gap-1 shrink-0">
+          {match.isCompleted ? (
+            <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px] px-1.5 py-0">
+              Encerrado
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="border-zinc-700 bg-zinc-800/60 text-zinc-400 text-[10px] px-1.5 py-0">
+              {match.scheduledTime ? match.scheduledTime.slice(11, 16) : 'Agendado'}
+            </Badge>
           )}
+          {match.groupName && <span className="text-[10px] text-zinc-500">{match.groupName}</span>}
         </div>
       </div>
 
-      <div className="text-right flex flex-col items-end gap-1">
-        {match.isCompleted ? (
-          <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px] px-1.5 py-0">
-            Encerrado
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="border-zinc-700 bg-zinc-800/60 text-zinc-400 text-[10px] px-1.5 py-0">
-            {match.scheduledTime ? match.scheduledTime.slice(11, 16) : 'Agendado'}
-          </Badge>
-        )}
-        {match.groupName && <span className="text-[10px] text-zinc-500">{match.groupName}</span>}
-      </div>
+      {/* Pílula compacta de MVP no card resumido */}
+      {match.highlightAthlete && (
+        <div
+          className="pt-1.5 border-t border-zinc-800/60 flex items-center gap-1.5 text-[11px] text-amber-300 truncate"
+          data-testid="public-match-highlight-compact"
+        >
+          <Trophy className="w-3 h-3 text-amber-400 shrink-0" />
+          <span className="font-bold text-amber-400 text-[10px] uppercase tracking-wider shrink-0">
+            ⭐ MVP:
+          </span>
+          <span className="font-semibold text-white truncate">
+            {match.highlightAthlete.jerseyNumber != null ? `[#${match.highlightAthlete.jerseyNumber}] ` : ''}
+            {match.highlightAthlete.name}
+          </span>
+          <span className="text-[10px] text-zinc-400 truncate">
+            ({match.highlightAthlete.teamName})
+          </span>
+        </div>
+      )}
     </div>
   );
 }
 
-function MatchDetailedCard({ match }: { match: PublicMatchDTO }) {
+function MatchDetailedCard({ match, onSelect }: { match: PublicMatchDTO; onSelect?: () => void }) {
   return (
-    <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 sm:p-5 hover:border-zinc-700 transition-colors space-y-3">
+    <div
+      onClick={onSelect}
+      className={`bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 sm:p-5 transition-all space-y-3 ${
+        onSelect ? 'cursor-pointer hover:border-zinc-700 hover:bg-zinc-900/80 shadow-sm' : ''
+      }`}
+    >
       <div className="flex items-center justify-between text-xs text-zinc-400 border-b border-zinc-800/60 pb-2">
         <div className="flex items-center gap-2">
           {match.groupName && (
@@ -931,21 +973,27 @@ function MatchDetailedCard({ match }: { match: PublicMatchDTO }) {
         </div>
       </div>
 
-      {/* Destaque da Partida (MVP) — visível somente após homologação */}
+      {/* Destaque da Partida (MVP) — Pílula Premium Gold/Amber (visível somente após homologação) */}
       {match.highlightAthlete && (
         <div
-          className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300"
+          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 text-xs text-amber-200 shadow-sm"
           data-testid="public-match-highlight"
         >
-          <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span className="font-medium text-[11px] text-amber-400/90 uppercase tracking-wider">Destaque da Partida:</span>
-          <span className="font-bold text-white truncate">
-            {match.highlightAthlete.jerseyNumber != null ? `#${match.highlightAthlete.jerseyNumber} ` : ''}
-            {match.highlightAthlete.name}
-          </span>
-          <span className="text-[11px] text-zinc-400 truncate">
-            ({match.highlightAthlete.teamName})
-          </span>
+          <div className="h-6 w-6 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+            <Trophy className="w-3.5 h-3.5 text-amber-400" />
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
+            <span className="font-bold text-[11px] text-amber-400 uppercase tracking-wider flex items-center gap-1">
+              ⭐ MVP da Partida:
+            </span>
+            <span className="font-semibold text-white truncate">
+              {match.highlightAthlete.jerseyNumber != null ? `[#${match.highlightAthlete.jerseyNumber}] ` : ''}
+              {match.highlightAthlete.name}
+            </span>
+            <span className="text-[11px] text-amber-300/70 truncate">
+              ({match.highlightAthlete.teamName})
+            </span>
+          </div>
         </div>
       )}
     </div>

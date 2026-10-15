@@ -64,6 +64,9 @@ import { BlankSheetEmitDialog } from '@/components/match/BlankSheetEmitDialog';
 import { CourtLineupDnd } from '@/components/match/CourtLineupDnd';
 import { MatchSocialCard } from '@/components/match/MatchSocialCard';
 import { ContextualHelpButton } from '@/components/help/ContextualHelpButton';
+import { HomologateMatchDialog } from '@/components/match/dialogs/HomologateMatchDialog';
+import { CompetitionRulesService } from '@/services/competitionRulesService';
+import { CompetitionRuntimeService } from '@/services/competitionRuntimeService';
 import { dataAccess } from '@/services/dataAccess';
 import { getMatchRosters } from '@/services/registrationService';
 import { buildMatchSheetData, type MatchSheetData } from '@/lib/pdf/matchSheetDataBuilder';
@@ -127,6 +130,8 @@ export function MatchSheetPage() {
   const [errorMessage, setErrorMessage] = useState('');
 
   // Destaque da Partida (MVP) derivado dos elencos carregados
+  const [homologateOpen, setHomologateOpen] = useState(false);
+
   const highlightAthlete = useMemo(() => {
     if (!match?.highlightAthleteId) return undefined;
     return (
@@ -215,6 +220,39 @@ export function MatchSheetPage() {
     },
     [match, canEdit, competition, teamARoster, teamBRoster],
   );
+
+  const handleHomologateSingle = async (targetMatchId: string, highlightAthleteId?: string) => {
+    if (!hasCapability('match:finalize')) {
+      toast.error('Você não possui permissão para homologar partidas.');
+      return;
+    }
+    if (!match) return;
+    const comp = competition || (await dataAccess.getCompetition(match.competitionId));
+    const canonical = CompetitionRulesService.getCanonicalMatchResult(comp, match);
+    if (!canonical.isValid) {
+      toast.error(canonical.inconsistencyReason || 'Não é possível homologar resultado matematicamente inválido ou incompleto.');
+      return;
+    }
+    const now = new Date().toISOString();
+    const operator = user?.name || 'Administrador';
+
+    await dataAccess.updateMatch(targetMatchId, {
+      status: 'homologated',
+      homologatedAt: now,
+      homologatedBy: operator,
+      winnerId: canonical.winnerId ?? match.winnerId,
+      ...(highlightAthleteId !== undefined ? { highlightAthleteId: highlightAthleteId || undefined } : {}),
+    });
+
+    const compSlots = await dataAccess.listMatchSlots(match.competitionId);
+    if (compSlots.length > 0) {
+      await CompetitionRuntimeService.handleMatchCompleted(match.competitionId, targetMatchId);
+    }
+
+    toast.success('Súmula homologada com sucesso!');
+    await loadSingleMatch(targetMatchId);
+    setHomologateOpen(false);
+  };
 
   const compById = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
 
@@ -427,14 +465,37 @@ export function MatchSheetPage() {
                   description={`${match.teamAName} vs ${match.teamBName} · ${competition?.name || 'Competição Oficial'}`}
                   badge={<StatusBadge status={match.status} className="text-[10px] h-5" />}
                   primaryAction={
-                    <Button
-                      size="sm"
-                      className="gap-1.5 text-xs font-semibold shadow-none"
-                      onClick={() => setEmitDialogMatch(match)}
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      Emitir PDF Homologado
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {match.status === 'completed' && hasCapability('match:finalize') && (
+                        <Button
+                          size="sm"
+                          className="gap-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-zinc-950 shadow-none border-0"
+                          onClick={() => setHomologateOpen(true)}
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          Homologar Súmula (MVP)
+                        </Button>
+                      )}
+                      {match.status === 'homologated' && hasCapability('match:finalize') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 text-xs font-semibold border-amber-500/40 text-amber-400 hover:bg-amber-500/10 shadow-none"
+                          onClick={() => setHomologateOpen(true)}
+                        >
+                          <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                          {match.highlightAthleteId ? 'Alterar MVP' : 'Definir MVP'}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        className="gap-1.5 text-xs font-semibold shadow-none"
+                        onClick={() => setEmitDialogMatch(match)}
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        Emitir PDF Homologado
+                      </Button>
+                    </div>
                   }
                   secondaryActions={
                     <Button
@@ -462,10 +523,14 @@ export function MatchSheetPage() {
                         .
                       </span>
                     </div>
-                    {highlightAthlete && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold text-xs shrink-0">
+                    {highlightAthlete ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold text-xs shrink-0 shadow-sm">
                         <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                        Destaque: {highlightAthlete.jerseyNumber !== undefined ? `#${highlightAthlete.jerseyNumber} ` : ''}{highlightAthlete.name} ({highlightTeamName})
+                        ⭐ MVP da Partida: {highlightAthlete.jerseyNumber !== undefined ? `[#${highlightAthlete.jerseyNumber}] ` : ''}{highlightAthlete.name} ({highlightTeamName})
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-zinc-400 italic">
+                        Nenhum MVP registrado
                       </span>
                     )}
                   </div>
@@ -768,6 +833,19 @@ export function MatchSheetPage() {
           onOpenChange={(open) => !open && setEmitDialogMatch(null)}
           match={emitDialogMatch}
           competition={compById.get(emitDialogMatch.competitionId) || null}
+        />
+      )}
+
+      {/* Modal de Homologação com MVP */}
+      {match && (
+        <HomologateMatchDialog
+          open={homologateOpen}
+          onOpenChange={setHomologateOpen}
+          match={match}
+          competition={competition}
+          onHomologate={async (targetMatchId, highlightAthleteId) => {
+            await handleHomologateSingle(targetMatchId, highlightAthleteId);
+          }}
         />
       )}
     </MainLayout>

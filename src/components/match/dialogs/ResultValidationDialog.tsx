@@ -230,7 +230,7 @@ export function ResultValidationDialog({ match, competition, onClose, onSaved }:
                       </SelectLabel>
                       {eligibleTeamA.map((ath) => (
                         <SelectItem key={ath.id} value={ath.id} className="text-xs">
-                          {ath.jerseyNumber != null ? `#${ath.jerseyNumber} ` : ''}{ath.name}
+                          {ath.jerseyNumber != null ? `[#${ath.jerseyNumber}] ` : ''}{ath.name} ({match.teamAName})
                         </SelectItem>
                       ))}
                     </SelectGroup>
@@ -242,7 +242,7 @@ export function ResultValidationDialog({ match, competition, onClose, onSaved }:
                       </SelectLabel>
                       {eligibleTeamB.map((ath) => (
                         <SelectItem key={ath.id} value={ath.id} className="text-xs">
-                          {ath.jerseyNumber != null ? `#${ath.jerseyNumber} ` : ''}{ath.name}
+                          {ath.jerseyNumber != null ? `[#${ath.jerseyNumber}] ` : ''}{ath.name} ({match.teamBName})
                         </SelectItem>
                       ))}
                     </SelectGroup>

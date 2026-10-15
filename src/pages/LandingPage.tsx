@@ -294,7 +294,7 @@ function HeroParallaxStage({ onScrollToCompetitions }: HeroParallaxProps) {
 
           {/* Subtítulo Nítido e Legível */}
           <p className="text-base sm:text-lg text-zinc-300 font-normal max-w-xl mx-auto lg:mx-0 leading-relaxed">
-            Plataforma oficial para gestão profissional de voleibol: sorteio 3D de chaves, súmulas digitais homologadas e resultados ao vivo em tempo real.
+            Plataforma oficial de competições e gestão profissional de voleibol: sorteio 3D de chaves, súmulas digitais homologadas e resultados ao vivo em tempo real.
           </p>
 
           {/* Botões em Formato de Pílula */}
