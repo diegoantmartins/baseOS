@@ -773,14 +773,14 @@ export function MatchesPage() {
     }
   };
 
-  // Configuração das colunas da DataTable Oficial com larguras balanceadas
+  // Configuração das colunas da DataTable Oficial com larguras balanceadas e sem estouro horizontal
   const columns: DataTableColumn<MatchView>[] = [
     {
       id: 'matchNumber',
-      header: 'Nº Jogo',
+      header: 'Nº',
       isNumeric: true,
-      headerClassName: 'w-14 text-center',
-      className: 'w-14 text-center font-mono font-semibold text-foreground',
+      headerClassName: 'w-10 text-center px-1',
+      className: 'w-10 text-center font-mono font-semibold text-foreground px-1',
       cell: ({ row }) => (
         <span>#{row.record.matchNumber}</span>
       ),
@@ -788,29 +788,30 @@ export function MatchesPage() {
     {
       id: 'match',
       header: 'Confronto',
-      className: 'min-w-[160px]',
+      headerClassName: 'min-w-[130px] px-2',
+      className: 'min-w-[130px] px-2',
       cell: ({ row }) => {
         const isWinnerA = row.record.winnerId === row.record.teamAId;
         const isWinnerB = row.record.winnerId === row.record.teamBId;
 
         return (
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 min-w-0">
             <div className="flex items-center gap-1 text-xs font-semibold">
-              <span className={cn('truncate max-w-[120px]', isWinnerA ? 'text-primary font-bold' : 'text-foreground')}>
+              <span className={cn('truncate max-w-[100px] sm:max-w-[130px]', isWinnerA ? 'text-primary font-bold' : 'text-foreground')}>
                 {row.teamA.name}
               </span>
               <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400 font-mono shrink-0">
                 {row.teamA.shortName}
               </Badge>
               <span className="text-[10px] text-muted-foreground font-normal px-0.5">vs</span>
-              <span className={cn('truncate max-w-[120px]', isWinnerB ? 'text-primary font-bold' : 'text-foreground')}>
+              <span className={cn('truncate max-w-[100px] sm:max-w-[130px]', isWinnerB ? 'text-primary font-bold' : 'text-foreground')}>
                 {row.teamB.name}
               </span>
               <Badge variant="outline" className="text-[9px] py-0 px-1 border-zinc-800 bg-zinc-900 text-zinc-400 font-mono shrink-0">
                 {row.teamB.shortName}
               </Badge>
             </div>
-            <p className="text-[11px] text-muted-foreground truncate">
+            <p className="text-[10px] text-muted-foreground truncate">
               {row.competition} {row.phase ? `· ${row.phase}` : ''} {row.groupName ? `(${row.groupName})` : ''}
             </p>
           </div>
@@ -821,14 +822,14 @@ export function MatchesPage() {
       id: 'score',
       header: 'Placar',
       align: 'center',
-      headerClassName: 'w-28 text-center',
-      className: 'w-28 text-center',
+      headerClassName: 'w-20 text-center px-1',
+      className: 'w-20 text-center px-1',
       cell: ({ row }) => {
         const isFinished = row.status === 'completed' || row.status === 'homologated';
         if (isFinished && row.teamA.score !== undefined && row.teamB.score !== undefined) {
           return (
             <div className="inline-flex flex-col items-center">
-              <span className="font-bold font-mono text-xs tabular-nums text-foreground bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
+              <span className="font-bold font-mono text-xs tabular-nums text-foreground bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
                 {row.teamA.score} - {row.teamB.score}
               </span>
               {row.sets && row.sets.length > 0 && (
@@ -849,18 +850,17 @@ export function MatchesPage() {
     {
       id: 'schedule',
       header: 'Data & Local',
-      headerClassName: 'w-36',
-      className: 'w-36',
+      headerClassName: 'w-32 px-1.5',
+      className: 'w-32 px-1.5',
       cell: ({ row }) => (
         <div className="text-xs min-w-0">
-          <p className="font-medium text-foreground flex items-center gap-1 font-mono tabular-nums text-[11px]">
+          <p className="font-medium text-foreground flex items-center gap-1 font-mono tabular-nums text-[11px] whitespace-nowrap">
             <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
             {new Date(row.date).toLocaleDateString('pt-BR')} {row.time}
           </p>
-          <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5">
-            <MapPin className="w-3 h-3 text-zinc-400 shrink-0" />
-            {row.court ? <span className="font-semibold text-zinc-300">{row.court} &bull; </span> : ''}
-            {row.venue || 'Local Principal'}
+          <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1 mt-0.5" title={row.venue || 'Local Principal'}>
+            <MapPin className="w-2.5 h-2.5 text-zinc-500 shrink-0" />
+            <span className="truncate">{row.venue || 'Local Principal'}</span>
           </p>
         </div>
       ),
@@ -868,18 +868,18 @@ export function MatchesPage() {
     {
       id: 'court',
       header: 'Quadra',
-      headerClassName: 'w-36 text-center',
-      className: 'w-36 text-center',
+      headerClassName: 'w-32 text-center px-1',
+      className: 'w-32 text-center px-1',
       cell: ({ row }) => {
         const currentCourt = row.court;
         return (
-          <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               disabled={!can('match:edit')}
               onClick={() => handleSetCourt(row.record.id, currentCourt === 'Quadra 1' ? '' : 'Quadra 1')}
               className={cn(
-                'px-2 py-0.5 rounded text-[10px] font-semibold transition-all border cursor-pointer',
+                'px-1.5 py-0.5 rounded text-[10px] font-semibold transition-all border cursor-pointer whitespace-nowrap',
                 currentCourt === 'Quadra 1'
                   ? 'bg-amber-500 text-zinc-950 border-amber-400 font-bold shadow-sm'
                   : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700'
@@ -893,7 +893,7 @@ export function MatchesPage() {
               disabled={!can('match:edit')}
               onClick={() => handleSetCourt(row.record.id, currentCourt === 'Quadra 2' ? '' : 'Quadra 2')}
               className={cn(
-                'px-2 py-0.5 rounded text-[10px] font-semibold transition-all border cursor-pointer',
+                'px-1.5 py-0.5 rounded text-[10px] font-semibold transition-all border cursor-pointer whitespace-nowrap',
                 currentCourt === 'Quadra 2'
                   ? 'bg-sky-500 text-zinc-950 border-sky-400 font-bold shadow-sm'
                   : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700'
@@ -909,30 +909,30 @@ export function MatchesPage() {
     {
       id: 'status',
       header: 'Status',
-      headerClassName: 'w-24 text-center',
-      className: 'w-24 text-center',
+      headerClassName: 'w-20 text-center px-1',
+      className: 'w-20 text-center px-1',
       cell: ({ row }) => (
-        <StatusBadge status={row.status} className="text-[10px] h-5" />
+        <StatusBadge status={row.status} className="text-[10px] h-5 px-1.5" />
       ),
     },
     {
       id: 'actions',
-      header: 'Ações / Homologar',
+      header: 'Ações',
       align: 'right',
-      headerClassName: 'w-44 text-right',
-      className: 'w-44 text-right',
+      headerClassName: 'w-28 text-right px-1',
+      className: 'w-28 text-right px-1',
       cell: ({ row }) => {
         const isFinished = row.status === 'completed' || row.status === 'homologated';
         const isHomologated = row.status === 'homologated';
 
         return (
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex items-center justify-end gap-1">
             {/* Ação Primária em Destaque */}
             {row.status === 'completed' && can('match:finalize') ? (
               <Button
                 variant="default"
                 size="sm"
-                className="h-7 px-2.5 text-xs gap-1 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm border border-emerald-500/30 shrink-0"
+                className="h-7 px-2 text-xs gap-1 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm border border-emerald-500/30 shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   setPendingHomologateMatch(row.record);
@@ -949,7 +949,7 @@ export function MatchesPage() {
             ) : canSubmitMatchScore(row.record) ? (
               <Button
                 size="sm"
-                className="h-7 px-2 text-xs gap-1 font-medium shadow-none shrink-0"
+                className="h-7 px-2 text-xs gap-1 font-semibold bg-amber-500 hover:bg-amber-400 text-zinc-950 shadow-none shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   setLiveScorerMatch(row.record);
@@ -1365,6 +1365,7 @@ export function MatchesPage() {
                   </div>
                 ) : (
                   <DataTable
+                    dense
                     data={filteredMatches}
                     columns={columns}
                     emptyTitle="Nenhum confronto encontrado para os filtros selecionados"

@@ -75,6 +75,10 @@ export interface DataTableProps<TData> extends React.HTMLAttributes<HTMLDivEleme
   onRowClick?: (row: TData) => void;
   /** Se true, aplica espaçamento compacto nas células */
   dense?: boolean;
+  /** Classes adicionais para o elemento <table> */
+  tableClassName?: string;
+  /** Classes adicionais para o container de scroll da tabela */
+  containerClassName?: string;
   /** Configuração de paginação opcional */
   pagination?: DataTablePagination;
   /** Estado de carregamento */
@@ -105,6 +109,8 @@ export function DataTable<TData>({
   keyExtractor,
   onRowClick,
   dense = false,
+  tableClassName,
+  containerClassName,
   pagination,
   isLoading = false,
   isError = false,
@@ -161,8 +167,8 @@ export function DataTable<TData>({
       {...props}
     >
       {/* Container de rolagem horizontal seguro para mobile */}
-      <div className="relative w-full overflow-x-auto scrollbar-thin">
-        <Table>
+      <div className={cn('relative w-full overflow-x-auto scrollbar-thin', containerClassName)}>
+        <Table className={tableClassName}>
           <TableHeader className="bg-zinc-950/40">
             <TableRow className="hover:bg-transparent border-b border-border">
               {columns.map((col, index) => {
@@ -180,8 +186,8 @@ export function DataTable<TData>({
                   <TableHead
                     key={col.id || String(col.accessorKey) || `col-${index}`}
                     className={cn(
-                      'font-semibold text-xs text-muted-foreground uppercase tracking-wider select-none whitespace-nowrap',
-                      dense ? 'h-9 px-3' : 'h-11 px-4',
+                      'font-semibold text-muted-foreground uppercase tracking-wider select-none whitespace-nowrap',
+                      dense ? 'h-8 px-2 text-[10px]' : 'h-11 px-4 text-xs',
                       alignmentClass,
                       col.headerClassName,
                     )}
@@ -240,7 +246,7 @@ export function DataTable<TData>({
                         key={col.id || String(col.accessorKey) || `cell-${rowIndex}-${colIndex}`}
                         className={cn(
                           'text-xs text-foreground',
-                          dense ? 'p-3' : 'p-4',
+                          dense ? 'py-1.5 px-2' : 'p-4',
                           alignmentClass,
                           col.isNumeric && 'tabular-nums font-mono',
                           col.className,
