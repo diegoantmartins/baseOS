@@ -782,13 +782,13 @@ export function DrawArenaHUD({
                 )}
               </Button>
 
-              {/* Botão Primário Hero com Brilho Nobre */}
+              {/* Botão Primário Hero com Brilho Nobre Verde */}
               <Button
                 size="sm"
                 variant="default"
                 onClick={onAdvance}
                 disabled={!canAdvance}
-                className="gap-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider px-6 sm:px-8 h-10 rounded-xl shadow-[0_0_30px_rgba(245,158,11,0.45)] disabled:opacity-40"
+                className="gap-2 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xs uppercase tracking-wider px-6 sm:px-8 h-10 rounded-xl shadow-[0_0_30px_rgba(16,185,129,0.45)] disabled:opacity-40"
               >
                 <SkipForward className="h-4 w-4" />
                 <span>

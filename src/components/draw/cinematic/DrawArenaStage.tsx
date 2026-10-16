@@ -106,18 +106,6 @@ export function SceneStructure() {
           />
         </mesh>
       ))}
-
-      {/* Halo de luz no fundo do estúdio */}
-      <mesh position={[0, 2.5, -9]}>
-        <torusGeometry args={[7.5, 0.04, 16, 100]} />
-        <meshStandardMaterial
-          color="#38bdf8"
-          emissive="#0284c7"
-          emissiveIntensity={0.6}
-          transparent
-          opacity={0.4}
-        />
-      </mesh>
     </group>
   );
 }
@@ -162,8 +150,8 @@ export function DrawChamber({
         />
       </mesh>
 
-      {/* Anel intermediário dourado polido */}
-      <mesh position={[0, -1.4, 0]}>
+      {/* Anel intermediário dourado polido (horizontal) */}
+      <mesh position={[0, -1.4, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[1.92, 0.06, 16, 64]} />
         <meshStandardMaterial
           color={ARENA_COLORS.goldBright}
@@ -224,8 +212,8 @@ export function DrawChamber({
         />
       </mesh>
 
-      {/* Aro superior de ouro polido da câmara */}
-      <mesh position={[0, 1.56, 0]}>
+      {/* Aro superior de ouro polido da câmara (horizontal) */}
+      <mesh position={[0, 1.56, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[1.51, 0.06, 16, 64]} />
         <meshStandardMaterial
           color={ARENA_COLORS.goldBright}
